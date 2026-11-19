@@ -1105,6 +1105,20 @@ easy to "simplify" into being wrong:
     never a negative balance. Paystack only (it redirects; the inline checkouts
     need a script the portal CSP does not admit). Gateway amounts are compared in
     integer kobo by `mam_payment_amount_ok()`, never `amount * 100`.
+  - **Bank transfers are reported, then confirmed (v93, HANDOFF §4v)** — the
+    rules are NGG's `offline_payments`, ported. A guardian reports a transfer with
+    the slip (`POST /api/parent/fee-transfer` → `mam_fee_transfer_claim()`); it is
+    a CLAIM and credits nothing. The office confirms by RETYPING the reference and
+    amount from the statement (`mam_fee_transfer_verify()`); the confirm form must
+    not print the claimed figures beside the boxes. The slip's BYTES decide its
+    type; one slip and one bank reference are one payment, ever — and
+    `mam_fee_payment_record()` now refuses a reused reference too, which used to
+    credit the same transfer twice. A rejected reference cannot be reported again.
+    The verify is compare-and-set and REVERTED if crediting throws. Online money
+    taken beyond the balance is a `fee_online_unapplied` row resolved as
+    refunded / moved to the same child's invoice / dismissed. Slips live under
+    `storage/uploads/fee-evidence` so the backup carries them, and stream only via
+    `/api/admin/fee-evidence` (fees cap, attachment, hash re-checked).
   - ⚠️ **A charge the gateway confirmed is `status = 'succeeded'`.** The console
     read `'success'` in eight money queries, which nothing writes, so Collected
     and the ledger's accounts read zero. `MAM_CONSOLE_PAID` /

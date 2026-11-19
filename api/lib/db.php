@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 92;
+const MAM_SCHEMA_TARGET = 93;
 
 /**
  * Open (and cache) the PDO connection.
@@ -3603,6 +3603,62 @@ function mam_db_migrate(PDO $db): void {
             ALTER TABLE payments ADD COLUMN fee_minor INTEGER;
             ALTER TABLE payments ADD COLUMN fee_payer_id INTEGER;
             CREATE INDEX IF NOT EXISTS idx_pay_fee_invoice ON payments(fee_invoice_id);
+        ",
+        /* v93 — the two halves of fee money that used to live in an inbox and an
+         * audit log (fees.php, HANDOFF §4v; the rules are NGG's offline_payments
+         * and unapplied_payments, which learnt them first).
+         *
+         * fee_transfer_claims: a guardian says "I paid by transfer" and attaches
+         * the slip. The bank instructions already told families to EMAIL proof and
+         * promised confirmation in 24 hours; nothing recorded either. The office
+         * confirms by retyping the reference and amount from the bank statement.
+         * The evidence hash is UNIQUE — one slip is evidence for one payment, ever.
+         *
+         * fee_online_unapplied: money an online charge took beyond what was still
+         * owed when it cleared. It was a note and a "to refund" figure with no way
+         * to say it had been dealt with; now somebody resolves it. */
+        93 => "
+            CREATE TABLE IF NOT EXISTS fee_transfer_claims (
+              id              INTEGER PRIMARY KEY AUTOINCREMENT,
+              invoice_id      INTEGER NOT NULL REFERENCES fee_invoices(id) ON DELETE CASCADE,
+              parent_id       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              amount_minor    INTEGER NOT NULL,
+              currency        TEXT    NOT NULL,
+              payer_name      TEXT    NOT NULL,
+              bank_name       TEXT    NOT NULL,
+              reference       TEXT    NOT NULL,
+              reference_key   TEXT    NOT NULL,
+              paid_on         TEXT    NOT NULL,
+              evidence_sha256 TEXT    NOT NULL UNIQUE,
+              evidence_file   TEXT    NOT NULL,
+              evidence_type   TEXT    NOT NULL,
+              evidence_bytes  INTEGER NOT NULL,
+              note            TEXT,
+              status          TEXT    NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','verified','rejected')),
+              reject_reason   TEXT,
+              decided_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              decided_at      TEXT,
+              fee_payment_id  INTEGER REFERENCES fee_payments(id) ON DELETE SET NULL,
+              created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+              CHECK(amount_minor > 0 AND amount_minor = CAST(amount_minor AS INTEGER)),
+              CHECK(status <> 'rejected' OR reject_reason IS NOT NULL)
+            );
+            CREATE INDEX IF NOT EXISTS idx_feeclaim_invoice ON fee_transfer_claims(invoice_id, status);
+            CREATE INDEX IF NOT EXISTS idx_feeclaim_refkey ON fee_transfer_claims(reference_key);
+            CREATE TABLE IF NOT EXISTS fee_online_unapplied (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              reference   TEXT    NOT NULL UNIQUE,
+              invoice_id  INTEGER REFERENCES fee_invoices(id) ON DELETE SET NULL,
+              over_minor  INTEGER NOT NULL,
+              currency    TEXT    NOT NULL,
+              status      TEXT    NOT NULL DEFAULT 'open' CHECK(status IN ('open','refunded','applied','dismissed')),
+              note        TEXT,
+              applied_invoice_id INTEGER REFERENCES fee_invoices(id) ON DELETE SET NULL,
+              resolved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              resolved_at TEXT,
+              created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+              CHECK(over_minor > 0 AND over_minor = CAST(over_minor AS INTEGER))
+            );
         ",
     ];
 

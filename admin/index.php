@@ -668,6 +668,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'fee_aid_revoke' => 'fees', 'fee_credit_apply' => 'fees', 'fee_payment_record' => 'fees',
         'fee_payment_void' => 'fees', 'fee_plan_approve' => 'fees', 'fee_plan_cancel' => 'fees',
         'bursary_decide' => 'fees',
+        'fee_transfer_verify' => 'fees', 'fee_transfer_reject' => 'fees', 'fee_unapplied_resolve' => 'fees',
         'module_proposal_review' => 'curriculum',
         'curriculum_clone' => 'curriculum',
         // Programming a recital is an academic judgement about what a
@@ -1854,6 +1855,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             'already_decided' => 'That application was already decided.', 'outcome_note_required' => 'Write the note the family will read.',
             'above_published_band' => 'That is above the published band; the band is a ceiling.', 'student_not_found' => 'Choose a student.',
             'bad_kind' => 'Choose the kind of aid.', 'already_revoked' => 'That award was already revoked.',
+            'reference_reused' => 'That reference is already recorded as a payment. One bank reference is one payment.',
+            'claim_not_found' => 'That reported transfer no longer exists.', 'not_pending' => 'Somebody has already dealt with that transfer.',
+            'not_checked' => 'Tick that you checked the money arrived on the bank statement.',
+            'reference_mismatch' => 'The reference you typed from the statement does not match the one the family reported. Check it, or reject the claim with the reason.',
+            'amount_mismatch' => 'The amount you typed from the statement does not match the one the family reported. Check it, or reject the claim with the reason.',
+            'not_found' => 'That record no longer exists.', 'already_resolved' => 'That has already been resolved.',
+            'bad_decision' => 'Choose what happened to the money.', 'apply_target' => 'Choose another open invoice for the same child.',
+            'apply_currency' => 'That invoice is in a different currency.',
         ];
         $fail = static function (Throwable $e) use ($say, $back, $invId, $action): void {
             $code = $e->getMessage();
@@ -1912,6 +1921,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 case 'fee_plan_cancel':
                     mam_fee_plan_cancel((int) ($_POST['plan_id'] ?? 0), (string) ($_POST['reason'] ?? ''), $by);
                     $back('ok', 'Plan cancelled. The balance is due on the invoice\'s own date.', $invId);
+                case 'fee_transfer_verify':
+                    mam_fee_transfer_verify((int) ($_POST['claim_id'] ?? 0), (string) ($_POST['confirm_reference'] ?? ''),
+                        (string) ($_POST['confirm_amount'] ?? ''), !empty($_POST['checked']), $by);
+                    $back('ok', 'Transfer confirmed and credited. The family has been told.', $invId);
+                case 'fee_transfer_reject':
+                    mam_fee_transfer_reject((int) ($_POST['claim_id'] ?? 0), (string) ($_POST['reason'] ?? ''), $by);
+                    $back('ok', 'Transfer not confirmed. The family has been told why; the balance is still owed.', $invId);
+                case 'fee_unapplied_resolve':
+                    $to = (int) ($_POST['apply_to'] ?? 0);
+                    mam_fee_unapplied_resolve((int) ($_POST['unapplied_id'] ?? 0), (string) ($_POST['decision'] ?? ''), (string) ($_POST['note'] ?? ''), $by, $to ?: null);
+                    $back('ok', 'Recorded. The overpayment is resolved.', $invId);
                 case 'bursary_decide':
                     $st = (string) ($_POST['status'] ?? '');
                     $pct = trim((string) ($_POST['pct'] ?? ''));

@@ -3175,3 +3175,59 @@ ALTER TABLE payments ADD COLUMN fee_minor BIGINT NULL;
 ALTER TABLE payments ADD COLUMN fee_payer_id INT NULL;
 CREATE INDEX idx_pay_fee_invoice ON payments(fee_invoice_id);
 INSERT INTO schema_version (version) VALUES (92) ON DUPLICATE KEY UPDATE version = version;
+
+-- v93 — a guardian reports a bank transfer with proof; online money taken beyond
+-- the balance is resolved by a person (fees.php, HANDOFF §4v).
+CREATE TABLE IF NOT EXISTS fee_transfer_claims (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  invoice_id      INT NOT NULL,
+  parent_id       INT NULL,
+  amount_minor    BIGINT NOT NULL,
+  currency        CHAR(3) NOT NULL,
+  payer_name      VARCHAR(160) NOT NULL,
+  bank_name       VARCHAR(120) NOT NULL,
+  reference       VARCHAR(120) NOT NULL,
+  reference_key   VARCHAR(120) NOT NULL,
+  paid_on         DATE NOT NULL,
+  evidence_sha256 CHAR(64) NOT NULL,
+  evidence_file   VARCHAR(160) NOT NULL,
+  evidence_type   VARCHAR(40) NOT NULL,
+  evidence_bytes  INT NOT NULL,
+  note            VARCHAR(500),
+  status          VARCHAR(12) NOT NULL DEFAULT 'pending',
+  reject_reason   VARCHAR(500),
+  decided_by      INT NULL,
+  decided_at      DATETIME NULL,
+  fee_payment_id  INT NULL,
+  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_feeclaim_evidence (evidence_sha256),
+  KEY idx_feeclaim_invoice (invoice_id, status),
+  KEY idx_feeclaim_refkey (reference_key),
+  CONSTRAINT fk_feeclaim_invoice FOREIGN KEY (invoice_id)     REFERENCES fee_invoices(id) ON DELETE CASCADE,
+  CONSTRAINT fk_feeclaim_parent  FOREIGN KEY (parent_id)      REFERENCES users(id)        ON DELETE SET NULL,
+  CONSTRAINT fk_feeclaim_by      FOREIGN KEY (decided_by)     REFERENCES users(id)        ON DELETE SET NULL,
+  CONSTRAINT fk_feeclaim_payment FOREIGN KEY (fee_payment_id) REFERENCES fee_payments(id) ON DELETE SET NULL,
+  CONSTRAINT chk_feeclaim_amount CHECK (amount_minor > 0),
+  CONSTRAINT chk_feeclaim_status CHECK (status IN ('pending','verified','rejected')),
+  CONSTRAINT chk_feeclaim_reject CHECK (status <> 'rejected' OR reject_reason IS NOT NULL)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS fee_online_unapplied (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  reference   VARCHAR(64) NOT NULL,
+  invoice_id  INT NULL,
+  over_minor  BIGINT NOT NULL,
+  currency    CHAR(3) NOT NULL,
+  status      VARCHAR(12) NOT NULL DEFAULT 'open',
+  note        VARCHAR(500),
+  applied_invoice_id INT NULL,
+  resolved_by INT NULL,
+  resolved_at DATETIME NULL,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_feeunap_ref (reference),
+  CONSTRAINT fk_feeunap_invoice FOREIGN KEY (invoice_id)         REFERENCES fee_invoices(id) ON DELETE SET NULL,
+  CONSTRAINT fk_feeunap_applied FOREIGN KEY (applied_invoice_id) REFERENCES fee_invoices(id) ON DELETE SET NULL,
+  CONSTRAINT fk_feeunap_by      FOREIGN KEY (resolved_by)        REFERENCES users(id)        ON DELETE SET NULL,
+  CONSTRAINT chk_feeunap_amount CHECK (over_minor > 0),
+  CONSTRAINT chk_feeunap_status CHECK (status IN ('open','refunded','applied','dismissed'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (93) ON DUPLICATE KEY UPDATE version = version;

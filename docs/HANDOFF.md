@@ -1743,3 +1743,41 @@ simulated (no Paystack account here), and a real settlement against the dev
 database checked on both the guardian statement and the console. Not exercised:
 a live Paystack charge.
 
+## 4v. 2026-11-19 — bank transfers families report, ported from NGG
+
+MAM and NGG run the same business processes (enrol, fees, shop, ID cards,
+guardians, check-in), so where one has solved a money problem the other usually
+has the same problem. NGG's membership payments already had what MAM's fee layer
+lacked; this ports two of them. Branch `afv/mam-audit`. Suite 6808 → **6859, 0 failed**.
+
+- **Reported transfers (v93 `fee_transfer_claims`).** Most families pay by
+  transfer, and the bank instructions said "email proof, we confirm within 24
+  hours" with nothing recording either half. A guardian now reports the transfer
+  on the invoice with a photo or PDF of the slip; the console queues it ("Transfers
+  to check", and the decision queue); the office downloads the slip and confirms by
+  retyping the reference and amount from the bank statement, or says why not. The
+  family is emailed either way, and while a report is waiting the Pay button says
+  to wait rather than pay twice.
+- **NGG's rules, each one tested by breaking it:** the slip's bytes decide its
+  type; one slip, ever; one bank reference, ever; a rejected reference cannot come
+  back with a new photo; confirming is compare-and-set and reverted if crediting
+  throws (so a claim never reads confirmed on an invoice it did not credit).
+- **Found on the way:** `mam_fee_payment_record()` accepted the same bank
+  reference twice, so two people recording one transfer credited it twice
+  (measured: ₦51,000 on a ₦50,000 transfer). It now refuses `reference_reused`.
+  And the console's "Plans waiting" card escaped names twice.
+- **Online overpayments (v93 `fee_online_unapplied`)** are rows somebody resolves —
+  refunded at the gateway, moved to the same child's other open invoice (same
+  currency only), or dismissed with a reason — instead of a note.
+
+Still in NGG and not ported, deliberately: a SECOND-PERSON rule for payments the
+office records by hand (NGG requires a different staff member to verify an
+offline payment). That changes how MAM's office works day to day, so it is the
+owner's call. Also NGG-side: refunds through Paystack's refund API from the
+console (built for NGG's shop) — MAM still refunds from Paystack's dashboard.
+
+Verified in Chromium: a guardian at 390px reports a transfer with a JPEG; the
+console lists it; the downloaded slip is byte-identical to the one sent; a wrong
+retyped reference is refused; the right one credits the invoice and the guardian
+sees nothing outstanding and a receipt.
+

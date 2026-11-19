@@ -425,6 +425,15 @@ function mam_console_decisions(): array {
         'title' => $suspense . ' payment' . ($suspense === 1 ? '' : 's') . ' with no matching application',
         'why' => 'Signature verified, nothing to apply it to. Sitting in suspense, not applied.'];
 
+    $claims = mam_console_int('dec.feeclaims', "SELECT COUNT(*) FROM fee_transfer_claims WHERE status = 'pending'");
+    if ($claims > 0) $q[] = ['screen' => 'invoices', 'blocking' => true, 'age' => '24h',
+        'title' => $claims . ' bank transfer' . ($claims === 1 ? '' : 's') . ' reported by families, waiting to be checked',
+        'why' => 'The bank instructions promise confirmation within 24 hours. Check each against the statement.'];
+    $unap = mam_console_int('dec.feeunap', "SELECT COUNT(*) FROM fee_online_unapplied WHERE status = 'open'");
+    if ($unap > 0) $q[] = ['screen' => 'invoices', 'blocking' => false, 'age' => 'now',
+        'title' => $unap . ' online overpayment' . ($unap === 1 ? '' : 's') . ' to refund or move',
+        'why' => 'Money a family paid after the balance was already settled. It is theirs until somebody deals with it.'];
+
     $vet = mam_console_try('dec.vetting', fn() => mam_vetting_attention(50), []) ?: [];
     foreach (array_slice($vet, 0, 3) as $v) {
         $q[] = ['screen' => 'vetting', 'blocking' => (($v['state'] ?? '') === 'gap'),
@@ -742,6 +751,18 @@ function mam_console_invoices(array $q = []): array {
                FROM fee_payment_plans p JOIN fee_invoices i ON i.id = p.invoice_id
                LEFT JOIN users s ON s.id = i.student_id
               WHERE p.status = 'active' AND p.approved_by IS NULL ORDER BY p.created_at LIMIT 50"),
+        // Transfers families reported, oldest first: the bank instructions promise
+        // confirmation within 24 hours, so the one waiting longest is the one owed.
+        'claims_waiting' => mam_console_rows('inv.claims',
+            "SELECT c.id, c.invoice_id, c.amount_minor, c.currency, c.paid_on, c.created_at, i.public_ref, s.name student
+               FROM fee_transfer_claims c JOIN fee_invoices i ON i.id = c.invoice_id
+               LEFT JOIN users s ON s.id = i.student_id
+              WHERE c.status = 'pending' ORDER BY c.created_at LIMIT 50"),
+        'unapplied_open' => mam_console_rows('inv.unapplied',
+            "SELECT u.id, u.invoice_id, u.over_minor, u.currency, u.reference, u.created_at, i.public_ref, s.name student
+               FROM fee_online_unapplied u LEFT JOIN fee_invoices i ON i.id = u.invoice_id
+               LEFT JOIN users s ON s.id = i.student_id
+              WHERE u.status = 'open' ORDER BY u.created_at LIMIT 50"),
         'detail' => isset($q['id']) && (int) $q['id'] > 0 ? mam_console_try('inv.detail', fn() => mam_console_invoice_detail((int) $q['id']), null) : null,
         'methods' => MAM_FEE_PAY_METHODS,
     ];
@@ -772,8 +793,13 @@ function mam_console_invoice_detail(int $id): ?array {
           WHERE p.fee_invoice_id = ? AND p.purpose = 'fee' AND " . MAM_CONSOLE_PAID . "
           ORDER BY p.id", [$id]) as $o) {
         $o['refund_minor'] = max(0, (int) $o['fee_minor'] - (int) $o['credited']);
+        $o['unapplied'] = mam_console_try('inv.unap1', fn() => mam_db_row('SELECT * FROM fee_online_unapplied WHERE reference = ?', [$o['reference']]), null);
         $inv['online'][] = $o;
     }
+    // Where an overpayment can be moved: the same child's other open invoices, same currency.
+    $inv['open_siblings'] = mam_console_rows('inv.siblings',
+        "SELECT id, public_ref, term_label, currency, total_minor - paid_minor AS due_minor FROM fee_invoices
+          WHERE student_id = ? AND id <> ? AND status IN ('issued','part_paid') ORDER BY id", [(int) $row['student_id'], $id]);
     return $inv;
 }
 

@@ -461,6 +461,7 @@
     API.request('parent/fees?student_id=' + encodeURIComponent(c.student_id), { method: 'GET' })
       .then(function (r) {
         var out = [];
+        S.bank = r.bank || null;
 
         // Due now — the design's own card, with each stage of the arithmetic.
         var live = (r.invoices || []).filter(function (i) {
@@ -565,6 +566,12 @@
             + '</span></div>'
           : '')
 
+      /* A transfer the family reported is still being checked: say so ABOVE the
+         Pay button, or the likeliest next thing is the same money sent twice. */
+      + ((inv.claims || []).some(function (k) { return k.status === 'pending'; })
+          ? '<div class="p-notice p-gap-t"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i><span>You reported a transfer for this invoice. '
+            + 'The office is checking it against the bank statement — please wait for that before paying again.</span></div>'
+          : '')
       + '<button type="button" class="p-action is-pay" data-pay="' + esc(inv.id) + '">'
       + '<i class="fa-solid fa-lock" aria-hidden="true"></i>Pay '
       + esc(inv.charge ? inv.charge.amount : inv.due) + '</button>'
@@ -592,7 +599,59 @@
             + '</div>'
           : '<button type="button" class="p-action is-alt" data-plan="' + esc(inv.id) + '">'
             + 'Pay in 3 instalments instead</button>')
+      + transferBlock(inv)
       + '</section>';
+  }
+
+  /* "I paid by bank transfer." Most families pay this way, and the bank details
+     used to say "email the proof" with nothing on the screen to show it had
+     arrived. The report is a CLAIM: nothing is credited until the office has
+     seen the money on the statement, and the card says which state it is in. */
+  var CLAIM_WORDS = { pending: 'Being checked', verified: 'Received', rejected: 'Not confirmed' };
+  var CLAIM_SAYS  = { pending: 'The office is checking it against the bank statement.', verified: 'On the account.', rejected: '' };
+  function transferBlock(inv) {
+    var claims = inv.claims || [];
+    /* The receipts list's row shape, which wraps: a .p-line put the chip beside
+       the sentence and squeezed the sentence into a column one word wide. */
+    var rows = claims.map(function (k) {
+      return '<div class="p-row"><span class="p-row-main">'
+        + '<span class="p-title p-num">' + esc(k.amount) + '</span>'
+        + '<span class="p-caption">Transfer sent ' + esc(fmtDate(k.paid_on)) + '. '
+        + esc(k.status === 'rejected' ? (k.reject_reason || '') : (CLAIM_SAYS[k.status] || '')) + '</span></span>'
+        + '<span class="p-chip' + (k.status === 'verified' ? ' is-good' : k.status === 'rejected' ? ' is-bad' : '') + '">'
+        + esc(CLAIM_WORDS[k.status] || k.status) + '</span></div>';
+    }).join('');
+    var waiting = claims.some(function (k) { return k.status === 'pending'; });
+    return (rows ? '<div class="p-card-foot"><h3 class="p-label">Transfers you reported</h3><div class="p-rows">' + rows + '</div></div>' : '')
+      + (waiting ? ''
+         : '<div data-transfer-slot="' + esc(inv.id) + '"><button type="button" class="p-action p-outline" data-transfer-open="'
+           + esc(inv.id) + '" data-due="' + esc(inv.due_minor) + '">I paid by bank transfer</button></div>');
+  }
+
+  function transferForm(invId, dueMinor) {
+    var b = S.bank || {};
+    var today = new Date().toISOString().slice(0, 10);
+    var due = (Number(dueMinor) / 100).toFixed(2);
+    return '<div class="p-card-foot"><h3 class="p-label">Tell us about your transfer</h3>'
+      + (b.account_number ? '<p class="p-caption p-gap-t">The academy\u2019s account: ' + esc(b.account_name) + ' · '
+          + esc(b.bank) + ' · <span class="p-num">' + esc(b.account_number) + '</span></p>' : '')
+      + '<div class="p-field p-gap-t"><label for="tfAmt' + invId + '">Amount you sent</label>'
+      + '<input id="tfAmt' + invId + '" inputmode="decimal" value="' + esc(due) + '"></div>'
+      + '<div class="p-field"><label for="tfOn' + invId + '">Date of the transfer</label>'
+      + '<input id="tfOn' + invId + '" type="date" max="' + today + '" value="' + today + '"></div>'
+      + '<div class="p-field"><label for="tfRef' + invId + '">Transaction reference or session ID, from the slip or the bank alert</label>'
+      + '<input id="tfRef' + invId + '" autocomplete="off"></div>'
+      + '<div class="p-field"><label for="tfBank' + invId + '">Bank you sent it from</label>'
+      + '<input id="tfBank' + invId + '" autocomplete="off"></div>'
+      + '<div class="p-field"><label for="tfName' + invId + '">Name on that account</label>'
+      + '<input id="tfName' + invId + '" autocomplete="name"></div>'
+      + '<div class="p-field"><label for="tfFile' + invId + '">Photo or PDF of the slip, receipt or alert</label>'
+      + '<input id="tfFile' + invId + '" type="file" accept="image/jpeg,image/png,image/webp,application/pdf"></div>'
+      + '<div class="p-field"><label for="tfNote' + invId + '">Anything the office should know (optional)</label>'
+      + '<input id="tfNote' + invId + '" autocomplete="off"></div>'
+      + '<p class="p-caption">We check it against the bank statement, usually within a day, and email you either way. '
+      + 'Nothing about your child\u2019s lessons or report waits on it.</p>'
+      + '<button type="button" class="p-action" data-transfer-send="' + esc(invId) + '">Send to the office</button></div>';
   }
 
   /* ── 5 · Consents ──────────────────────────────────────────────────────── */
@@ -1035,7 +1094,7 @@
   document.addEventListener('click', function (e) {
     var t = e.target.closest('[data-screen],[data-sheet-open],[data-sheet-close],[data-child],'
       + '[data-thread],[data-reply],[data-consent],[data-channel],[data-plan],[data-pay],'
-      + '[data-appeal],[data-ask],[data-bursary],[data-new-thread],[data-print],'
+      + '[data-appeal],[data-ask],[data-bursary],[data-new-thread],[data-print],[data-transfer-open],[data-transfer-send],'
       + '[data-text-size],[data-theme-set],[data-toggle],#signOut');
     if (!t) return;
 
@@ -1152,6 +1211,44 @@
       if (reason == null || !reason.trim()) return;
       write(t, API.request('parent/appeal', { method: 'POST', body: { report_id: Number(t.getAttribute('data-appeal')), reason: reason.trim() } }),
         function () { toast('Your appeal has been recorded. The panel will write to you.', 'good'); renderReports(); });
+      return;
+    }
+
+    if (t.hasAttribute('data-transfer-open')) {
+      e.preventDefault();
+      var tid = t.getAttribute('data-transfer-open');
+      var slot = main.querySelector('[data-transfer-slot="' + tid + '"]');
+      if (slot) {
+        slot.innerHTML = transferForm(tid, t.getAttribute('data-due'));
+        var first = slot.querySelector('input');
+        if (first) first.focus();
+      }
+      return;
+    }
+    if (t.hasAttribute('data-transfer-send')) {
+      e.preventDefault();
+      var iid = t.getAttribute('data-transfer-send');
+      var val = function (k) { var el = $('#' + k + iid); return el ? el.value.trim() : ''; };
+      var fileEl = $('#tfFile' + iid);
+      var f = fileEl && fileEl.files && fileEl.files[0];
+      if (!val('tfRef')) { toast('Type the transaction reference from the slip or the bank alert.', 'bad'); return; }
+      if (!f) { toast('Attach a photo or PDF of the slip, receipt or bank alert.', 'bad'); return; }
+      if (f.size > 5 * 1024 * 1024) { toast('That file is larger than 5 MB. A phone photo of the slip is enough.', 'bad'); return; }
+      var rd = new FileReader();
+      rd.onerror = function () { toast('That file could not be read. Try attaching it again.', 'bad'); };
+      rd.onload = function () {
+        write(t, API.request('parent/fee-transfer', { method: 'POST', body: {
+            invoice_id: Number(iid), amount: val('tfAmt'), paid_on: val('tfOn'), reference: val('tfRef'),
+            bank_name: val('tfBank'), payer_name: val('tfName'), note: val('tfNote'), evidence: String(rd.result) } }),
+          function () {
+            toast('Sent. The office will check it against the bank statement and email you either way.', 'good');
+            renderFinance();
+          }).catch(function (err) {
+            var d = err && err.body && err.body.detail;
+            if (d) toast(d, 'bad');
+          });
+      };
+      rd.readAsDataURL(f);
       return;
     }
 

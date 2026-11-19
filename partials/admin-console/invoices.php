@@ -101,6 +101,40 @@ $a = $d['aging'] ?? [];
         <?php endif; ?>
       <?php ac_card_close('Prices are typed in the invoice\'s own currency. A waiver reduces the line and is never a cash entry.'); ?>
 
+      <?php if (!empty($det['claims'])): ?>
+        <?php ac_card_open('Transfers the family reported', count($det['claims']) . ''); ?>
+          <?php foreach ($det['claims'] as $cl): ?>
+            <div class="ac-cardbody">
+              <div class="ac-defs">
+                <?php ac_def('Amount', ac_h((string) $cl['amount']) . ' · paid ' . ac_h((string) $cl['paid_on'])); ?>
+                <?php ac_def('From', ac_h((string) $cl['payer_name']) . ' · ' . ac_h((string) $cl['bank_name'])); ?>
+                <?php ac_def('Status', $cl['status'] === 'pending' ? ac_pill('Waiting to be checked', 'warn')
+                    : ($cl['status'] === 'verified' ? ac_status('recorded', 'Confirmed') : ac_pill('Not confirmed', 'bad') . ' <span class="ac-sub">' . ac_h((string) $cl['reject_reason']) . '</span>')); ?>
+                <?php ac_def('Slip', '<a href="/api/admin/fee-evidence?id=' . (int) $cl['id'] . '">Download the ' . ($cl['evidence_type'] === 'application/pdf' ? 'PDF' : 'photo') . '</a>'); ?>
+                <?php if (!empty($cl['note'])): ?><?php ac_def('Their note', ac_h((string) $cl['note'])); ?><?php endif; ?>
+              </div>
+              <?php if ($cl['status'] === 'pending'): ?>
+                <?php /* The reference and amount are NOT shown here on purpose: confirming
+                         means typing them from the bank statement, and a form that
+                         prints the claim's own figures beside the boxes gets them copied. */ ?>
+                <?php ac_form('fee_transfer_verify', 'invoices', ['invoice_id' => (int) $det['id'], 'claim_id' => (int) $cl['id']], 'class="ac-mt"'); ?>
+                  <div class="ac-grid ac-grid--2">
+                    <label class="ac-field"><span class="ac-label">Reference, as it appears on the bank statement</span><input class="ac-input" name="confirm_reference" required autocomplete="off"></label>
+                    <label class="ac-field"><span class="ac-label">Amount received (<?= ac_h((string) $det['currency']) ?>)</span><input class="ac-input" name="confirm_amount" inputmode="decimal" required autocomplete="off"></label>
+                  </div>
+                  <label class="ac-tick ac-mt"><input type="checkbox" name="checked" value="1" required><span>I have seen this money arrive in the academy's account.</span></label>
+                  <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Confirm and credit the invoice</button></div>
+                <?php ac_form_end(); ?>
+                <?php ac_form('fee_transfer_reject', 'invoices', ['invoice_id' => (int) $det['id'], 'claim_id' => (int) $cl['id']], 'class="ac-row ac-mt"'); ?>
+                  <input class="ac-input" name="reason" required minlength="<?= MAM_FEE_REASON_MIN ?>" placeholder="Why it cannot be confirmed — the family reads this" aria-label="Why the transfer cannot be confirmed">
+                  <button type="submit" class="ac-btn ac-btn--danger">Not confirmed</button>
+                <?php ac_form_end(); ?>
+              <?php endif; ?>
+            </div>
+          <?php endforeach; ?>
+        <?php ac_card_close('One slip is evidence for one payment, and one bank reference is one payment. A reference that was not confirmed cannot be reported again.'); ?>
+      <?php endif; ?>
+
       <?php if (!empty($det['online'])): ?>
         <?php ac_card_open('Paid online', count($det['online']) . ''); ?>
           <div class="ac-tablewrap">
@@ -112,7 +146,30 @@ $a = $d['aging'] ?? [];
                     <td><?= ac_h(substr((string) $o['verified_at'], 0, 10)) ?><div class="ac-sub"><?= ac_h($o['reference'] . ' · ' . ucfirst((string) $o['provider'])) ?></div></td>
                     <td class="ac-num"><?= ac_h(mam_fee_display((int) $o['fee_minor'], $cur)) ?><div class="ac-sub">₦<?= ac_h(number_format((int) $o['amount_minor'] / 100, 2)) ?> charged</div></td>
                     <td class="ac-num"><?= ac_h(mam_fee_display((int) $o['credited'], $cur)) ?></td>
-                    <td><?= (int) $o['refund_minor'] > 0 ? ac_pill(mam_fee_display((int) $o['refund_minor'], $cur), 'bad') : ac_h('—') ?></td>
+                    <td><?php $un = $o['unapplied'] ?? null; ?>
+                      <?php if ($un && $un['status'] !== 'open'): ?>
+                        <?= ac_status('recorded', ['refunded' => 'Refunded', 'applied' => 'Moved to another invoice', 'dismissed' => 'Dismissed'][$un['status']] ?? $un['status']) ?>
+                        <?php if (!empty($un['note'])): ?><div class="ac-sub"><?= ac_h((string) $un['note']) ?></div><?php endif; ?>
+                      <?php elseif ((int) $o['refund_minor'] > 0): ?>
+                        <?= ac_pill(mam_fee_display((int) $o['refund_minor'], $cur), 'bad') ?>
+                        <?php if ($un): ?>
+                          <?php ac_form('fee_unapplied_resolve', 'invoices', ['invoice_id' => (int) $det['id'], 'unapplied_id' => (int) $un['id']], 'class="ac-mt"'); ?>
+                            <select class="ac-select" name="decision" required aria-label="What happened to the money">
+                              <option value="refunded">Refunded at the gateway</option>
+                              <?php if (!empty($det['open_siblings'])): ?><option value="applied">Move to another invoice</option><?php endif; ?>
+                              <option value="dismissed">Dismissed</option>
+                            </select>
+                            <?php if (!empty($det['open_siblings'])): ?>
+                              <select class="ac-select ac-mt" name="apply_to" aria-label="Which invoice to move it to">
+                                <option value="">— invoice to move it to —</option>
+                                <?php foreach ($det['open_siblings'] as $sb): ?><option value="<?= (int) $sb['id'] ?>"><?= ac_h($sb['public_ref'] . ' · ' . $sb['term_label'] . ' · ' . mam_fee_display((int) $sb['due_minor'], (string) $sb['currency']) . ' owed') ?></option><?php endforeach; ?>
+                              </select>
+                            <?php endif; ?>
+                            <input class="ac-input ac-mt" name="note" placeholder="Refund reference, or why" aria-label="Note">
+                            <button type="submit" class="ac-btn ac-btn--sm ac-mt">Record</button>
+                          <?php ac_form_end(); ?>
+                        <?php endif; ?>
+                      <?php else: ?><?= ac_h('—') ?><?php endif; ?></td>
                   </tr>
                 <?php endforeach; ?>
               </tbody>
@@ -261,6 +318,32 @@ $a = $d['aging'] ?? [];
     </div>
   <?php ac_card_close(); ?>
 
+  <?php ac_card_open('Transfers to check', count($d['claims_waiting'] ?? []) . ''); ?>
+    <div class="ac-cardbody">
+      <?php if (!($d['claims_waiting'] ?? [])): ?>
+        <p class="ac-note">No family is waiting on a transfer to be confirmed.</p>
+      <?php else: ?>
+        <div class="ac-defs">
+          <?php foreach ($d['claims_waiting'] as $cw): ?>
+            <?php ac_def((string) $cw['student'] . ' · ' . mam_fee_display((int) $cw['amount_minor'], (string) $cw['currency']),
+                '<a href="' . ac_h(ac_url('invoices', ['id' => (int) $cw['invoice_id']])) . '">' . ac_h((string) $cw['public_ref']) . '</a> · reported ' . ac_h(mam_console_age((string) $cw['created_at']))); ?>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+    </div>
+  <?php ac_card_close('Families were promised confirmation within 24 hours.'); ?>
+
+  <?php if ($d['unapplied_open'] ?? []): ?>
+    <?php ac_card_open('Online overpayments', count($d['unapplied_open']) . ''); ?>
+      <div class="ac-cardbody"><div class="ac-defs">
+        <?php foreach ($d['unapplied_open'] as $uo): ?>
+          <?php ac_def((string) $uo['student'] . ' · ' . mam_fee_display((int) $uo['over_minor'], (string) $uo['currency']),
+              '<a href="' . ac_h(ac_url('invoices', ['id' => (int) $uo['invoice_id']])) . '">' . ac_h((string) $uo['public_ref']) . '</a> · ' . ac_h(mam_console_age((string) $uo['created_at']))); ?>
+        <?php endforeach; ?>
+      </div></div>
+    <?php ac_card_close('Money taken after the balance was already settled. Refund it, or move it to another of the child\'s invoices.'); ?>
+  <?php endif; ?>
+
   <?php ac_card_open('Plans waiting for approval', count($d['plans_waiting'] ?? []) . ''); ?>
     <div class="ac-cardbody">
       <?php if (!($d['plans_waiting'] ?? [])): ?>
@@ -268,7 +351,7 @@ $a = $d['aging'] ?? [];
       <?php else: ?>
         <div class="ac-defs">
           <?php foreach ($d['plans_waiting'] as $pw): ?>
-            <?php ac_def(ac_h((string) $pw['student']) . ' · ' . (int) $pw['instalments'] . ' instalments',
+            <?php ac_def((string) $pw['student'] . ' · ' . (int) $pw['instalments'] . ' instalments',
                 '<a href="' . ac_h(ac_url('invoices', ['id' => (int) $pw['invoice_id']])) . '">' . ac_h((string) $pw['public_ref']) . '</a> · asked ' . ac_h(mam_console_age((string) $pw['created_at']))); ?>
           <?php endforeach; ?>
         </div>

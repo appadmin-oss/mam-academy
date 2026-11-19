@@ -278,6 +278,7 @@ $r->group('/parent', function (MamRouter $r) use ($f) {
     $r->get ('/fees',    $f('parent/fees.php'),    [mw_role('parent')]);
     $r->post('/plan',    $f('parent/plan.php'),    [mw_csrf(), mw_role('parent')]);
     $r->post('/fee-pay', $f('parent/fee-pay.php'), [mw_csrf(), mw_role('parent'), mw_rate_limit('fee_pay', 20, 3600)]);
+    $r->post('/fee-transfer', $f('parent/fee-transfer.php'), [mw_csrf(), mw_role('parent'), mw_rate_limit('fee_transfer', 10, 3600)]);
     $r->get ('/bursary', $f('parent/bursary.php'), [mw_role('parent')]);
     $r->post('/bursary', $f('parent/bursary.php'), [mw_csrf(), mw_role('parent'), mw_rate_limit('bursary', 5, 3600)]);
     $r->get ('/makeup',  $f('parent/makeup.php'),  [mw_role('parent')]);
@@ -363,6 +364,7 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
 $r->group('/admin', function (MamRouter $r) use ($f) {
     // RBAC: sensitive control is super-only; operational endpoints allow managers.
     $r->get ('/list-users',      $f('admin/list-users.php'),     [mw_admin_cap('users')]);
+    $r->get ('/fee-evidence',    $f('admin/fee-evidence.php'),   [mw_admin_cap('fees')]);
     // The console's ⌘K palette. Read-only, capped at six rows a group, and
     // gated on `users` because every group it returns can name a person.
     $r->get ('/search',          $f('admin/search.php'),         [mw_admin_cap('users')]);

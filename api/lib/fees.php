@@ -662,6 +662,7 @@ function mam_fee_invoice_get(int $invoiceId): ?array {
         'frozen_rate_label' => $frozen ? '₦' . number_format((int) round($frozen)) . ' to $1' : null,
         'charge'       => $charge,
         'plan'         => mam_fee_plan_for($invoiceId),
+        'claims'       => mam_fee_claims_for($invoiceId),
         'note'         => $inv['note'],
         'void_reason'  => $inv['void_reason'],
     ];
@@ -807,6 +808,8 @@ function mam_fee_statement(int $parentId, int $studentId): array {
         'owed'       => mam_fee_display($owedMinor, $cur),
         'invoices'   => $out,
         'receipts'   => mam_fee_receipts($studentId),
+        // Where to send a transfer, so the "I paid by transfer" form can say it.
+        'bank'       => function_exists('mam_bank_details') ? mam_bank_details() : null,
         'refund_rule'=> $refund,
         'assurance'  => 'Nothing is withheld from a child over money — not their lessons, '
                       . 'not their report, and not their safeguarding record.',
@@ -1028,6 +1031,11 @@ function mam_fee_payment_record(int $invoiceId, $amount, string $method, ?int $a
     if ($on === '') $on = function_exists('mam_calendar_today') ? mam_calendar_today() : date('Y-m-d');
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $on)) throw new InvalidArgumentException('bad_date');
     $ref = trim((string) ($opts['reference'] ?? ''));
+    /* One bank reference is one payment. Two people recording the same transfer
+     * (or a guardian's reported transfer verified after the office already typed
+     * it in) both succeeded before, and the invoice was credited twice. Compared
+     * on the normalised key, so "GTB 1182" and "gtb-1182" are one reference. */
+    if ($ref !== '' && mam_fee_reference_used($ref)) throw new RuntimeException('reference_reused');
 
     $id = mam_db_insert('fee_payments', [
         'invoice_id'   => $invoiceId,
@@ -1321,7 +1329,12 @@ function mam_payment_settle_fee(array $payment, ?array $providerData = null): vo
         }
         if ($over > 0) {
             // The balance shrank between Pay and settlement (or the invoice was
-            // voided). The family paid it; the office owes it back.
+            // voided). The family paid it; the office owes it back — and owes a
+            // record of having dealt with it, so it is a row somebody resolves.
+            try {
+                mam_db_insert('fee_online_unapplied', ['reference' => $ref, 'invoice_id' => $invId, 'over_minor' => $over,
+                    'currency' => $cur, 'status' => 'open', 'created_at' => date('Y-m-d H:i:s')]);
+            } catch (\Throwable $e) { /* UNIQUE(reference): already recorded */ }
             mam_log('warn', 'fee_online_overpaid', ['ref' => $ref, 'invoice' => $invId, 'over_minor' => $over]);
             mam_audit('fee_online_overpaid', 'fee_invoice', $invId, ['ref' => $ref, 'over_minor' => $over, 'currency' => $cur]);
         }
@@ -1359,3 +1372,288 @@ function mam_fee_online_receipt(array $payment, array $inv, int $taken, int $ove
     ]);
     mam_send((string) $payer['email'], 'Payment received: ' . (string) $inv['public_ref'], $html, 'fee_receipt', true);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   A guardian reports a bank transfer (schema v93)
+
+   Most families pay by transfer. The bank instructions told them to EMAIL the
+   slip and promised confirmation in 24 hours, and nothing recorded either half:
+   the slip sat in an inbox, the office matched it by eye, and a family had no
+   way to see that it had arrived. Now the guardian reports it on the invoice
+   and the office confirms it against the bank statement.
+
+   The rules are NGG's offline-payment rules, which were each learnt the hard
+   way there:
+   - The file's BYTES decide its type, never the label the browser sent.
+   - A slip is evidence for one payment, ever (UNIQUE evidence hash), and a bank
+     reference is one payment, ever — already credited or already claimed.
+   - A reference the office REJECTED cannot come back next week with a new
+     photo; the family is sent to the office instead.
+   - Confirming means RETYPING the reference and the amount from the statement,
+     not ticking a box beside the figures the claim already shows.
+   - The verify is CLAIMED (pending → verified, compare-and-set) so two people
+     cannot both credit it, and REVERTED if recording the payment fails, so a
+     claim never reads verified on an invoice that was not credited.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+const MAM_FEE_EVIDENCE_MAX   = 5 * 1024 * 1024;
+const MAM_FEE_EVIDENCE_TYPES = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'application/pdf' => 'pdf'];
+const MAM_FEE_REF_MIN        = 6;
+const MAM_FEE_REASON_MIN     = 8;
+
+/** A reference as it is compared: upper case, letters and digits only. */
+function mam_fee_ref_key(string $ref): string { return strtoupper((string) preg_replace('/[^A-Za-z0-9]+/', '', $ref)); }
+
+/** Is this bank reference already money on an invoice, or already claimed? */
+function mam_fee_reference_used(string $ref, ?int $ignoreClaim = null): bool {
+    $k = mam_fee_ref_key($ref);
+    if ($k === '') return false;
+    foreach (mam_db_all("SELECT reference FROM fee_payments WHERE status = 'recorded' AND reference IS NOT NULL AND reference <> ''") as $r) {
+        if (mam_fee_ref_key((string) $r['reference']) === $k) return true;
+    }
+    $c = mam_db_row("SELECT id FROM fee_transfer_claims WHERE reference_key = ? AND status = 'pending'" . ($ignoreClaim ? ' AND id <> ' . (int) $ignoreClaim : '') . ' LIMIT 1', [$k]);
+    return (bool) $c;
+}
+
+function mam_fee_evidence_dir(): string {
+    $d = MAM_STORAGE . '/uploads/fee-evidence';   // under uploads/, so the backup carries it
+    if (!is_dir($d)) @mkdir($d, 0750, true);
+    return $d;
+}
+
+/** Decode and check a slip: a real image or PDF, within the size bound. */
+function mam_fee_evidence_decode(string $dataUrl): array {
+    if (!preg_match('#^data:([a-z]+/[a-z.+-]+);base64,(.+)$#s', $dataUrl, $mm)) return ['ok' => false, 'error' => 'evidence_required'];
+    if (strlen($mm[2]) > (int) (MAM_FEE_EVIDENCE_MAX * 1.4)) return ['ok' => false, 'error' => 'evidence_too_large'];
+    $bytes = base64_decode($mm[2], true);
+    if ($bytes === false || $bytes === '') return ['ok' => false, 'error' => 'evidence_unreadable'];
+    if (strlen($bytes) > MAM_FEE_EVIDENCE_MAX) return ['ok' => false, 'error' => 'evidence_too_large'];
+    $type = '';
+    if (strncmp($bytes, "\xFF\xD8\xFF", 3) === 0) $type = 'image/jpeg';
+    elseif (strncmp($bytes, "\x89PNG\r\n\x1A\n", 8) === 0) $type = 'image/png';
+    elseif (strncmp($bytes, 'RIFF', 4) === 0 && substr($bytes, 8, 4) === 'WEBP') $type = 'image/webp';
+    elseif (strncmp($bytes, '%PDF-', 5) === 0) $type = 'application/pdf';
+    if ($type === '') return ['ok' => false, 'error' => 'evidence_type'];
+    if ($type !== 'application/pdf') {
+        $info = @getimagesizefromstring($bytes);
+        if (!$info || $info[0] < 200 || $info[1] < 200) return ['ok' => false, 'error' => 'evidence_too_small'];
+    }
+    return ['ok' => true, 'bytes' => $bytes, 'type' => $type, 'sha' => hash('sha256', $bytes)];
+}
+
+/**
+ * A guardian reports a transfer. Validates the whole claim before writing
+ * anything. Throws RuntimeException(code) / InvalidArgumentException(code).
+ */
+function mam_fee_transfer_claim(int $parentId, int $invoiceId, array $in): int {
+    $inv = mam_db_row('SELECT * FROM fee_invoices WHERE id = ?', [$invoiceId]);
+    if (!$inv) throw new RuntimeException('invoice_not_found');
+    $sid = (int) $inv['student_id'];
+    if (!mam_parent_can_view($parentId, $sid) || !mam_parent_scope_allows($parentId, $sid, 'payments')) throw new RuntimeException('forbidden');
+    if (!in_array($inv['status'], ['issued', 'part_paid'], true)) throw new RuntimeException('not_payable');
+    $due = (int) $inv['total_minor'] - (int) $inv['paid_minor'];
+    if ($due <= 0) throw new RuntimeException('nothing_owing');
+    if (mam_db_row("SELECT id FROM fee_transfer_claims WHERE invoice_id = ? AND status = 'pending' LIMIT 1", [$invoiceId])) {
+        throw new RuntimeException('claim_pending');
+    }
+
+    $amt = mam_fee_to_minor(trim((string) ($in['amount'] ?? '')));
+    if ($amt <= 0) throw new InvalidArgumentException('bad_amount');
+    if ($amt > $due) throw new RuntimeException('more_than_due');
+    $payer = trim((string) ($in['payer_name'] ?? ''));
+    if (mb_strlen($payer) < 3 || mb_strlen($payer) > 160) throw new InvalidArgumentException('payer_required');
+    $bank = trim((string) ($in['bank_name'] ?? ''));
+    if (mb_strlen($bank) < 2 || mb_strlen($bank) > 120) throw new InvalidArgumentException('bank_required');
+    $ref = mb_substr(trim((string) ($in['reference'] ?? '')), 0, 120);
+    $key = mam_fee_ref_key($ref);
+    if (strlen($key) < MAM_FEE_REF_MIN) throw new InvalidArgumentException('reference_required');
+    $on = trim((string) ($in['paid_on'] ?? ''));
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $on, $dm) || !checkdate((int) $dm[2], (int) $dm[3], (int) $dm[1])) throw new InvalidArgumentException('bad_date');
+    $today = function_exists('mam_calendar_today') ? mam_calendar_today() : date('Y-m-d');
+    if ($on > date('Y-m-d', strtotime($today . ' +1 day'))) throw new InvalidArgumentException('date_in_future');
+    $from = (string) ($inv['issued_on'] ?: substr((string) $inv['created_at'], 0, 10));
+    if ($from !== '' && $on < date('Y-m-d', strtotime($from . ' -1 day'))) throw new InvalidArgumentException('date_before_invoice');
+    $ev = mam_fee_evidence_decode((string) ($in['evidence'] ?? ''));
+    if (empty($ev['ok'])) throw new InvalidArgumentException((string) $ev['error']);
+
+    if (mam_db_row('SELECT id FROM fee_transfer_claims WHERE evidence_sha256 = ? LIMIT 1', [$ev['sha']])) {
+        mam_audit('fee_claim_reused_evidence', 'fee_invoice', $invoiceId, ['by' => $parentId]);
+        throw new RuntimeException('evidence_reused');
+    }
+    if (mam_db_row("SELECT id FROM fee_transfer_claims WHERE reference_key = ? AND status = 'rejected' LIMIT 1", [$key])) {
+        mam_audit('fee_claim_rejected_reference', 'fee_invoice', $invoiceId, ['by' => $parentId, 'ref' => $ref]);
+        throw new RuntimeException('reference_rejected');
+    }
+    if (mam_fee_reference_used($ref)) {
+        mam_audit('fee_claim_reused_reference', 'fee_invoice', $invoiceId, ['by' => $parentId, 'ref' => $ref]);
+        throw new RuntimeException('reference_reused');
+    }
+
+    $file = $ev['sha'] . '.' . MAM_FEE_EVIDENCE_TYPES[$ev['type']];
+    if (@file_put_contents(mam_fee_evidence_dir() . '/' . $file, $ev['bytes']) === false) throw new RuntimeException('evidence_not_saved');
+    $id = mam_db_insert('fee_transfer_claims', [
+        'invoice_id' => $invoiceId, 'parent_id' => $parentId, 'amount_minor' => $amt, 'currency' => (string) $inv['currency'],
+        'payer_name' => $payer, 'bank_name' => $bank, 'reference' => $ref, 'reference_key' => $key, 'paid_on' => $on,
+        'evidence_sha256' => $ev['sha'], 'evidence_file' => $file, 'evidence_type' => $ev['type'], 'evidence_bytes' => strlen($ev['bytes']),
+        'note' => trim((string) ($in['note'] ?? '')) !== '' ? mb_substr(trim((string) $in['note']), 0, 500) : null,
+        'status' => 'pending', 'created_at' => date('Y-m-d H:i:s'),
+    ]);
+    mam_audit('fee_claim', 'fee_invoice', $invoiceId, ['claim' => $id, 'minor' => $amt, 'ref' => $ref, 'by' => $parentId, 'evidence' => $ev['sha']]);
+    mam_fee_claim_notify_office($id);
+    return $id;
+}
+
+/** Tell the office a transfer is waiting. Best-effort; the console queue is the record. */
+function mam_fee_claim_notify_office(int $claimId): void {
+    $to = (string) mam_env('NOTIFY_EMAIL', '');
+    if (!filter_var($to, FILTER_VALIDATE_EMAIL)) return;
+    $c = mam_db_row('SELECT c.*, i.public_ref, u.name AS student_name FROM fee_transfer_claims c
+        JOIN fee_invoices i ON i.id = c.invoice_id JOIN users u ON u.id = i.student_id WHERE c.id = ?', [$claimId]);
+    if (!$c) return;
+    $h = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES);
+    $app = rtrim((string) mam_env('APP_URL', ''), '/');
+    $body = "<p>A family reports a bank transfer of <strong>" . $h(mam_fee_display((int) $c['amount_minor'], (string) $c['currency']))
+        . "</strong> for " . $h($c['student_name']) . " (" . $h($c['public_ref']) . "), paid " . $h($c['paid_on']) . " from " . $h($c['bank_name'])
+        . ", reference " . $h($c['reference']) . ".</p><p>Check it against the bank statement before confirming.</p>"
+        . ($app !== '' ? '<p><a href="' . $h($app . '/admin/console.php?v=invoices&id=' . (int) $c['invoice_id']) . '">Open the invoice</a></p>' : '');
+    mam_send($to, 'Transfer reported: ' . (string) $c['public_ref'], $body, 'fee_claim_office', true);
+}
+
+/**
+ * The office confirms a reported transfer against the bank statement.
+ * $typedRef / $typedAmount are RETYPED from the statement, not copied.
+ */
+function mam_fee_transfer_verify(int $claimId, string $typedRef, string $typedAmount, bool $checked, ?int $actorId): int {
+    $c = mam_db_row('SELECT * FROM fee_transfer_claims WHERE id = ?', [$claimId]);
+    if (!$c) throw new RuntimeException('claim_not_found');
+    if ($c['status'] !== 'pending') throw new RuntimeException('not_pending');
+    if (!$checked) throw new InvalidArgumentException('not_checked');
+    if (mam_fee_ref_key($typedRef) !== (string) $c['reference_key']) {
+        mam_audit('fee_claim_verify_mismatch', 'fee_invoice', (int) $c['invoice_id'], ['claim' => $claimId, 'field' => 'reference', 'by' => mam_fee_actor($actorId)]);
+        throw new InvalidArgumentException('reference_mismatch');
+    }
+    if (mam_fee_to_minor(trim($typedAmount)) !== (int) $c['amount_minor']) {
+        mam_audit('fee_claim_verify_mismatch', 'fee_invoice', (int) $c['invoice_id'], ['claim' => $claimId, 'field' => 'amount', 'by' => mam_fee_actor($actorId)]);
+        throw new InvalidArgumentException('amount_mismatch');
+    }
+    // Claimed, not just set: two staff confirming the same transfer at once both
+    // passed the pending check above.
+    $st = mam_db()->prepare("UPDATE fee_transfer_claims SET status = 'verified', decided_by = ?, decided_at = ? WHERE id = ? AND status = 'pending'");
+    $st->execute([mam_fee_actor($actorId), date('Y-m-d H:i:s'), $claimId]);
+    if ($st->rowCount() === 0) throw new RuntimeException('not_pending');
+    try {
+        // The claim itself holds the reference while it is pending, so the
+        // reuse guard inside record() must not see it — it is verified now.
+        $pid = mam_fee_payment_record((int) $c['invoice_id'], mam_fee_from_minor((int) $c['amount_minor']), 'transfer', $actorId, [
+            'reference' => (string) $c['reference'], 'received_on' => (string) $c['paid_on'],
+            'note' => 'Reported by the family from ' . $c['bank_name'] . ' (' . $c['payer_name'] . '); checked against the statement.',
+        ]);
+    } catch (\Throwable $e) {
+        mam_db_update('fee_transfer_claims', ['status' => 'pending', 'decided_by' => null, 'decided_at' => null], ['id' => $claimId]);
+        throw $e;
+    }
+    mam_db_update('fee_transfer_claims', ['fee_payment_id' => $pid], ['id' => $claimId]);
+    mam_audit('fee_claim_verify', 'fee_invoice', (int) $c['invoice_id'], ['claim' => $claimId, 'payment' => $pid, 'by' => mam_fee_actor($actorId)]);
+    mam_fee_claim_tell_family($claimId);
+    return $pid;
+}
+
+/** The claim does not hold up. Say why; the invoice stays owed. */
+function mam_fee_transfer_reject(int $claimId, string $reason, ?int $actorId): void {
+    $reason = trim($reason);
+    if (mb_strlen($reason) < MAM_FEE_REASON_MIN) throw new InvalidArgumentException('reason_required');
+    $c = mam_db_row('SELECT * FROM fee_transfer_claims WHERE id = ?', [$claimId]);
+    if (!$c) throw new RuntimeException('claim_not_found');
+    $st = mam_db()->prepare("UPDATE fee_transfer_claims SET status = 'rejected', reject_reason = ?, decided_by = ?, decided_at = ? WHERE id = ? AND status = 'pending'");
+    $st->execute([mb_substr($reason, 0, 500), mam_fee_actor($actorId), date('Y-m-d H:i:s'), $claimId]);
+    if ($st->rowCount() === 0) throw new RuntimeException('not_pending');
+    mam_audit('fee_claim_reject', 'fee_invoice', (int) $c['invoice_id'], ['claim' => $claimId, 'reason' => $reason, 'by' => mam_fee_actor($actorId)]);
+    mam_fee_claim_tell_family($claimId);
+}
+
+/** Tell the guardian who reported it what happened, in words. Best-effort. */
+function mam_fee_claim_tell_family(int $claimId): void {
+    $c = mam_db_row('SELECT c.*, i.public_ref, i.term_label, i.total_minor, i.paid_minor, s.name AS student_name, g.name AS guardian_name, g.email AS guardian_email
+        FROM fee_transfer_claims c JOIN fee_invoices i ON i.id = c.invoice_id JOIN users s ON s.id = i.student_id
+        LEFT JOIN users g ON g.id = c.parent_id WHERE c.id = ?', [$claimId]);
+    if (!$c || !filter_var((string) $c['guardian_email'], FILTER_VALIDATE_EMAIL)) return;
+    $h = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES);
+    $cur = (string) $c['currency'];
+    $amt = mam_fee_display((int) $c['amount_minor'], $cur);
+    $first = trim(explode(' ', (string) $c['guardian_name'])[0] ?? '') ?: 'there';
+    $left = max(0, (int) $c['total_minor'] - (int) $c['paid_minor']);
+    $app = rtrim((string) mam_env('APP_URL', ''), '/');
+    $ok = $c['status'] === 'verified';
+    $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>"
+        . ($ok ? 'Your transfer has arrived' : 'We could not match your transfer') . "</h2>"
+        . "<p style='color:#4A3624;font-size:15px'>Hi " . $h($first) . " — "
+        . ($ok ? 'thank you. The ' . $h($amt) . ' you sent on ' . $h($c['paid_on']) . ' (reference ' . $h($c['reference']) . ') has been checked against our bank statement and is on '
+               . $h($c['student_name']) . "'s account (" . $h($c['public_ref']) . ').'
+             : 'we checked the ' . $h($amt) . ' transfer you reported for ' . $h($c['student_name']) . ' (' . $h($c['public_ref']) . ', reference ' . $h($c['reference']) . ') and could not confirm it. The office says: <em>' . $h($c['reject_reason']) . '</em>')
+        . "</p>"
+        . ($ok ? "<p style='color:#4A3624;font-size:15px'>" . ($left > 0 ? 'Still to pay on this invoice: <strong>' . $h(mam_fee_display($left, $cur)) . '</strong>.' : 'This invoice is now paid in full.') . '</p>'
+               : "<p style='color:#4A3624;font-size:15px'>If the money has left your account, reply to this email with your bank's confirmation and we will sort it out. Nothing about " . $h($c['student_name']) . "'s lessons, report or record is held back over fees.</p>")
+        . ($app !== '' ? mam_email_button($app . '/portal/parent/', 'See your statement') : '');
+    $html = mam_email_layout(['header' => 'MAM ACADEMY',
+        'preheader' => $ok ? 'Your transfer has arrived' : 'About the transfer you reported',
+        'reason' => 'You received this because you reported a bank transfer for fees at MAM Academy.', 'body' => $inner]);
+    mam_send((string) $c['guardian_email'], ($ok ? 'Transfer received: ' : 'About your transfer: ') . (string) $c['public_ref'], $html, 'fee_claim_family', true);
+}
+
+/** The transfers a guardian reported on one invoice, newest first, as the portal shows them. */
+function mam_fee_claims_for(int $invoiceId): array {
+    $out = [];
+    foreach (mam_db_all('SELECT * FROM fee_transfer_claims WHERE invoice_id = ? ORDER BY id DESC', [$invoiceId]) as $c) {
+        $out[] = ['id' => (int) $c['id'], 'status' => $c['status'], 'amount' => mam_fee_display((int) $c['amount_minor'], (string) $c['currency']),
+            'amount_minor' => (int) $c['amount_minor'], 'reference' => $c['reference'], 'bank_name' => $c['bank_name'], 'payer_name' => $c['payer_name'],
+            'paid_on' => $c['paid_on'], 'reported_at' => $c['created_at'], 'reject_reason' => $c['reject_reason'], 'decided_at' => $c['decided_at'],
+            'evidence_type' => $c['evidence_type'], 'note' => $c['note']];
+    }
+    return $out;
+}
+
+/** The slip for a claim, for the admin route to stream — refused if the file on disk changed. */
+function mam_fee_claim_evidence(int $claimId): array {
+    $c = mam_db_row('SELECT * FROM fee_transfer_claims WHERE id = ?', [$claimId]);
+    if (!$c) return ['ok' => false, 'error' => 'not_found'];
+    $path = mam_fee_evidence_dir() . '/' . basename((string) $c['evidence_file']);
+    if (!is_file($path)) return ['ok' => false, 'error' => 'evidence_missing'];
+    if (hash_file('sha256', $path) !== (string) $c['evidence_sha256']) return ['ok' => false, 'error' => 'evidence_altered'];
+    return ['ok' => true, 'path' => $path, 'type' => (string) $c['evidence_type'], 'invoice_id' => (int) $c['invoice_id']];
+}
+
+/**
+ * Money an online charge took beyond the balance: refunded at the gateway,
+ * applied to another of the SAME child's open invoices, or dismissed with a
+ * reason. Once.
+ */
+function mam_fee_unapplied_resolve(int $id, string $decision, string $note, ?int $actorId, ?int $applyTo = null): void {
+    $u = mam_db_row('SELECT * FROM fee_online_unapplied WHERE id = ?', [$id]);
+    if (!$u) throw new RuntimeException('not_found');
+    if ($u['status'] !== 'open') throw new RuntimeException('already_resolved');
+    if (!in_array($decision, ['refunded', 'applied', 'dismissed'], true)) throw new InvalidArgumentException('bad_decision');
+    $note = trim($note);
+    if ($decision !== 'applied' && mb_strlen($note) < 3) throw new InvalidArgumentException('reason_required');
+    $target = null;
+    if ($decision === 'applied') {
+        $src = mam_db_row('SELECT student_id FROM fee_invoices WHERE id = ?', [(int) $u['invoice_id']]);
+        $to  = $applyTo ? mam_db_row('SELECT * FROM fee_invoices WHERE id = ?', [$applyTo]) : null;
+        if (!$src || !$to || (int) $to['student_id'] !== (int) $src['student_id']) throw new InvalidArgumentException('apply_target');
+        if ((string) $to['currency'] !== (string) $u['currency']) throw new InvalidArgumentException('apply_currency');
+        $target = (int) $to['id'];
+    }
+    $st = mam_db()->prepare("UPDATE fee_online_unapplied SET status = ?, note = ?, applied_invoice_id = ?, resolved_by = ?, resolved_at = ? WHERE id = ? AND status = 'open'");
+    $st->execute([$decision, $note !== '' ? mb_substr($note, 0, 500) : null, $target, mam_fee_actor($actorId), date('Y-m-d H:i:s'), $id]);
+    if ($st->rowCount() === 0) throw new RuntimeException('already_resolved');
+    if ($target) {
+        try {
+            mam_fee_payment_record($target, mam_fee_from_minor((int) $u['over_minor']), 'other', $actorId, [
+                'reference' => $u['reference'] . '-MOVED', 'note' => 'Online overpayment moved from another invoice' . ($note !== '' ? ' — ' . $note : '') . '.']);
+        } catch (\Throwable $e) {
+            mam_db_update('fee_online_unapplied', ['status' => 'open', 'note' => null, 'applied_invoice_id' => null, 'resolved_by' => null, 'resolved_at' => null], ['id' => $id]);
+            throw $e;
+        }
+    }
+    mam_audit('fee_unapplied_' . $decision, 'fee_invoice', (int) $u['invoice_id'], ['id' => $id, 'minor' => (int) $u['over_minor'], 'to' => $target, 'note' => $note, 'by' => mam_fee_actor($actorId)]);
+}
+

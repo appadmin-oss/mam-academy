@@ -1118,3 +1118,8 @@
   [data-admin="v2"] .ap-tabs { padding-left: 0; padding-right: 0; }
   [data-admin="v2"] .ap-tab { max-width: 180px; margin: 0 auto; }
 }
+
+/* A tick that is a statement somebody is signing ("I checked the money arrived"),
+   so the sentence sits beside a full-size box rather than under a 13px one. */
+[data-admin="v2"] .ac-tick { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; line-height: 1.45; color: var(--ac-ink); }
+[data-admin="v2"] .ac-tick input { width: 20px; height: 20px; margin: 1px 0 0; flex: none; accent-color: var(--ac-accent); }
