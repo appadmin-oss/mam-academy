@@ -181,7 +181,7 @@ function mam_admin_pager(int $page, int $total, int $perPage): string {
     $pages = max(1, (int)ceil($total / max(1, $perPage)));
     $qs = $_GET; unset($qs['ok'], $qs['err']); // don't carry flash banners across pages
     $mk = function ($p) use ($qs) { $qs['page'] = $p; return '?' . http_build_query($qs); };
-    $out = '<div class="pager" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:.82rem">'
+    $out = '<div class="pager">'
          . '<span class="muted">Page ' . $page . ' of ' . $pages . ' · ' . number_format($total) . ' total</span>';
     if ($page > 1)      $out .= '<a class="btn ghost tiny" href="' . htmlspecialchars($mk($page - 1)) . '">← Prev</a>';
     if ($page < $pages) $out .= '<a class="btn ghost tiny" href="' . htmlspecialchars($mk($page + 1)) . '">Next →</a>';
@@ -3276,6 +3276,77 @@ nav a{display:flex;align-items:center}
   .card table.stack th:last-child{position:static;box-shadow:none;background:transparent;max-width:none}
   .card table.stack td:last-child form.inline{max-width:none}
 }
+
+/* ── Layout repairs, 2026-11-19 (measured on all 42 views at 1440 and 390) ──
+   A .card has no padding of its own: its header, tables and .form-grid each
+   carry their own. Anything ELSE put straight into a card — a paragraph, a
+   form, the pager, a KPI label — sat against the border: 101 such places on
+   26 screens. Rather than 101 inline paddings, every direct child that is not
+   one of the self-padded structures gets the header's 20px gutter, and the
+   first and last get its vertical breathing room. A table (or a wrapper
+   holding one) stays full-bleed: its cells already pad, and padding the
+   wrapper would inset the row hover and the pinned actions column. */
+.card > :is(p,form,h2,h4,ul,ol,dl,summary,details,.pager,.kpi-label,.kpi-value,div:not(:has(table)):not(.needs-list):not(.auto-rule):not(.form-grid)){padding-left:20px;padding-right:20px}
+.card > :first-child:not(h3):not(table):not(:has(table)):not(.form-grid):not(.auto-rule){padding-top:16px}
+.card > :last-child:not(table):not(:has(table)):not(.form-grid):not(.needs-list):not(.auto-rule){padding-bottom:16px}
+.card > p + p{margin-top:8px}
+/* The pager was an inline-styled row inside the card, flush to its right
+   edge, so the rounded corner clipped "total". */
+.pager{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;font-size:.82rem;padding-top:12px}
+.card .pager{padding:12px 20px 14px}
+/* On a phone the sticky card header is max-content wide, so a long note in it
+   ran past the card and made the whole card scroll sideways. Let it wrap. */
+@media(max-width:640px){.card h3{width:auto;min-width:0;flex-wrap:wrap;gap:6px 10px}}
+/* The scroll shadows were painted on EVERY card, scrolling or not, and the
+   right-hand one showed as a dark band down the edge and round both corners.
+   They now appear only on a card whose content really overflows sideways
+   (set by the script at the foot of the page). */
+.card:not(.is-overflowing){background-image:none}
+/* A gap between consecutive cards that set their own inline margin:0. */
+main .card + .card{margin-top:0}
+/* Phone: the hidden drawer kept its 44px shadow while off-canvas, so a grey
+   band ran down the left edge of every screen. Shadow only while open. */
+@media(max-width:920px){
+  aside{box-shadow:none}
+  body.nav-open aside{box-shadow:12px 0 44px rgba(0,0,0,0.5)}
+}
+/* Phone top bar: it wrapped into two rows and the email ran off the screen.
+   One row — menu, title, search, account — and the chips that duplicate the
+   rail (tier, view site, theme) give way, as the console's bar does. */
+@media(max-width:640px){
+  .admin-topbar{flex-wrap:nowrap;gap:8px;margin:0 -16px 20px;padding:10px 16px}
+  .admin-topbar .atb-title{min-width:0;flex:1 1 auto;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .admin-topbar .atb-right{gap:6px;flex:0 0 auto}
+  .admin-topbar .atb-tier{display:none}
+  .admin-topbar .atb-chip{font-size:0;gap:0;padding:0;width:40px;height:40px;justify-content:center}
+  .admin-topbar .atb-chip i{font-size:.9rem}
+  .admin-topbar .atb-user{max-width:none;padding-left:0;font-size:0;gap:0}
+  .admin-topbar .atb-user .av{font-size:.78rem}
+  main{padding-top:0}
+}
+/* Two-column forms and page splits are set INLINE (twelve of them), and an
+   inline style outranks any stylesheet rule — so on a phone the second column
+   of "Add a new item", the recital and booking forms simply ran off the card.
+   Attribute selectors with !important are the surgical override, as the
+   action-cell rule above already does; reflowing each form is not. */
+@media(max-width:920px){
+  main [style*="grid-template-columns:1fr 320px"],
+  main [style*="grid-template-columns:340px 1fr"]{grid-template-columns:1fr!important}
+}
+@media(max-width:640px){
+  main [style*="grid-template-columns:1fr 1fr"],
+  main [style*="grid-template-columns:repeat(2,1fr)"]{grid-template-columns:1fr!important}
+  .crit-row{flex-wrap:wrap}
+  .crit-row input[name="crit_label[]"]{flex:1 1 100%!important}
+  .admin-topbar .atb-chip span{display:none}
+}
+/* A long unbroken string (a Google scope URL, an address) must wrap rather
+   than push the card wider than the screen. */
+.card p,.card li{overflow-wrap:anywhere}
+/* Users and other action cells: a reason input squeezed to 108px showed
+   "reason (neede". Give it the row to itself under the select. */
+.card table td form.inline input.tiny[name*="reason"],
+.card table td form[style*="inline-flex"] input[name*="reason"]{flex:1 1 100%;min-height:0;padding:4px 6px;font-size:.78rem;border-radius:6px}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
@@ -3566,7 +3637,11 @@ nav a{display:flex;align-items:center}
        key that could not be persisted AT ALL, so it changes every request. */
     if (!$health['key']) echo '<div class="banner warn">⚠️ The signing key is not persisted, so it changes on every request — CSRF tokens, invite links and ID-card signatures will all fail. Either set <code>APP_KEY</code> in <code>api/.env</code> (hex, ≥32 chars) or make <code>api/storage</code> writable so a generated key can be stored.</div>';
     if (!$health['paystack'] && !$health['flw']) echo '<div class="banner warn">⚠️ No payment provider configured. Set <code>PAYSTACK_SECRET_KEY</code> or <code>FLW_SECRET_KEY</code>.</div>';
-    if (!$health['smtp']) echo '<div class="banner">ℹ️ SMTP not configured — outgoing mail falls back to PHP <code>mail()</code>.</div>';
+    // The red banner at the top of every page already says mail is not set up
+    // and how to fix it; saying it twice more on the Overview buried the other
+    // notices under the same one. These two speak only when that banner is quiet.
+    $__mailBannerShown = isset($mailRdy) && empty($mailRdy['ready']);
+    if (!$health['smtp'] && !$__mailBannerShown) echo '<div class="banner">ℹ️ SMTP not configured — outgoing mail falls back to PHP <code>mail()</code>.</div>';
     // Operational readiness: config that silently degrades a feature when left
     // empty. Server-side values come from .env or the admin settings table.
     $ops = [];
@@ -3579,7 +3654,7 @@ nav a{display:flex;align-items:center}
         $ops[] = '<code>cloudinary_cloud_name</code> (<a href=”?v=settings” style=”color:var(--gold)”>Pricing &amp; Settings → CDN</a>) — Cloudinary image CDN is disabled; enter your cloud name (found at the top of your Cloudinary dashboard)';
     if (!mam_setting('cloudinary_upload_preset', ''))
         $ops[] = '<code>cloudinary_upload_preset</code> (<a href=”?v=settings” style=”color:var(--gold)”>Pricing &amp; Settings → CDN</a>) — headshot photos won\'t upload without this; in Cloudinary go to <strong>Settings → Upload → Upload presets</strong>, create an <strong>Unsigned</strong> preset, and paste its name here';
-    if (function_exists('mam_mail_readiness')) { $mr = mam_mail_readiness(); if (is_array($mr) && empty($mr['ready']) && !empty($mr['issues'])) $ops[] = 'Mail delivery: ' . htmlspecialchars(implode('; ', (array)$mr['issues'])); }
+    if (!$__mailBannerShown && function_exists('mam_mail_readiness')) { $mr = mam_mail_readiness(); if (is_array($mr) && empty($mr['ready']) && !empty($mr['issues'])) $ops[] = 'Mail delivery: ' . htmlspecialchars(implode('; ', (array)$mr['issues'])); }
     if ($ops) echo '<div class="banner"><strong>ℹ️ Operational readiness</strong> — features waiting on configuration:<ul style="margin:8px 0 0 18px;padding:0">' . implode('', array_map(fn ($o) => '<li style="margin:3px 0">' . $o . '</li>', $ops)) . '</ul></div>';
 
     // ── Needs attention — the work queue, front and centre ──
@@ -3602,10 +3677,12 @@ nav a{display:flex;align-items:center}
             'Student progress notes + practice coach in the portal',
             'The "Find Your Path" advisor on the apply page',
         ];
-        echo '<div class="card"><h3>🤖 AI assist '
+        // Title and status pill share one flex item, or `space-between` floats
+        // the pill to the middle of the header.
+        echo '<div class="card"><h3><span style="display:inline-flex;align-items:center;gap:8px">🤖 AI assist '
            . ($ai['enabled']
                ? '<span class="pill present">on · ' . htmlspecialchars((string)$ai['provider']) . ($ai['model'] ? ' · ' . htmlspecialchars((string)$ai['model']) : '') . '</span>'
-               : '<span class="pill pending">off</span>')
+               : '<span class="pill pending">off</span>') . '</span>'
            . ' <span class="muted" style="font-weight:400;font-size:.78rem">— all surfaces are advisory; a human always decides</span></h3>'
            . '<div style="padding:0 20px 16px;font-size:.86rem;color:var(--muted);line-height:1.7">'
            . '<ul style="margin:0 0 10px 18px;padding:0">' . implode('', array_map(fn ($s) => '<li>' . htmlspecialchars($s) . '</li>', $aiSurfaces)) . '</ul>'
@@ -4171,10 +4248,10 @@ nav a{display:flex;align-items:center}
       <?php endforeach; ?>
     </div>
   </header>
-  <div class="card" style="font-size:.82rem;color:var(--muted)">
+  <div class="card" style="font-size:.82rem;color:var(--muted)"><p>
     <i class="fa-solid fa-shield-halved" aria-hidden="true"></i> First-party only — no third-party pixels, Do-Not-Track is honoured, and we count
     <strong>anonymous</strong> funnel sessions (never identities). Showing the last <strong><?= (int)$rep['days'] ?> days</strong>.
-  </div>
+  </p></div>
 
   <?php $anyData = $rep['started'] || $rep['submitted'] || $rep['paid'] || $rep['steps'] || $rep['totals']; ?>
   <?php if (!$anyData): ?>
@@ -7619,7 +7696,7 @@ V2_READ_TENANT=mam</pre>
       </div>
     <?php endfor; ?>
     </div>
-    <div style="padding:12px 6px 6px;font-size:.78rem;color:var(--muted)">
+    <div style="padding:12px 20px 14px;font-size:.78rem;color:var(--muted)">
       <?= count($schedSessions) ?> session<?= count($schedSessions) !== 1 ? 's' : '' ?> this week (<?= htmlspecialchars($weekMon->format('M j')) ?> – <?= htmlspecialchars($weekSun->format('M j, Y')) ?>)
       &nbsp;·&nbsp; <a href="?v=courseenroll" style="color:var(--gold)">Manage cohorts →</a>
     </div>
@@ -8117,7 +8194,11 @@ V2_READ_TENANT=mam</pre>
     }
     // Focus filter: all | pending (awaiting approval) | unassigned (active but
     // no instructor — the real gap to close).
-    $ceFilter = in_array(($_GET['ce'] ?? 'all'), ['all', 'pending', 'unassigned'], true) ? $_GET['ce'] : 'all';
+    // Read once: the old form tested `$_GET['ce'] ?? 'all'` and then returned
+    // the raw `$_GET['ce']`, so with no filter it was null, not 'all' (and a
+    // PHP warning on every visit).
+    $ceFilter = (string) ($_GET['ce'] ?? 'all');
+    if (!in_array($ceFilter, ['all', 'pending', 'unassigned'], true)) $ceFilter = 'all';
     $where = '';
     if ($ceFilter === 'pending')         $where = "WHERE ce.status = 'pending'";
     elseif ($ceFilter === 'unassigned')  $where = "WHERE ce.instructor_id IS NULL AND ce.status IN ('active','pending')";
@@ -9551,7 +9632,7 @@ V2_READ_TENANT=mam</pre>
       </tbody>
     </table>
     </div>
-    <p style="padding:8px 0 0;font-size:.74rem;color:var(--muted)">Showing up to 500 most-recent entries (newest first) · Log file: <span class="mono">app-<?= htmlspecialchars($reqDate) ?>.log</span></p>
+    <p style="padding:8px 20px 14px;font-size:.74rem;color:var(--muted)">Showing up to 500 most-recent entries (newest first) · Log file: <span class="mono">app-<?= htmlspecialchars($reqDate) ?>.log</span></p>
     <?php endif; ?>
   </div>
 
@@ -10658,7 +10739,7 @@ V2_READ_TENANT=mam</pre>
     <button class="btn" type="submit">Search</button>
   </form>
   <?php if ($q === ''): ?>
-    <div class="card">Type a reference (e.g. <code>MAM-…</code>), an email, or a name to search applications, users, payments and store orders.</div>
+    <div class="card"><p>Type a reference (e.g. <code>MAM-…</code>), an email, or a name to search applications, users, payments and store orders.</p></div>
   <?php else: ?>
     <p class="muted" style="margin:0 0 16px"><?= $hits ?> result<?= $hits === 1 ? '' : 's' ?> for “<strong><?= htmlspecialchars($q) ?></strong>”.</p>
 
@@ -11657,6 +11738,20 @@ window.backfillEnrollRefs = function (btn) {
 </script>
 <!-- §4.4 inline edit. Loaded last: it decorates cells that already exist, and
      it relies on window.mamFetch (defined in the head) for CSRF + retry. -->
+<script>
+/* A card paints its scroll shadows only while its content really overflows
+   sideways (see .is-overflowing in the stylesheet). Measured on load, on
+   resize and whenever a card changes size. */
+(function () {
+  var cards = document.querySelectorAll('main .card');
+  function mark(c) { c.classList.toggle('is-overflowing', c.scrollWidth > c.clientWidth + 1); }
+  cards.forEach(mark);
+  if ('ResizeObserver' in window) {
+    var ro = new ResizeObserver(function (es) { es.forEach(function (e) { mark(e.target); }); });
+    cards.forEach(function (c) { ro.observe(c); });
+  } else { window.addEventListener('resize', function () { cards.forEach(mark); }); }
+})();
+</script>
 <script src="/assets/js/inline-edit.js?v=20260815a" defer></script>
 </body>
 </html>

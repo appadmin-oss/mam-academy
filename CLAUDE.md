@@ -582,6 +582,13 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    All-enrollments table. The same test checks every aliased `ORDER BY` column
    against the live schema. **Read `api/logs/app-*.log` after touching this file**;
    a clean-looking screen is not evidence.
+   ⚠️ **A `.card` here has no padding of its own** — its `h3`, tables and
+   `.form-grid` pad themselves, and one rule gives any other direct child the
+   20px gutter. Put new content in a `<p>`/`<div>`, never as bare text inside
+   the card, and do not give a card an inline `padding:0` "to fix" a table:
+   tables are already full-bleed. Inline grids are overridden on phones by
+   attribute selector, so a new inline `grid-template-columns` spelled
+   differently will NOT stack — prefer a class. `test_admin_layout.php`.
    ⚠️ It has NO `mam_admin_redirect()` helper — writing one from memory produced a
    blank page on every POST of a new screen. Redirect with
    `header('Location: ?v=…&ok=' . urlencode($msg)); exit;`, which is what every

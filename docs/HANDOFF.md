@@ -1852,3 +1852,24 @@ shadow down the left edge. Fixed in `admin-v2.css`, plus the Students member
 panel laid out in two columns (details and history | onboarding checklist).
 Swept afterwards: 31 screens × 1440 and 390, no overflow, no failed reads, no
 flush sections, no page errors.
+
+**The legacy admin's layout too (`admin/index.php`).** Measured on all 42 views
+at 1440 and 390 (the export view is a download and was skipped): 101 runs of
+text sat against a card's border on 26 screens — a `.card` has no padding of
+its own, so a paragraph, form, pager or KPI label put straight into one had
+none either; the pager's "total" was clipped by the rounded corner; every card
+painted a dark scroll shadow down its right edge whether it scrolled or not; on
+a phone the top bar wrapped to two rows with the email running off screen, the
+hidden drawer cast its shadow down the left edge, card headers ran wider than
+the card, and five inline two-column forms put their second column off screen;
+the Overview said mail was not configured three times. Fixed with one gutter
+rule for direct card children (tables stay full-bleed), a class-styled pager,
+shadows only on a card that really overflows (`.is-overflowing`, set by a
+ResizeObserver), a one-row phone bar with icon-only chips, attribute overrides
+for the inline grids, and the Overview's two repeats suppressed while the red
+banner shows. Also a pre-existing bug: `?v=courseenroll` read `$_GET['ce']`
+after testing it with a default, so its filter was null and every visit
+logged a warning. After: 0 flush text at 1440; at 390 only the week calendar
+on `?v=schedule` scrolls sideways, deliberately. The PHP error log is empty
+across the sweep. `test_admin_layout.php` pins the mechanisms (a mutation of
+the pager fails it).
