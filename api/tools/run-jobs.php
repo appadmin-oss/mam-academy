@@ -58,6 +58,10 @@ if (function_exists('mam_automation_card_expiry_sweep')) {
 if (function_exists('mam_fee_dunning_sweep')) {
     printf("fees       : overdue reminders sent %d\n", mam_fee_dunning_sweep());
 }
+if (function_exists('mam_lesson_due_run')) {
+    $ld = mam_lesson_due_run();
+    printf("lessons    : students reminded %d, fines %d%s\n", $ld['reminded'], $ld['fined'], $ld['skipped'] ? ' (' . $ld['skipped'] . ')' : '');
+}
 if (function_exists('mam_automation_week_drip_sweep')) {
     printf("week drip  : modules released %d\n", mam_automation_week_drip_sweep());
 }

@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 97;
+const MAM_SCHEMA_TARGET = 98;
 
 /**
  * Open (and cache) the PDO connection.
@@ -3785,6 +3785,97 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE INDEX IF NOT EXISTS idx_mprog_student ON module_progress(student_id);
             CREATE INDEX IF NOT EXISTS idx_mprog_pending ON module_progress(pending, module_id);
+        ",
+        /* v98 — lessons, phase 2 (api/lib/lessons-learn.php, api/lib/lesson-exams.php):
+         * private notes and "saved for later", one-tap feedback on how a lesson
+         * landed, where a student is placed on a course, timed exams and their
+         * appeals, and the log that makes a deadline reminder or an overdue fine
+         * happen once. Material review needs no table: module_materials already
+         * carries a status (v97); v98 adds who sent it and why it was refused. */
+        98 => "
+            ALTER TABLE module_materials ADD COLUMN submitted_by INTEGER;
+            ALTER TABLE module_materials ADD COLUMN reviewed_by INTEGER;
+            ALTER TABLE module_materials ADD COLUMN reviewed_at TEXT;
+            ALTER TABLE module_materials ADD COLUMN review_note TEXT;
+            CREATE TABLE IF NOT EXISTS lesson_notes (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              module_id  INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              note       TEXT,
+              note_at    TEXT,
+              saved      INTEGER NOT NULL DEFAULT 0,
+              saved_at   TEXT,
+              opened_at  TEXT,
+              opens      INTEGER NOT NULL DEFAULT 0,
+              UNIQUE(module_id, student_id),
+              CHECK(saved IN (0,1))
+            );
+            CREATE TABLE IF NOT EXISTS lesson_feedback (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              module_id  INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              feel       TEXT NOT NULL,
+              body       TEXT,
+              created_at TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at TEXT,
+              UNIQUE(module_id, student_id),
+              CHECK(feel IN ('got','mostly','lost'))
+            );
+            CREATE TABLE IF NOT EXISTS lesson_placements (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              course_id  INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+              level_id   INTEGER NOT NULL REFERENCES levels(id) ON DELETE CASCADE,
+              placed_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              reason     TEXT,
+              placed_at  TEXT NOT NULL DEFAULT (datetime('now')),
+              UNIQUE(student_id, course_id)
+            );
+            CREATE TABLE IF NOT EXISTS lesson_sittings (
+              id             INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              course_id      INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+              module_id      INTEGER REFERENCES modules(id) ON DELETE SET NULL,
+              kind           TEXT NOT NULL DEFAULT 'session',
+              items          TEXT NOT NULL,
+              answers        TEXT,
+              marks          TEXT,
+              score          REAL,
+              max_score      REAL,
+              pct            REAL,
+              band           TEXT,
+              status         TEXT NOT NULL DEFAULT 'open',
+              pending        INTEGER NOT NULL DEFAULT 0,
+              time_limit_sec INTEGER NOT NULL,
+              pledged_at     TEXT,
+              started_at     TEXT NOT NULL DEFAULT (datetime('now')),
+              deadline       TEXT NOT NULL,
+              submitted_at   TEXT,
+              marked_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              appeal_text    TEXT,
+              appealed_at    TEXT,
+              appeal_outcome TEXT,
+              appeal_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              updated_at     TEXT,
+              CHECK(kind IN ('session','trial')),
+              CHECK(status IN ('open','submitted','marked')),
+              CHECK(pending IN (0,1))
+            );
+            CREATE INDEX IF NOT EXISTS idx_sit_student ON lesson_sittings(student_id, kind, course_id);
+            CREATE INDEX IF NOT EXISTS idx_sit_pending ON lesson_sittings(pending, status);
+            CREATE TABLE IF NOT EXISTS lesson_deadline_log (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              module_id  INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              kind       TEXT NOT NULL,
+              period     TEXT NOT NULL,
+              charge_id  INTEGER,
+              created_at TEXT NOT NULL DEFAULT (datetime('now')),
+              UNIQUE(module_id, student_id, kind, period),
+              CHECK(kind IN ('reminder','fine'))
+            );
+            -- A lesson saved without a kind was stored as '' (fixed in lessons.php): it is a module.
+            UPDATE modules SET kind = 'module' WHERE kind = '' OR kind IS NULL;
         ",
     ];
 

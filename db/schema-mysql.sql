@@ -3351,3 +3351,104 @@ CREATE TABLE IF NOT EXISTS module_progress (
   CONSTRAINT chk_mprog_pending CHECK (pending IN (0,1))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (97) ON DUPLICATE KEY UPDATE version = version;
+
+-- v98 — lessons phase 2: notes, feedback, placement, exams, the deadline log; material review columns.
+ALTER TABLE module_materials ADD COLUMN submitted_by INT NULL;
+ALTER TABLE module_materials ADD COLUMN reviewed_by INT NULL;
+ALTER TABLE module_materials ADD COLUMN reviewed_at DATETIME NULL;
+ALTER TABLE module_materials ADD COLUMN review_note VARCHAR(500) NULL;
+CREATE TABLE IF NOT EXISTS lesson_notes (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  module_id  INT NOT NULL,
+  student_id INT NOT NULL,
+  note       TEXT NULL,
+  note_at    DATETIME NULL,
+  saved      TINYINT NOT NULL DEFAULT 0,
+  saved_at   DATETIME NULL,
+  opened_at  DATETIME NULL,
+  opens      INT NOT NULL DEFAULT 0,
+  UNIQUE KEY uq_lnotes (module_id, student_id),
+  CONSTRAINT fk_lnotes_module  FOREIGN KEY (module_id)  REFERENCES modules(id) ON DELETE CASCADE,
+  CONSTRAINT fk_lnotes_student FOREIGN KEY (student_id) REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT chk_lnotes_saved CHECK (saved IN (0,1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS lesson_feedback (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  module_id  INT NOT NULL,
+  student_id INT NOT NULL,
+  feel       VARCHAR(8) NOT NULL,
+  body       VARCHAR(1000) NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL,
+  UNIQUE KEY uq_lfb (module_id, student_id),
+  CONSTRAINT fk_lfb_module  FOREIGN KEY (module_id)  REFERENCES modules(id) ON DELETE CASCADE,
+  CONSTRAINT fk_lfb_student FOREIGN KEY (student_id) REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT chk_lfb_feel CHECK (feel IN ('got','mostly','lost'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS lesson_placements (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  student_id INT NOT NULL,
+  course_id  INT NOT NULL,
+  level_id   INT NOT NULL,
+  placed_by  INT NULL,
+  reason     VARCHAR(300) NULL,
+  placed_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_lplace (student_id, course_id),
+  CONSTRAINT fk_lplace_student FOREIGN KEY (student_id) REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_lplace_course  FOREIGN KEY (course_id)  REFERENCES courses(id) ON DELETE CASCADE,
+  CONSTRAINT fk_lplace_level   FOREIGN KEY (level_id)   REFERENCES levels(id)  ON DELETE CASCADE,
+  CONSTRAINT fk_lplace_by      FOREIGN KEY (placed_by)  REFERENCES users(id)   ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS lesson_sittings (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  student_id     INT NOT NULL,
+  course_id      INT NOT NULL,
+  module_id      INT NULL,
+  kind           VARCHAR(8) NOT NULL DEFAULT 'session',
+  items          MEDIUMTEXT NOT NULL,
+  answers        MEDIUMTEXT NULL,
+  marks          MEDIUMTEXT NULL,
+  score          DOUBLE NULL,
+  max_score      DOUBLE NULL,
+  pct            DOUBLE NULL,
+  band           VARCHAR(16) NULL,
+  status         VARCHAR(10) NOT NULL DEFAULT 'open',
+  pending        TINYINT NOT NULL DEFAULT 0,
+  time_limit_sec INT NOT NULL,
+  pledged_at     DATETIME NULL,
+  started_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  deadline       DATETIME NOT NULL,
+  submitted_at   DATETIME NULL,
+  marked_by      INT NULL,
+  appeal_text    VARCHAR(2000) NULL,
+  appealed_at    DATETIME NULL,
+  appeal_outcome VARCHAR(2000) NULL,
+  appeal_by      INT NULL,
+  updated_at     DATETIME NULL,
+  KEY idx_sit_student (student_id, kind, course_id),
+  KEY idx_sit_pending (pending, status),
+  CONSTRAINT fk_sit_student FOREIGN KEY (student_id) REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_sit_course  FOREIGN KEY (course_id)  REFERENCES courses(id) ON DELETE CASCADE,
+  CONSTRAINT fk_sit_module  FOREIGN KEY (module_id)  REFERENCES modules(id) ON DELETE SET NULL,
+  CONSTRAINT fk_sit_marker  FOREIGN KEY (marked_by)  REFERENCES users(id)   ON DELETE SET NULL,
+  CONSTRAINT fk_sit_appeal  FOREIGN KEY (appeal_by)  REFERENCES users(id)   ON DELETE SET NULL,
+  CONSTRAINT chk_sit_kind    CHECK (kind IN ('session','trial')),
+  CONSTRAINT chk_sit_status  CHECK (status IN ('open','submitted','marked')),
+  CONSTRAINT chk_sit_pending CHECK (pending IN (0,1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS lesson_deadline_log (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  module_id  INT NOT NULL,
+  student_id INT NOT NULL,
+  kind       VARCHAR(10) NOT NULL,
+  period     VARCHAR(20) NOT NULL,
+  charge_id  INT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_ldl (module_id, student_id, kind, period),
+  CONSTRAINT fk_ldl_module  FOREIGN KEY (module_id)  REFERENCES modules(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ldl_student FOREIGN KEY (student_id) REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT chk_ldl_kind CHECK (kind IN ('reminder','fine'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- A lesson saved without a kind was stored as '' (fixed in lessons.php): it is a module.
+UPDATE modules SET kind = 'module' WHERE kind = '' OR kind IS NULL;
+INSERT INTO schema_version (version) VALUES (98) ON DUPLICATE KEY UPDATE version = version;

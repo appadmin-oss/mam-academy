@@ -211,3 +211,100 @@ $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovere
     </div>
   <?php ac_card_close('An inactive course keeps its lessons and its students\' progress; it is just not offered.'); ?>
 </div>
+
+<?php /* Phase 2 (lessons-learn.php, lesson-exams.php). */
+$mp = $d['materials_pending'] ?? [];
+$fb = $d['feedback'] ?? [];
+$sc = $d['schedule'] ?? null;
+// Display only — the handler is what enforces it. Unknown means no.
+$mayFees = isset($adminUser) ? (!$adminUser || mam_admin_can($adminUser, 'fees')) : false;
+?>
+<div class="ac-stack">
+  <?php ac_card_open('Material teachers sent', count($mp) . ' waiting', '<span class="ac-cardmeta">Nothing reaches a student until it is approved</span>'); ?>
+    <div class="ac-tablewrap">
+      <table class="ac-table">
+        <thead><tr><th>Material</th><th>Lesson</th><th>From</th><th>Decision</th></tr></thead>
+        <tbody>
+          <?php if (!$mp): ?>
+            <?php ac_table_empty(4, 'Nothing waiting. Teachers send material from a student\'s lessons in their portal.'); ?>
+          <?php else: foreach ($mp as $m): ?>
+            <tr>
+              <td><a href="<?= ac_h((string) $m['url']) ?>" target="_blank" rel="noopener"><?= ac_h((string) $m['title']) ?></a>
+                <div class="ac-sub"><?= ac_h((string) $m['kind']) ?></div></td>
+              <td><?= ac_h((string) $m['course_name']) ?><div class="ac-sub">Week <?= (int) $m['week'] ?> · <?= ac_h((string) $m['lesson_title']) ?></div></td>
+              <td><?= ac_h((string) ($m['submitted_by_name'] ?? '—')) ?></td>
+              <td>
+                <?php ac_action_btn('lesson_material_review', 'curriculum', ['material_id' => (int) $m['id'], 'decision' => 'approve'], 'Approve', 'ac-btn ac-btn--sm ac-btn--primary'); ?>
+                <?php ac_form('lesson_material_review', 'curriculum', ['material_id' => (int) $m['id'], 'decision' => 'reject'], 'class="ac-inline ac-mt"'); ?>
+                  <label class="ac-field"><span class="ac-label">Why not</span><input class="ac-input" name="note" required maxlength="500"></label>
+                  <button type="submit" class="ac-btn ac-btn--sm">Refuse</button>
+                <?php ac_form_end(); ?>
+              </td>
+            </tr>
+          <?php endforeach; endif; ?>
+        </tbody>
+      </table>
+    </div>
+  <?php ac_card_close('A refusal needs a reason: the teacher who sent it is told, and "refused" alone teaches nothing.'); ?>
+
+  <?php ac_card_open('How lessons are landing', '', '<span class="ac-cardmeta">Got it · mostly · lost, from students</span>'); ?>
+    <div class="ac-tablewrap">
+      <table class="ac-table">
+        <thead><tr><th>Lesson</th><th class="ac-num">Got it</th><th class="ac-num">Mostly</th><th class="ac-num">Lost</th><th>What they said</th></tr></thead>
+        <tbody>
+          <?php if (!$fb): ?>
+            <?php ac_table_empty(5, 'No student has answered yet. They are asked at the foot of every lesson.'); ?>
+          <?php else: foreach ($fb as $f): ?>
+            <tr>
+              <td><?= ac_h((string) $f['title']) ?><?= $f['flagged'] ? ' ' . ac_pill('Not landing', 'warn') : '' ?>
+                <div class="ac-sub"><?= ac_h((string) $f['course_name']) ?> · week <?= (int) $f['week'] ?></div></td>
+              <td class="ac-num"><?= (int) $f['got'] ?></td>
+              <td class="ac-num"><?= (int) $f['mostly'] ?></td>
+              <td class="ac-num"><?= (int) $f['lost'] ?></td>
+              <td><?= $f['comments'] ? implode('<br>', array_map(fn($c) => '“' . ac_h((string) $c) . '”', $f['comments'])) : '<span class="ac-sub">—</span>' ?></td>
+            </tr>
+          <?php endforeach; endif; ?>
+        </tbody>
+      </table>
+    </div>
+  <?php ac_card_close('Never which child said it. A lesson is flagged when at least five have answered and a third or more say lost.'); ?>
+
+  <?php if ($sc): ?>
+  <?php ac_card_open('Deadlines, fines and the assistant'); ?>
+    <div class="ac-cardbody">
+      <?php ac_form('lesson_settings', 'curriculum'); ?>
+        <div class="ac-inline">
+          <label class="ac-field ac-w-sm"><span class="ac-label">Term starts</span>
+            <input class="ac-input" type="date" name="term_start" value="<?= ac_h((string) $sc['term_start_setting']) ?>"></label>
+          <label class="ac-field ac-w-xs"><span class="ac-label">Remind from (days before due)</span>
+            <input class="ac-input" type="number" min="0" max="30" name="remind_before" value="<?= (int) $sc['remind_before'] ?>"></label>
+          <label class="ac-field ac-w-xs"><span class="ac-label">Then every (days)</span>
+            <input class="ac-input" type="number" min="1" max="30" name="remind_every" value="<?= (int) $sc['remind_every'] ?>"></label>
+        </div>
+        <p class="ac-sub ac-mt"><?= $sc['term_start_setting'] === ''
+            ? ($sc['term_start'] !== '' ? 'Blank uses the academic calendar\'s current term, which starts ' . ac_h($sc['term_start']) . '.' : 'Blank, and no term in the academic calendar either — so nothing is ever due and nobody is reminded.')
+            : 'A lesson is due its week number of weeks after the later of this date and the student\'s enrolment.' ?></p>
+        <fieldset class="ac-qset ac-mt" <?= $mayFees ? '' : 'disabled' ?>>
+          <legend class="ac-label">Fines for overdue lessons<?= $mayFees ? '' : ' — needs the fees permission to change' ?></legend>
+          <label class="ac-tick"><input type="checkbox" name="fines_enabled" value="1" <?= $sc['fines_enabled'] ? 'checked' : '' ?>>
+            <span>Charge a fine when a lesson is overdue. Off by default: a money penalty on a child is the academy's decision to make.</span></label>
+          <div class="ac-inline ac-mt">
+            <label class="ac-field ac-w-xs"><span class="ac-label">Days past due</span>
+              <input class="ac-input" type="number" min="1" max="90" name="fine_after" value="<?= (int) $sc['fine_after'] ?>"></label>
+            <label class="ac-field ac-w-xs"><span class="ac-label">Amount (USD)</span>
+              <input class="ac-input" type="number" min="0" max="50" step="0.5" name="fine_usd" value="<?= ac_h((string) $sc['fine_usd']) ?>"></label>
+          </div>
+        </fieldset>
+        <fieldset class="ac-qset ac-mt">
+          <legend class="ac-label">The assistant<?= $sc['ai_configured'] ? '' : ' — no AI provider is set up, so these do nothing yet' ?></legend>
+          <label class="ac-tick"><input type="checkbox" name="ai_marking" value="1" <?= $sc['ai_marking'] ? 'checked' : '' ?>>
+            <span>Let it mark written answers. When unsure it leaves them for a teacher, never marks a recording of a child playing, and every mark it gives a teacher can change.</span></label>
+          <label class="ac-tick ac-mt"><input type="checkbox" name="helper" value="1" <?= $sc['helper'] ? 'checked' : '' ?>>
+            <span>Offer the study helper on lessons — hints, not answers, <?= (int) MAM_HELPER_DAILY ?> questions a day, off during an exam.</span></label>
+        </fieldset>
+        <button type="submit" class="ac-btn ac-btn--primary ac-mt">Save</button>
+      <?php ac_form_end(); ?>
+    </div>
+  <?php ac_card_close('Words that read as a child at risk are never marked or sent to the assistant: they are held for a person and the safeguarding lead is told.'); ?>
+  <?php endif; ?>
+</div>

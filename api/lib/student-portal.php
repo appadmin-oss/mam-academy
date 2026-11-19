@@ -443,6 +443,16 @@ function mam_sportal_learn(int $studentId): array {
             try { return function_exists('mam_lesson_student_board') ? mam_lesson_student_board($studentId) : []; }
             catch (Throwable $e) { return []; }
         })(),
+        /* Tier certificates, recent exams and an exam still open (lessons-learn.php,
+           lesson-exams.php, v98). Same rule: a failure costs the card. */
+        'lesson_extra' => (function () use ($studentId) {
+            try {
+                if (!function_exists('mam_exam_history')) return null;
+                $open = mam_exam_open_sitting($studentId);
+                return ['certificates' => mam_lesson_certificates($studentId), 'exams' => mam_exam_history($studentId, 6),
+                    'open_exam' => $open ? (int) $open['id'] : null];
+            } catch (Throwable $e) { return null; }
+        })(),
     ];
 }
 

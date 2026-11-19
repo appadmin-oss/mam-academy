@@ -260,7 +260,7 @@ $r->group('/student', function (MamRouter $r) use ($f) {
 
     // Lessons: the syllabus with questions and per-student progress (v97, api/lib/lessons.php).
     $r->get ('/lessons',             $f('student/lessons.php'),             [mw_role('student')]);
-    $r->post('/lessons',             $f('student/lessons.php'),             [mw_csrf(), mw_role('student'), mw_rate_limit('lesson_submit', 60, 600)]);
+    $r->post('/lessons',             $f('student/lessons.php'),             [mw_csrf(), mw_role('student'), mw_rate_limit('lesson_submit', 150, 600)]);
 });
 
 /* ─── Parent portal (LMS 2.0, PDF §26) ─── */

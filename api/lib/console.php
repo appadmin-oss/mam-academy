@@ -1208,7 +1208,7 @@ function mam_console_curriculum(array $q = []): array {
             'title' => '', 'summary' => '', 'body' => '', 'objectives' => [], 'duration_mins' => null, 'pass_mark' => 60,
             'status' => 'draft', 'version' => 1, 'checks' => [], 'materials' => [], 'started' => 0];
     } elseif ((int) $lq > 0) {
-        $editing = mam_console_try('cur.lesson', fn() => mam_lesson_get((int) $lq, true, true), null);
+        $editing = mam_console_try('cur.lesson', fn() => mam_lesson_get((int) $lq, true, false), null);
         if ($editing) $editing['started'] = (int) mam_console_scalar('cur.lstarted', 'SELECT COUNT(*) FROM module_progress WHERE module_id = ?', [(int) $lq], 0);
     }
 
@@ -1221,7 +1221,17 @@ function mam_console_curriculum(array $q = []): array {
                FROM courses c ORDER BY c.sort_order, c.name", [$prog]),
         'report' => mam_console_try('cur.report', fn() => mam_lesson_course_report(), []),
         'waiting' => (int) mam_console_scalar('cur.waiting', 'SELECT COUNT(*) FROM module_progress WHERE pending = 1', [], 0),
-        'levels' => mam_console_rows('cur.levels', "SELECT id, code, name FROM levels ORDER BY sort_order")];
+        'levels' => mam_console_rows('cur.levels', "SELECT id, code, name FROM levels ORDER BY sort_order"),
+        /* Phase 2 (lessons-learn.php, lesson-exams.php): material teachers sent,
+           how lessons are landing, and the deadline / AI settings. */
+        'materials_pending' => mam_console_try('cur.matpending', fn() => mam_lesson_materials_pending(), []),
+        'feedback' => mam_console_try('cur.feedback', fn() => mam_lesson_feedback_board(20), []),
+        'schedule' => mam_console_try('cur.schedule', fn() => mam_lesson_schedule() + [
+            'term_start_setting' => (string) mam_setting('lesson_term_start', ''),
+            'ai_marking' => (int) mam_setting_num('lesson_ai_marking', 0) === 1,
+            'helper' => (int) mam_setting_num('lesson_helper_enabled', 0) === 1,
+            'ai_configured' => function_exists('mam_ai_enabled') && mam_ai_enabled(),
+        ], null)];
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

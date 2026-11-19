@@ -171,7 +171,8 @@ function mam_lesson_validate(array $in, ?array $existing = null): array {
     if ($v['level_id'] !== null && !mam_db_row('SELECT 1 FROM levels WHERE id = ?', [$v['level_id']])) $e[] = 'That level does not exist.';
     $v['week'] = (int) ($in['week'] ?? 0);
     if ($v['week'] < 1 || $v['week'] > 104) $e[] = 'The week must be between 1 and 104.';
-    $v['kind'] = in_array($in['kind'] ?? 'module', MAM_LESSON_KINDS, true) ? (string) $in['kind'] : 'module';
+    $k = (string) ($in['kind'] ?? ($existing['kind'] ?? 'module'));
+    $v['kind'] = in_array($k, MAM_LESSON_KINDS, true) ? $k : 'module';      // absent was stored as '' before
     $v['title'] = trim((string) ($in['title'] ?? ''));
     if ($v['title'] === '' || mb_strlen($v['title']) > 160) $e[] = 'Give the lesson a title (up to 160 characters).';
     $v['summary'] = mb_substr(trim((string) ($in['summary'] ?? '')), 0, 600);
@@ -328,7 +329,8 @@ function mam_lesson_save(?int $id, array $in, ?int $by = null): array {
             }
         }
         $ph = $keepM ? implode(',', array_fill(0, count($keepM), '?')) : '0';
-        $db->prepare("DELETE FROM module_materials WHERE module_id = ? AND id NOT IN ($ph)")->execute(array_merge([$id], $keepM));
+        // A material a teacher sent is reviewed on its own queue (lessons-learn.php); the editor never removes one it did not show.
+        $db->prepare("DELETE FROM module_materials WHERE module_id = ? AND status = 'approved' AND id NOT IN ($ph)")->execute(array_merge([$id], $keepM));
         $db->commit();
     } catch (Throwable $t) {
         if ($db->inTransaction()) $db->rollBack();
@@ -370,7 +372,9 @@ function mam_lesson_set_status(array $ids, string $status, ?int $by = null): arr
 
 /** True when anybody has a progress row on this lesson — it may then only be retired. */
 function mam_lesson_has_progress(int $id): bool {
-    return mam_db_row('SELECT 1 FROM module_progress WHERE module_id = ? LIMIT 1', [$id]) !== null;
+    return mam_db_row('SELECT 1 FROM module_progress WHERE module_id = ? LIMIT 1', [$id]) !== null
+        // An exam sat on it is a result somebody was given (lesson-exams.php, v98).
+        || mam_db_row('SELECT 1 FROM lesson_sittings WHERE module_id = ? LIMIT 1', [$id]) !== null;
 }
 
 /* ─── Which lessons a student has ──────────────────────────────────────── */
@@ -399,6 +403,12 @@ function mam_lesson_student_can_open(int $studentId, array $lesson): bool {
         if ((int) $c['course_id'] !== (int) $lesson['course_id']) continue;
         $lv = $c['level_id'] !== null ? (int) $c['level_id'] : null;
         if ($lv === ($lesson['level_id'] ?? null)) return true;
+        // Placement (lessons-learn.php): the student's lesson level, the levels
+        // below it as catch-up, and the next ones opened early by mastery.
+        if (function_exists('mam_lesson_stage_map')) {
+            $map = mam_lesson_stage_map($studentId, (int) $c['course_id'], mam_lesson_placed_level($studentId, (int) $c['course_id'], $lv));
+            if (isset($map[(int) $lesson['id']])) return true;
+        }
     }
     return false;
 }
@@ -425,22 +435,52 @@ function mam_lesson_student_board(int $studentId): array {
     foreach (mam_db_all('SELECT * FROM module_progress WHERE student_id = ?', [$studentId]) as $p) $prog[(int) $p['module_id']] = $p;
     $counts = [];
     foreach (mam_db_all("SELECT module_id, COUNT(*) n FROM module_checks GROUP BY module_id") as $r) $counts[(int) $r['module_id']] = (int) $r['n'];
+    $sched = function_exists('mam_lesson_schedule') ? mam_lesson_schedule() : null;
+    $today = gmdate('Y-m-d');
     $out = [];
     foreach ($courses as $c) {
+        $cid = (int) $c['course_id'];
         $lv = $c['level_id'] !== null ? (int) $c['level_id'] : null;
-        $rows = $lv === null
-            ? mam_db_all("SELECT * FROM modules WHERE course_id = ? AND level_id IS NULL AND status = 'published' ORDER BY week", [(int) $c['course_id']])
-            : mam_db_all("SELECT * FROM modules WHERE course_id = ? AND level_id = ? AND status = 'published' ORDER BY week", [(int) $c['course_id'], $lv]);
-        $lessons = []; $done = 0;
+        /* Placement decides which lessons are the student's, and how each one
+           counts: `current` (their level, due on the schedule), `catchup` (a
+           level below, self-paced, never overdue) and `early` (a level above,
+           opened by finishing MAM_LESSON_ADVANCE_PCT of the one below). */
+        $placed = function_exists('mam_lesson_placed_level') ? mam_lesson_placed_level($studentId, $cid, $lv) : $lv;
+        $map = function_exists('mam_lesson_stage_map') ? mam_lesson_stage_map($studentId, $cid, $placed) : [];
+        if (!$map) {                                                       // no levels on the course: the old rule
+            foreach (($lv === null
+                ? mam_db_all("SELECT id FROM modules WHERE course_id = ? AND level_id IS NULL AND status = 'published'", [$cid])
+                : mam_db_all("SELECT id FROM modules WHERE course_id = ? AND level_id = ? AND status = 'published'", [$cid, $lv])) as $r) $map[(int) $r['id']] = '';
+        }
+        $rows = [];
+        if ($map) {
+            $ph = implode(',', array_fill(0, count($map), '?'));
+            $rows = mam_db_all("SELECT m.*, lv.name AS level_name, lv.sort_order AS level_sort FROM modules m LEFT JOIN levels lv ON lv.id = m.level_id
+                                 WHERE m.id IN ($ph) ORDER BY COALESCE(lv.sort_order, 0), lv.id, m.week", array_keys($map));
+        }
+        $enrolledAt = (string) (mam_db_row("SELECT COALESCE(approved_at, created_at) t FROM course_enrollments WHERE student_id = ? AND course_id = ?
+                                              AND status IN ('active','completed') ORDER BY id DESC LIMIT 1", [$studentId, $cid])['t'] ?? '');
+        $lessons = []; $done = 0; $own = 0;
         foreach ($rows as $m) {
+            $stage = $map[(int) $m['id']] ?? '';
             $view = mam_lesson_progress_view($prog[(int) $m['id']] ?? null, (int) ($m['version'] ?? 1), (int) ($m['pass_mark'] ?? 60));
-            if ($view['state'] === 'completed') $done++;
+            $counts_own = $stage !== 'early';
+            if ($counts_own) { $own++; if ($view['state'] === 'completed') $done++; }
+            $due = null; $late = false;
+            if ($sched && $stage !== 'catchup' && $stage !== 'early' && $view['state'] !== 'completed') {
+                $due = mam_lesson_due_at($sched, mam_lesson_clock_start($studentId, $cid, $enrolledAt ?: null), (int) $m['week']);
+                $late = $due !== null && $due < $today;
+            }
             $lessons[] = ['id' => (int) $m['id'], 'week' => (int) $m['week'], 'kind' => (string) $m['kind'], 'title' => (string) $m['title'],
                 'summary' => (string) ($m['summary'] ?? ''), 'questions' => $counts[(int) $m['id']] ?? 0,
-                'syllabus_only' => ($counts[(int) $m['id']] ?? 0) === 0] + $view;
+                'syllabus_only' => ($counts[(int) $m['id']] ?? 0) === 0, 'stage' => $stage,
+                'level_name' => $m['level_name'], 'due' => $due, 'late' => $late] + $view;
         }
-        $out[] = ['course_code' => $c['course_code'], 'course_name' => $c['course_name'], 'level_name' => $c['level_name'],
-            'done' => $done, 'total' => count($lessons), 'lessons' => $lessons];
+        $tier = function_exists('mam_lesson_tier') ? mam_lesson_tier($studentId, $cid) : null;
+        $placedName = $placed !== null ? (string) (mam_db_row('SELECT name FROM levels WHERE id = ?', [$placed])['name'] ?? '') : '';
+        $out[] = ['course_id' => $cid, 'placed_level_id' => $placed, 'course_code' => $c['course_code'], 'course_name' => $c['course_name'],
+            'level_name' => $placedName !== '' ? $placedName : $c['level_name'],
+            'done' => $done, 'total' => $own, 'lessons' => $lessons, 'tier' => $tier];
     }
     return $out;
 }
@@ -466,6 +506,18 @@ function mam_lesson_open(int $studentId, int $lessonId): array {
     $l['progress'] = mam_lesson_progress_view($p, $l['version'], $l['pass_mark']);
     $l['review'] = $p ? mam_lesson_review($l['id'], $p) : null;
     $l['syllabus_only'] = !$l['checks'];
+    if (function_exists('mam_lesson_touch')) {
+        mam_lesson_touch($studentId, $lessonId);
+        $n = mam_lesson_note_row($studentId, $lessonId);
+        $l['note'] = (string) ($n['note'] ?? '');
+        $l['saved'] = (int) ($n['saved'] ?? 0) === 1;
+        $l['feedback_mine'] = mam_lesson_feedback_mine($studentId, $lessonId);
+        $l['feels'] = MAM_LESSON_FEELS;
+    }
+    if (function_exists('mam_lesson_helper_on')) {
+        $l['helper'] = mam_lesson_helper_on() ? ['left' => max(0, MAM_HELPER_DAILY - mam_lesson_helper_used($studentId))] : null;
+        $l['exam_open'] = (bool) mam_exam_open_sitting($studentId);
+    }
     return $l;
 }
 
@@ -577,6 +629,18 @@ function mam_lesson_submit(int $studentId, int $lessonId, array $answers): array
                 $clean[$cid] = mb_substr($t, 0, 8000); $marks[$cid] = ['awarded' => null];
         }
     }
+    /* The assistant may mark a written answer (lesson-exams.php) — off unless
+       the academy switched it on, never an evidence link, and held for a
+       person when the words read as a child at risk. Only once every answer is
+       in: an incomplete submission sends nothing anywhere. */
+    if (!$missing && function_exists('mam_lesson_ai_mark')) {
+        foreach ($l['checks'] as $c) {
+            $cid = (string) $c['id'];
+            if (!in_array($c['kind'], ['short', 'task', 'reflection'], true) || !isset($clean[$cid])) continue;
+            $ai = mam_lesson_ai_mark($c, (string) $clean[$cid], $studentId, $lessonId);
+            if ($ai !== null) $marks[$cid] = $ai;
+        }
+    }
     if ($missing) throw new InvalidArgumentException('Answer every question before you send it (question ' . implode(', ', $missing)
         . '). A recording or photo is sent as a link starting https://.');
 
@@ -598,6 +662,9 @@ function mam_lesson_submit(int $studentId, int $lessonId, array $answers): array
     else mam_db_insert('module_progress', $row + ['module_id' => $lessonId, 'student_id' => $studentId, 'started_at' => $now]);
 
     $p = mam_db_row('SELECT * FROM module_progress WHERE module_id = ? AND student_id = ?', [$lessonId, $studentId]);
+    if ($status === 'completed' && function_exists('mam_lesson_award')) {
+        try { mam_lesson_award($studentId, (int) $l['course_id']); } catch (Throwable $t) { mam_log('warn', 'lesson_award_failed', ['error' => $t->getMessage()]); }
+    }
     return ['progress' => mam_lesson_progress_view($p, $l['version'], $l['pass_mark']), 'review' => mam_lesson_review($lessonId, $p),
         'passed' => $passed, 'pct' => $pct, 'pending' => $pending];
 }
@@ -626,7 +693,7 @@ function mam_lesson_marking_queue(?int $instructorId, int $limit = 100): array {
     $sql = "SELECT p.*, m.title, m.week, m.course_id, m.pass_mark, m.version AS lesson_version, c.name AS course_name, u.name AS student_name
               FROM module_progress p JOIN modules m ON m.id = p.module_id JOIN courses c ON c.id = m.course_id
               JOIN users u ON u.id = p.student_id
-             WHERE p.pending = 1";
+             WHERE (p.pending = 1 OR p.marks LIKE '%\"by\":\"ai\"%')";
     $args = [];
     if ($instructorId !== null) {
         $sql .= " AND EXISTS (SELECT 1 FROM course_enrollments ce LEFT JOIN cohorts co ON co.id = ce.cohort_id
@@ -634,7 +701,7 @@ function mam_lesson_marking_queue(?int $instructorId, int $limit = 100): array {
                      AND (ce.instructor_id = ? OR co.instructor_id = ?))";
         $args = [$instructorId, $instructorId];
     }
-    $sql .= ' ORDER BY p.updated_at, p.id LIMIT ' . max(1, min(500, $limit));
+    $sql .= ' ORDER BY p.pending DESC, p.updated_at, p.id LIMIT ' . max(1, min(500, $limit));
     $rows = mam_db_all($sql, $args);
     $out = [];
     foreach ($rows as $r) {
@@ -644,10 +711,13 @@ function mam_lesson_marking_queue(?int $instructorId, int $limit = 100): array {
         foreach (mam_db_all('SELECT * FROM module_checks WHERE module_id = ? ORDER BY position, id', [(int) $r['module_id']]) as $c) {
             $cid = (string) $c['id'];
             if (in_array($c['kind'], MAM_LESSON_AUTO_KINDS, true)) continue;
-            if (($marks[$cid]['awarded'] ?? null) !== null) continue;
+            $by = $marks[$cid]['by'] ?? null;
+            if (($marks[$cid]['awarded'] ?? null) !== null && $by !== 'ai') continue;
             $items[] = ['check_id' => (int) $c['id'], 'kind' => $c['kind'], 'prompt' => $c['prompt'], 'rubric' => (string) ($c['rubric'] ?? ''),
-                'points' => (int) $c['points'], 'answer' => $answers[$cid] ?? null];
+                'points' => (int) $c['points'], 'answer' => $answers[$cid] ?? null,
+                'ai_awarded' => $by === 'ai' ? $marks[$cid]['awarded'] : null, 'held' => !empty($marks[$cid]['hold'])];
         }
+        if (!$items) continue;
         $out[] = ['progress_id' => (int) $r['id'], 'lesson_id' => (int) $r['module_id'], 'title' => $r['title'], 'week' => (int) $r['week'],
             'course_name' => $r['course_name'], 'student_id' => (int) $r['student_id'], 'student_name' => $r['student_name'],
             'submitted_at' => $r['updated_at'], 'items' => $items];
@@ -666,18 +736,22 @@ function mam_lesson_marking_queue(?int $instructorId, int $limit = 100): array {
 function mam_lesson_mark(int $markerId, int $progressId, array $awards, array $comments = [], string $feedback = ''): array {
     $p = mam_db_row('SELECT * FROM module_progress WHERE id = ?', [$progressId]);
     if (!$p) throw new RuntimeException('not_found');
-    if ((int) $p['pending'] !== 1) throw new RuntimeException('nothing_pending');
+    $aiMarked = strpos((string) $p['marks'], '"by":"ai"') !== false;
+    if ((int) $p['pending'] !== 1 && !$aiMarked) throw new RuntimeException('nothing_pending');
     $l = mam_lesson_get((int) $p['module_id'], true);
     if (!$l) throw new RuntimeException('not_found');
     $marks = json_decode((string) $p['marks'], true) ?: [];
     $changed = 0;
     foreach ($l['checks'] as $c) {
         $cid = (string) $c['id'];
-        if (in_array($c['kind'], MAM_LESSON_AUTO_KINDS, true) || ($marks[$cid]['awarded'] ?? null) !== null) continue;
+        // A machine-marked question is not a teacher's to change; a mark the
+        // ASSISTANT gave always is.
+        if (in_array($c['kind'], MAM_LESSON_AUTO_KINDS, true)) continue;
+        if (($marks[$cid]['awarded'] ?? null) !== null && ($marks[$cid]['by'] ?? null) !== 'ai') continue;
         if (!array_key_exists($cid, $awards) && !array_key_exists($c['id'], $awards)) continue;
         $v = $awards[$cid] ?? $awards[$c['id']];
         if ($v === '' || $v === null) continue;
-        $marks[$cid] = ['awarded' => (float) max(0, min((int) $c['points'], (float) $v)),
+        $marks[$cid] = ['awarded' => (float) max(0, min((int) $c['points'], (float) $v)), 'by' => 'teacher',
             'comment' => mb_substr(trim((string) ($comments[$cid] ?? ($comments[$c['id']] ?? ''))), 0, 1000) ?: null];
         $changed++;
     }
@@ -692,6 +766,9 @@ function mam_lesson_mark(int $markerId, int $progressId, array $awards, array $c
     if ($status === 'completed' && empty($p['completed_at'])) $row['completed_at'] = mam_lesson_now();
     mam_db_update('module_progress', $row, ['id' => $progressId]);
     mam_audit('lesson_mark', 'module_progress', $progressId, ['marked' => $changed, 'pending' => $pending, 'status' => $status]);
+    if ($status === 'completed' && function_exists('mam_lesson_award')) {
+        try { mam_lesson_award((int) $p['student_id'], (int) $l['course_id']); } catch (Throwable $t) { mam_log('warn', 'lesson_award_failed', ['error' => $t->getMessage()]); }
+    }
     if (!$pending && function_exists('mam_notify')) {
         try {
             mam_notify((int) $p['student_id'], 'lesson.marked',
@@ -720,6 +797,10 @@ function mam_lesson_confirm(int $staffId, int $lessonId, int $studentId, bool $d
         else mam_db_insert('module_progress', ['module_id' => $lessonId, 'student_id' => $studentId, 'status' => 'completed', 'module_version' => $ver,
             'confirmed_by' => $staffId ?: null, 'started_at' => $now, 'completed_at' => $now, 'updated_at' => $now]);
         mam_audit('lesson_tick', 'module', $lessonId, ['student' => $studentId]);
+        if (function_exists('mam_lesson_award')) {
+            $cid = (int) (mam_db_row('SELECT course_id FROM modules WHERE id = ?', [$lessonId])['course_id'] ?? 0);
+            try { mam_lesson_award($studentId, $cid); } catch (Throwable $t) { mam_log('warn', 'lesson_award_failed', ['error' => $t->getMessage()]); }
+        }
         return 'ticked';
     }
     if (!$p) return 'unchanged';

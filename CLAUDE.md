@@ -1347,10 +1347,34 @@ nothing links to a module. The rules, each a bug NGG shipped before it had it:
   the student's **Learn** (a card per course, the lesson player — `#lesson/N`);
   the instructor's **Marking** (written answers) and **Students → a student**
   (their lessons, Tick done). `test_lessons.php`.
-- **Not ported (later phases, or the owner's call):** fines for overdue lessons
-  (money penalties on children are gated by law here — gotcha #11), AI marking,
-  exams/sittings, mastery tiers and certificates, placement years, the study
-  helper, instructor-submitted materials, lesson feedback and notes.
+- **Phase 2 (v98, HANDOFF §4z2): `lessons-learn.php` + `lesson-exams.php`.**
+  • **Placement is its own table, never the enrolment's level** — moving a
+    child up a level of LESSONS must not move them between classes, change a
+    capacity count or re-price anything. Stages: `current` (due on the
+    schedule), `catchup` (a level below, never overdue), `early` (a level above,
+    opened by finishing `MAM_LESSON_ADVANCE_PCT` of the one below). A lesson's
+    clock starts at the LATER of enrolment and placement
+    (`mam_lesson_clock_start()`), or a child moved up today is instantly overdue.
+  • **Tiers** Starter → Grand Master per course (NGG's "God" renamed), a
+    certificate per tier issued once; moving up a level issues a promotion one.
+  • **Exams** are server-timed (deadline stored at start, + grace), pledged,
+    shuffled per sitting, with spaced-recall questions from finished lessons;
+    appeal ONCE within 7 days and a teacher must answer in a sentence. A lesson
+    anyone sat an exam on is retired, not deleted (`has_progress`).
+  • **AI marking and the study helper are OFF by default** and need a provider.
+    AI marking is an ALLOW-list of written kinds — never `evidence` (a recording
+    of a child playing); below 0.6 confidence it marks nothing; a mark it gave
+    stays on the teacher's queue and is theirs to change (`by: 'ai'`). Words
+    that read as a child at risk are HELD for a person and the DSO is told —
+    never marked, never sent to a model (`mam_lesson_safeguarding_hit`).
+  • **Deadlines**: reminders via the `lesson_deadlines` automation in
+    `run-jobs.php`; **fines ship OFF** (`lesson_fines_enabled`) and changing
+    them needs the `fees` cap as well as `curriculum` (gotcha #11). A fine is an
+    ordinary `accountability_charges` row, once per lesson ever.
+  • Notes are private to the student; lesson feedback is shown to staff
+    WITHOUT names; teacher-sent materials are `pending` until the office
+    approves, a refusal needs a reason, and the editor never deletes one it did
+    not show. `test_lessons_phase2.php`.
 
 ## Member records, the roster and onboarding (HANDOFF §4w — ported from NGG)
 

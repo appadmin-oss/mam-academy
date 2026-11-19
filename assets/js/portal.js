@@ -160,6 +160,13 @@
               || (err && (err.apiDown || err.name === 'TypeError')))) {
         return MAP.api_unavailable;
       }
+      /* The server's own sentence wins when it wrote one for a refusal (4xx):
+         "Tick the box to say the work will be your own" beats any generic line
+         a code maps to here. Only a 4xx — a 5xx `message` can be an
+         exception's text, which is for the log, not the person. */
+      var said = err && err.body && typeof err.body.message === 'string' ? err.body.message.trim() : '';
+      if (said && err.status >= 400 && err.status < 500 && said.length <= 300
+          && code !== 'csrf_invalid' && code !== 'unauthenticated') return said;
       if (MAP[code]) return MAP[code];
       var base = fallback || 'That did not work. Please try again.';
       // A reference is only useful if it IS a code. A browser's own sentence

@@ -581,19 +581,51 @@
       /* Lessons — the syllabus with where this student stands on each one
          (api/lib/lessons.php). The count is lessons DONE out of lessons
          published; a week with no questions is the teacher's to tick off. */
+      var lx = d.lesson_extra || {};
+      if (lx.open_exam) {
+        html += '<section class="p-card"><div class="p-title">You have an exam open</div>'
+          + '<p class="p-caption">The clock is running on the server, whether or not this page is open.</p>'
+          + '<button type="button" class="p-primary p-gap-t" data-open-exam="' + esc(lx.open_exam) + '">Go back to it</button></section>';
+      }
       (d.lessons || []).forEach(function (c) {
-        if (!c.total) return;
+        if (!c.lessons || !c.lessons.length) return;
+        var t = c.tier || null;
         html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">'
           + esc(c.course_name + (c.level_name ? ' · ' + c.level_name : '')) + '</span>'
           + '<span class="p-caption p-num">' + esc(c.done + ' of ' + c.total + ' done') + '</span></div>'
+          /* The tier is a statement about THIS student on THIS course and what
+             the next step is — never a place on a list of classmates. */
+          + (t ? '<div class="s-lsn-tier"><span class="p-chip' + (t.tier >= 5 ? ' is-good' : '') + '">' + esc(t.tier ? t.name : 'Not started') + '</span>'
+            + '<span class="p-caption">' + esc(t.next) + '</span></div>' : '')
+          + (t && t.trial_open ? '<div class="s-lsn-trial"><label class="s-lsn-pledge"><input type="checkbox" data-pledge-trial="' + esc(c.course_id) + '">'
+            + '<span>The work will be my own — no notes, no help, no other tabs.</span></label>'
+            + '<button type="button" class="p-outline" data-trial="' + esc(c.course_id) + '">Sit the course trial · 30 minutes</button></div>' : '')
           + '<div class="p-rows">' + c.lessons.map(function (l) {
             return '<button type="button" class="p-row s-lsn-row" data-open-lesson="' + esc(l.id) + '">'
               + '<span class="s-wk">' + esc(l.week) + '</span>'
               + '<span class="p-row-main"><span class="p-title">' + esc(l.title) + '</span>'
-              + (l.summary ? '<span class="p-caption">' + esc(l.summary) + '</span>' : '') + '</span>'
+              + '<span class="p-caption">' + esc([stageWord(l), l.due && l.state !== 'completed' ? (l.late ? 'Was due ' : 'Due ') + l.due : '', l.summary].filter(Boolean).join(' · ')) + '</span></span>'
               + lessonChip(l) + '</button>';
           }).join('') + '</div></section>';
       });
+      if ((lx.exams || []).length) {
+        html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">Your exams</span></div><div class="p-rows">'
+          + lx.exams.map(function (x) {
+            var res = x.status === 'open' ? 'Open' : (Number(x.pending) ? 'With your teacher' : (x.band ? x.band + ' · ' + Math.round(x.pct) + '%' : '—'));
+            return '<button type="button" class="p-row" data-open-exam="' + esc(x.id) + '"><span class="p-row-main">'
+              + '<span class="p-title">' + esc(x.kind === 'trial' ? 'Course trial · ' + x.course_name : (x.lesson_title || 'Lesson exam')) + '</span>'
+              + '<span class="p-caption">' + esc(x.submitted_at ? 'Handed in ' + String(x.submitted_at).slice(0, 10) : 'Not handed in yet') + '</span></span>'
+              + '<span class="p-chip' + (x.band && x.band !== 'Not yet' ? ' is-good' : '') + '">' + esc(res) + '</span></button>';
+          }).join('') + '</div></section>';
+      }
+      if ((lx.certificates || []).length) {
+        html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">Certificates</span></div><div class="p-rows">'
+          + lx.certificates.map(function (ct) {
+            return '<div class="p-row"><span class="p-row-main"><span class="p-title">' + esc(ct.title) + '</span>'
+              + '<a class="p-caption s-lsn-ref" href="/verify?ref=' + encodeURIComponent(ct.reference) + '" target="_blank" rel="noopener">'
+              + esc(ct.reference) + '</a></span></div>';
+          }).join('') + '</div></section>';
+      }
 
       var en = d.enrolments || [];
       if (en.length) {
@@ -912,8 +944,16 @@
      needs a drag: put-in-order steps move with buttons, so the question works
      from a keyboard and a screen reader. */
 
+  /** Where a lesson sits for this student: their own level, behind it, or opened early. */
+  function stageWord(l) {
+    if (l.stage === 'catchup') return 'Catch-up · ' + (l.level_name || 'earlier level') + ' · at your own pace';
+    if (l.stage === 'early') return 'Opened early · ' + (l.level_name || 'next level');
+    return '';
+  }
+
   function lessonChip(l) {
     if (l.state === 'completed') return '<span class="p-chip is-good">Done</span>';
+    if (l.late) return '<span class="p-chip is-warn">Overdue</span>';
     if (l.pending) return '<span class="p-chip">With your teacher</span>';
     if (l.stale) return '<span class="p-chip is-warn">Questions changed</span>';
     if (l.state === 'attempted') return '<span class="p-chip is-warn">' + esc(l.best_pct != null ? 'Best ' + l.best_pct + '%' : 'Try again') + '</span>';
@@ -1024,10 +1064,148 @@
           }).join('') + '</div>'
           + '<button type="button" class="p-action" id="lsnSend" data-lesson-id="' + esc(l.id) + '">Send my answers</button></section>';
       }
+      html += lessonExtras(l);
       paint(html + '</div>');
     }).catch(function (err) {
       paint(backTo('learn', 'Where I stand') + h1('Lesson') + empty('triangle-exclamation', errOf(err, 'Could not open this lesson.')));
     });
+  }
+
+  /**
+   * Around a lesson: its exam, how it landed, the student's own notes and the
+   * study helper (lessons-learn.php, lesson-exams.php). Notes are private —
+   * the card says so, because a child writing "I don't get this" needs to know
+   * nobody is grading it.
+   */
+  function lessonExtras(l) {
+    var html = '';
+    if (!l.syllabus_only) {
+      html += '<section class="p-card"><div class="p-label">Lesson exam</div>';
+      if (l.exam_open) html += '<p class="p-caption">You already have an exam open — finish that one first. It is on Learn.</p>';
+      else html += '<p class="p-caption">Timed by the server, with a few questions from lessons you finished earlier. You can appeal the result once.</p>'
+        + '<label class="s-lsn-pledge p-gap-t"><input type="checkbox" id="exPledge"><span>The work will be my own — no notes, no help, no other tabs.</span></label>'
+        + '<button type="button" class="p-outline p-gap-t" id="exStart" data-lesson-id="' + esc(l.id) + '">Start the exam</button>';
+      html += '</section>';
+    }
+    if (l.feels) {
+      var mine = (l.feedback_mine || {}).feel || '';
+      html += '<section class="p-card"><div class="p-label" id="feelLbl">How did this lesson land?</div>'
+        + '<p class="p-caption">Your teachers see how a lesson is landing across the class — never who said what.</p>'
+        + '<div class="s-lsn-feels" role="group" aria-labelledby="feelLbl">' + Object.keys(l.feels).map(function (k) {
+          return '<button type="button" class="p-outline' + (mine === k ? ' is-on' : '') + '" aria-pressed="' + (mine === k ? 'true' : 'false')
+            + '" data-feel="' + esc(k) + '" data-lesson-id="' + esc(l.id) + '">' + esc(l.feels[k]) + '</button>';
+        }).join('') + '</div></section>';
+      html += '<section class="p-card"><div class="p-card-head"><span class="p-label">My notes</span>'
+        + '<button type="button" class="p-outline" id="lsnSave" aria-pressed="' + (l.saved ? 'true' : 'false') + '" data-lesson-id="' + esc(l.id) + '">'
+        + esc(l.saved ? 'Saved for later' : 'Save for later') + '</button></div>'
+        + '<label class="p-field"><span>Only you can read these</span><textarea id="lsnNote" maxlength="8000">' + esc(l.note || '') + '</textarea></label>'
+        + '<button type="button" class="p-outline p-gap-t" id="lsnNoteSave" data-lesson-id="' + esc(l.id) + '">Keep my notes</button></section>';
+    }
+    if (l.helper) {
+      html += '<section class="p-card"><div class="p-label">Study helper</div>'
+        + '<p class="p-caption">' + esc('Ask about this lesson. It gives hints, not the answers to the questions. ' + l.helper.left + ' left today.') + '</p>'
+        + '<label class="p-field p-gap-t"><span>Your question</span><textarea id="hlpQ" maxlength="1000"></textarea></label>'
+        + '<button type="button" class="p-outline p-gap-t" id="hlpAsk" data-lesson-id="' + esc(l.id) + '">Ask</button>'
+        + '<div class="s-lsn-helper" id="hlpOut" aria-live="polite"></div></section>';
+    }
+    return html;
+  }
+
+  /* ── 3c · An exam ───────────────────────────────────────────────────────────
+     The clock is the SERVER's: `seconds_left` arrives with every read, and the
+     countdown here only displays it. When it reaches zero the page hands in
+     what is on screen; if the page was closed, the server hands in what was
+     saved. Answers are saved as the student goes, so a dropped connection
+     loses at most the last minute. */
+  var exTimer = null;
+  function examQuestion(it, n) {
+    var head = '<span class="p-label">Question ' + n + ' · ' + esc(it.points + (it.points === 1 ? ' point' : ' points')) + '</span>'
+      + '<span class="p-body s-lsn-q">' + esc(it.prompt) + '</span>';
+    var name = 'eq' + it.check_id, prev = it.saved;
+    if (it.kind === 'mcq') {
+      return '<fieldset class="s-lsn-check" data-q="' + esc(it.check_id) + '" data-kind="mcq"><legend class="s-lsn-legend">' + head + '</legend>'
+        + '<div class="s-lsn-opts">' + it.options.map(function (o) {
+          return '<label class="s-lsn-opt"><input type="radio" name="' + name + '" value="' + esc(o.i) + '"'
+            + (prev != null && Number(prev) === o.i ? ' checked' : '') + '><span>' + esc(o.text) + '</span></label>';
+        }).join('') + '</div></fieldset>';
+    }
+    if (it.kind === 'order') {
+      var opts = it.options;
+      if (Array.isArray(prev) && prev.length === opts.length) {
+        var byI = {}; opts.forEach(function (o) { byI[o.i] = o; });
+        opts = prev.map(function (i) { return byI[i]; }).filter(Boolean);
+      }
+      return lessonQuestion({ id: it.check_id, kind: 'order', points: it.points, prompt: it.prompt, options: opts }, n, null);
+    }
+    return lessonQuestion({ id: it.check_id, kind: it.kind === 'evidence' ? 'evidence' : 'text', points: it.points, prompt: it.prompt }, n, prev);
+  }
+
+  function clock(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+  }
+
+  function renderExam(id) {
+    clearInterval(exTimer);
+    deferLoading('Opening the exam…');
+    API.request('student/lessons?exam=' + encodeURIComponent(id || ''), { method: 'GET' }).then(function (d) {
+      var x = d.exam || {};
+      S.exam = x;
+      var title = x.kind === 'trial' ? 'Course trial' : 'Lesson exam';
+      var html = backTo('learn', 'Where I stand') + h1(title) + '<div class="p-stack">';
+      if (x.status === 'open') {
+        html += '<section class="p-card s-ex-clock"><span class="p-label">Time left</span>'
+          + '<span class="p-num s-ex-time" id="exTime" role="timer" aria-live="off">' + esc(clock(x.seconds_left)) + '</span>'
+          + '<span class="p-caption">Your answers are saved as you go. When the time runs out, what is saved is handed in.</span></section>'
+          + '<section class="p-card">' + x.items.map(function (it, i) { return examQuestion(it, i + 1); }).join('')
+          + '<div class="p-actions p-gap-t"><button type="button" class="p-outline" id="exSave" data-exam="' + esc(x.id) + '">Save</button>'
+          + '<button type="button" class="p-action" id="exSubmit" data-exam="' + esc(x.id) + '">Hand it in</button></div></section>';
+        paint(html + '</div>');
+        var end = Date.now() + x.seconds_left * 1000, last = Date.now();
+        exTimer = setInterval(function () {
+          var el = document.getElementById('exTime');
+          if (!el) { clearInterval(exTimer); return; }
+          var left = (end - Date.now()) / 1000;
+          el.textContent = clock(left);
+          if (Date.now() - last > 60000) { last = Date.now(); examSave(x.id, true); }
+          if (left <= 0) { clearInterval(exTimer); examSubmit(x.id, null); }
+        }, 1000);
+        return;
+      }
+      var r = x.result || {};
+      if (r.pending) html += notice('Handed in. Your teacher is marking the written answers; you will be told when it is done.', null, 'hourglass-half');
+      else html += '<section class="p-card"><div class="p-kpis">' + kpi(r.pct != null ? r.pct + '%' : null, 'Score') + kpi(r.band, 'Result') + '</div></section>';
+      html += '<section class="p-card is-flush"><div class="p-rows">' + x.items.map(function (it, i) {
+        var m = (r.marks || {})[String(it.check_id)] || {};
+        var v = m.hold ? 'With a person' : (m.awarded == null ? 'Waiting' : m.awarded + ' of ' + it.points);
+        return '<div class="p-row"><span class="p-row-main"><span class="p-title">' + esc('Question ' + (i + 1)) + '</span>'
+          + '<span class="p-caption">' + esc(it.prompt) + '</span>'
+          + (m.comment ? '<span class="p-caption">' + esc((m.by === 'ai' ? 'Marking note: ' : 'Your teacher: ') + m.comment) + '</span>' : '')
+          + '</span><span class="p-chip">' + esc(v) + '</span></div>';
+      }).join('') + '</div></section>';
+      var ap = r.appeal || {};
+      if (ap.outcome) html += '<section class="p-card"><div class="p-label">Your appeal</div><p class="p-body">' + esc(ap.text || '') + '</p>'
+        + '<p class="p-caption p-gap-t">' + esc('The answer: ' + ap.outcome) + '</p></section>';
+      else if (ap.text) html += notice('Your appeal is with your teacher.', null, 'scale-balanced');
+      else if (ap.open) html += '<section class="p-card"><div class="p-label">Think a mark is wrong?</div>'
+        + '<p class="p-caption">You can appeal once, within a week. Say which question and why.</p>'
+        + '<label class="p-field p-gap-t"><span>Your appeal</span><textarea id="exAppeal" maxlength="2000"></textarea></label>'
+        + '<button type="button" class="p-outline p-gap-t" id="exAppealSend" data-exam="' + esc(x.id) + '">Send the appeal</button></section>';
+      paint(html + '</div>');
+    }).catch(function (err) {
+      paint(backTo('learn', 'Where I stand') + h1('Exam') + empty('triangle-exclamation', errOf(err, 'Could not open this exam.')));
+    });
+  }
+
+  function examSave(id, quiet) {
+    var req = API.request('student/lessons', { method: 'POST', body: { action: 'exam_save', exam_id: Number(id), answers: lessonAnswers() } });
+    if (quiet) { req.catch(function () {}); return; }
+    write($('#exSave'), req, null, 'Saved.');
+  }
+  function examSubmit(id, btn) {
+    clearInterval(exTimer);
+    write(btn, API.request('student/lessons', { method: 'POST', body: { action: 'exam_submit', exam_id: Number(id), answers: lessonAnswers() } }),
+      function () { renderExam(id); }, 'Handed in.');
   }
 
   /** Read every answer off the page. A blank one is sent blank; the server says which are missing. */
@@ -1047,13 +1225,13 @@
 
   var SCREENS = {
     home: renderHome, train: renderTrain, learn: renderLearn, attend: renderAttend,
-    money: renderMoney, repertoire: renderRepertoire, a11y: renderA11y, lesson: renderLesson
+    money: renderMoney, repertoire: renderRepertoire, a11y: renderA11y, lesson: renderLesson, exam: renderExam
   };
   /* Which bar item lights for a screen the bar does not itself carry. Fees and
      Repertoire light NOTHING rather than borrowing another tab's highlight — a
      bar that claims you are on Home while you are reading an invoice is worse
      than a bar that claims nothing. */
-  var TAB_OF = { home: 'home', train: 'train', learn: 'learn', attend: 'attend', lesson: 'learn' };
+  var TAB_OF = { home: 'home', train: 'train', learn: 'learn', attend: 'attend', lesson: 'learn', exam: 'learn' };
 
   function go(screen, arg) {
     if (!SCREENS[screen]) screen = 'home';
@@ -1154,6 +1332,62 @@
 
     var openL = t.closest('[data-open-lesson]');
     if (openL) { go('lesson', openL.dataset.openLesson); return; }
+    var openX = t.closest('[data-open-exam]');
+    if (openX) { go('exam', openX.dataset.openExam); return; }
+
+    /* Lesson extras: exam, trial, feeling, notes, saved, helper. */
+    if (t.closest('#exStart')) {
+      var es = t.closest('#exStart');
+      write(es, API.request('student/lessons', { method: 'POST', body: { action: 'exam_start', lesson_id: Number(es.dataset.lessonId),
+        pledged: !!($('#exPledge') || {}).checked } }), function (r) { go('exam', r.exam.id); });
+      return;
+    }
+    var tr = t.closest('[data-trial]');
+    if (tr) {
+      var pl = $('[data-pledge-trial="' + tr.dataset.trial + '"]');
+      write(tr, API.request('student/lessons', { method: 'POST', body: { action: 'trial_start', course_id: Number(tr.dataset.trial),
+        pledged: !!(pl && pl.checked) } }), function (r) { go('exam', r.exam.id); });
+      return;
+    }
+    var fe = t.closest('[data-feel]');
+    if (fe) {
+      write(fe, API.request('student/lessons', { method: 'POST', body: { action: 'feedback', lesson_id: Number(fe.dataset.lessonId), feel: fe.dataset.feel } }),
+        function () {
+          $$('[data-feel]', main).forEach(function (b) { var on = b === fe; b.classList.toggle('is-on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+        }, 'Thank you — that helps your teachers.');
+      return;
+    }
+    if (t.closest('#lsnNoteSave')) {
+      var ns = t.closest('#lsnNoteSave');
+      write(ns, API.request('student/lessons', { method: 'POST', body: { action: 'note', lesson_id: Number(ns.dataset.lessonId), note: ($('#lsnNote') || {}).value || '' } }),
+        null, 'Notes kept.');
+      return;
+    }
+    if (t.closest('#lsnSave')) {
+      var sv = t.closest('#lsnSave'), on = sv.getAttribute('aria-pressed') !== 'true';
+      write(sv, API.request('student/lessons', { method: 'POST', body: { action: 'save', lesson_id: Number(sv.dataset.lessonId), saved: on } }),
+        function () { sv.setAttribute('aria-pressed', on ? 'true' : 'false'); sv.textContent = on ? 'Saved for later' : 'Save for later'; });
+      return;
+    }
+    if (t.closest('#hlpAsk')) {
+      var ha = t.closest('#hlpAsk');
+      write(ha, API.request('student/lessons', { method: 'POST', body: { action: 'helper', lesson_id: Number(ha.dataset.lessonId), question: ($('#hlpQ') || {}).value || '' } }),
+        function (r) { var o = $('#hlpOut'); if (o) o.textContent = r.answer || ''; });
+      return;
+    }
+    if (t.closest('#exSave')) { examSave(t.closest('#exSave').dataset.exam, false); return; }
+    if (t.closest('#exSubmit')) {
+      var xs = t.closest('#exSubmit');
+      if (!window.confirm('Hand in the exam now? You cannot change your answers after this.')) return;
+      examSubmit(xs.dataset.exam, xs);
+      return;
+    }
+    if (t.closest('#exAppealSend')) {
+      var xa = t.closest('#exAppealSend');
+      write(xa, API.request('student/lessons', { method: 'POST', body: { action: 'exam_appeal', exam_id: Number(xa.dataset.exam), text: ($('#exAppeal') || {}).value || '' } }),
+        function () { renderExam(xa.dataset.exam); }, 'Appeal sent to your teacher.');
+      return;
+    }
 
     /* Put-in-order: a step moves one place, and focus stays on the button that
        moved it, so a keyboard user can keep pressing. */

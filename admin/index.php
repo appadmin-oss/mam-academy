@@ -592,6 +592,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'module_save' => 'curriculum', 'module_delete' => 'curriculum',
         // Lessons (api/lib/lessons.php): writing one, and publishing or retiring in bulk.
         'lesson_save' => 'curriculum', 'lesson_status' => 'curriculum',
+        'lesson_material_review' => 'curriculum', 'lesson_settings' => 'curriculum',
         'module_scaffold' => 'curriculum', 'module_import' => 'curriculum',
         'rubric_create' => 'curriculum', 'rubric_update' => 'curriculum', 'rubric_delete' => 'curriculum',
         'meet_reconcile' => 'settings',
@@ -2079,6 +2080,43 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             header('Location: ?v=curriculum&course=' . $course . '&err=' . urlencode($msg . ' ' . count($r['refused']) . ' refused — ' . $first)); exit;
         }
         header('Location: ?v=curriculum&course=' . $course . '&ok=' . urlencode($msg)); exit;
+    }
+
+    // A material a teacher sent (lessons-learn.php): approve, or refuse with a reason.
+    if ($action === 'lesson_material_review') {
+        $mid = (int) ($_POST['material_id'] ?? 0);
+        $ok = ($_POST['decision'] ?? '') === 'approve';
+        try {
+            mam_lesson_material_review($adminUser ? (int) $adminUser['id'] : 0, $mid, $ok, (string) ($_POST['note'] ?? ''));
+        } catch (InvalidArgumentException $e) {
+            header('Location: ?v=curriculum&err=' . urlencode($e->getMessage())); exit;
+        } catch (RuntimeException $e) {
+            header('Location: ?v=curriculum&err=' . urlencode('That material has already been reviewed.')); exit;
+        }
+        header('Location: ?v=curriculum&ok=' . urlencode($ok ? 'Material approved — students can see it now.' : 'Material refused; the teacher has been told why.')); exit;
+    }
+
+    /* Deadlines, fines and the AI switches for lessons. Fines are MONEY taken
+       from a family, so the switch and the amount need the fees capability as
+       well as curriculum — a curriculum editor can see them, not change them
+       (CLAUDE.md gotcha #11: a penalty on a child is the academy's decision). */
+    if ($action === 'lesson_settings') {
+        $start = trim((string) ($_POST['term_start'] ?? ''));
+        if ($start !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)) { header('Location: ?v=curriculum&err=' . urlencode('Give the term start as a date.')); exit; }
+        mam_setting_set('lesson_term_start', $start);
+        mam_setting_set('lesson_remind_before_days', (string) max(0, min(30, (int) ($_POST['remind_before'] ?? 2))));
+        mam_setting_set('lesson_remind_every_days', (string) max(1, min(30, (int) ($_POST['remind_every'] ?? 2))));
+        mam_setting_set('lesson_ai_marking', !empty($_POST['ai_marking']) ? '1' : '0');
+        mam_setting_set('lesson_helper_enabled', !empty($_POST['helper']) ? '1' : '0');
+        $money = !$adminUser || mam_admin_can($adminUser, 'fees');
+        if ($money) {
+            mam_setting_set('lesson_fine_after_days', (string) max(1, min(90, (int) ($_POST['fine_after'] ?? 7))));
+            mam_setting_set('lesson_fines_enabled', !empty($_POST['fines_enabled']) ? '1' : '0');
+            $usd = round(max(0, min(50, (float) ($_POST['fine_usd'] ?? 1))), 2);
+            mam_setting_set('lesson_fine_usd', (string) $usd);
+        }
+        mam_audit('lesson_settings', 'settings', null, ['fines_changed' => $money, 'ai_marking' => !empty($_POST['ai_marking']), 'helper' => !empty($_POST['helper'])]);
+        header('Location: ?v=curriculum&ok=' . urlencode('Lesson settings saved.' . ($money ? '' : ' Fines need the fees permission, so those were left as they were.'))); exit;
     }
 
     // ─── Load the bundled starter curriculum (from MAM's documents) ──

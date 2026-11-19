@@ -336,11 +336,11 @@
     paint(loading('Loading the marking queue…'));
     screenReq('marking').then(function (d) {
       S.marking = d;
-      var q = d.queue || [], lq = d.lessons || [];
-      if (!q.length && !lq.length) { paint(h1('Marking') + empty('circle-check', 'Nothing waiting to be marked.')); return; }
-      if (!q.length) { paint(h1('Marking', lq.length + ' lesson ' + plural(lq.length, 'answer', 'answers') + ' waiting, oldest first') + lessonMarking(lq)); return; }
+      var q = d.queue || [], lq = d.lessons || [], xq = d.exams || [];
+      if (!q.length && !lq.length && !xq.length) { paint(h1('Marking') + empty('circle-check', 'Nothing waiting to be marked.')); return; }
+      if (!q.length) { paint(h1('Marking', (lq.length + xq.length) + ' lesson ' + plural(lq.length + xq.length, 'item', 'items') + ' waiting, oldest first') + lessonMarking(lq) + examMarking(xq)); return; }
       paint(h1('Marking', q.length + ' ' + plural(q.length, 'performance', 'performances') + ' waiting, oldest first')
-        + lessonMarking(lq)
+        + lessonMarking(lq) + examMarking(xq)
         + '<section class="p-card is-flush"><div class="p-rows">'
         + q.map(function (s) {
           var sub = [s.title, s.days != null ? s.days + 'd waiting' : null].filter(Boolean).join(' · ');
@@ -379,8 +379,12 @@
             + '<div class="p-label">' + esc(it.prompt) + '</div>'
             + (it.rubric ? '<p class="p-caption">' + esc('A good answer: ' + it.rubric) + '</p>' : '')
             + '<p class="p-body i-lsn-ans">' + shown + '</p>'
+            /* The assistant's mark is a suggestion the teacher can change; a
+               held answer is one a person must read — say which, plainly. */
+            + (it.held ? '<p class="p-notice is-warn"><i class="fa-solid fa-shield-heart" aria-hidden="true"></i><span>Held for a person to read: the words may be about the child\'s safety. The safeguarding lead has been told.</span></p>' : '')
+            + (it.ai_awarded != null ? '<p class="p-caption">' + esc('The assistant gave ' + it.ai_awarded + ' of ' + it.points + ' — change it if you disagree.') + '</p>' : '')
             + '<div class="i-lsn-row"><label class="p-field"><span>' + esc('Mark out of ' + it.points) + '</span>'
-            + '<input type="number" inputmode="decimal" min="0" max="' + esc(it.points) + '" step="0.5" data-award></label>'
+            + '<input type="number" inputmode="decimal" min="0" max="' + esc(it.points) + '" step="0.5" data-award' + (it.ai_awarded != null ? ' value="' + esc(it.ai_awarded) + '"' : '') + '></label>'
             + '<label class="p-field"><span>A line for the student (optional)</span><input type="text" maxlength="1000" data-comment></label></div></div>';
         }).join('')
         + '<label class="p-field p-gap-t"><span>A note on the whole attempt (optional)</span><textarea maxlength="2000" data-feedback></textarea></label>'
@@ -636,26 +640,72 @@
     if (l.state === 'started') return 'Opened';
     return 'Not started';
   }
+  /**
+   * Exam sittings (lesson-exams.php): written answers to mark and an appeal to
+   * answer. Only the written questions are shown — the machine-marked ones are
+   * not the teacher's to change. An appeal needs a sentence back, upheld or not.
+   */
+  function examMarking(xq) {
+    if (!xq.length) return '';
+    return '<h2 class="p-label p-gap-t">Exams</h2>' + xq.map(function (x) {
+      return '<section class="p-card i-lsn" data-ex-card="' + esc(x.sitting_id) + '">'
+        + '<div class="p-title">' + esc(x.student_name) + '</div>'
+        + '<p class="p-caption">' + esc([x.course_name, x.kind === 'trial' ? 'Course trial' : (x.lesson_title || 'Lesson exam')].join(' · ')) + '</p>'
+        + (x.appeal ? '<div class="p-notice p-gap-t"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i><span>' + esc('Appeal: ' + x.appeal) + '</span></div>' : '')
+        + x.items.map(function (it) {
+          return '<div class="i-lsn-item p-gap-t" data-check="' + esc(it.check_id) + '">'
+            + '<div class="p-label">' + esc(it.prompt) + '</div>'
+            + (it.rubric ? '<p class="p-caption">' + esc('A good answer: ' + it.rubric) + '</p>' : '')
+            + '<p class="p-body i-lsn-ans">' + esc(it.answer == null ? '(no answer)' : String(it.answer)) + '</p>'
+            + (it.hold ? '<p class="p-notice is-warn"><i class="fa-solid fa-shield-heart" aria-hidden="true"></i><span>Held for a person to read: the words may be about the child\'s safety.</span></p>' : '')
+            + '<div class="i-lsn-row"><label class="p-field"><span>' + esc('Mark out of ' + it.points) + '</span>'
+            + '<input type="number" inputmode="decimal" min="0" max="' + esc(it.points) + '" step="0.5" data-award' + (it.awarded != null ? ' value="' + esc(it.awarded) + '"' : '') + '></label>'
+            + '<label class="p-field"><span>A line for the student (optional)</span><input type="text" maxlength="600" data-comment></label></div></div>';
+        }).join('')
+        + (x.appeal ? '<label class="p-field p-gap-t"><span>Your answer to the appeal</span><textarea maxlength="2000" data-appeal-outcome></textarea></label>' : '')
+        + '<button type="button" class="p-primary p-gap-t" data-ex-mark="' + esc(x.sitting_id) + '">Save</button></section>';
+    }).join('');
+  }
+
   function renderStudentLessons(studentId) {
     paint(loading('Loading their lessons…'));
     API.request('instructor/lessons?student=' + encodeURIComponent(studentId || ''), { method: 'GET' }).then(function (d) {
       var html = backTo('students', 'Students') + h1((d.student && d.student.name) || 'Student', 'Lessons on the courses you teach them');
       var cs = d.courses || [];
       if (!cs.length) { paint(html + empty('book-open', 'No published lessons on the courses you teach them yet.')); return; }
+      var lv = d.levels || [];
       paint(html + cs.map(function (c) {
+        var t = c.tier || {};
+        var curLv = c.placed_level_id;
         return '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">'
           + esc(c.course_name + (c.level_name ? ' · ' + c.level_name : '')) + '</span>'
-          + '<span class="p-caption p-num">' + esc(c.done + ' of ' + c.total + ' done') + '</span></div><div class="p-rows">'
+          + '<span class="p-caption p-num">' + esc(c.done + ' of ' + c.total + ' done') + '</span></div>'
+          + (t.name ? '<p class="p-caption i-lsn-pad">' + esc('Tier: ' + (t.tier ? t.name : 'Not started') + ' · ' + t.next) + '</p>' : '')
+          /* Placement is the LESSON level, never the class or the price. */
+          + (lv.length ? '<div class="i-lsn-place i-lsn-pad"><label class="p-field"><span>Lesson level</span><select data-place-level="' + esc(c.course_id) + '">'
+            + lv.map(function (x) { return '<option value="' + esc(x.id) + '"' + (x.id === curLv ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('')
+            + '</select></label><label class="p-field"><span>Why (optional)</span><input type="text" maxlength="300" data-place-reason="' + esc(c.course_id) + '"></label>'
+            + '<button type="button" class="p-outline" data-place="' + esc(c.course_id) + '" data-student-id="' + esc(d.student.id) + '">Move</button></div>'
+            + '<p class="p-caption i-lsn-pad">Moves which lessons they work on. Their class, its places and the fees do not change.</p>' : '')
+          + '<div class="p-rows">'
           + c.lessons.map(function (l) {
             var act = l.state !== 'completed'
               ? '<button type="button" class="p-outline i-lsn-tick" data-lsn-tick="' + esc(l.id) + '" data-student-id="' + esc(d.student.id) + '" data-done="1"'
                 + ' aria-label="' + esc('Tick “' + l.title + '” done') + '">Tick done</button>'
               : (l.ticked ? '<button type="button" class="p-outline i-lsn-tick" data-lsn-tick="' + esc(l.id) + '" data-student-id="' + esc(d.student.id) + '" data-done="0"'
                 + ' aria-label="' + esc('Take back the tick on “' + l.title + '”') + '">Untick</button>' : '');
+            var where = l.stage === 'catchup' ? ' · catch-up' : (l.stage === 'early' ? ' · opened early' : '');
             return '<div class="p-row"><span class="i-lsn-wk p-num">' + esc('W' + l.week) + '</span>'
               + '<span class="p-row-main"><span class="p-title">' + esc(l.title) + '</span>'
-              + '<span class="p-caption">' + esc(lessonState(l) + (l.syllabus_only ? ' · no questions' : '')) + '</span></span>' + act + '</div>';
-          }).join('') + '</div></section>';
+              + '<span class="p-caption">' + esc(lessonState(l) + where + (l.late ? ' · overdue' : '') + (l.syllabus_only ? ' · no questions' : '')) + '</span></span>' + act + '</div>';
+          }).join('') + '</div>'
+          /* A teacher can SEND material for a lesson; the curriculum office decides whether it goes live. */
+          + '<details class="i-lsn-pad i-lsn-mat"><summary>Send a material for one of these lessons</summary>'
+          + '<label class="p-field p-gap-t"><span>Lesson</span><select data-mat-lesson>' + c.lessons.map(function (l) {
+            return '<option value="' + esc(l.id) + '">' + esc('Week ' + l.week + ' · ' + l.title) + '</option>'; }).join('') + '</select></label>'
+          + '<label class="p-field"><span>Title</span><input type="text" maxlength="200" data-mat-title></label>'
+          + '<label class="p-field"><span>Link (https://)</span><input type="url" inputmode="url" placeholder="https://" data-mat-url></label>'
+          + '<button type="button" class="p-outline p-gap-t" data-mat-send>Send for approval</button></details></section>';
       }).join(''));
     }).catch(function (err) { paint(backTo('students', 'Students') + h1('Lessons') + empty('triangle-exclamation', errOf(err, 'Could not load their lessons.'))); });
   }
@@ -818,6 +868,39 @@
       write(tk, API.request('instructor/lessons', { method: 'POST', body: { action: 'tick', lesson_id: Number(tk.dataset.lsnTick),
         student_id: Number(sid), done: tk.dataset.done === '1' } }),
         function () { renderStudentLessons(sid); }, tk.dataset.done === '1' ? 'Ticked done.' : 'Tick taken back.');
+      return;
+    }
+    var pb = e.target && e.target.closest && e.target.closest('[data-place]');
+    if (pb) {
+      var cidP = pb.dataset.place, sidP = pb.dataset.studentId;
+      write(pb, API.request('instructor/lessons', { method: 'POST', body: { action: 'place', student_id: Number(sidP), course_id: Number(cidP),
+        level_id: Number((document.querySelector('[data-place-level="' + cidP + '"]') || {}).value || 0),
+        reason: (document.querySelector('[data-place-reason="' + cidP + '"]') || {}).value || '' } }),
+        function () { renderStudentLessons(sidP); }, 'Lesson level changed.');
+      return;
+    }
+    var ms = e.target && e.target.closest && e.target.closest('[data-mat-send]');
+    if (ms) {
+      var box = ms.closest('details');
+      write(ms, API.request('instructor/lessons', { method: 'POST', body: { action: 'material',
+        lesson_id: Number((box.querySelector('[data-mat-lesson]') || {}).value || 0),
+        title: (box.querySelector('[data-mat-title]') || {}).value || '', url: (box.querySelector('[data-mat-url]') || {}).value || '' } }),
+        function () { box.querySelector('[data-mat-title]').value = ''; box.querySelector('[data-mat-url]').value = ''; }, 'Sent — the curriculum office will review it.');
+      return;
+    }
+    var xm = e.target && e.target.closest && e.target.closest('[data-ex-mark]');
+    if (xm) {
+      var xc = xm.closest('[data-ex-card]'), xa = {}, xcm = {};
+      Array.prototype.slice.call(xc.querySelectorAll('[data-check]')).forEach(function (it) {
+        var v = (it.querySelector('[data-award]') || {}).value;
+        if (v !== '' && v != null) xa[it.dataset.check] = Number(v);
+        var c = (it.querySelector('[data-comment]') || {}).value;
+        if (c) xcm[it.dataset.check] = c;
+      });
+      var ao = xc.querySelector('[data-appeal-outcome]');
+      write(xm, API.request('instructor/lessons', { method: 'POST', body: { action: 'exam_mark', exam_id: Number(xm.dataset.exMark),
+        awards: xa, comments: xcm, appeal_outcome: ao ? ao.value : '' } }),
+        function () { renderMarking(); }, 'Saved — the student has been told.');
       return;
     }
     var lm = e.target && e.target.closest && e.target.closest('[data-lsn-mark]');

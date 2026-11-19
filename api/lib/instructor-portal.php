@@ -426,7 +426,10 @@ function mam_iportal_marking(int $instructorId): array {
     return ['queue' => $rows, 'audio_only_notice' => MAM_MARKING_AUDIO_NOTICE,
         /* Written answers to lesson questions (api/lib/lessons.php): a person
            marks these, never the machine. Only this teacher's students. */
-        'lessons' => mam_iportal_try(fn() => function_exists('mam_lesson_marking_queue') ? mam_lesson_marking_queue($instructorId, 50) : [], [])];
+        'lessons' => mam_iportal_try(fn() => function_exists('mam_lesson_marking_queue') ? mam_lesson_marking_queue($instructorId, 50) : [], []),
+        /* Exam sittings with written answers to mark or an appeal to answer
+           (lesson-exams.php) — only students this teacher teaches. */
+        'exams' => mam_iportal_try(fn() => function_exists('mam_exam_teacher_queue') ? mam_exam_teacher_queue($instructorId) : [], [])];
 }
 
 /** The teach-back queue, carrying the sentence that keeps it formative. */

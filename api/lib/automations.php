@@ -107,6 +107,14 @@ function mam_automations_registry(): array {
             'default' => true,
             'live'    => true,
         ],
+        'lesson_deadlines' => [
+            'group' => 'Learning',
+            'trigger' => 'A lesson at a student\'s own level is nearly due, or overdue',
+            'action'  => 'Remind the student and their guardians (a fine only if the academy switched fines on)',
+            'icon'    => 'bell',
+            'default' => true,
+            'live'    => true,
+        ],
         'store_receipt' => [
             'group' => 'Commerce & delight',
             'trigger' => 'A store order is paid',

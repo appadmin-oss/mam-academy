@@ -1992,3 +1992,24 @@ empty PHP log.
 penalties on children are gated by law here), AI marking, exams, mastery tiers and
 certificates, placement years, the study helper, materials submitted by
 instructors, lesson feedback and private notes.
+
+
+## 4z2. 2026-11-19 — lessons phase 2: everything NGG had around a lesson
+
+Owner: "Add them all" (fines, AI marking, exams, tiers and certificates,
+placement, the study helper, teacher materials, feedback, notes). Schema v98,
+`api/lib/lessons-learn.php` + `api/lib/lesson-exams.php`; rules in CLAUDE.md
+"Lessons". Decisions made, each reversible by a setting rather than code:
+
+- Fines and AI are built and **switched off**. Fines need the `fees` permission
+  to switch on; AI needs a provider configured.
+- NGG's viva (model-generated follow-up questions) was **not** ported — it needs
+  a model inside every sitting, and weak answers go to a teacher anyway.
+- Found and fixed on the way: a lesson saved without a kind was stored as `''`
+  (v98 repairs existing rows); bare `.p-outline` buttons had no size on any
+  portal; the portal error helper ignored the server's own 4xx sentence;
+  a two-part `.p-card-head` ran its label into its count.
+
+Verified: suite 7079/0; Chromium end to end (student notes, feedback, exam with
+pledge and clock, teacher exam marking, placement, material sent → approved in
+the console, settings saved); console sweep 32 screens × 2 widths clean.

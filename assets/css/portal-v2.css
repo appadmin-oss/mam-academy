@@ -235,6 +235,9 @@
 }
 [data-portal="v2"] button.p-card.p-row, [data-portal="v2"] a.p-card.p-row { display: flex; }
 [data-portal="v2"] .p-card-head { padding: 14px 18px 12px; }
+/* A head carrying a label and a count/control: keep them apart. MEASURED:
+   "PIANO · CERTIFICATE0 of 4 done" ran together on the lessons card. */
+[data-portal="v2"] .p-card-head:has(> :nth-child(2)) { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
 [data-portal="v2"] .p-card-foot {
   margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rule);
 }
@@ -254,7 +257,12 @@
    target is the min-height values below, and on mobile they are 44px because §4
    makes 44px contractual and 34px is explicitly a DESKTOP figure ("Desktop
    controls ≥24px, 34px used here"). */
+/* `.p-outline` is here too: on its own it set only a border and a fill, so a
+   bare outline button (the student's "Prepare", every lesson control) drew at
+   the browser's 13px default with no padding. MEASURED in the lessons pass.
+   `.p-action.p-outline` is declared later and still wins for an action. */
 [data-portal="v2"] button.p-ghost, [data-portal="v2"] a.p-ghost,
+[data-portal="v2"] button.p-outline, [data-portal="v2"] a.p-outline,
 [data-portal="v2"] button.p-primary, [data-portal="v2"] a.p-primary {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-height: 44px; padding: 0 15px; border: 0;
@@ -1527,3 +1535,21 @@
 @media (max-width: 480px) { [data-portal="v2"] .i-lsn-row { grid-template-columns: 1fr; } }
 [data-portal="v2"] .i-lsn-wk { flex: 0 0 40px; font: 700 13px var(--font-ui); color: var(--text-2); }
 [data-portal="v2"] button.i-lsn-tick { flex: 0 0 auto; width: auto; min-height: 44px; margin: 0; padding: 0 14px; font-size: 14px; }
+
+/* Lessons phase 2 (lessons-learn.php, lesson-exams.php): tier line, trial,
+   pledge, feedback, helper and the exam clock. */
+[data-portal="v2"] .s-lsn-tier { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 0 20px 12px; }
+[data-portal="v2"] .s-lsn-trial { display: grid; gap: 10px; padding: 0 20px 14px; }
+[data-portal="v2"] .s-lsn-pledge { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; line-height: 1.45; color: var(--text); }
+[data-portal="v2"] .s-lsn-pledge input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); flex: 0 0 auto; }
+[data-portal="v2"] .s-lsn-feels { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+[data-portal="v2"] .s-lsn-feels .p-outline.is-on { border-color: var(--accent); background: var(--inset); font-weight: 600; }
+[data-portal="v2"] .s-lsn-helper { margin-top: 12px; white-space: pre-line; color: var(--text); font-size: 15px; line-height: 1.55; }
+[data-portal="v2"] .s-lsn-helper:empty { display: none; }
+[data-portal="v2"] .s-lsn-ref { font-family: var(--font-mono, ui-monospace, monospace); color: var(--accent-text); }
+[data-portal="v2"] .s-ex-clock { display: grid; gap: 4px; }   /* not sticky: the portal header already is, and two sticky bars collide */
+[data-portal="v2"] .s-ex-time { font-size: 32px; font-weight: 700; color: var(--text); }
+[data-portal="v2"] .i-lsn-pad { padding: 0 20px 12px; }
+[data-portal="v2"] .i-lsn-place { display: grid; grid-template-columns: minmax(140px, 200px) 1fr auto; gap: 10px; align-items: end; }
+@media (max-width: 480px) { [data-portal="v2"] .i-lsn-place { grid-template-columns: 1fr; } }
+[data-portal="v2"] .i-lsn-mat summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent-text); font-weight: 600; }
