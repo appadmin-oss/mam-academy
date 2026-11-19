@@ -578,7 +578,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'fee_payment_void' => 'fees', 'fee_plan_approve' => 'fees', 'fee_plan_cancel' => 'fees',
         'bursary_decide' => 'fees',
         'fee_transfer_verify' => 'fees', 'fee_transfer_reject' => 'fees', 'fee_unapplied_resolve' => 'fees',
-        'fee_invoice_review' => 'fees', 'fee_query_decide' => 'fees', 'fee_code_save' => 'fees', 'fee_code_apply' => 'fees',
+        'fee_invoice_review' => 'fees', 'fee_review_settings' => 'fees', 'fee_query_decide' => 'fees', 'fee_code_save' => 'fees', 'fee_code_apply' => 'fees',
         'module_proposal_review' => 'curriculum',
         'curriculum_clone' => 'curriculum',
         // Programming a recital is an academic judgement about what a
@@ -1902,6 +1902,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                     if ($due !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $due)) throw new InvalidArgumentException('bad_date');
                     mam_fee_issue_reviewed($invId, $by, $due !== '' ? $due : null);
                     $back('ok', 'Issued. The family can see it now.', $invId);
+                case 'fee_review_settings':
+                    mam_setting_set('fee_review_required', !empty($_POST['required']) ? '1' : '0');
+                    mam_setting_set('fee_review_two_person', !empty($_POST['two_person']) ? '1' : '0');
+                    mam_audit('fee_review_settings', 'setting', 0, ['required' => !empty($_POST['required']), 'two_person' => !empty($_POST['two_person'])]);
+                    $back('ok', 'Saved.', 0);
                 case 'fee_invoice_review':
                     mam_fee_invoice_review($invId, $by, (string) ($_POST['note'] ?? ''));
                     $back('ok', 'Reviewed. It can be issued now.', $invId);

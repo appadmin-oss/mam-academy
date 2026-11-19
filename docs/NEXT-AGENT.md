@@ -43,9 +43,8 @@ Branch: `afv/mam-audit` (never a `claude/` branch — owner's rule). Suite:
   (`fee_discount_codes.ends_on`) to everybody — same effect, no new mechanism, and it
   is visible on the invoice as a waiver with a reason.
 - **Two-person invoice review** suits an office of two or more. A one-person office
-  should set `fee_review_two_person = 0` (the review still happens, by the same
-  person) rather than switching review off. Consider a console toggle — today it is a
-  setting with no screen.
+  should untick "somebody other than whoever drafted it" (Console → Invoices → Review
+  before sending) rather than switching review off — the check still happens.
 - **Ability estimate (θ)** uses a simple online Rasch/Elo update. Good enough to pick
   questions; not good enough to grade anybody. Keep it out of reports and marks.
 - **Heartbeat-based attendance** for non-JaaS classes measures "page open", not

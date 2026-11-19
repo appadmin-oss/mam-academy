@@ -489,6 +489,17 @@ $a = $d['aging'] ?? [];
       <?php ac_form_end(); ?>
     </div>
   <?php ac_card_close('A code reduces what was billed, as a waiver with the code as its reason — never a payment.'); ?>
+
+  <?php ac_card_open('Review before sending'); ?>
+    <div class="ac-cardbody">
+      <?php ac_form('fee_review_settings', 'invoices'); ?>
+        <label class="ac-sub"><input type="checkbox" name="required" value="1" <?= !empty($d['review_required']) ? 'checked' : '' ?>> A draft is reviewed before it goes to a family</label><br>
+        <label class="ac-sub"><input type="checkbox" name="two_person" value="1" <?= !empty($d['review_two_person']) ? 'checked' : '' ?>> …by somebody other than whoever drafted it</label>
+        <div class="ac-row ac-mt"><button type="submit" class="ac-btn">Save</button></div>
+      <?php ac_form_end(); ?>
+      <p class="ac-note ac-mt">An office of one should untick the second box, not the first: the check still happens, by the same person.</p>
+    </div>
+  <?php ac_card_close(); ?>
 </div>
 
 <?php ac_kpis([

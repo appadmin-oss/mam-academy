@@ -785,6 +785,7 @@ function mam_console_invoices(array $q = []): array {
               WHERE q.status IN ('open','countered') ORDER BY q.status, q.created_at LIMIT 50"),
         'codes' => mam_console_try('inv.codes', fn() => mam_fee_codes(), []) ?: [],
         'review_required' => (bool) mam_console_try('inv.revreq', fn() => mam_fee_review_required(), true),
+        'review_two_person' => (int) mam_console_try('inv.rev2', fn() => mam_setting_num('fee_review_two_person', 1), 1) === 1,
     ];
 }
 
