@@ -578,6 +578,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'fee_payment_void' => 'fees', 'fee_plan_approve' => 'fees', 'fee_plan_cancel' => 'fees',
         'bursary_decide' => 'fees',
         'fee_transfer_verify' => 'fees', 'fee_transfer_reject' => 'fees', 'fee_unapplied_resolve' => 'fees',
+        'fee_invoice_review' => 'fees', 'fee_query_decide' => 'fees', 'fee_code_save' => 'fees', 'fee_code_apply' => 'fees',
         'module_proposal_review' => 'curriculum',
         'curriculum_clone' => 'curriculum',
         // Programming a recital is an academic judgement about what a
@@ -1839,11 +1840,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             'not_found' => 'That record no longer exists.', 'already_resolved' => 'That has already been resolved.',
             'bad_decision' => 'Choose what happened to the money.', 'apply_target' => 'Choose another open invoice for the same child.',
             'apply_currency' => 'That invoice is in a different currency.',
+            'not_reviewed' => 'Somebody needs to review this draft before it goes to the family. Press "Reviewed" in the Review box.',
+            'review_blocked' => 'It cannot be signed off yet — see what the review box says is missing.',
+            'review_own_draft' => 'You drafted this invoice, so somebody else in the office reviews it.',
+            'reply_required' => 'Write the reply the family will read.', 'bad_counter' => 'Give a counter-offer that differs from what is owed: a lower total, or 2 to 6 instalments.',
+            'plan_exists' => 'This invoice already has a payment plan.', 'too_small_to_split' => 'That balance is too small to split.',
         ];
         $fail = static function (Throwable $e) use ($say, $back, $invId, $action): void {
             $code = $e->getMessage();
             mam_log('warn', 'admin_fee_action_refused', ['action' => $action, 'code' => $code]);
-            $back('err', $say[$code] ?? 'That did not work (' . $code . ').', $invId, $action === 'bursary_decide' ? 'bursaries' : 'invoices');
+            // fee-review.php refuses in sentences; fees.php in codes this table translates.
+            $text = $say[$code] ?? (str_contains($code, ' ') ? $code : 'That did not work (' . $code . ').');
+            $back('err', $text, $invId, $action === 'bursary_decide' ? 'bursaries' : 'invoices');
         };
         try {
             $actor = mam_admin_require_actor();
@@ -1863,8 +1871,22 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 case 'fee_invoice_issue':
                     $due = trim((string) ($_POST['due_on'] ?? ''));
                     if ($due !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $due)) throw new InvalidArgumentException('bad_date');
-                    mam_fee_invoice_issue($invId, $by, $due !== '' ? $due : null);
+                    mam_fee_issue_reviewed($invId, $by, $due !== '' ? $due : null);
                     $back('ok', 'Issued. The family can see it now.', $invId);
+                case 'fee_invoice_review':
+                    mam_fee_invoice_review($invId, $by, (string) ($_POST['note'] ?? ''));
+                    $back('ok', 'Reviewed. It can be issued now.', $invId);
+                case 'fee_query_decide':
+                    mam_fee_query_decide((int) ($_POST['query_id'] ?? 0), $by, (string) ($_POST['decision'] ?? ''), (string) ($_POST['reply'] ?? ''),
+                        ['amount' => (string) ($_POST['counter_amount'] ?? ''), 'instalments' => (int) ($_POST['counter_instalments'] ?? 0)]);
+                    $back('ok', 'Answered. The family has been told.', $invId);
+                case 'fee_code_save':
+                    mam_fee_code_save($_POST, $by);
+                    $back('ok', 'Code saved.', $invId);
+                case 'fee_code_apply':
+                    $off = mam_fee_code_apply($invId, (string) ($_POST['code'] ?? ''), $by);
+                    $inv = mam_fee_invoice_get($invId);
+                    $back('ok', 'Code applied: ' . mam_fee_display($off, (string) ($inv['currency'] ?? 'NGN')) . ' off.', $invId);
                 case 'fee_invoice_void':
                     mam_fee_invoice_void($invId, (string) ($_POST['reason'] ?? ''), $by);
                     $back('ok', 'Invoice voided. It stays on the record with the reason.', $invId);

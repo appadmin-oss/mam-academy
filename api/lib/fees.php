@@ -663,6 +663,15 @@ function mam_fee_invoice_get(int $invoiceId): ?array {
         'charge'       => $charge,
         'plan'         => mam_fee_plan_for($invoiceId),
         'claims'       => mam_fee_claims_for($invoiceId),
+        /* What this family asked about the invoice and what the office said (fee-review.php, v100). */
+        'queries'      => function_exists('mam_fee_queries_for') ? array_map(static function ($q) use ($cur) {
+            return ['id' => (int) $q['id'], 'kind' => (string) $q['kind'], 'message' => (string) $q['message'], 'status' => (string) $q['status'],
+                'reply' => $q['office_reply'], 'proposed' => $q['proposed_minor'] !== null ? mam_fee_display((int) $q['proposed_minor'], $cur) : null,
+                'instalments' => $q['proposed_instalments'] !== null ? (int) $q['proposed_instalments'] : null,
+                'counter' => $q['counter_minor'] !== null ? mam_fee_display((int) $q['counter_minor'], $cur) : null,
+                'counter_instalments' => $q['counter_instalments'] !== null ? (int) $q['counter_instalments'] : null,
+                'created_at' => (string) $q['created_at']];
+        }, mam_fee_queries_for($invoiceId)) : [],
         'note'         => $inv['note'],
         'void_reason'  => $inv['void_reason'],
     ];
@@ -1152,6 +1161,8 @@ function mam_fee_dunning_sweep(int $limit = 100): int {
     );
     foreach ($rows as $inv) {
         if ((string) $inv['guardian_email'] === '') continue;
+        // A family asking about this invoice is not chased about it until the office has answered (fee-review.php).
+        if (function_exists('mam_fee_query_open') && mam_fee_query_open((int) $inv['id'])) continue;
         $dueOn = (string) $inv['due_on'];
         $plan = mam_db_row("SELECT id FROM fee_payment_plans WHERE invoice_id = ? AND status = 'active' AND approved_by IS NOT NULL ORDER BY id DESC LIMIT 1", [(int) $inv['id']]);
         if ($plan) {

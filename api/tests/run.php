@@ -133,6 +133,7 @@ require $ROOT . '/lib/members.php';           // member records: status setter +
 require $ROOT . '/lib/lessons.php';           // lessons: questions, materials, per-student progress (v97, ported from NGG)
 require $ROOT . '/lib/lessons-learn.php';     // notes, feedback, teacher materials, placement, tiers, certificates, deadlines (v98)
 require $ROOT . '/lib/lesson-exams.php';     // timed exams, AI marking, the study helper (v98)
+require $ROOT . '/lib/fee-review.php';       // invoice review, family queries, discount codes (v100)
 require $ROOT . '/lib/media-store.php';      // stored files: private bucket or this host, presigned PUT/GET (v99)
 require $ROOT . '/lib/safeguarding.php';     // safeguarding concerns and the officer's queue (v99)
 require $ROOT . '/lib/spaces.php';           // class spaces: video submissions, marks, moderation (v99)

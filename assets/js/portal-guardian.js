@@ -600,7 +600,43 @@
           : '<button type="button" class="p-action is-alt" data-plan="' + esc(inv.id) + '">'
             + 'Pay in 3 instalments instead</button>')
       + transferBlock(inv)
+      + queryBlock(inv)
       + '</section>';
+  }
+
+  /* Question an invoice, propose a different amount or instalments, or use a
+     discount code (fee-review.php). The office answers on this card; a
+     counter-offer is accepted or declined here too. Reminders stop while a
+     question is open, and the card says so. */
+  var QUERY_WORDS = { open: 'Waiting for the office', answered: 'Answered', accepted: 'Agreed', countered: 'The office made an offer', declined: 'Not agreed', withdrawn: 'Withdrawn' };
+  function queryBlock(inv) {
+    var qs = inv.queries || [];
+    var open = qs.some(function (q) { return q.status === 'open' || q.status === 'countered'; });
+    var rows = qs.map(function (q) {
+      return '<div class="p-row"><span class="p-row-main"><span class="p-title">' + esc(q.message) + '</span>'
+        + '<span class="p-caption">' + (q.proposed ? 'You proposed ' + esc(q.proposed) + '. ' : '') + (q.instalments ? 'You proposed ' + esc(q.instalments) + ' instalments. ' : '')
+        + (q.reply ? 'The office: ' + esc(q.reply) : '') + '</span>'
+        + (q.status === 'countered'
+            ? '<span class="p-caption"><strong>Offer: ' + (q.counter ? esc(q.counter) : '') + (q.counter_instalments ? ' ' + esc(q.counter_instalments) + ' instalments' : '') + '</strong></span>'
+              + '<span class="p-actions"><button type="button" class="p-action" data-qrespond="' + esc(q.id) + '" data-accept="1">Accept the offer</button>'
+              + '<button type="button" class="p-action p-outline" data-qrespond="' + esc(q.id) + '" data-accept="0">Decline</button></span>'
+            : '') + '</span>'
+        + '<span class="p-chip' + (q.status === 'accepted' ? ' is-good' : '') + '">' + esc(QUERY_WORDS[q.status] || q.status) + '</span></div>';
+    }).join('');
+    return '<div class="p-card-foot">'
+      + (rows ? '<h3 class="p-label">What you asked</h3><div class="p-rows">' + rows + '</div>' : '')
+      + (open ? '<p class="p-caption">Reminders about this invoice are paused until the office has answered.</p>'
+        : '<details class="p-gap-t"><summary class="p-label">Question this invoice</summary>'
+          + '<div class="p-field p-gap-t"><label for="qk' + inv.id + '">What would you like?</label><select id="qk' + inv.id + '">'
+          + '<option value="question">To ask a question</option><option value="amount">To pay a different amount</option><option value="plan">To pay in instalments</option></select></div>'
+          + '<div class="p-field"><label for="qm' + inv.id + '">Tell the office</label><textarea id="qm' + inv.id + '" maxlength="3000"></textarea></div>'
+          + '<div class="p-field"><label for="qa' + inv.id + '">Total you propose (if a different amount)</label><input id="qa' + inv.id + '" inputmode="decimal"></div>'
+          + '<div class="p-field"><label for="qi' + inv.id + '">Instalments (2 to 6, if paying in parts)</label><input id="qi' + inv.id + '" type="number" min="2" max="6"></div>'
+          + '<button type="button" class="p-action p-outline" data-qsend="' + esc(inv.id) + '">Send to the office</button></details>')
+      + '<details class="p-gap-t"><summary class="p-label">Have a discount code?</summary>'
+      + '<div class="p-field p-gap-t"><label for="qc' + inv.id + '">Code</label><input id="qc' + inv.id + '" maxlength="24" autocapitalize="characters"></div>'
+      + '<button type="button" class="p-action p-outline" data-qcode="' + esc(inv.id) + '">Use the code</button></details>'
+      + '</div>';
   }
 
   /* "I paid by bank transfer." Most families pay this way, and the bank details
@@ -1101,7 +1137,7 @@
     var t = e.target.closest('[data-screen],[data-sheet-open],[data-sheet-close],[data-child],'
       + '[data-thread],[data-reply],[data-consent],[data-channel],[data-plan],[data-pay],'
       + '[data-appeal],[data-ask],[data-bursary],[data-new-thread],[data-print],[data-transfer-open],[data-transfer-send],'
-      + '[data-text-size],[data-theme-set],[data-toggle],#signOut');
+      + '[data-text-size],[data-theme-set],[data-toggle],[data-qsend],[data-qcode],[data-qrespond],#signOut');
     if (!t) return;
 
     if (t.id === 'signOut') {
@@ -1121,6 +1157,19 @@
       return;
     }
     if (t.hasAttribute('data-thread')) { e.preventDefault(); renderThread(t.getAttribute('data-thread')); return; }
+
+    /* Invoice queries and codes (fee-review.php). Each write re-renders Finance from the server. */
+    if (t.hasAttribute('data-qsend') || t.hasAttribute('data-qcode') || t.hasAttribute('data-qrespond')) {
+      e.preventDefault();
+      var qid = t.getAttribute('data-qsend') || t.getAttribute('data-qcode');
+      var val = function (p) { var el = document.getElementById(p + qid); return el ? el.value : ''; };
+      var body = t.hasAttribute('data-qsend')
+        ? { action: 'raise', invoice_id: Number(qid), kind: val('qk'), message: val('qm'), amount: val('qa'), instalments: Number(val('qi')) || null }
+        : t.hasAttribute('data-qcode') ? { action: 'code', invoice_id: Number(qid), code: val('qc') }
+        : { action: 'respond', query_id: Number(t.getAttribute('data-qrespond')), accept: t.getAttribute('data-accept') === '1' };
+      write(t, API.request('parent/fee-query', { method: 'POST', body: body }), function (r) { if (r && r.message) toast(r.message, 'good'); renderFinance(); });
+      return;
+    }
 
     if (t.hasAttribute('data-ask')) {
       e.preventDefault();

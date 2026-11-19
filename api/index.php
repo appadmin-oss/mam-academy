@@ -296,6 +296,8 @@ $r->group('/parent', function (MamRouter $r) use ($f) {
     $r->post('/plan',    $f('parent/plan.php'),    [mw_csrf(), mw_role('parent')]);
     $r->post('/fee-pay', $f('parent/fee-pay.php'), [mw_csrf(), mw_role('parent'), mw_rate_limit('fee_pay', 20, 3600)]);
     $r->post('/fee-transfer', $f('parent/fee-transfer.php'), [mw_csrf(), mw_role('parent'), mw_rate_limit('fee_transfer', 10, 3600)]);
+    // Query an invoice, answer a counter-offer, use a discount code (fee-review.php, v100).
+    $r->post('/fee-query',    $f('parent/fee-query.php'),    [mw_csrf(), mw_role('parent'), mw_rate_limit('fee_query', 20, 3600)]);
     $r->get ('/bursary', $f('parent/bursary.php'), [mw_role('parent')]);
     $r->post('/bursary', $f('parent/bursary.php'), [mw_csrf(), mw_role('parent'), mw_rate_limit('bursary', 5, 3600)]);
     $r->get ('/makeup',  $f('parent/makeup.php'),  [mw_role('parent')]);

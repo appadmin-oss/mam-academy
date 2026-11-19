@@ -222,15 +222,91 @@ $a = $d['aging'] ?? [];
     </div>
 
     <div class="ac-stack">
-      <?php if ($det['status'] === 'draft'): ?>
-        <?php ac_card_open('Issue'); ?>
+      <?php if ($det['status'] === 'draft'): $rv = $det['review'] ?? []; $blocked = (bool) array_filter($rv['checks'] ?? [], fn($c) => $c['level'] === 'block'); ?>
+        <?php ac_card_open('Review, then issue', !empty($rv['reviewed']) ? 'reviewed' : 'not reviewed',
+            !empty($rv['reviewed']) ? ac_pill('Reviewed', 'good') : ac_pill('Needs review', 'warn')); ?>
           <div class="ac-cardbody">
-            <?php ac_form('fee_invoice_issue', 'invoices', ['invoice_id' => (int) $det['id']]); ?>
-              <label class="ac-field"><span class="ac-label">Due on (leave empty for the usual terms)</span><input class="ac-input" type="date" name="due_on"></label>
-              <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Issue to the family</button></div>
-            <?php ac_form_end(); ?>
+            <?php if ($rv['checks'] ?? []): ?>
+              <ul class="ac-note">
+                <?php foreach ($rv['checks'] as $ck): ?>
+                  <li><?= $ck['level'] === 'block' ? ac_pill('Fix', 'bad') : ac_pill('Check', 'warn') ?> <?= ac_h((string) $ck['text']) ?></li>
+                <?php endforeach; ?>
+              </ul>
+            <?php else: ?>
+              <p class="ac-note">Nothing looks wrong. Read the lines and totals once more as the family will.</p>
+            <?php endif; ?>
+            <?php if (!empty($rv['stale'])): ?>
+              <p class="ac-note ac-mt">It was reviewed, then changed. The review covered the invoice as it was, so it needs reviewing again.</p>
+            <?php endif; ?>
+            <?php if (!empty($rv['reviewed'])): ?>
+              <p class="ac-sub">Reviewed by <?= ac_h((string) ($rv['reviewer'] ?? '')) ?>, <?= ac_h(mam_console_age((string) ($rv['reviewed_at'] ?? ''))) ?>.</p>
+              <?php ac_form('fee_invoice_issue', 'invoices', ['invoice_id' => (int) $det['id']]); ?>
+                <label class="ac-field"><span class="ac-label">Due on (leave empty for the usual terms)</span><input class="ac-input" type="date" name="due_on"></label>
+                <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Issue to the family</button></div>
+              <?php ac_form_end(); ?>
+            <?php elseif (!$blocked): ?>
+              <?php ac_form('fee_invoice_review', 'invoices', ['invoice_id' => (int) $det['id']]); ?>
+                <label class="ac-field"><span class="ac-label">Note (optional)</span><input class="ac-input" name="note" maxlength="500"></label>
+                <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Reviewed — it is right</button>
+                  <span class="ac-hint">Somebody other than whoever drafted it.</span></div>
+              <?php ac_form_end(); ?>
+            <?php endif; ?>
           </div>
         <?php ac_card_close('Issuing freezes the exchange rate and makes the invoice visible. Lines can still be added while it is unpaid.'); ?>
+      <?php endif; ?>
+
+      <?php if ($det['queries'] ?? []): ?>
+        <?php ac_card_open('The family asked', count($det['queries']) . ''); ?>
+          <div class="ac-cardbody">
+            <?php foreach ($det['queries'] as $fq): $cur = (string) $det['currency']; ?>
+              <div class="ac-mt">
+                <div class="ac-strong"><?= ac_h(MAM_FEE_QUERY_KINDS[$fq['kind']] ?? (string) $fq['kind']) ?> · <?= ac_status((string) $fq['status']) ?></div>
+                <div class="ac-sub"><?= ac_h((string) ($fq['raised_by_name'] ?? '')) ?>, <?= ac_h(mam_console_age((string) $fq['created_at'])) ?></div>
+                <p class="ac-note"><?= nl2br(ac_h((string) $fq['message'])) ?></p>
+                <?php if ($fq['proposed_minor'] !== null): ?><p class="ac-sub">Proposes a total of <?= ac_h(mam_fee_display((int) $fq['proposed_minor'], $cur)) ?></p><?php endif; ?>
+                <?php if ($fq['proposed_instalments'] !== null): ?><p class="ac-sub">Proposes <?= (int) $fq['proposed_instalments'] ?> monthly instalments</p><?php endif; ?>
+                <?php if ($fq['office_reply']): ?><p class="ac-sub"><strong>Reply:</strong> <?= ac_h((string) $fq['office_reply']) ?></p><?php endif; ?>
+                <?php if ($fq['status'] === 'countered'): ?>
+                  <p class="ac-sub">Offered <?= $fq['counter_minor'] !== null ? ac_h(mam_fee_display((int) $fq['counter_minor'], $cur)) : '' ?><?= $fq['counter_instalments'] !== null ? ' ' . (int) $fq['counter_instalments'] . ' instalments' : '' ?> — waiting for the family.</p>
+                <?php endif; ?>
+                <?php if ($fq['status'] === 'open'): ?>
+                  <?php ac_form('fee_query_decide', 'invoices', ['invoice_id' => (int) $det['id'], 'query_id' => (int) $fq['id']]); ?>
+                    <label class="ac-field"><span class="ac-label">Reply the family will read</span><textarea class="ac-input" name="reply" rows="2" required></textarea></label>
+                    <?php if ($fq['kind'] !== 'question'): ?>
+                      <div class="ac-inline ac-mt">
+                        <?php if ($fq['kind'] === 'amount'): ?><label class="ac-field ac-w-md"><span class="ac-label">Counter: total (<?= ac_h($cur) ?>)</span><input class="ac-input" name="counter_amount" inputmode="decimal"></label><?php endif; ?>
+                        <?php if ($fq['kind'] === 'plan'): ?><label class="ac-field ac-w-md"><span class="ac-label">Counter: instalments</span><input class="ac-input" name="counter_instalments" type="number" min="2" max="6"></label><?php endif; ?>
+                      </div>
+                    <?php endif; ?>
+                    <div class="ac-row ac-mt">
+                      <?php if ($fq['kind'] === 'question'): ?>
+                        <button type="submit" class="ac-btn ac-btn--primary" name="decision" value="answer">Send the answer</button>
+                      <?php else: ?>
+                        <button type="submit" class="ac-btn ac-btn--primary" name="decision" value="accept">Agree</button>
+                        <button type="submit" class="ac-btn" name="decision" value="counter">Offer the counter</button>
+                        <button type="submit" class="ac-btn" name="decision" value="decline">Decline</button>
+                      <?php endif; ?>
+                    </div>
+                  <?php ac_form_end(); ?>
+                <?php endif; ?>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php ac_card_close('Agreeing a lower total is recorded as a waiver with the query\'s number as its reason. Reminders about this invoice stop while a question is open.'); ?>
+      <?php endif; ?>
+
+      <?php if ($editable): ?>
+        <?php ac_card_open('Discount code', ($det['codes_used'] ?? []) ? count($det['codes_used']) . ' used' : ''); ?>
+          <div class="ac-cardbody">
+            <?php foreach ($det['codes_used'] ?? [] as $cu): ?>
+              <p class="ac-sub"><?= ac_h((string) $cu['code']) ?> · <?= ac_h((string) $cu['label']) ?> · <?= ac_h(mam_fee_display((int) $cu['amount_minor'], (string) $det['currency'])) ?> off</p>
+            <?php endforeach; ?>
+            <?php ac_form('fee_code_apply', 'invoices', ['invoice_id' => (int) $det['id']]); ?>
+              <div class="ac-inline"><label class="ac-field ac-w-md"><span class="ac-label">Code</span><input class="ac-input" name="code" maxlength="24"></label>
+                <button type="submit" class="ac-btn">Apply</button></div>
+            <?php ac_form_end(); ?>
+          </div>
+        <?php ac_card_close(); ?>
       <?php endif; ?>
 
       <?php if ($editable): ?>
@@ -297,6 +373,37 @@ $a = $d['aging'] ?? [];
   </div>
 <?php endif; ?>
 
+<?php if (($d['drafts_waiting'] ?? []) || ($d['queries_open'] ?? [])): ?>
+<div class="ac-cols ac-cols--2">
+  <?php ac_card_open('Drafts', count($d['drafts_waiting'] ?? []) . '', !empty($d['review_required']) ? '<span class="ac-cardmeta">Reviewed by a second person before issue</span>' : ''); ?>
+    <div class="ac-cardbody">
+      <?php if (!($d['drafts_waiting'] ?? [])): ?><p class="ac-note">No drafts.</p><?php else: ?>
+        <div class="ac-defs">
+          <?php foreach ($d['drafts_waiting'] as $dw): ?>
+            <?php ac_def((string) $dw['student'] . ' · ' . mam_fee_display((int) $dw['total_minor'], (string) $dw['currency']),
+                '<a href="' . ac_h(ac_url('invoices', ['id' => (int) $dw['id']])) . '">' . ac_h((string) $dw['public_ref']) . '</a> · '
+                . ($dw['reviewed_at'] ? 'reviewed' : 'drafted by ' . ac_h((string) ($dw['drafted_by'] ?? '—')))); ?>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+    </div>
+  <?php ac_card_close(); ?>
+  <?php ac_card_open('Families asking', count($d['queries_open'] ?? []) . ''); ?>
+    <div class="ac-cardbody">
+      <?php if (!($d['queries_open'] ?? [])): ?><p class="ac-note">No family is waiting on an answer.</p><?php else: ?>
+        <div class="ac-defs">
+          <?php foreach ($d['queries_open'] as $qo): ?>
+            <?php ac_def((string) $qo['student'] . ' · ' . (MAM_FEE_QUERY_KINDS[$qo['kind']] ?? $qo['kind']),
+                '<a href="' . ac_h(ac_url('invoices', ['id' => (int) $qo['invoice_id']])) . '">' . ac_h((string) $qo['public_ref']) . '</a> · '
+                . ((string) $qo['status'] === 'countered' ? 'waiting for the family' : 'asked ' . ac_h(mam_console_age((string) $qo['created_at'])))); ?>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+    </div>
+  <?php ac_card_close(); ?>
+</div>
+<?php endif; ?>
+
 <div class="ac-cols ac-cols--2">
   <?php ac_card_open('New invoice'); ?>
     <div class="ac-cardbody">
@@ -357,6 +464,31 @@ $a = $d['aging'] ?? [];
       <?php endif; ?>
     </div>
   <?php ac_card_close('A plan a family asks for is a request until the office agrees it.'); ?>
+
+  <?php ac_card_open('Discount codes', count($d['codes'] ?? []) . ''); ?>
+    <div class="ac-cardbody">
+      <?php foreach ($d['codes'] ?? [] as $fc): ?>
+        <p class="ac-sub"><span class="ac-mono"><?= ac_h((string) $fc['code']) ?></span> · <?= ac_h((string) $fc['label']) ?> ·
+          <?= $fc['pct'] !== null ? ac_h(rtrim(rtrim((string) $fc['pct'], '0'), '.')) . '%' : ac_h(mam_fee_display((int) $fc['amount_minor'], (string) $fc['currency'])) ?> ·
+          used <?= (int) $fc['used'] ?><?= $fc['max_uses'] !== null ? ' of ' . (int) $fc['max_uses'] : '' ?>
+          <?= (int) $fc['active'] === 1 ? '' : ' · ' . ac_pill('Off') ?></p>
+      <?php endforeach; ?>
+      <?php ac_form('fee_code_save', 'invoices'); ?>
+        <div class="ac-grid ac-grid--2 ac-mt">
+          <label class="ac-field"><span class="ac-label">Code</span><input class="ac-input" name="code" maxlength="24" required></label>
+          <label class="ac-field"><span class="ac-label">What it is for (the reason on each invoice)</span><input class="ac-input" name="label" maxlength="120" required></label>
+          <label class="ac-field"><span class="ac-label">Per cent off</span><input class="ac-input" name="pct" inputmode="decimal"></label>
+          <label class="ac-field"><span class="ac-label">or an amount off (<?= ac_h(mam_fee_currency()) ?>)</span><input class="ac-input" name="amount" inputmode="decimal"></label>
+          <label class="ac-field"><span class="ac-label">Most uses (empty: no limit)</span><input class="ac-input" type="number" min="1" name="max_uses"></label>
+          <label class="ac-field"><span class="ac-label">Valid until</span><input class="ac-input" type="date" name="ends_on"></label>
+        </div>
+        <input type="hidden" name="currency" value="<?= ac_h(mam_fee_currency()) ?>">
+        <input type="hidden" name="once_per_family" value="1">
+        <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Save the code</button>
+          <span class="ac-hint">Saving an existing code changes it. Once per family.</span></div>
+      <?php ac_form_end(); ?>
+    </div>
+  <?php ac_card_close('A code reduces what was billed, as a waiver with the code as its reason — never a payment.'); ?>
 </div>
 
 <?php ac_kpis([

@@ -3641,3 +3641,66 @@ CREATE TABLE IF NOT EXISTS safeguarding_notes (
   CONSTRAINT fk_sgn_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (99) ON DUPLICATE KEY UPDATE version = version;
+
+-- v100 — invoice review, family queries, discount codes (api/lib/fee-review.php).
+ALTER TABLE fee_invoices ADD COLUMN reviewed_by INT NULL;
+ALTER TABLE fee_invoices ADD COLUMN reviewed_at DATETIME NULL;
+ALTER TABLE fee_invoices ADD COLUMN review_note VARCHAR(500) NULL;
+ALTER TABLE fee_invoices ADD COLUMN review_sig CHAR(64) NULL;
+CREATE TABLE IF NOT EXISTS fee_invoice_queries (
+  id                   INT AUTO_INCREMENT PRIMARY KEY,
+  invoice_id           INT NOT NULL,
+  raised_by            INT NULL,
+  kind                 VARCHAR(10) NOT NULL,
+  message              TEXT NOT NULL,
+  proposed_minor       BIGINT NULL,
+  proposed_instalments INT NULL,
+  status               VARCHAR(12) NOT NULL DEFAULT 'open',
+  office_reply         TEXT NULL,
+  counter_minor        BIGINT NULL,
+  counter_instalments  INT NULL,
+  decided_by           INT NULL,
+  decided_at           DATETIME NULL,
+  family_response_at   DATETIME NULL,
+  created_at           DATETIME NOT NULL,
+  KEY idx_fiq_invoice (invoice_id, status),
+  CONSTRAINT fk_fiq_invoice FOREIGN KEY (invoice_id) REFERENCES fee_invoices(id) ON DELETE CASCADE,
+  CONSTRAINT fk_fiq_raised FOREIGN KEY (raised_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_fiq_decided FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT chk_fiq_kind CHECK (kind IN ('question','amount','plan')),
+  CONSTRAINT chk_fiq_status CHECK (status IN ('open','answered','accepted','countered','declined','withdrawn'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS fee_discount_codes (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  code            VARCHAR(24) NOT NULL,
+  label           VARCHAR(120) NOT NULL,
+  pct             DECIMAL(5,2) NULL,
+  amount_minor    BIGINT NULL,
+  currency        CHAR(3) NULL,
+  max_uses        INT NULL,
+  used            INT NOT NULL DEFAULT 0,
+  once_per_family TINYINT NOT NULL DEFAULT 1,
+  starts_on       DATE NULL,
+  ends_on         DATE NULL,
+  active          TINYINT NOT NULL DEFAULT 1,
+  created_by      INT NULL,
+  created_at      DATETIME NOT NULL,
+  UNIQUE KEY uq_fdc_code (code),
+  CONSTRAINT fk_fdc_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT chk_fdc_one CHECK ((pct IS NULL) <> (amount_minor IS NULL)),
+  CONSTRAINT chk_fdc_active CHECK (active IN (0,1)),
+  CONSTRAINT chk_fdc_once CHECK (once_per_family IN (0,1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS fee_discount_redemptions (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  code_id      INT NOT NULL,
+  invoice_id   INT NOT NULL,
+  amount_minor BIGINT NOT NULL,
+  applied_by   INT NULL,
+  created_at   DATETIME NOT NULL,
+  UNIQUE KEY uq_fdr (code_id, invoice_id),
+  CONSTRAINT fk_fdr_code FOREIGN KEY (code_id) REFERENCES fee_discount_codes(id) ON DELETE CASCADE,
+  CONSTRAINT fk_fdr_invoice FOREIGN KEY (invoice_id) REFERENCES fee_invoices(id) ON DELETE CASCADE,
+  CONSTRAINT fk_fdr_by FOREIGN KEY (applied_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (100) ON DUPLICATE KEY UPDATE version = version;

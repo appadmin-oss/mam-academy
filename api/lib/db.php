@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 99;
+const MAM_SCHEMA_TARGET = 100;
 
 /**
  * Open (and cache) the PDO connection.
@@ -4035,6 +4035,60 @@ function mam_db_migrate(PDO $db): void {
               author_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
               body       TEXT NOT NULL,
               created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+        ",
+        100 => "
+            ALTER TABLE fee_invoices ADD COLUMN reviewed_by INTEGER;
+            ALTER TABLE fee_invoices ADD COLUMN reviewed_at TEXT;
+            ALTER TABLE fee_invoices ADD COLUMN review_note TEXT;
+            ALTER TABLE fee_invoices ADD COLUMN review_sig TEXT;
+            CREATE TABLE IF NOT EXISTS fee_invoice_queries (
+              id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+              invoice_id           INTEGER NOT NULL REFERENCES fee_invoices(id) ON DELETE CASCADE,
+              raised_by            INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              kind                 TEXT NOT NULL,
+              message              TEXT NOT NULL,
+              proposed_minor       INTEGER,
+              proposed_instalments INTEGER,
+              status               TEXT NOT NULL DEFAULT 'open',
+              office_reply         TEXT,
+              counter_minor        INTEGER,
+              counter_instalments  INTEGER,
+              decided_by           INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              decided_at           TEXT,
+              family_response_at   TEXT,
+              created_at           TEXT NOT NULL,
+              CHECK(kind IN ('question','amount','plan')),
+              CHECK(status IN ('open','answered','accepted','countered','declined','withdrawn'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_fiq_invoice ON fee_invoice_queries(invoice_id, status);
+            CREATE TABLE IF NOT EXISTS fee_discount_codes (
+              id              INTEGER PRIMARY KEY AUTOINCREMENT,
+              code            TEXT NOT NULL UNIQUE,
+              label           TEXT NOT NULL,
+              pct             REAL,
+              amount_minor    INTEGER,
+              currency        TEXT,
+              max_uses        INTEGER,
+              used            INTEGER NOT NULL DEFAULT 0,
+              once_per_family INTEGER NOT NULL DEFAULT 1,
+              starts_on       TEXT,
+              ends_on         TEXT,
+              active          INTEGER NOT NULL DEFAULT 1,
+              created_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at      TEXT NOT NULL,
+              CHECK((pct IS NULL) <> (amount_minor IS NULL)),
+              CHECK(active IN (0,1)),
+              CHECK(once_per_family IN (0,1))
+            );
+            CREATE TABLE IF NOT EXISTS fee_discount_redemptions (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              code_id      INTEGER NOT NULL REFERENCES fee_discount_codes(id) ON DELETE CASCADE,
+              invoice_id   INTEGER NOT NULL REFERENCES fee_invoices(id) ON DELETE CASCADE,
+              amount_minor INTEGER NOT NULL,
+              applied_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at   TEXT NOT NULL,
+              UNIQUE(code_id, invoice_id)
             );
         ",
     ];

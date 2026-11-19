@@ -772,6 +772,19 @@ function mam_console_invoices(array $q = []): array {
               WHERE u.status = 'open' ORDER BY u.created_at LIMIT 50"),
         'detail' => isset($q['id']) && (int) $q['id'] > 0 ? mam_console_try('inv.detail', fn() => mam_console_invoice_detail((int) $q['id']), null) : null,
         'methods' => MAM_FEE_PAY_METHODS,
+        /* fee-review.php (v100): drafts waiting for a second pair of eyes, what
+           families have asked, and the discount codes. */
+        'drafts_waiting' => mam_console_rows('inv.drafts',
+            "SELECT i.id, i.public_ref, i.total_minor, i.currency, i.created_at, i.reviewed_at, s.name student, c.name drafted_by
+               FROM fee_invoices i LEFT JOIN users s ON s.id = i.student_id LEFT JOIN users c ON c.id = i.created_by
+              WHERE i.status = 'draft' ORDER BY i.created_at LIMIT 50"),
+        'queries_open' => mam_console_rows('inv.queries',
+            "SELECT q.id, q.invoice_id, q.kind, q.message, q.status, q.created_at, i.public_ref, s.name student, g.name guardian
+               FROM fee_invoice_queries q JOIN fee_invoices i ON i.id = q.invoice_id
+               LEFT JOIN users s ON s.id = i.student_id LEFT JOIN users g ON g.id = q.raised_by
+              WHERE q.status IN ('open','countered') ORDER BY q.status, q.created_at LIMIT 50"),
+        'codes' => mam_console_try('inv.codes', fn() => mam_fee_codes(), []) ?: [],
+        'review_required' => (bool) mam_console_try('inv.revreq', fn() => mam_fee_review_required(), true),
     ];
 }
 
@@ -785,6 +798,14 @@ function mam_console_invoice_detail(int $id): ?array {
     $inv['plan_row'] = mam_db_row("SELECT * FROM fee_payment_plans WHERE invoice_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [$id]);
     $inv['editable'] = mam_fee_editable(['status' => $row['status']]);
     $inv['has_guardian'] = $row['guardian_id'] !== null;
+    $full = mam_db_row('SELECT * FROM fee_invoices WHERE id = ?', [$id]);
+    $inv['review'] = ['checks' => mam_fee_review_checks($id), 'reviewed' => mam_fee_is_reviewed($full),
+        'reviewed_at' => $full['reviewed_at'] ?? null,
+        'reviewer' => !empty($full['reviewed_by']) ? (mam_db_row('SELECT name FROM users WHERE id = ?', [(int) $full['reviewed_by']])['name'] ?? '') : '',
+        'stale' => !empty($full['reviewed_at']) && !mam_fee_is_reviewed($full)];
+    $inv['queries'] = mam_fee_queries_for($id);
+    $inv['codes_used'] = mam_db_all('SELECT r.amount_minor, r.created_at, c.code, c.label FROM fee_discount_redemptions r
+                                      JOIN fee_discount_codes c ON c.id = r.code_id WHERE r.invoice_id = ?', [$id]);
     /* Online charges against this invoice that have CLEARED, beside what each
      * one was credited. A charge can clear after the office has recorded the
      * same money by hand, or after a void; the family has paid either way, so
