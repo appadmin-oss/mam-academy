@@ -116,6 +116,7 @@ $providers = [
     'comms'          => fn() => mam_console_comms(),
     'vetting'        => fn() => mam_console_vetting(),
     'dataprotection' => fn() => mam_console_dataprotection(),
+    'safeguarding'   => fn() => mam_console_safeguarding($_GET),
     'support'        => fn() => mam_console_support(),
     'system'         => fn() => mam_console_system(),
     'settings'       => fn() => mam_console_settings(),

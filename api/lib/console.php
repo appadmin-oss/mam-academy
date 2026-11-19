@@ -249,6 +249,7 @@ function mam_console_nav(): array {
         ]],
         ['key' => 'governance', 'label' => 'Governance', 'icon' => 'fa-scale-balanced', 'sections' => [
             ['key' => 'governance',     'label' => 'Audit trail',            'cap' => null],
+            ['key' => 'safeguarding',   'label' => 'Safeguarding',           'cap' => 'safeguarding'],
             ['key' => 'dataprotection', 'label' => 'Data protection',        'cap' => 'users'],
             ['key' => 'comms',          'label' => 'Communications',         'cap' => null],
             ['key' => 'support',        'label' => 'Support',                'cap' => 'support'],
@@ -331,6 +332,7 @@ function mam_console_badges(): array {
            AND NOT EXISTS (SELECT 1 FROM parent_links pl WHERE pl.student_id = u.id)");
     $v = mam_console_try('badge.vetting', fn() => mam_vetting_summary(), []);
     $b['vetting'] = (int) (($v['gaps'] ?? 0) + ($v['expiring'] ?? 0));
+    $b['safeguarding'] = mam_console_int('badge.safeguarding', "SELECT COUNT(*) FROM safeguarding_concerns WHERE status = 'open'");
     $b['bursaries'] = mam_console_int('badge.bursaries',
         "SELECT COUNT(*) FROM bursary_applications WHERE status IN ('submitted','assessing')");
     return array_filter($b, fn($n) => $n > 0);
@@ -1947,6 +1949,28 @@ function mam_console_support(): array {
    30. System health
    ───────────────────────────────────────────────────────────────────────── */
 
+/**
+ * Safeguarding — the officer's queue (safeguarding.php, v99). Open first,
+ * urgent first. One concern opens with its notes and what it was about.
+ */
+function mam_console_safeguarding(array $q = []): array {
+    $filter = in_array($q['f'] ?? '', ['open', 'closed', 'all'], true) ? (string) $q['f'] : 'open';
+    $id = (int) ($q['concern'] ?? 0);
+    return [
+        'filter' => $filter,
+        'list' => mam_console_try('sg.list', fn() => mam_sg_list($filter), []) ?: [],
+        'concern' => $id > 0 ? mam_console_try('sg.get', fn() => mam_sg_get($id), null) : null,
+        'counts' => [
+            'open' => mam_console_int('sg.open', "SELECT COUNT(*) FROM safeguarding_concerns WHERE status = 'open'"),
+            'urgent' => mam_console_int('sg.urgent', "SELECT COUNT(*) FROM safeguarding_concerns WHERE status <> 'closed' AND urgency = 'urgent'"),
+            'working' => mam_console_int('sg.work', "SELECT COUNT(*) FROM safeguarding_concerns WHERE status IN ('assessing','referred')"),
+            'held' => mam_console_int('sg.held', "SELECT (SELECT COUNT(*) FROM space_posts WHERE status = 'held') + (SELECT COUNT(*) FROM space_comments WHERE status = 'held')"),
+        ],
+        'officer' => mam_console_try('sg.dso', fn() => mam_vetting_dso(), null),
+        'categories' => MAM_SG_CATEGORIES,
+    ];
+}
+
 function mam_console_system(): array {
     $registry = mam_console_try('sy.reg', fn() => mam_automations_registry(), []) ?: [];
     $state = [];
@@ -1965,6 +1989,15 @@ function mam_console_system(): array {
            signing-key banner, and the two belong together: a restore needs the
            archive AND the key that signed what is in it. */
         'backup' => mam_console_try('sy.backup', fn() => mam_backup_status(), []) ?: [],
+        /* Where uploaded files live. Secrets are never sent back to the page —
+           only whether each is set. */
+        'storage' => [
+            'configured' => mam_console_try('sy.st', fn() => mam_bucket_configured(), false),
+            'cfg' => array_intersect_key(mam_console_try('sy.stc', fn() => mam_bucket_cfg(), []) ?: [], array_flip(['endpoint', 'region', 'bucket', 'folder'])),
+            'has_keys' => (bool) mam_console_try('sy.stk', fn() => mam_bucket_cfg()['access_key'] !== '' && mam_bucket_cfg()['secret_key'] !== '', false),
+            'cors' => mam_console_try('sy.cors', fn() => mam_bucket_cors_rule(), ''),
+            'used' => mam_console_rows('sy.stu', "SELECT provider, kind, COUNT(*) AS n, SUM(bytes) AS bytes FROM media_objects WHERE status = 'uploaded' GROUP BY provider, kind"),
+        ],
         'backups' => mam_console_try('sy.backups', fn() => mam_backup_list(6), []) ?: [],
         'events' => mam_console_rows('sy.events',
             "SELECT id, provider, event_type, status, signature_valid, error, received_at

@@ -113,7 +113,7 @@ function mam_admin_console_return(string $screen): void {
         /* A handler may name WHICH record to come back to — the lesson just
            saved, the course it sits in. Only these names, and only short plain
            values: anything else in the handler's query is still dropped. */
-        foreach (['lesson', 'course', 'program'] as $k) {
+        foreach (['lesson', 'course', 'program', 'concern'] as $k) {
             if (isset($q[$k]) && is_string($q[$k]) && preg_match('/^[a-z0-9_-]{1,20}$/i', $q[$k])) $keep[$k] = $q[$k];
         }
         header_remove('Location');
@@ -552,6 +552,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // this button is how a database behind the code is brought level.
         'run_migrations' => 'migrate',
         'vetting_record' => 'users', 'vetting_delete' => 'users', 'safeguarding_mode' => 'settings',
+        'sg_update' => 'safeguarding', 'storage_save' => 'settings',
         'term_save' => 'settings', 'term_seed_year' => 'settings', 'term_census' => 'settings',
         'term_refund_reseed' => 'settings', 'closure_add' => 'settings', 'closure_delete' => 'settings',
         // Data protection. Requests and breaches are about identified people, so
@@ -1448,6 +1449,45 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $iid = (int)($_POST['instructor_id'] ?? 0);
         mam_vetting_delete($rid, (int)($adminUser['id'] ?? 0) ?: null);
         header('Location: ?v=vetting&i=' . $iid . '&ok=' . urlencode('Clearance record removed.')); exit;
+    }
+
+    // ─── Safeguarding concerns (v99, api/lib/safeguarding.php) ───────
+    if ($action === 'sg_update') {
+        $id = (int) ($_POST['id'] ?? 0);
+        $by = (int) (mam_admin_require_actor()['id'] ?? 0);
+        try {
+            mam_sg_update($id, $by, ['status' => (string) ($_POST['status'] ?? ''), 'note' => (string) ($_POST['note'] ?? ''),
+                'outcome' => (string) ($_POST['outcome'] ?? ''), 'take' => !empty($_POST['take'])]);
+            header('Location: ?v=safeguarding&concern=' . $id . '&ok=' . urlencode('Saved.')); exit;
+        } catch (Throwable $e) {
+            $msg = $e instanceof InvalidArgumentException ? $e->getMessage() : 'That concern was not found.';
+            header('Location: ?v=safeguarding&concern=' . $id . '&err=' . urlencode($msg)); exit;
+        }
+    }
+
+    // ─── File storage: the bucket (v99, api/lib/media-store.php). Secrets are never echoed back. ───
+    if ($action === 'storage_save') {
+        $ep = rtrim(trim((string) ($_POST['endpoint'] ?? '')), '/');
+        if ($ep !== '' && !preg_match('#^https://[A-Za-z0-9.-]+(:\d+)?$#', $ep)) {
+            header('Location: ?v=system&err=' . urlencode('The endpoint must be an https address with no path, e.g. https://ACCOUNT.r2.cloudflarestorage.com')); exit;
+        }
+        $bucket = trim((string) ($_POST['bucket'] ?? ''));
+        if ($bucket !== '' && !preg_match('/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/', $bucket)) {
+            header('Location: ?v=system&err=' . urlencode('A bucket name is lower-case letters, digits, dots and dashes.')); exit;
+        }
+        mam_setting_set('storage_endpoint', $ep);
+        mam_setting_set('storage_bucket', $bucket);
+        mam_setting_set('storage_region', preg_replace('/[^a-z0-9-]/', '', strtolower(trim((string) ($_POST['region'] ?? 'auto')))) ?: 'auto');
+        foreach (['access_key' => 'storage_access_key', 'secret_key' => 'storage_secret_key'] as $in => $key) {
+            $v = trim((string) ($_POST[$in] ?? ''));
+            if ($v !== '') mam_setting_set($key, $v);
+        }
+        mam_audit('storage_saved', 'setting', 0, ['endpoint' => $ep, 'bucket' => $bucket]);
+        if (!empty($_POST['test']) || !empty($_GET['test'])) {
+            $h = mam_bucket_health();
+            header('Location: ?v=system&' . ($h['pass'] ? 'ok' : 'err') . '=' . urlencode($h['detail'])); exit;
+        }
+        header('Location: ?v=system&ok=' . urlencode('Saved.')); exit;
     }
 
     if ($action === 'safeguarding_mode') {

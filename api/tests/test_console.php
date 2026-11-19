@@ -165,6 +165,7 @@ $CN_providers = [
     'reports' => fn() => mam_console_reports(),
     'comms' => fn() => mam_console_comms(),
     'vetting' => fn() => mam_console_vetting(),
+    'safeguarding' => fn() => mam_console_safeguarding(['concern' => 1]),
     'dataprotection' => fn() => mam_console_dataprotection(),
     'support' => fn() => mam_console_support(),
     'system' => fn() => mam_console_system(),

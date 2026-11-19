@@ -52,6 +52,45 @@ $behind = ($d['schema']['target'] ?? null) !== null
      'note' => 'target ' . (int) ($d['schema']['target'] ?? 0) . ' · ' . ac_h((string) ($d['driver'] ?? ''))],
 ]); ?>
 
+<?php $st = $d['storage'] ?? []; $sc = (array) ($st['cfg'] ?? []); ?>
+<?php ac_card_open('File storage', !empty($st['configured']) ? 'Private bucket' : 'This host',
+    !empty($st['configured']) ? ac_pill('Bucket set', 'good') : ac_pill('No bucket', 'warn')); ?>
+  <div class="ac-cardbody">
+    <p class="ac-note">Class videos, recordings and teachers' materials. Videos are made smaller in the uploader's
+    browser first (720p, about 17 MB a minute). With a bucket set they go straight to it and are read through
+    ten-minute private links; without one they are kept on this host, up to <?= (int) (MAM_MEDIA_LOCAL_MAX / 1048576) ?> MB each.
+    Cloudflare R2 is the cheapest that works here: storage is cents a month and downloads cost nothing.
+    R2 has no African region, so the data-protection register should note the transfer.</p>
+    <?php if (!empty($st['used'])): ?>
+      <p class="ac-sub ac-mt"><?php foreach ($st['used'] as $u): ?>
+        <?= ac_h((string) $u['provider']) ?> · <?= ac_h((string) $u['kind']) ?>: <?= (int) $u['n'] ?> files, <?= ac_h(number_format(((int) $u['bytes']) / 1048576, 1)) ?> MB<br>
+      <?php endforeach; ?></p>
+    <?php endif; ?>
+    <?php ac_form('storage_save', 'system'); ?>
+      <div class="ac-inline ac-mt">
+        <label class="ac-field ac-grow"><span class="ac-label">Endpoint (https)</span>
+          <input class="ac-input" name="endpoint" value="<?= ac_h((string) ($sc['endpoint'] ?? '')) ?>" placeholder="https://ACCOUNT.r2.cloudflarestorage.com"></label>
+        <label class="ac-field ac-w-md"><span class="ac-label">Bucket</span>
+          <input class="ac-input" name="bucket" value="<?= ac_h((string) ($sc['bucket'] ?? '')) ?>"></label>
+        <label class="ac-field ac-w-md"><span class="ac-label">Region</span>
+          <input class="ac-input" name="region" value="<?= ac_h((string) ($sc['region'] ?? 'auto')) ?>"></label>
+      </div>
+      <div class="ac-inline ac-mt">
+        <label class="ac-field ac-grow"><span class="ac-label">Access key<?= !empty($st['has_keys']) ? ' (set — leave blank to keep)' : '' ?></span>
+          <input class="ac-input" name="access_key" autocomplete="off"></label>
+        <label class="ac-field ac-grow"><span class="ac-label">Secret key<?= !empty($st['has_keys']) ? ' (set — leave blank to keep)' : '' ?></span>
+          <input class="ac-input" type="password" name="secret_key" autocomplete="new-password"></label>
+      </div>
+      <div class="ac-inline ac-mt">
+        <button type="submit" class="ac-btn ac-btn--primary">Save</button>
+        <button type="submit" class="ac-btn" formaction="/admin/?test=1" name="test" value="1">Save and test</button>
+      </div>
+    <?php ac_form_end(); ?>
+    <details class="ac-mt"><summary class="ac-sub">The CORS rule the bucket needs (R2: Settings → CORS policy)</summary>
+      <pre class="ac-mono"><?= ac_h((string) ($st['cors'] ?? '')) ?></pre></details>
+  </div>
+<?php ac_card_close(); ?>
+
 <?php ac_card_open('Automations', (int) ($d['on'] ?? 0) . ' on',
     (function () { ob_start(); ac_action_btn('run_automations', 'system', [], 'Run the sweeps now', 'ac-btn ac-btn--sm'); return ob_get_clean(); })()); ?>
   <div class="ac-tablewrap">
