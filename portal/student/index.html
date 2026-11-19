@@ -16,7 +16,7 @@
      and portal.css are the warm dark set, and the legacy dashboard at
      classic.html loads all three. Loading both palettes on one page is the
      theme-on-theme bug this rebuild removes. -->
-<link rel="stylesheet" href="/assets/css/portal-v2.css?v=20261120b">
+<link rel="stylesheet" href="/assets/css/portal-v2.css?v=20261120c">
 <script>
 /* Pre-paint, so a student who has chosen larger text or dark never sees one
    frame of the other. Attributes on the root; portal-v2.css does the rest.
@@ -124,6 +124,11 @@
       <span class="p-row-main"><span class="p-title">Where I stand</span></span>
       <i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i>
     </button>
+    <button type="button" class="p-row" data-screen="growth">
+      <i class="fa-solid fa-arrow-trend-up p-row-ico" aria-hidden="true"></i>
+      <span class="p-row-main"><span class="p-title">My growth</span><span class="p-caption">Week by week, and your goals</span></span>
+      <i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i>
+    </button>
     <button type="button" class="p-row" data-screen="repertoire">
       <i class="fa-solid fa-music p-row-ico" aria-hidden="true"></i>
       <span class="p-row-main"><span class="p-title">Repertoire</span></span>
@@ -192,6 +197,7 @@
 <script src="/assets/js/portal.js?v=20261119b"></script>
 <script src="/assets/js/media-upload.js?v=20261120a"></script>
 <script src="/assets/js/portal-spaces.js?v=20261120a"></script>
-<script src="/assets/js/portal-student.js?v=20261120b"></script>
+<script src="/assets/js/portal-growth.js?v=20261120a"></script>
+<script src="/assets/js/portal-student.js?v=20261120c"></script>
 </body>
 </html>

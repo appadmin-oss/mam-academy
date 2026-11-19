@@ -138,6 +138,8 @@ require $ROOT . '/lib/media-store.php';      // stored files: private bucket or 
 require $ROOT . '/lib/safeguarding.php';     // safeguarding concerns and the officer's queue (v99)
 require $ROOT . '/lib/spaces.php';           // class spaces: video submissions, marks, moderation (v99)
 require $ROOT . '/lib/live-classes.php';     // live online classes: JaaS tokens, presence, attendance (v101)
+require $ROOT . '/lib/adaptive.php';         // ability estimates, question difficulty, adaptive choice (v102)
+require $ROOT . '/lib/growth.php';           // weekly snapshots, the growth timeline, goals (v102)
 require $ROOT . '/lib/guardian-comms.php';    // guardian threads, channels, make-up credits (v88)
 require $ROOT . '/lib/console.php';           // admin console read model (one provider per screen)
 require $ROOT . '/lib/console-phone.php';     // the console's phone subset (frame #5b)

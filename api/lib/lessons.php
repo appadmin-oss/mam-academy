@@ -117,6 +117,7 @@ function mam_lesson_get(int $id, bool $withAnswers = false, bool $allMaterials =
         $row = ['id' => (int) $c['id'], 'kind' => (string) $c['kind'], 'prompt' => (string) $c['prompt'],
                 'options' => $opts, 'points' => (int) $c['points'], 'position' => (int) $c['position']];
         if ($withAnswers) {
+            $row['difficulty'] = (int) ($c['difficulty'] ?? 3);
             $row['answer'] = $c['answer'];
             $row['whys']   = mam_lesson_json_list($c['whys']);
             $row['rubric'] = (string) ($c['rubric'] ?? '');
@@ -213,7 +214,9 @@ function mam_lesson_validate(array $in, ?array $existing = null): array {
         }
         $v['checks'][] = ['id' => (int) ($c['id'] ?? 0) ?: null, 'kind' => $kind, 'prompt' => mb_substr($prompt, 0, 4000),
             'options' => $opts, 'answer' => $answer, 'whys' => $whys,
-            'rubric' => mb_substr(trim((string) ($c['rubric'] ?? '')), 0, 2000), 'points' => $points, 'position' => $n];
+            'rubric' => mb_substr(trim((string) ($c['rubric'] ?? '')), 0, 2000), 'points' => $points, 'position' => $n,
+            // How hard the teacher thinks it is, 1–5; the adaptive layer (adaptive.php) starts from this and learns.
+            'difficulty' => max(1, min(5, (int) ($c['difficulty'] ?? 3)))];
     }
 
     $mats = is_array($in['materials'] ?? null) ? array_values($in['materials']) : [];
@@ -308,7 +311,8 @@ function mam_lesson_save(?int $id, array $in, ?int $by = null): array {
             $data = ['module_id' => $id, 'kind' => $c['kind'], 'prompt' => $c['prompt'],
                 'options' => $c['options'] ? json_encode($c['options'], JSON_UNESCAPED_UNICODE) : null,
                 'answer' => $c['answer'], 'whys' => array_filter($c['whys'], 'strlen') ? json_encode($c['whys'], JSON_UNESCAPED_UNICODE) : null,
-                'rubric' => $c['rubric'] !== '' ? $c['rubric'] : null, 'points' => $c['points'], 'position' => $c['position']];
+                'rubric' => $c['rubric'] !== '' ? $c['rubric'] : null, 'points' => $c['points'], 'position' => $c['position'],
+                'difficulty' => $c['difficulty'] ?? 3];
             if ($c['id'] && mam_db_row('SELECT 1 FROM module_checks WHERE id = ? AND module_id = ?', [$c['id'], $id])) {
                 mam_db_update('module_checks', $data, ['id' => $c['id']]); $keep[] = $c['id'];
             } else {
@@ -661,6 +665,11 @@ function mam_lesson_submit(int $studentId, int $lessonId, array $answers): array
     if ($p) mam_db_update('module_progress', $row, ['id' => (int) $p['id']]);
     else mam_db_insert('module_progress', $row + ['module_id' => $lessonId, 'student_id' => $studentId, 'started_at' => $now]);
 
+    /* The first attempt only feeds the ability estimate (adaptive.php): a second
+       try after the answers are shown measures memory of the answer, not ability. */
+    if ((int) $row['attempts'] === 1 && function_exists('mam_adaptive_learn')) {
+        try { mam_adaptive_learn($studentId, (int) $l['course_id'], $l['checks'], $marks); } catch (Throwable $t) { mam_log('warn', 'adaptive_learn_failed', ['error' => $t->getMessage()]); }
+    }
     $p = mam_db_row('SELECT * FROM module_progress WHERE module_id = ? AND student_id = ?', [$lessonId, $studentId]);
     if ($status === 'completed' && function_exists('mam_lesson_award')) {
         try { mam_lesson_award($studentId, (int) $l['course_id']); } catch (Throwable $t) { mam_log('warn', 'lesson_award_failed', ['error' => $t->getMessage()]); }

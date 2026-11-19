@@ -180,7 +180,8 @@ function mam_exam_start_session(int $studentId, int $lessonId, bool $pledged): i
                            WHERE m.course_id = ? AND m.id <> ? AND m.status = 'published' AND mc.kind IN ('mcq','order')",
         [$studentId, $l['course_id'], $lessonId]);
     $spaced = array_column($spaced, 'id'); shuffle($spaced);
-    $ids = array_merge($ids, array_slice($spaced, 0, MAM_EXAM_SPACED));
+    $spaced = function_exists('mam_adaptive_pick') ? mam_adaptive_pick($studentId, (int) $l['course_id'], $spaced, MAM_EXAM_SPACED) : array_slice($spaced, 0, MAM_EXAM_SPACED);
+    $ids = array_merge($ids, $spaced);
     $limit = max(MAM_EXAM_MIN_SEC, count($ids) * MAM_EXAM_SEC_PER_ITEM);
     $id = mam_exam_insert($studentId, $l['course_id'], $lessonId, 'session', mam_exam_build_items($ids), $limit);
     mam_audit('lesson_exam_start', 'lesson_sitting', $id, ['kind' => 'session', 'lesson' => $lessonId]);
@@ -202,8 +203,10 @@ function mam_exam_start_trial(int $studentId, int $courseId, bool $pledged): int
         "SELECT mc.id FROM module_checks mc JOIN modules m ON m.id = mc.module_id
           WHERE m.course_id = ? AND m.status = 'published' AND mc.kind IN ($kinds)", [$courseId]), 'id');
     $auto = $pool("'mcq','order'"); $written = $pool("'short','task','reflection'");
-    shuffle($auto); shuffle($written);
-    $ids = array_merge(array_slice($auto, 0, MAM_TRIAL_AUTO), array_slice($written, 0, MAM_TRIAL_WRITTEN));
+    shuffle($written);
+    // Machine-marked questions are chosen near this student's level (adaptive.php), with a spread either side.
+    $auto = function_exists('mam_adaptive_pick') ? mam_adaptive_pick($studentId, $courseId, $auto, MAM_TRIAL_AUTO) : array_slice($auto, 0, MAM_TRIAL_AUTO);
+    $ids = array_merge($auto, array_slice($written, 0, MAM_TRIAL_WRITTEN));
     if (count($ids) < 4) throw new RuntimeException('not_enough_questions');
     $id = mam_exam_insert($studentId, $courseId, null, 'trial', mam_exam_build_items($ids), MAM_TRIAL_SEC);
     mam_audit('lesson_exam_start', 'lesson_sitting', $id, ['kind' => 'trial', 'course' => $courseId]);
@@ -308,6 +311,10 @@ function mam_exam_store_marks(int $sittingId, array $checks, array $marks, ?int 
     if ($by) $row['marked_by'] = $by;
     if ($stamp) $row[$stamp] = gmdate('Y-m-d H:i:s');
     mam_db_update('lesson_sittings', $row, ['id' => $sittingId]);
+    // Machine-marked answers move the ability estimate once, when the sitting is first marked.
+    if (!$pending && $s['status'] === 'open' && function_exists('mam_adaptive_learn')) {
+        try { mam_adaptive_learn((int) $s['student_id'], (int) $s['course_id'], $checks, $marks); } catch (Throwable $t) {}
+    }
     if (!$pending && function_exists('mam_lesson_award')) {
         try { mam_lesson_award((int) $s['student_id'], (int) $s['course_id']); } catch (Throwable $t) {}
     }

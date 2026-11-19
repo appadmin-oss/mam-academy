@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 101;
+const MAM_SCHEMA_TARGET = 102;
 
 /**
  * Open (and cache) the PDO connection.
@@ -4105,6 +4105,52 @@ function mam_db_migrate(PDO $db): void {
               CHECK(source IN ('page','beat','webhook'))
             );
             CREATE INDEX IF NOT EXISTS idx_live_session ON live_events(session_id, user_id, at);
+        ",
+        102 => "
+            ALTER TABLE module_checks ADD COLUMN difficulty INTEGER NOT NULL DEFAULT 3;
+            CREATE TABLE IF NOT EXISTS check_calibration (
+              check_id INTEGER PRIMARY KEY REFERENCES module_checks(id) ON DELETE CASCADE,
+              b        REAL NOT NULL,
+              answered INTEGER NOT NULL DEFAULT 0,
+              correct  INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS student_ability (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              course_id  INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+              theta      REAL NOT NULL DEFAULT 0,
+              answered   INTEGER NOT NULL DEFAULT 0,
+              updated_at TEXT,
+              UNIQUE(student_id, course_id)
+            );
+            CREATE TABLE IF NOT EXISTS mastery_snapshots (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              week_of      TEXT NOT NULL,
+              coverage_pct REAL NOT NULL DEFAULT 0,
+              band_low     INTEGER,
+              band_high    INTEGER,
+              level_label  TEXT,
+              components   TEXT,
+              taken_at     TEXT NOT NULL,
+              UNIQUE(student_id, week_of)
+            );
+            CREATE TABLE IF NOT EXISTS student_goals (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              kind        TEXT NOT NULL,
+              title       TEXT NOT NULL,
+              target      INTEGER,
+              due_on      TEXT,
+              status      TEXT NOT NULL DEFAULT 'active',
+              set_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at  TEXT NOT NULL,
+              updated_at  TEXT,
+              achieved_at TEXT,
+              CHECK(kind IN ('practice_week','lessons','handins','custom')),
+              CHECK(status IN ('active','achieved','dropped'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_goals_student ON student_goals(student_id, status);
         ",
     ];
 

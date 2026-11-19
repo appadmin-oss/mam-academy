@@ -3723,3 +3723,56 @@ CREATE TABLE IF NOT EXISTS live_events (
   CONSTRAINT chk_live_source CHECK (source IN ('page','beat','webhook'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (101) ON DUPLICATE KEY UPDATE version = version;
+
+-- v102 — adaptive assessment, weekly mastery snapshots, goals (adaptive.php, growth.php).
+ALTER TABLE module_checks ADD COLUMN difficulty INT NOT NULL DEFAULT 3;
+CREATE TABLE IF NOT EXISTS check_calibration (
+  check_id INT PRIMARY KEY,
+  b        DOUBLE NOT NULL,
+  answered INT NOT NULL DEFAULT 0,
+  correct  INT NOT NULL DEFAULT 0,
+  CONSTRAINT fk_cal_check FOREIGN KEY (check_id) REFERENCES module_checks(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS student_ability (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  student_id INT NOT NULL,
+  course_id  INT NOT NULL,
+  theta      DOUBLE NOT NULL DEFAULT 0,
+  answered   INT NOT NULL DEFAULT 0,
+  updated_at DATETIME NULL,
+  UNIQUE KEY uq_ability (student_id, course_id),
+  CONSTRAINT fk_ability_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ability_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS mastery_snapshots (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  student_id   INT NOT NULL,
+  week_of      DATE NOT NULL,
+  coverage_pct DECIMAL(5,1) NOT NULL DEFAULT 0,
+  band_low     INT NULL,
+  band_high    INT NULL,
+  level_label  VARCHAR(40) NULL,
+  components   TEXT NULL,
+  taken_at     DATETIME NOT NULL,
+  UNIQUE KEY uq_snap (student_id, week_of),
+  CONSTRAINT fk_snap_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS student_goals (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  student_id  INT NOT NULL,
+  kind        VARCHAR(16) NOT NULL,
+  title       VARCHAR(160) NOT NULL,
+  target      INT NULL,
+  due_on      DATE NULL,
+  status      VARCHAR(10) NOT NULL DEFAULT 'active',
+  set_by      INT NULL,
+  created_at  DATETIME NOT NULL,
+  updated_at  DATETIME NULL,
+  achieved_at DATETIME NULL,
+  KEY idx_goals_student (student_id, status),
+  CONSTRAINT fk_goal_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_goal_by FOREIGN KEY (set_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT chk_goal_kind CHECK (kind IN ('practice_week','lessons','handins','custom')),
+  CONSTRAINT chk_goal_status CHECK (status IN ('active','achieved','dropped'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (102) ON DUPLICATE KEY UPDATE version = version;

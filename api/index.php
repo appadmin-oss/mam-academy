@@ -107,6 +107,9 @@ $r->post('/live/beat',     function () use ($f) { $GLOBALS['mam_live_step'] = 'b
 $r->post('/live/register', function () use ($f) { $GLOBALS['mam_live_step'] = 'register'; ($f('live/live.php'))(); }, [mw_csrf(), mw_user(), mw_rate_limit('live_reg', 60, 600)]);
 // JaaS webhooks: signed with the webhook secret, not a CSRF cookie.
 $r->post('/hooks/jaas',    $f('live/hook.php'), [mw_rate_limit('wh_jaas', 600, 60)]);
+// Growth timeline and goals (v102, api/lib/growth.php) — the library decides who may see whom.
+$r->get ('/growth', $f('growth.php'), [mw_user(), mw_rate_limit('growth_read', 300, 600)]);
+$r->post('/growth', $f('growth.php'), [mw_csrf(), mw_user(), mw_rate_limit('growth_write', 60, 600)]);
 // Class spaces (v99, api/lib/spaces.php) — every signed-in role; the library decides who sees what.
 $r->get ('/spaces',       $f('spaces.php'), [mw_user(), mw_rate_limit('spaces_read', 600, 600)]);
 $r->post('/spaces',       $f('spaces.php'), [mw_csrf(), mw_user(), mw_rate_limit('spaces_write', 120, 600)]);

@@ -122,6 +122,10 @@ if (function_exists('mam_meeting_google_sweep')) {
 if (function_exists('mam_live_sweep')) {
     printf("live class : sessions reconciled %d\n", mam_live_sweep());
 }
+// Where each student stands this week (growth.php) — stored so a later correction shows in its own week.
+if (function_exists('mam_growth_snapshot_all')) {
+    printf("growth     : snapshots taken %d\n", mam_growth_snapshot_all());
+}
 // Uploads begun and never finished (media-store.php).
 if (function_exists('mam_media_sweep_pending')) {
     printf("uploads    : unfinished removed %d\n", mam_media_sweep_pending());

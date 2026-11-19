@@ -120,6 +120,12 @@ $backUrl = ac_url('curriculum', ['program' => (int) ($d['program'] ?? 0), 'cours
             </select></label>
           <label class="ac-field"><span class="ac-label">Points</span>
             <input class="ac-input" type="number" min="0" max="100" name="checks[<?= $i ?>][points]" value="<?= (int) ($c['points'] ?? 1) ?>"></label>
+          <label class="ac-field"><span class="ac-label">How hard</span>
+            <select class="ac-select" name="checks[<?= $i ?>][difficulty]">
+              <?php foreach ([1 => '1 · very easy', 2 => '2 · easy', 3 => '3 · middling', 4 => '4 · hard', 5 => '5 · very hard'] as $dv => $dl): ?>
+                <option value="<?= $dv ?>"<?= (int) ($c['difficulty'] ?? 3) === $dv ? ' selected' : '' ?>><?= ac_h($dl) ?></option>
+              <?php endforeach; ?>
+            </select></label>
         </div>
         <label class="ac-field ac-mt"><span class="ac-label">The question</span>
           <textarea class="ac-textarea" rows="2" name="checks[<?= $i ?>][prompt]"><?= ac_h((string) ($c['prompt'] ?? '')) ?></textarea></label>

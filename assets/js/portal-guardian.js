@@ -1071,8 +1071,14 @@
     dashboard: renderDashboard, children: renderChildren, reports: renderReports,
     finance: renderFinance, consents: renderConsents, messages: renderMessages,
     makeup: renderMakeup, bursary: renderBursary, timetable: renderTimetable,
-    safeguarding: renderSafeguarding, complaints: renderComplaints, a11y: renderA11y, space: renderSpace, concern: renderConcern
+    safeguarding: renderSafeguarding, complaints: renderComplaints, a11y: renderA11y, space: renderSpace, concern: renderConcern, growth: renderGrowth
   };
+  /* The selected child's growth, read-only for a family except where the server allows otherwise. */
+  function renderGrowth() {
+    var c = selectedChild();
+    if (!c) { paint(h1('Growth') + empty('arrow-trend-up', 'No children are linked to your account yet.')); return; }
+    MAM_GROWTH.render(main, { toast: toast, paint: paint, student: c.student_id, back: function () { go('children'); } });
+  }
   /* Class spaces (read-only for a guardian — the server refuses any write) and
      the safeguarding form: shared with the other portals (portal-spaces.js). */
   function renderSpace() { MAM_SPACES.mount(main, { toast: toast, paint: paint }); }
@@ -1081,14 +1087,14 @@
     dashboard: 'Home', children: 'My Children', reports: 'Reports', finance: 'Finance',
     consents: 'Consents', messages: 'Messages', makeup: 'Make-up lessons',
     bursary: 'Bursary', timetable: 'Timetable', safeguarding: 'Safeguarding',
-    complaints: 'Complaints', a11y: 'Display & access', space: 'Class', concern: 'Tell the safeguarding officer'
+    complaints: 'Complaints', a11y: 'Display & access', space: 'Class', concern: 'Tell the safeguarding officer', growth: 'Growth'
   };
   /* Which bottom-bar tab owns each destination, so a More-sheet screen does not
      leave every tab looking inactive. */
   var TAB_OF = {
     dashboard: 'dashboard', children: 'children', reports: 'reports', finance: 'finance',
     consents: null, messages: null, makeup: null, bursary: null, timetable: null,
-    safeguarding: null, complaints: null, a11y: null, space: null, concern: null
+    safeguarding: null, complaints: null, a11y: null, space: null, concern: null, growth: 'children'
   };
 
   function go(screen, childId) {

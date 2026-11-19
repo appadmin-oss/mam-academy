@@ -1233,8 +1233,9 @@
   var SCREENS = {
     home: renderHome, train: renderTrain, learn: renderLearn, attend: renderAttend,
     money: renderMoney, repertoire: renderRepertoire, a11y: renderA11y, lesson: renderLesson, exam: renderExam,
-    space: renderSpace, concern: renderConcern
+    space: renderSpace, concern: renderConcern, growth: renderGrowth
   };
+  function renderGrowth() { MAM_GROWTH.render(main, { toast: toast, paint: paint }); }
   /* The class space and the safeguarding form are shared with the other two
      portals (assets/js/portal-spaces.js); the server decides what each role
      sees, so this portal only hands over its own paint and toast. */

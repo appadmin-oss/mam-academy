@@ -673,7 +673,8 @@
   function renderStudentLessons(studentId) {
     paint(loading('Loading their lessons…'));
     API.request('instructor/lessons?student=' + encodeURIComponent(studentId || ''), { method: 'GET' }).then(function (d) {
-      var html = backTo('students', 'Students') + h1((d.student && d.student.name) || 'Student', 'Lessons on the courses you teach them');
+      var html = backTo('students', 'Students') + h1((d.student && d.student.name) || 'Student', 'Lessons on the courses you teach them')
+        + '<button type="button" class="p-outline p-gap-t" data-screen="growth" data-student="' + esc(studentId) + '"><i class="fa-solid fa-arrow-trend-up" aria-hidden="true"></i> Growth, practice and goals</button>';
       var cs = d.courses || [];
       if (!cs.length) { paint(html + empty('book-open', 'No published lessons on the courses you teach them yet.')); return; }
       var lv = d.levels || [];
@@ -809,8 +810,10 @@
   var SCREENS = {
     home: renderHome, register: renderRegister, marking: renderMarking,
     teachbacks: renderTeachbacks, report: renderReport, students: renderStudents, lessons: renderStudentLessons,
-    earnings: renderEarnings, a11y: renderA11y, space: renderSpace, concern: renderConcern
+    earnings: renderEarnings, a11y: renderA11y, space: renderSpace, concern: renderConcern, growth: renderGrowth
   };
+  /* One student's growth — practice, attendance, marks, goals, and (teachers only) the adaptive suggestion. */
+  function renderGrowth(studentId) { MAM_GROWTH.render(main, { toast: toast, paint: paint, student: studentId, back: function () { go('lessons', studentId); } }); }
   /* Class spaces and the safeguarding form: shared (assets/js/portal-spaces.js). */
   function renderSpace() { MAM_SPACES.mount(main, { toast: toast, paint: paint }); }
   function renderConcern() { MAM_SPACES.concernForm(main, { toast: toast, paint: paint }); }
