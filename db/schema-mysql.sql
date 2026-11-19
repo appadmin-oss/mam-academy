@@ -3704,3 +3704,22 @@ CREATE TABLE IF NOT EXISTS fee_discount_redemptions (
   CONSTRAINT fk_fdr_by FOREIGN KEY (applied_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (100) ON DUPLICATE KEY UPDATE version = version;
+
+-- v101 — live online classes: join/leave/heartbeat events (api/lib/live-classes.php).
+CREATE TABLE IF NOT EXISTS live_events (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  session_id INT NOT NULL,
+  user_id    INT NULL,
+  kind       VARCHAR(10) NOT NULL,
+  at         DATETIME NOT NULL,
+  source     VARCHAR(10) NOT NULL,
+  idem       VARCHAR(160) NOT NULL,
+  raw        TEXT NULL,
+  UNIQUE KEY uq_live_idem (idem),
+  KEY idx_live_session (session_id, user_id, at),
+  CONSTRAINT fk_live_session FOREIGN KEY (session_id) REFERENCES class_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_live_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT chk_live_kind CHECK (kind IN ('opened','joined','left','beat')),
+  CONSTRAINT chk_live_source CHECK (source IN ('page','beat','webhook'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (101) ON DUPLICATE KEY UPDATE version = version;

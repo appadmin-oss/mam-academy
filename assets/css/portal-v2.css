@@ -1592,3 +1592,9 @@
 [data-portal="v2"] .sp-people { list-style: none; margin: 8px 0; padding: 0; }
 [data-portal="v2"] .sp-people li { display: flex; gap: 8px; align-items: center; min-height: 40px; border-top: 1px solid var(--rule); }
 [data-portal="v2"] button.sp-tell { align-self: flex-start; }
+
+/* ── The online class page (portal/live.html, live-class.js) ── */
+[data-portal="v2"].lv-app, [data-portal="v2"] .lv-app { background: var(--bg); }
+[data-portal="v2"] .lv-main { max-width: 1200px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; min-height: 100vh; }
+[data-portal="v2"] .lv-head { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
+[data-portal="v2"] .lv-meet { width: 100%; height: min(78vh, 760px); min-height: 420px; border-radius: var(--radius-card); overflow: hidden; background: var(--inset); }

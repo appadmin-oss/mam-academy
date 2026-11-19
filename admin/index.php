@@ -552,7 +552,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // this button is how a database behind the code is brought level.
         'run_migrations' => 'migrate',
         'vetting_record' => 'users', 'vetting_delete' => 'users', 'safeguarding_mode' => 'settings',
-        'sg_update' => 'safeguarding', 'storage_save' => 'settings',
+        'sg_update' => 'safeguarding', 'storage_save' => 'settings', 'live_save' => 'settings',
         'term_save' => 'settings', 'term_seed_year' => 'settings', 'term_census' => 'settings',
         'term_refund_reseed' => 'settings', 'closure_add' => 'settings', 'closure_delete' => 'settings',
         // Data protection. Requests and breaches are about identified people, so
@@ -1464,6 +1464,25 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $msg = $e instanceof InvalidArgumentException ? $e->getMessage() : 'That concern was not found.';
             header('Location: ?v=safeguarding&concern=' . $id . '&err=' . urlencode($msg)); exit;
         }
+    }
+
+    // ─── Online classes: JaaS (v101, api/lib/live-classes.php). Secrets are never echoed back. ───
+    if ($action === 'live_save') {
+        $prov = (string) ($_POST['provider'] ?? 'none');
+        if (!in_array($prov, ['jaas', 'meet', 'jitsi', 'none'], true)) $prov = 'none';
+        mam_setting_set('meeting_default_provider', $prov);
+        mam_setting_set('jaas_app_id', preg_replace('/[^A-Za-z0-9_-]/', '', trim((string) ($_POST['app_id'] ?? ''))));
+        mam_setting_set('jaas_kid', preg_replace('#[^A-Za-z0-9_/-]#', '', trim((string) ($_POST['kid'] ?? ''))));
+        $pem = trim((string) ($_POST['private_key'] ?? ''));
+        if ($pem !== '') {
+            if (openssl_pkey_get_private($pem) === false) { header('Location: ?v=system&err=' . urlencode('That private key could not be read. Paste the whole PEM, including the BEGIN and END lines.')); exit; }
+            mam_setting_set('jaas_private_key', $pem);
+        }
+        $sec = trim((string) ($_POST['webhook_secret'] ?? ''));
+        if ($sec !== '') mam_setting_set('jaas_webhook_secret', $sec);
+        mam_audit('live_settings_saved', 'setting', 0, ['provider' => $prov]);
+        $msg = $prov === 'jaas' && !mam_live_jaas_ready() ? 'Saved — but JaaS needs the App ID, the key ID and the private key before classes use it.' : 'Saved.';
+        header('Location: ?v=system&ok=' . urlencode($msg)); exit;
     }
 
     // ─── File storage: the bucket (v99, api/lib/media-store.php). Secrets are never echoed back. ───

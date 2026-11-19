@@ -2010,6 +2010,16 @@ function mam_console_system(): array {
            signing-key banner, and the two belong together: a restore needs the
            archive AND the key that signed what is in it. */
         'backup' => mam_console_try('sy.backup', fn() => mam_backup_status(), []) ?: [],
+        /* Online classes (live-classes.php). The private key and webhook secret
+           are never sent back — only whether they are set. */
+        'live' => [
+            'ready' => (bool) mam_console_try('sy.lv', fn() => mam_live_jaas_ready(), false),
+            'app_id' => (string) mam_console_try('sy.lva', fn() => mam_live_cfg()['app_id'], ''),
+            'kid' => (string) mam_console_try('sy.lvk', fn() => mam_live_cfg()['kid'], ''),
+            'has_secret' => (bool) mam_console_try('sy.lvs', fn() => mam_live_cfg()['webhook_secret'] !== '', false),
+            'provider' => (string) mam_console_try('sy.lvp', fn() => mam_setting_or_default('meeting_default_provider', 'none'), 'none'),
+            'webhook' => rtrim((string) mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/api/hooks/jaas',
+        ],
         /* Where uploaded files live. Secrets are never sent back to the page —
            only whether each is set. */
         'storage' => [

@@ -101,6 +101,12 @@ $r->put ('/media/put',    $f('media/upload.php'), [mw_user(), mw_rate_limit('med
 $r->post('/media/done',   function () use ($f) { $GLOBALS['mam_media_step'] = 'done'; ($f('media/upload.php'))(); },
          [mw_csrf(), mw_user(), mw_rate_limit('media_done', 60, 600)]);
 $r->get ('/media/object', $f('media/object.php'), [mw_rate_limit('media_object', 600, 600)]);
+// Live online classes (v101, api/lib/live-classes.php): the token to join, a heartbeat, the register from the call.
+$r->get ('/live/join',     $f('live/live.php'), [mw_user(), mw_rate_limit('live_join', 60, 600)]);
+$r->post('/live/beat',     function () use ($f) { $GLOBALS['mam_live_step'] = 'beat'; ($f('live/live.php'))(); }, [mw_csrf(), mw_user(), mw_rate_limit('live_beat', 400, 3600)]);
+$r->post('/live/register', function () use ($f) { $GLOBALS['mam_live_step'] = 'register'; ($f('live/live.php'))(); }, [mw_csrf(), mw_user(), mw_rate_limit('live_reg', 60, 600)]);
+// JaaS webhooks: signed with the webhook secret, not a CSRF cookie.
+$r->post('/hooks/jaas',    $f('live/hook.php'), [mw_rate_limit('wh_jaas', 600, 60)]);
 // Class spaces (v99, api/lib/spaces.php) — every signed-in role; the library decides who sees what.
 $r->get ('/spaces',       $f('spaces.php'), [mw_user(), mw_rate_limit('spaces_read', 600, 600)]);
 $r->post('/spaces',       $f('spaces.php'), [mw_csrf(), mw_user(), mw_rate_limit('spaces_write', 120, 600)]);

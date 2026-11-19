@@ -52,6 +52,36 @@ $behind = ($d['schema']['target'] ?? null) !== null
      'note' => 'target ' . (int) ($d['schema']['target'] ?? 0) . ' · ' . ac_h((string) ($d['driver'] ?? ''))],
 ]); ?>
 
+<?php $lv = $d['live'] ?? []; ?>
+<?php ac_card_open('Online classes', !empty($lv['ready']) ? 'JaaS set up' : 'not set up',
+    !empty($lv['ready']) ? ac_pill('Ready', 'good') : ac_pill('Link only', 'warn')); ?>
+  <div class="ac-cardbody">
+    <p class="ac-note">Online classes run in Jitsi as a Service (8x8.vc) embedded in the portal: each person signs in with
+    their own name, only staff can mute, remove or record, private chat is off, and in a class with children students wait in
+    the lobby until the teacher lets them in. Time in class is counted from the call. Free up to 25 people a month.
+    Without it, classes use a plain Jitsi link or Google Meet, and only the portal's check-in counts.</p>
+    <?php ac_form('live_save', 'system'); ?>
+      <div class="ac-inline ac-mt">
+        <label class="ac-field ac-w-md"><span class="ac-label">Default for online classes</span>
+          <select class="ac-select" name="provider">
+            <?php foreach (['jaas' => 'JaaS (embedded, tracked)', 'meet' => 'Google Meet link', 'jitsi' => 'Plain Jitsi link', 'none' => 'None'] as $k => $l): ?>
+              <option value="<?= ac_h($k) ?>" <?= ($lv['provider'] ?? '') === $k ? 'selected' : '' ?>><?= ac_h($l) ?></option>
+            <?php endforeach; ?>
+          </select></label>
+        <label class="ac-field ac-grow"><span class="ac-label">JaaS App ID</span><input class="ac-input" name="app_id" value="<?= ac_h((string) ($lv['app_id'] ?? '')) ?>"></label>
+        <label class="ac-field ac-grow"><span class="ac-label">API key ID (kid)</span><input class="ac-input" name="kid" value="<?= ac_h((string) ($lv['kid'] ?? '')) ?>"></label>
+      </div>
+      <label class="ac-field ac-mt"><span class="ac-label">Private key (PEM)<?= !empty($lv['ready']) ? ' — set; paste a new one to replace it' : '' ?></span>
+        <textarea class="ac-input" name="private_key" rows="3" autocomplete="off" placeholder="-----BEGIN PRIVATE KEY-----"></textarea></label>
+      <label class="ac-field ac-mt"><span class="ac-label">Webhook signing secret<?= !empty($lv['has_secret']) ? ' — set; leave blank to keep' : '' ?></span>
+        <input class="ac-input" type="password" name="webhook_secret" autocomplete="new-password"></label>
+      <p class="ac-sub ac-mt">In the JaaS console, point the webhook for Participant joined and Participant left at
+        <span class="ac-mono"><?= ac_h((string) ($lv['webhook'] ?? '')) ?></span>.</p>
+      <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Save</button></div>
+    <?php ac_form_end(); ?>
+  </div>
+<?php ac_card_close(); ?>
+
 <?php $st = $d['storage'] ?? []; $sc = (array) ($st['cfg'] ?? []); ?>
 <?php ac_card_open('File storage', !empty($st['configured']) ? 'Private bucket' : 'This host',
     !empty($st['configured']) ? ac_pill('Bucket set', 'good') : ac_pill('No bucket', 'warn')); ?>

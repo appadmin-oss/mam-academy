@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" data-portal="v2">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Online class · MAM Academy</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="/mam-academy-logo.svg">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="/assets/css/portal-v2.css?v=20261120b">
+</head>
+<!-- The online class (api/lib/live-classes.php). One page for students and
+     teachers: the server decides who is a moderator, who waits in the lobby,
+     and whether the call is JaaS (embedded and tracked) or a link out. While
+     the call is open this page says "still here" once a minute, which is how
+     time in class is counted even where no webhook is set up. -->
+<body class="p-app lv-app">
+<main id="main" class="lv-main" tabindex="-1">
+  <div class="p-empty"><i class="fa-solid fa-circle-notch p-spin" aria-hidden="true"></i><p>Opening your class…</p></div>
+</main>
+<div class="p-toast" id="toast" role="status" aria-live="polite" hidden><span id="toastText"></span></div>
+<script src="/assets/js/config.js?v=20260807a"></script>
+<script src="/assets/js/portal.js?v=20261119b"></script>
+<script src="/assets/js/live-class.js?v=20261120a"></script>
+</body>
+</html>

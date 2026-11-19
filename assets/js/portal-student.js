@@ -339,6 +339,13 @@
       + '<div class="s-next-meta">' + esc(meta) + '</div>'
       + (topic ? '<div class="s-next-meta">' + esc('This week: ' + topic) + '</div>' : '');
 
+    /* An online or hybrid class is joined from the class page, which counts the
+       time in the call itself (live-classes.php) — so it is offered from 15
+       minutes before the start, beside (not instead of) checking in. */
+    if ((n.mode === 'online' || n.mode === 'hybrid') && (inWindow || Number(n.starts_in_min) <= 15)) {
+      html += '<div class="s-next-acts"><button type="button" class="is-wide" data-live="' + esc(n.session_id) + '">'
+        + '<i class="fa-solid fa-video" aria-hidden="true"></i> Join the online class</button></div>';
+    }
     if (att && att.checked_in_at) {
       html += '<div class="s-next-state"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> '
         + esc('Checked in at ' + fmtTime(att.checked_in_at)
@@ -1420,6 +1427,8 @@
 
     /* Check in. The gate is the server's — this only asks. `mode` follows the
        session's own mode so an online student is not recorded as onsite. */
+    var lv = t.closest('[data-live]');
+    if (lv) { location.href = '/portal/live.html?session=' + encodeURIComponent(lv.dataset.live); return; }
     var ci = t.closest('[data-checkin]');
     if (ci) {
       var n = (S.attend && S.attend.next) || (S.home && S.home.next) || {};

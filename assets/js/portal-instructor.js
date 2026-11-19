@@ -278,6 +278,9 @@
         paint(h1('Register', sub)
           + '<div class="i-regbar p-lead">'
           + '<button type="button" class="p-outline" id="allPresent">All present</button>'
+          /* The online class: the call itself counts who was there and for how
+             long (live-classes.php); "Take the register from the call" is on that page. */
+          + '<a class="p-outline" href="/portal/live.html?session=' + esc(S.sessionId) + '"><i class="fa-solid fa-video" aria-hidden="true"></i> Online class</a>'
           + '<div class="i-saved" role="status">'
           +   '<span class="p-caption"><b class="p-num">' + d.marked + ' of ' + d.total + '</b> marked</span>'
           +   '<span class="p-bar"><span class="' + (d.marked === d.total ? 'is-strong' : 'is-secure')

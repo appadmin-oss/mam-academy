@@ -118,6 +118,14 @@ if (function_exists('mam_backup_write_fingerprint')) {
 if (function_exists('mam_meeting_google_sweep')) {
     printf("meet sync  : sessions reconciled %d\n", mam_meeting_google_sweep());
 }
+// Online classes (live-classes.php): turn the calls that finished into attendance.
+if (function_exists('mam_live_sweep')) {
+    printf("live class : sessions reconciled %d\n", mam_live_sweep());
+}
+// Uploads begun and never finished (media-store.php).
+if (function_exists('mam_media_sweep_pending')) {
+    printf("uploads    : unfinished removed %d\n", mam_media_sweep_pending());
+}
 if (function_exists('mam_acadmail_run_all_sweeps')) {
     $ae = mam_acadmail_run_all_sweeps();
     if (!empty($ae['enabled'])) {

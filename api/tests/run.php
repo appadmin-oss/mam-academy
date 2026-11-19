@@ -137,6 +137,7 @@ require $ROOT . '/lib/fee-review.php';       // invoice review, family queries, 
 require $ROOT . '/lib/media-store.php';      // stored files: private bucket or this host, presigned PUT/GET (v99)
 require $ROOT . '/lib/safeguarding.php';     // safeguarding concerns and the officer's queue (v99)
 require $ROOT . '/lib/spaces.php';           // class spaces: video submissions, marks, moderation (v99)
+require $ROOT . '/lib/live-classes.php';     // live online classes: JaaS tokens, presence, attendance (v101)
 require $ROOT . '/lib/guardian-comms.php';    // guardian threads, channels, make-up credits (v88)
 require $ROOT . '/lib/console.php';           // admin console read model (one provider per screen)
 require $ROOT . '/lib/console-phone.php';     // the console's phone subset (frame #5b)

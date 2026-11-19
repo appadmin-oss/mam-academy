@@ -118,9 +118,13 @@ ErrorDocument 404 /404.php
   Header set X-Frame-Options "SAMEORIGIN"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
   # microphone=(self) lets /studio (the Practice Studio tuner) access mic
-  # only when the page is served from this origin. camera + geolocation
-  # remain blocked site-wide.
-  Header set Permissions-Policy "camera=(), microphone=(self), geolocation=(), interest-cohort=()"
+  # only when the page is served from this origin. The live class page
+  # (/portal/live) embeds a JaaS call from https://8x8.vc, which needs the
+  # camera, the microphone and screen sharing INSIDE that iframe — a bare
+  # camera=() would deny the call its camera on every device, silently
+  # (the browser refuses getUserMedia before the call's own code runs).
+  # Geolocation stays blocked site-wide.
+  Header set Permissions-Policy "camera=(self \"https://8x8.vc\"), microphone=(self \"https://8x8.vc\"), display-capture=(self \"https://8x8.vc\"), geolocation=(), interest-cohort=()"
   # HSTS. Only emitted on a secure request (direct HTTPS, or CF/proxy reporting
   # X-Forwarded-Proto: https) so it's never sent over a plain-HTTP hop.
   SetEnvIf X-Forwarded-Proto "https" MAM_HTTPS=1
@@ -133,7 +137,7 @@ ErrorDocument 404 /404.php
   #  • connect-src https: covers the sampled-piano fetch (tonejs.github.io),
   #    the FX/geo APIs and same-origin /api calls.
   #  • frame-src includes calendar.google.com for the /book appointment embed.
-  Header set Content-Security-Policy "default-src 'self' https:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://js.paystack.co https://checkout.flutterwave.com https://js.stripe.com https://cdn.jsdelivr.net https://unpkg.com https://code.iconify.design https://api.iconify.design; frame-src 'self' https://checkout.flutterwave.com https://standard.paystack.co https://js.stripe.com https://calendar.google.com; connect-src 'self' https: blob:; worker-src 'self' blob:; media-src 'self' https: blob: data:; manifest-src 'self';"
+  Header set Content-Security-Policy "default-src 'self' https:; img-src 'self' https: data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://8x8.vc https://js.paystack.co https://checkout.flutterwave.com https://js.stripe.com https://cdn.jsdelivr.net https://unpkg.com https://code.iconify.design https://api.iconify.design; frame-src 'self' https://8x8.vc https://checkout.flutterwave.com https://standard.paystack.co https://js.stripe.com https://calendar.google.com; connect-src 'self' https: blob:; worker-src 'self' blob:; media-src 'self' https: blob: data:; manifest-src 'self';"
 
   # The embeddable metronome widget (/embed) is meant to be framed by partner
   # sites, so it opts OUT of the site-wide SAMEORIGIN frame lock. The global CSP
