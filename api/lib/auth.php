@@ -212,6 +212,7 @@ function mam_admin_capabilities(): array {
         'rbac'          => 'super',    // assign admin tiers
         'support'       => 'manager',  // feedback, surveys, support tickets
         'content'       => 'super',    // survey-form templates, session-report forms
+        'safeguarding'  => 'super',    // the safeguarding concern queue (safeguarding.php); the named officer reaches it too
         'fees'          => 'super',    // fee invoices, aid, bursary decisions, payments received (fees.php)
     ];
 }

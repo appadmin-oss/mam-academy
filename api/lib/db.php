@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 98;
+const MAM_SCHEMA_TARGET = 99;
 
 /**
  * Open (and cache) the PDO connection.
@@ -3876,6 +3876,166 @@ function mam_db_migrate(PDO $db): void {
             );
             -- A lesson saved without a kind was stored as '' (fixed in lessons.php): it is a module.
             UPDATE modules SET kind = 'module' WHERE kind = '' OR kind IS NULL;
+        ",
+        99 => "
+            CREATE TABLE IF NOT EXISTS media_objects (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              object_key    TEXT NOT NULL UNIQUE,
+              owner_id      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              purpose       TEXT NOT NULL,
+              kind          TEXT NOT NULL,
+              content_type  TEXT NOT NULL,
+              bytes         INTEGER NOT NULL,
+              provider      TEXT NOT NULL,
+              status        TEXT NOT NULL DEFAULT 'pending',
+              scope_type    TEXT,
+              scope_id      INTEGER,
+              original_name TEXT,
+              meta          TEXT,
+              created_at    TEXT NOT NULL,
+              uploaded_at   TEXT,
+              deleted_at    TEXT,
+              CHECK(provider IN ('bucket','local')),
+              CHECK(status IN ('pending','uploaded','deleted')),
+              CHECK(kind IN ('video','audio','image','pdf','doc'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_media_owner ON media_objects(owner_id, status);
+            CREATE INDEX IF NOT EXISTS idx_media_scope ON media_objects(scope_type, scope_id);
+            CREATE TABLE IF NOT EXISTS class_spaces (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              cohort_id    INTEGER UNIQUE REFERENCES cohorts(id) ON DELETE SET NULL,
+              title        TEXT NOT NULL,
+              about        TEXT,
+              visibility   TEXT NOT NULL DEFAULT 'class',
+              review_media INTEGER NOT NULL DEFAULT 1,
+              students_comment INTEGER NOT NULL DEFAULT 1,
+              status       TEXT NOT NULL DEFAULT 'open',
+              created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at   TEXT,
+              CHECK(visibility IN ('class','private')),
+              CHECK(review_media IN (0,1)),
+              CHECK(students_comment IN (0,1)),
+              CHECK(status IN ('open','archived'))
+            );
+            CREATE TABLE IF NOT EXISTS space_members (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              space_id   INTEGER NOT NULL REFERENCES class_spaces(id) ON DELETE CASCADE,
+              user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              role       TEXT NOT NULL DEFAULT 'student',
+              status     TEXT NOT NULL DEFAULT 'active',
+              added_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at TEXT NOT NULL DEFAULT (datetime('now')),
+              UNIQUE(space_id, user_id),
+              CHECK(role IN ('student','teacher')),
+              CHECK(status IN ('active','removed'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_spm_user ON space_members(user_id, status);
+            CREATE TABLE IF NOT EXISTS space_tasks (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              space_id    INTEGER NOT NULL REFERENCES class_spaces(id) ON DELETE CASCADE,
+              title       TEXT NOT NULL,
+              brief       TEXT,
+              wants       TEXT NOT NULL DEFAULT 'video',
+              share       TEXT NOT NULL DEFAULT 'class',
+              points      INTEGER NOT NULL DEFAULT 10,
+              due_at      TEXT,
+              status      TEXT NOT NULL DEFAULT 'open',
+              created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+              CHECK(wants IN ('video','audio','any')),
+              CHECK(share IN ('class','teacher')),
+              CHECK(points BETWEEN 1 AND 100),
+              CHECK(status IN ('open','closed'))
+            );
+            CREATE TABLE IF NOT EXISTS space_posts (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              space_id    INTEGER NOT NULL REFERENCES class_spaces(id) ON DELETE CASCADE,
+              author_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              kind        TEXT NOT NULL DEFAULT 'post',
+              task_id     INTEGER REFERENCES space_tasks(id) ON DELETE SET NULL,
+              body        TEXT,
+              media_id    INTEGER REFERENCES media_objects(id) ON DELETE SET NULL,
+              audience    TEXT NOT NULL DEFAULT 'class',
+              status      TEXT NOT NULL DEFAULT 'visible',
+              hold_reason TEXT,
+              score       INTEGER,
+              max_score   INTEGER,
+              feedback    TEXT,
+              reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              reviewed_at TEXT,
+              created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+              edited_at   TEXT,
+              CHECK(kind IN ('post','submission','notice')),
+              CHECK(audience IN ('class','teacher')),
+              CHECK(status IN ('visible','held','removed'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_sp_space ON space_posts(space_id, status, id);
+            CREATE INDEX IF NOT EXISTS idx_sp_task ON space_posts(task_id, author_id);
+            CREATE TABLE IF NOT EXISTS space_comments (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              post_id     INTEGER NOT NULL REFERENCES space_posts(id) ON DELETE CASCADE,
+              author_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              body        TEXT NOT NULL,
+              at_sec      REAL,
+              status      TEXT NOT NULL DEFAULT 'visible',
+              hold_reason TEXT,
+              created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+              CHECK(status IN ('visible','held','removed'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_sc_post ON space_comments(post_id, status);
+            CREATE TABLE IF NOT EXISTS space_reactions (
+              post_id    INTEGER NOT NULL REFERENCES space_posts(id) ON DELETE CASCADE,
+              user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              kind       TEXT NOT NULL,
+              created_at TEXT NOT NULL DEFAULT (datetime('now')),
+              PRIMARY KEY (post_id, user_id, kind),
+              CHECK(kind IN ('clap','heart','star'))
+            );
+            CREATE TABLE IF NOT EXISTS space_reports (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              post_id     INTEGER REFERENCES space_posts(id) ON DELETE CASCADE,
+              comment_id  INTEGER REFERENCES space_comments(id) ON DELETE CASCADE,
+              reporter_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              reason      TEXT NOT NULL,
+              note        TEXT,
+              status      TEXT NOT NULL DEFAULT 'open',
+              outcome     TEXT,
+              handled_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+              handled_at  TEXT,
+              CHECK(reason IN ('unkind','unsafe','private_info','spam','other')),
+              CHECK(status IN ('open','closed'))
+            );
+            CREATE TABLE IF NOT EXISTS safeguarding_concerns (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              raised_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              about_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              source      TEXT NOT NULL DEFAULT 'person',
+              ref_type    TEXT,
+              ref_id      INTEGER,
+              category    TEXT NOT NULL,
+              urgency     TEXT NOT NULL DEFAULT 'normal',
+              body        TEXT NOT NULL,
+              status      TEXT NOT NULL DEFAULT 'open',
+              assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              outcome     TEXT,
+              created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+              acknowledged_at TEXT,
+              closed_at   TEXT,
+              CHECK(source IN ('person','automatic')),
+              CHECK(category IN ('wellbeing','conduct','contact','content','online_class','other')),
+              CHECK(urgency IN ('normal','urgent')),
+              CHECK(status IN ('open','assessing','referred','closed'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_sgc_status ON safeguarding_concerns(status, urgency);
+            CREATE TABLE IF NOT EXISTS safeguarding_notes (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              concern_id INTEGER NOT NULL REFERENCES safeguarding_concerns(id) ON DELETE CASCADE,
+              author_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              body       TEXT NOT NULL,
+              created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
         ",
     ];
 

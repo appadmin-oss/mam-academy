@@ -97,14 +97,14 @@ const MAM_PARENT_SCOPES = [
         'label'  => 'Standard',
         'blurb'  => 'Invoices and receipts, plus ratified reports, attendance and the timetable.',
         'grants' => ['invoices', 'receipts', 'payments', 'announcements',
-                     'reports', 'attendance', 'timetable', 'messages_staff'],
+                     'reports', 'attendance', 'timetable', 'messages_staff', 'class_space'],
     ],
     'full'     => [
         'label'  => 'Full access',
         'blurb'  => 'Everything Standard reaches, plus consents, and can act for the child.',
         'grants' => ['invoices', 'receipts', 'payments', 'announcements',
                      'reports', 'attendance', 'timetable', 'messages_staff',
-                     'consents', 'act_for_child', 'data_requests'],
+                     'consents', 'act_for_child', 'data_requests', 'class_space'],
     ],
 ];
 

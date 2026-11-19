@@ -94,6 +94,19 @@ $r->get ('/media/headshot',  $f('media-headshot.php'),  [mw_rate_limit('media_he
 // Practice takes (§1.4). Unlike headshots this proxy is ACCESS-GATED inside the
 // handler — a recording of a child playing is not "whoever holds the link".
 $r->get ('/media/take',      $f('media-take.php'),      [mw_rate_limit('media_take', 240, 600)]);
+// Stored files (v99, api/lib/media-store.php): sign → PUT (to the bucket, or here) → done → read.
+// Every read is checked by WHO is asking; a bucket file is then a ten-minute link.
+$r->post('/media/sign',   $f('media/upload.php'), [mw_csrf(), mw_user(), mw_rate_limit('media_sign', 60, 600)]);
+$r->put ('/media/put',    $f('media/upload.php'), [mw_user(), mw_rate_limit('media_put', 60, 600)]);
+$r->post('/media/done',   function () use ($f) { $GLOBALS['mam_media_step'] = 'done'; ($f('media/upload.php'))(); },
+         [mw_csrf(), mw_user(), mw_rate_limit('media_done', 60, 600)]);
+$r->get ('/media/object', $f('media/object.php'), [mw_rate_limit('media_object', 600, 600)]);
+// Class spaces (v99, api/lib/spaces.php) — every signed-in role; the library decides who sees what.
+$r->get ('/spaces',       $f('spaces.php'), [mw_user(), mw_rate_limit('spaces_read', 600, 600)]);
+$r->post('/spaces',       $f('spaces.php'), [mw_csrf(), mw_user(), mw_rate_limit('spaces_write', 120, 600)]);
+// Safeguarding concerns (v99, api/lib/safeguarding.php): anybody signed in can raise one.
+$r->get ('/safeguarding/concern',  $f('safeguarding-concern.php'), [mw_user(), mw_rate_limit('sg_read', 60, 600)]);
+$r->post('/safeguarding/concern',  $f('safeguarding-concern.php'), [mw_csrf(), mw_user(), mw_rate_limit('sg_raise', 10, 3600)]);
 // The recital listen-back gallery. Same audio files as /media/take, a
 // deliberately different lock: published performance + signed-in academy
 // member, rather than "your own recording". See api/lib/recital.php.
