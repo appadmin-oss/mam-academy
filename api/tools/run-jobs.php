@@ -118,6 +118,10 @@ if (function_exists('mam_backup_write_fingerprint')) {
 if (function_exists('mam_meeting_google_sweep')) {
     printf("meet sync  : sessions reconciled %d\n", mam_meeting_google_sweep());
 }
+// Safeguarding concerns nobody has opened are sent again (safeguarding.php). Deliberately not an automation toggle.
+if (function_exists('mam_sg_escalate_sweep')) {
+    printf("safeguard  : concerns escalated %d\n", mam_sg_escalate_sweep());
+}
 // Online classes (live-classes.php): turn the calls that finished into attendance.
 if (function_exists('mam_live_sweep')) {
     printf("live class : sessions reconciled %d\n", mam_live_sweep());

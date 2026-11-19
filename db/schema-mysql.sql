@@ -3776,3 +3776,35 @@ CREATE TABLE IF NOT EXISTS student_goals (
   CONSTRAINT chk_goal_status CHECK (status IN ('active','achieved','dropped'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (102) ON DUPLICATE KEY UPDATE version = version;
+
+-- v103 — safeguarding escalation stamp, and the incident log (safeguarding.php).
+ALTER TABLE safeguarding_concerns ADD COLUMN escalated_at DATETIME NULL;
+CREATE TABLE IF NOT EXISTS incidents (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  student_id    INT NOT NULL,
+  kind          VARCHAR(16) NOT NULL,
+  happened_at   DATETIME NOT NULL,
+  place         VARCHAR(120) NULL,
+  what          TEXT NOT NULL,
+  action_taken  TEXT NULL,
+  family_note   TEXT NULL,
+  status        VARCHAR(10) NOT NULL DEFAULT 'open',
+  outcome       TEXT NULL,
+  concern_id    INT NULL,
+  recorded_by   INT NULL,
+  told_at       DATETIME NULL,
+  told_by       INT NULL,
+  told_channels VARCHAR(40) NULL,
+  closed_by     INT NULL,
+  closed_at     DATETIME NULL,
+  created_at    DATETIME NOT NULL,
+  KEY idx_incidents_student (student_id, status),
+  CONSTRAINT fk_inc_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_inc_concern FOREIGN KEY (concern_id) REFERENCES safeguarding_concerns(id) ON DELETE SET NULL,
+  CONSTRAINT fk_inc_by FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_inc_told FOREIGN KEY (told_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_inc_closed FOREIGN KEY (closed_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT chk_inc_kind CHECK (kind IN ('first_aid','health','behaviour','collection','lost_item','safeguarding','other')),
+  CONSTRAINT chk_inc_status CHECK (status IN ('open','closed'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (103) ON DUPLICATE KEY UPDATE version = version;

@@ -97,3 +97,43 @@ $one = $d['concern'] ?? null;
     </table>
   </div>
 <?php ac_card_close('Anybody signed in can raise a concern from their portal. A class post or comment with words about harm is held and appears here by itself, marked automatic.'); ?>
+
+<?php ac_card_open('Incidents', count($d['incidents'] ?? []) . ' open', '<span class="ac-cardmeta">First aid, health, behaviour, collection — and safeguarding, which goes to the officer</span>'); ?>
+  <div class="ac-cardbody">
+    <?php foreach ($d['incidents'] ?? [] as $in): ?>
+      <div class="ac-mt">
+        <div class="ac-strong"><?= ac_h(($d['incident_kinds'][$in['kind']] ?? $in['kind']) . ' · ' . (string) $in['student_name']) ?>
+          <?= (string) $in['kind'] === 'safeguarding' ? ac_pill('With the officer', 'bad') : '' ?>
+          <?= $in['told_at'] ? ac_pill('Family told', 'good') : '' ?></div>
+        <div class="ac-sub"><?= ac_h(mam_console_date((string) $in['happened_at'], 'j M, H:i')) ?><?= $in['place'] ? ' · ' . ac_h((string) $in['place']) : '' ?> · recorded by <?= ac_h((string) ($in['recorded_by_name'] ?? '')) ?></div>
+        <p class="ac-note"><?= ac_h((string) $in['what']) ?><?= $in['action_taken'] ? ' — ' . ac_h((string) $in['action_taken']) : '' ?></p>
+        <?php if ((string) $in['kind'] !== 'safeguarding'): ?>
+          <div class="ac-inline">
+            <?php if (!$in['told_at']): ?><?php ac_action_btn('incident_tell', 'safeguarding', ['id' => (int) $in['id']], $in['family_note'] ? 'Tell the family' : 'No family note yet', 'ac-btn ac-btn--sm'); ?><?php endif; ?>
+            <?php ac_form('incident_close', 'safeguarding', ['id' => (int) $in['id']], 'class="ac-row"'); ?>
+              <input class="ac-input" name="outcome" placeholder="How it ended" maxlength="1000" required>
+              <button type="submit" class="ac-btn ac-btn--sm">Close</button>
+            <?php ac_form_end(); ?>
+          </div>
+        <?php elseif ($in['concern_id']): ?>
+          <a class="ac-subi" href="<?= ac_h(ac_url('safeguarding', ['concern' => (int) $in['concern_id']])) ?>">Open the concern</a>
+        <?php endif; ?>
+      </div>
+    <?php endforeach; ?>
+    <details class="ac-mt"><summary class="ac-strong">Record an incident</summary>
+      <?php ac_form('incident_record', 'safeguarding'); ?>
+        <div class="ac-grid ac-grid--2 ac-mt">
+          <label class="ac-field"><span class="ac-label">Student's account number</span><input class="ac-input" name="student_id" inputmode="numeric" required></label>
+          <label class="ac-field"><span class="ac-label">What kind</span><select class="ac-select" name="kind">
+            <?php foreach ($d['incident_kinds'] ?? [] as $k => $l): ?><option value="<?= ac_h($k) ?>"><?= ac_h($l) ?></option><?php endforeach; ?></select></label>
+          <label class="ac-field"><span class="ac-label">When</span><input class="ac-input" type="datetime-local" name="happened_at"></label>
+          <label class="ac-field"><span class="ac-label">Where</span><input class="ac-input" name="place" maxlength="120"></label>
+        </div>
+        <label class="ac-field ac-mt"><span class="ac-label">What happened (staff only — never sent to a family)</span><textarea class="ac-input" name="what" rows="3" required></textarea></label>
+        <label class="ac-field ac-mt"><span class="ac-label">What was done</span><input class="ac-input" name="action_taken" maxlength="2000"></label>
+        <label class="ac-field ac-mt"><span class="ac-label">What the family will be told (not for safeguarding)</span><textarea class="ac-input" name="family_note" rows="2"></textarea></label>
+        <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Record it</button></div>
+      <?php ac_form_end(); ?>
+    </details>
+  </div>
+<?php ac_card_close('A concern nobody opens is sent again to the officer and every super admin after ' . (int) ($d['escalate_hours'] ?? 4) . ' hours. That cannot be switched off.'); ?>

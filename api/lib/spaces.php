@@ -424,7 +424,8 @@ function mam_space_post(array $s, array $user, array $in): array {
     }
     if ($media) mam_media_attach($mediaId, $uid, 'space', (int) $s['id']);
     if ($scr['safeguarding']) mam_sg_auto($uid, 'post', $id, 'wellbeing', 'Words in a class post were held for you to read.');
-    if ($status === 'held') $notes[] = $holdReason === 'review' ? 'A teacher will check it before the class sees it.' : 'It is waiting for a teacher. ' . $holdReason;
+    if ($scr['safeguarding']) $notes[] = mam_sg_help_text(true);
+    elseif ($status === 'held') $notes[] = $holdReason === 'review' ? 'A teacher will check it before the class sees it.' : 'It is waiting for a teacher. ' . $holdReason;
     if ($kind === 'notice' && $status === 'visible') mam_space_notify_class($s, 'Notice in ' . $s['title'], mb_substr($body, 0, 140), $uid);
     if ($kind === 'submission') mam_space_notify_teachers($s, 'Work handed in: ' . ($task['title'] ?? ''), (string) ($user['name'] ?? 'A student'), $id);
     mam_audit('space_post', 'space_post', $id, ['space' => (int) $s['id'], 'kind' => $kind, 'status' => $status]);
@@ -563,7 +564,7 @@ function mam_space_comment(int $postId, array $user, string $body, ?float $atSec
     if ($status === 'visible' && (int) $p['author_id'] !== $uid && $p['author_id']) {
         try { mam_notify((int) $p['author_id'], 'space', ($staff ? 'Your teacher' : 'A classmate') . ' commented on your post', mb_substr($body, 0, 140), null); } catch (Throwable $e) {}
     }
-    return ['id' => $id, 'status' => $status, 'note' => $status === 'held' ? 'It is waiting for a teacher. ' . $scr['hold'] : ''];
+    return ['id' => $id, 'status' => $status, 'note' => $scr['safeguarding'] ? mam_sg_help_text(true) : ($status === 'held' ? 'It is waiting for a teacher. ' . $scr['hold'] : '')];
 }
 
 function mam_space_react(int $postId, array $user, string $kind, bool $on): void {

@@ -230,3 +230,43 @@ $SP_adm = (string) file_get_contents(__DIR__ . '/../../admin/index.php');
 t_ok(str_contains($SP_adm, "'dso_set' => 'users'") && str_contains($SP_adm, "if (\$action === 'dso_set')"), 'the console can name the safeguarding officer');
 $SP_vt = (string) file_get_contents(__DIR__ . '/../../partials/admin-console/vetting.php');
 t_ok(str_contains($SP_vt, "ac_form('vetting_record'"), 'the console has a form to record a vetting check (it had a handler and no button)');
+
+t_group('safeguarding — ported from NGG');
+
+$SP_kid = $SP_u('ngkid', 'student');
+$SP_c1 = mam_sg_auto($SP_kid, 'post', 1, 'wellbeing', 'first');
+$SP_c2 = mam_sg_auto($SP_kid, 'comment', 2, 'wellbeing', 'second');
+t_eq($SP_c2, $SP_c1, 'one automatic concern per child per day — a second hold is added to it, not a second case');
+t_ok((bool) mam_db_row("SELECT 1 FROM safeguarding_notes WHERE concern_id = ? AND body LIKE 'Also held: comment #2%'", [$SP_c1]), '…as a note naming the item');
+t_ok(str_contains(mam_sg_help_text(true), '112') && str_contains(mam_sg_help_text(true), 'has been told'), 'a child whose words were held is told help is coming, and how to get it now');
+t_ok(!str_contains(mam_sg_help_text(false), 'has been told'), 'and is never told an adult knows when none was told');
+mam_space_update($SP_id, ['students_comment' => 1], $SP_teach);
+$SP_fresh = mam_space_post(mam_space_get($SP_id), $SP_user($SP_teach), ['kind' => 'notice', 'body' => 'Concert on Saturday.']);
+$SP_harm = mam_space_comment($SP_fresh['id'], $SP_user($SP_amy), 'I want to die');
+t_ok(str_contains($SP_harm['note'] ?? '', '112'), 'a held comment answers the child with that help, not just "held"');
+
+mam_db_update('safeguarding_concerns', ['created_at' => gmdate('Y-m-d H:i:s', time() - 30 * 3600), 'acknowledged_at' => null, 'status' => 'open'], ['id' => $SP_c1]);
+$SP_esc = mam_sg_escalate_sweep();
+t_ok($SP_esc >= 1 && mam_db_row('SELECT escalated_at FROM safeguarding_concerns WHERE id = ?', [$SP_c1])['escalated_at'] !== null, 'a concern nobody opened is escalated');
+$SP_stamp = mam_db_row('SELECT escalated_at FROM safeguarding_concerns WHERE id = ?', [$SP_c1])['escalated_at'];
+mam_db_update('safeguarding_concerns', ['escalated_at' => '2000-01-01 00:00:00'], ['id' => $SP_c1]);
+mam_sg_escalate_sweep();
+t_eq(mam_db_row('SELECT escalated_at FROM safeguarding_concerns WHERE id = ?', [$SP_c1])['escalated_at'], '2000-01-01 00:00:00', '…once (an escalated concern is not sent again)');
+t_ok(!str_contains((string) file_get_contents(__DIR__ . '/../lib/automations.php'), 'sg_escalate'), 'escalation is not an automation anybody can switch off');
+t_ok(str_contains((string) file_get_contents(__DIR__ . '/../lib/safeguarding.php'), "mam_audit('safeguarding_read'")
+    && str_contains((string) file_get_contents(__DIR__ . '/../lib/console.php'), "mam_sg_get(\$id, (int) (mam_current_user()"), 'reading a concern on the console is audited, with the reader');
+
+t_group('safeguarding — incidents');
+
+t_throws(fn() => mam_incident_record($SP_user($SP_other), ['student_id' => $SP_amy, 'kind' => 'first_aid', 'what' => 'Grazed knee']), 'forbidden', 'a teacher who does not teach the child cannot record for them');
+$SP_inc = mam_incident_record($SP_user($SP_teach), ['student_id' => $SP_amy, 'kind' => 'first_aid', 'what' => 'Grazed knee on the stairs', 'family_note' => 'Ada grazed her knee; we cleaned it and she carried on.']);
+$SP_told = mam_incident_tell($SP_user($SP_teach), $SP_inc);
+$SP_row = mam_db_row('SELECT * FROM incidents WHERE id = ?', [$SP_inc]);
+t_eq($SP_told['told'], (bool) $SP_row['told_at'], '"told" is recorded only when a message actually went');
+$SP_sinc = mam_incident_record($SP_user($SP_teach), ['student_id' => $SP_amy, 'kind' => 'safeguarding', 'what' => 'She said someone at home frightens her', 'family_note' => 'should not be stored']);
+$SP_srow = mam_db_row('SELECT * FROM incidents WHERE id = ?', [$SP_sinc]);
+t_ok($SP_srow['concern_id'] !== null && $SP_srow['family_note'] === null, 'a safeguarding incident opens a concern and stores no family note');
+t_throws(fn() => mam_incident_tell($SP_user($SP_teach), $SP_sinc), 'officer_decides', 'the teacher cannot tell the family — the officer decides');
+t_throws(fn() => mam_incident_close($SP_user($SP_teach), $SP_sinc, 'done'), 'officer_decides', 'nor close it');
+$SP_seen = array_column(mam_incident_list($SP_user($SP_teach), $SP_amy, 'all'), null, 'id');
+t_eq($SP_seen[$SP_sinc]['what'], 'Restricted — with the safeguarding officer.', 'its details are restricted for everybody but the officer');

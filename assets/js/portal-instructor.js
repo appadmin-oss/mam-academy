@@ -674,7 +674,8 @@
     paint(loading('Loading their lessons…'));
     API.request('instructor/lessons?student=' + encodeURIComponent(studentId || ''), { method: 'GET' }).then(function (d) {
       var html = backTo('students', 'Students') + h1((d.student && d.student.name) || 'Student', 'Lessons on the courses you teach them')
-        + '<button type="button" class="p-outline p-gap-t" data-screen="growth" data-student="' + esc(studentId) + '"><i class="fa-solid fa-arrow-trend-up" aria-hidden="true"></i> Growth, practice and goals</button>';
+        + '<div class="p-actions p-gap-t"><button type="button" class="p-outline" data-screen="growth" data-student="' + esc(studentId) + '"><i class="fa-solid fa-arrow-trend-up" aria-hidden="true"></i> Growth, practice and goals</button>'
+        + '<button type="button" class="p-outline" data-screen="incidents" data-student="' + esc(studentId) + '"><i class="fa-solid fa-kit-medical" aria-hidden="true"></i> Incidents</button></div>';
       var cs = d.courses || [];
       if (!cs.length) { paint(html + empty('book-open', 'No published lessons on the courses you teach them yet.')); return; }
       var lv = d.levels || [];
@@ -810,8 +811,37 @@
   var SCREENS = {
     home: renderHome, register: renderRegister, marking: renderMarking,
     teachbacks: renderTeachbacks, report: renderReport, students: renderStudents, lessons: renderStudentLessons,
-    earnings: renderEarnings, a11y: renderA11y, space: renderSpace, concern: renderConcern, growth: renderGrowth
+    earnings: renderEarnings, a11y: renderA11y, space: renderSpace, concern: renderConcern, growth: renderGrowth, incidents: renderIncidents
   };
+  /* Incidents for one student (safeguarding.php). A safeguarding one goes to the
+     officer, who alone decides who is told; its details come back restricted. */
+  function renderIncidents(studentId) {
+    S.incStudent = studentId;
+    paint(loading('Loading…'));
+    API.request('incidents?student=' + encodeURIComponent(studentId), { method: 'GET' }).then(function (d) {
+      var kinds = d.kinds || {};
+      var html = '<button type="button" class="p-back" data-screen="lessons" data-student="' + esc(studentId) + '"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i> Back</button>'
+        + h1('Incidents', 'First aid, health, behaviour, collection — and anything that worries you') + '<div class="p-stack">';
+      (d.incidents || []).forEach(function (i) {
+        html += '<section class="p-card"><h2 class="p-title">' + esc(kinds[i.kind] || i.kind) + ' · ' + esc(fmtTime(i.happened_at)) + '</h2>'
+          + '<p class="p-body">' + esc(i.what) + '</p>'
+          + '<p class="p-caption">' + (i.status === 'closed' ? 'Closed' + (i.outcome ? ': ' + esc(i.outcome) : '') : 'Open') + (i.told_at ? ' · family told' : '') + '</p>'
+          + (i.kind !== 'safeguarding' && i.status === 'open'
+             ? '<div class="p-actions">' + (!i.told_at && i.family_note ? '<button type="button" class="p-outline" data-inc-tell="' + esc(i.id) + '">Tell the family</button>' : '')
+               + '<button type="button" class="p-outline" data-inc-close="' + esc(i.id) + '">Close</button></div>' : '')
+          + '</section>';
+      });
+      html += '<section class="p-card"><h2 class="p-title">Record an incident</h2>'
+        + '<div class="p-field"><label for="incKind">What kind</label><select id="incKind">'
+        + Object.keys(kinds).map(function (k) { return '<option value="' + esc(k) + '">' + esc(kinds[k]) + '</option>'; }).join('') + '</select></div>'
+        + '<div class="p-field"><label for="incWhat">What happened (stays with staff)</label><textarea id="incWhat" maxlength="4000"></textarea></div>'
+        + '<div class="p-field"><label for="incDone">What you did</label><input id="incDone" maxlength="2000"></div>'
+        + '<div class="p-field"><label for="incFamily">What the family will be told (not for safeguarding)</label><textarea id="incFamily" maxlength="1000"></textarea></div>'
+        + '<button type="button" class="p-primary" data-inc-save="' + esc(studentId) + '">Record it</button>'
+        + '<p class="p-caption p-gap-t">Choose Safeguarding for anything that worries you about the child\'s safety: it goes straight to the safeguarding officer, who decides who is told.</p></section></div>';
+      paint(html);
+    }).catch(function (err) { paint(h1('Incidents') + empty('triangle-exclamation', errOf(err, 'Could not load incidents.'))); });
+  }
   /* One student's growth — practice, attendance, marks, goals, and (teachers only) the adaptive suggestion. */
   function renderGrowth(studentId) { MAM_GROWTH.render(main, { toast: toast, paint: paint, student: studentId, back: function () { go('lessons', studentId); } }); }
   /* Class spaces and the safeguarding form: shared (assets/js/portal-spaces.js). */
@@ -877,6 +907,25 @@
       write(tk, API.request('instructor/lessons', { method: 'POST', body: { action: 'tick', lesson_id: Number(tk.dataset.lsnTick),
         student_id: Number(sid), done: tk.dataset.done === '1' } }),
         function () { renderStudentLessons(sid); }, tk.dataset.done === '1' ? 'Ticked done.' : 'Tick taken back.');
+      return;
+    }
+    var inc = e.target && e.target.closest && e.target.closest('[data-inc-save],[data-inc-tell],[data-inc-close]');
+    if (inc) {
+      var sidI = inc.dataset.incSave || S.incStudent, body;
+      if (inc.dataset.incSave) {
+        S.incStudent = sidI;
+        body = { action: 'record', student_id: Number(sidI), kind: ($('#incKind') || {}).value, what: ($('#incWhat') || {}).value,
+          action_taken: ($('#incDone') || {}).value, family_note: ($('#incFamily') || {}).value };
+      } else if (inc.dataset.incTell) {
+        body = { action: 'tell', id: Number(inc.dataset.incTell) };
+      } else {
+        var oc = window.prompt('How did it end?'); if (!oc) return;
+        body = { action: 'close', id: Number(inc.dataset.incClose), outcome: oc };
+      }
+      write(inc, API.request('incidents', { method: 'POST', body: body }), function (r) {
+        if (r && r.message) toast(r.message, r.told === false ? 'bad' : 'good');
+        renderIncidents(S.incStudent || sidI);
+      }, inc.dataset.incSave ? 'Recorded.' : null);
       return;
     }
     var pb = e.target && e.target.closest && e.target.closest('[data-place]');

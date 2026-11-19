@@ -157,6 +157,12 @@ function mam_ticket_create(int $studentId, string $category, string $subject, st
     if ($subject === '') throw new \InvalidArgumentException('empty_subject');
     if ($body === '')    throw new \InvalidArgumentException('empty_body');
     $ref = mam_ticket_reference();
+    // A support ticket is the wrong queue for a safeguarding worry (NGG keeps it out
+    // of support entirely): words about harm also reach the officer (safeguarding.php).
+    if ((stripos($category, 'safeguard') !== false || (function_exists('mam_lesson_safeguarding_hit') && mam_lesson_safeguarding_hit($subject . ' ' . $body)))
+        && function_exists('mam_sg_auto')) {
+        mam_sg_auto($studentId, 'ticket', 0, 'wellbeing', 'Raised in a support ticket: ' . mb_substr($subject, 0, 120));
+    }
     $id  = mam_db_insert('support_tickets', [
         'student_id' => $studentId,
         'reference'  => $ref,

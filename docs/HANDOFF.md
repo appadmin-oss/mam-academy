@@ -2072,3 +2072,13 @@ coming).
 
 Still open: the owner's form design (admissions/apply), NGG-side storage changes, and the
 admissions restructure on NGG's model (task 18).
+
+## 4z4. 2026-11-20 — NGG safeguarding, ported (v103)
+
+Escalation of unopened concerns (cannot be switched off), one automatic concern per
+child per day, a help reply to a child whose words were held, audited concern reads,
+and an incident log whose safeguarding entries belong to the officer alone. Support
+tickets and lesson/helper holds now reach the queue. What is still to port is listed in
+`docs/NEXT-AGENT.md` §4. A test-suite note: `test_mailer.php` now retries up to 5000
+failed rows, because safeguarding alerts (emailed to every super admin while no officer
+is named) fill the shared test database's outbox ahead of its own row.

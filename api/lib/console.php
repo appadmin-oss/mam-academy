@@ -1983,7 +1983,10 @@ function mam_console_safeguarding(array $q = []): array {
     return [
         'filter' => $filter,
         'list' => mam_console_try('sg.list', fn() => mam_sg_list($filter), []) ?: [],
-        'concern' => $id > 0 ? mam_console_try('sg.get', fn() => mam_sg_get($id), null) : null,
+        'concern' => $id > 0 ? mam_console_try('sg.get', fn() => mam_sg_get($id, (int) (mam_current_user()['id'] ?? 0) ?: null), null) : null,
+        'incidents' => mam_console_try('sg.inc', fn() => mam_incident_list(mam_current_user() ?: ['id' => 0, 'role' => 'admin'], null, 'open'), []) ?: [],
+        'incident_kinds' => MAM_INCIDENT_KINDS,
+        'escalate_hours' => mam_console_try('sg.esc', fn() => mam_sg_escalate_hours(), 4),
         'counts' => [
             'open' => mam_console_int('sg.open', "SELECT COUNT(*) FROM safeguarding_concerns WHERE status = 'open'"),
             'urgent' => mam_console_int('sg.urgent', "SELECT COUNT(*) FROM safeguarding_concerns WHERE status <> 'closed' AND urgency = 'urgent'"),

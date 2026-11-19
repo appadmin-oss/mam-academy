@@ -35,6 +35,21 @@ const MAM_SG_CATEGORIES = [
     'other'        => 'Something else',
 ];
 
+/**
+ * What a child is told when their own words were held for the officer (ported
+ * from NGG's coach_crisis_reply). Warm, never a telling-off, and it says an
+ * adult was told ONLY when a concern was actually opened — a promise of help
+ * that did not happen is worse than none.
+ */
+function mam_sg_help_text(bool $told): string {
+    return 'It sounds like something hard may be happening. You are not in trouble for saying so. '
+        . ($told ? 'A trusted adult at the academy has been told and will look out for you. ' : 'Please tell a teacher or an adult you trust today. ')
+        . 'If you are in danger right now, call 112.';
+}
+
+/** Unopened concerns are re-sent after this many hours (NGG's concernHours, 2–72). Not switchable off. */
+function mam_sg_escalate_hours(): int { return max(2, min(72, (int) mam_setting_num('sg_escalate_hours', 4))); }
+
 /** What the person who raised a concern is told, whatever happens next. */
 const MAM_SG_RECEIVED = 'Thank you. The academy\'s safeguarding officer has been told and will look at this today. '
     . 'If anybody is in danger right now, call 112.';
@@ -57,7 +72,7 @@ function mam_sg_raise(?int $by, array $in, string $source = 'person'): int {
     $body = trim((string) ($in['body'] ?? ''));
     if ($source === 'person' && mb_strlen($body) < 10) throw new InvalidArgumentException('Say a little about what happened, so the officer knows where to start.');
     $urg = ($in['urgency'] ?? '') === 'urgent' ? 'urgent' : 'normal';
-    $ref = in_array($in['ref_type'] ?? '', ['post', 'comment', 'session', 'thread', 'lesson', 'user'], true) ? (string) $in['ref_type'] : null;
+    $ref = in_array($in['ref_type'] ?? '', ['post', 'comment', 'session', 'thread', 'lesson', 'user', 'incident', 'ticket'], true) ? (string) $in['ref_type'] : null;
     $about = (int) ($in['about_id'] ?? 0);
     if ($about > 0 && !mam_db_row('SELECT 1 FROM users WHERE id = ?', [$about])) $about = 0;
     $id = (int) mam_db_insert('safeguarding_concerns', [
@@ -74,6 +89,19 @@ function mam_sg_raise(?int $by, array $in, string $source = 'person'): int {
 /** A concern a screen raised by itself. Never throws — a screen must not fail because the queue did. */
 function mam_sg_auto(?int $aboutId, string $refType, int $refId, string $category, string $why): ?int {
     try {
+        /* One automatic concern per child per day (NGG's rule): a child posting
+           three worrying things in an hour is ONE thing for the officer to act on,
+           with every item listed on it, not three cases racing each other. */
+        if ($aboutId) {
+            $open = mam_db_row("SELECT id FROM safeguarding_concerns WHERE about_id = ? AND source = 'automatic' AND status <> 'closed' AND created_at >= ? ORDER BY id DESC",
+                [$aboutId, gmdate('Y-m-d H:i:s', time() - 86400)]);
+            if ($open) {
+                mam_db_insert('safeguarding_notes', ['concern_id' => (int) $open['id'], 'author_id' => null,
+                    'body' => 'Also held: ' . $refType . ' #' . $refId . ' — ' . $why, 'created_at' => gmdate('Y-m-d H:i:s')]);
+                mam_db_update('safeguarding_concerns', ['urgency' => 'urgent'], ['id' => (int) $open['id']]);
+                return (int) $open['id'];
+            }
+        }
         return mam_sg_raise(null, ['about_id' => $aboutId, 'ref_type' => $refType, 'ref_id' => $refId,
             'category' => $category, 'urgency' => 'urgent', 'body' => $why], 'automatic');
     } catch (Throwable $e) {
@@ -114,8 +142,9 @@ function mam_sg_list(string $filter = 'open', int $limit = 200): array {
           LIMIT " . max(1, min(500, $limit)));
 }
 
-/** One concern with its notes, and the thing it is about where that still exists. */
-function mam_sg_get(int $id): ?array {
+/** One concern with its notes, and the thing it is about where that still exists. Every read by a person is audited. */
+function mam_sg_get(int $id, ?int $readerId = null): ?array {
+    if ($readerId) mam_audit('safeguarding_read', 'safeguarding_concern', $id, ['by' => $readerId]);
     $c = mam_db_row("SELECT c.*, rb.name AS raised_by_name, rb.role AS raised_by_role, ab.name AS about_name
                        FROM safeguarding_concerns c
                        LEFT JOIN users rb ON rb.id = c.raised_by
@@ -166,4 +195,142 @@ function mam_sg_update(int $id, int $by, array $in): void {
 /** How many need somebody now — the console badge. */
 function mam_sg_open_count(): int {
     return (int) (mam_db_row("SELECT COUNT(*) AS n FROM safeguarding_concerns WHERE status = 'open'")['n'] ?? 0);
+}
+
+
+/**
+ * Escalation (ported from NGG's concernEscalate, which NGG locks on): a
+ * concern still OPEN and never looked at after mam_sg_escalate_hours() is
+ * sent again — to the officer AND every super admin — once. There is no
+ * switch for this: a concern that sits unread is exactly the failure the
+ * queue exists to prevent, and a setting that turns that off would one day be
+ * turned off.
+ */
+function mam_sg_escalate_sweep(): int {
+    $cut = gmdate('Y-m-d H:i:s', time() - mam_sg_escalate_hours() * 3600);
+    $n = 0;
+    foreach (mam_db_all("SELECT id, category, urgency FROM safeguarding_concerns
+                          WHERE status = 'open' AND acknowledged_at IS NULL AND escalated_at IS NULL AND created_at <= ? LIMIT 100", [$cut]) as $c) {
+        mam_db_update('safeguarding_concerns', ['escalated_at' => gmdate('Y-m-d H:i:s')], ['id' => (int) $c['id']]);
+        $to = mam_db_all("SELECT id, email FROM users WHERE role = 'admin' AND status = 'active' AND COALESCE(admin_tier, '') <> 'manager'");
+        if ($dso = (function_exists('mam_vetting_dso') ? mam_vetting_dso() : null)) $to[] = $dso;
+        $seen = [];
+        foreach ($to as $u) {
+            if (isset($seen[(int) $u['id']])) continue; $seen[(int) $u['id']] = true;
+            $title = 'Not yet looked at: safeguarding concern #' . (int) $c['id'];
+            try { mam_notify((int) $u['id'], 'safeguarding', $title, 'Raised more than ' . mam_sg_escalate_hours() . ' hours ago and nobody has opened it.', '/admin/console.php?v=safeguarding&concern=' . (int) $c['id']); } catch (Throwable $e) {}
+            if (!empty($u['email']) && function_exists('mam_send')) { try { mam_send((string) $u['email'], $title, '<p>' . htmlspecialchars($title) . '. It was raised more than ' . mam_sg_escalate_hours() . ' hours ago and nobody has opened it.</p>', 'safeguarding'); } catch (Throwable $e) {} }
+        }
+        mam_audit('safeguarding_escalated', 'safeguarding_concern', (int) $c['id'], ['hours' => mam_sg_escalate_hours()]);
+        $n++;
+    }
+    return $n;
+}
+
+/* ─── Incidents (ported from NGG's summer incident log, v103) ──────────── */
+
+const MAM_INCIDENT_KINDS = [
+    'first_aid'    => 'First aid',
+    'health'       => 'Feeling unwell',
+    'behaviour'    => 'Behaviour',
+    'collection'   => 'Collection / pickup',
+    'lost_item'    => 'Lost or broken item',
+    'safeguarding' => 'Safeguarding',
+    'other'        => 'Something else',
+];
+
+/** Who may record and read incidents for a student: an admin, or a teacher of theirs. */
+function mam_incident_can(array $user, int $studentId): bool {
+    if (mam_user_has_role($user, 'admin')) return true;
+    return mam_user_has_role($user, 'instructor') && function_exists('mam_media_student_reader') && mam_media_student_reader($studentId, $user);
+}
+
+/**
+ * Record an incident. $in: student_id, kind, happened_at?, place?, what (staff
+ * only), action_taken?, family_note? (what a family is told — written for
+ * them, because the staff note never leaves the building).
+ *
+ * A SAFEGUARDING incident is not an incident record at all for anybody but the
+ * officer: it opens an urgent concern, is stored with its details restricted,
+ * and the teacher can neither tell the family nor close it — the officer
+ * decides who is told, because the wrong adult being told can put a child at
+ * greater risk.
+ */
+function mam_incident_record(array $user, array $in): int {
+    $sid = (int) ($in['student_id'] ?? 0);
+    if ($sid <= 0 || !mam_incident_can($user, $sid)) throw new RuntimeException('forbidden');
+    $kind = isset(MAM_INCIDENT_KINDS[$in['kind'] ?? '']) ? (string) $in['kind'] : 'other';
+    $what = trim((string) ($in['what'] ?? ''));
+    if (mb_strlen($what) < 5) throw new InvalidArgumentException('Say what happened.');
+    $at = trim((string) ($in['happened_at'] ?? '')) ?: gmdate('Y-m-d H:i:s');
+    $at = str_replace('T', ' ', $at);
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$/', $at)) throw new InvalidArgumentException('Give the time as a date and time.');
+    $id = (int) mam_db_insert('incidents', ['student_id' => $sid, 'kind' => $kind, 'happened_at' => $at,
+        'place' => mb_substr(trim((string) ($in['place'] ?? '')), 0, 120) ?: null,
+        'what' => mb_substr($what, 0, 4000), 'action_taken' => mb_substr(trim((string) ($in['action_taken'] ?? '')), 0, 2000) ?: null,
+        'family_note' => $kind === 'safeguarding' ? null : (mb_substr(trim((string) ($in['family_note'] ?? '')), 0, 1000) ?: null),
+        'status' => 'open', 'recorded_by' => (int) $user['id'], 'created_at' => gmdate('Y-m-d H:i:s')]);
+    if ($kind === 'safeguarding' || mam_lesson_safeguarding_hit($what)) {
+        $cid = mam_sg_raise((int) $user['id'], ['category' => 'wellbeing', 'urgency' => 'urgent', 'about_id' => $sid,
+            'ref_type' => 'incident', 'ref_id' => $id, 'body' => 'Recorded as an incident: ' . $what]);
+        mam_db_update('incidents', ['concern_id' => $cid], ['id' => $id]);
+    }
+    mam_audit('incident_recorded', 'user', $sid, ['incident' => $id, 'kind' => $kind]);
+    return $id;
+}
+
+/** Incidents for one student (or all open ones), with safeguarding details withheld from anybody but the officer. */
+function mam_incident_list(array $viewer, ?int $studentId = null, string $filter = 'open'): array {
+    $where = []; $args = [];
+    if ($studentId) { $where[] = 'i.student_id = ?'; $args[] = $studentId; }
+    if ($filter === 'open') $where[] = "i.status = 'open'";
+    $rows = mam_db_all('SELECT i.*, s.name AS student_name, r.name AS recorded_by_name FROM incidents i
+                          LEFT JOIN users s ON s.id = i.student_id LEFT JOIN users r ON r.id = i.recorded_by'
+        . ($where ? ' WHERE ' . implode(' AND ', $where) : '') . ' ORDER BY i.happened_at DESC, i.id DESC LIMIT 200', $args);
+    $officer = mam_sg_can_manage($viewer);
+    $out = [];
+    foreach ($rows as $r) {
+        if (!mam_user_has_role($viewer, 'admin') && !mam_incident_can($viewer, (int) $r['student_id'])) continue;
+        if ($r['kind'] === 'safeguarding' && !$officer) {
+            $r['what'] = 'Restricted — with the safeguarding officer.'; $r['action_taken'] = null; $r['place'] = null;
+            if ((int) $r['recorded_by'] !== (int) $viewer['id']) $r['student_name'] = 'Restricted';
+        }
+        $out[] = $r;
+    }
+    return $out;
+}
+
+/**
+ * Tell the guardian. Records "told" ONLY when a message actually went, and
+ * sends the FAMILY note, never the staff one. Refused for a safeguarding
+ * incident (the officer decides).
+ */
+function mam_incident_tell(array $user, int $id): array {
+    $i = mam_db_row('SELECT * FROM incidents WHERE id = ?', [$id]);
+    if (!$i || !mam_incident_can($user, (int) $i['student_id'])) throw new RuntimeException('not_found');
+    if ($i['kind'] === 'safeguarding') throw new RuntimeException('officer_decides');
+    if (trim((string) $i['family_note']) === '') throw new InvalidArgumentException('Write the note the family will read first.');
+    $sent = []; $stu = mam_db_row('SELECT name FROM users WHERE id = ?', [(int) $i['student_id']]);
+    $subject = (MAM_INCIDENT_KINDS[$i['kind']] ?? 'An incident') . ' — ' . (string) ($stu['name'] ?? 'your child');
+    foreach (mam_db_all('SELECT u.id, u.email FROM parent_links pl JOIN users u ON u.id = pl.parent_id WHERE pl.student_id = ?', [(int) $i['student_id']]) as $g) {
+        try { mam_notify((int) $g['id'], 'incident', $subject, (string) $i['family_note'], null); $sent[] = 'portal'; } catch (Throwable $e) {}
+        if (!empty($g['email']) && function_exists('mam_send')) {
+            try { if (mam_send((string) $g['email'], $subject, '<p>' . nl2br(htmlspecialchars((string) $i['family_note'])) . '</p><p>Reply to this email or call the academy if you have questions.</p>', 'incident')) $sent[] = 'email'; } catch (Throwable $e) {}
+        }
+    }
+    $sent = array_values(array_unique($sent));
+    if (!$sent) return ['told' => false, 'message' => 'Nobody could be reached — no guardian is linked, or nothing could be sent. Call the family.'];
+    mam_db_update('incidents', ['told_at' => gmdate('Y-m-d H:i:s'), 'told_by' => (int) $user['id'], 'told_channels' => implode(',', $sent)], ['id' => $id]);
+    mam_audit('incident_told', 'user', (int) $i['student_id'], ['incident' => $id, 'channels' => $sent]);
+    return ['told' => true, 'message' => 'The family has been told (' . implode(', ', $sent) . ').'];
+}
+
+function mam_incident_close(array $user, int $id, string $outcome): void {
+    $i = mam_db_row('SELECT * FROM incidents WHERE id = ?', [$id]);
+    if (!$i || !mam_incident_can($user, (int) $i['student_id'])) throw new RuntimeException('not_found');
+    if ($i['kind'] === 'safeguarding' && !mam_sg_can_manage($user)) throw new RuntimeException('officer_decides');
+    if (mb_strlen(trim($outcome)) < 3) throw new InvalidArgumentException('Say how it ended.');
+    mam_db_update('incidents', ['status' => 'closed', 'outcome' => mb_substr(trim($outcome), 0, 1000), 'closed_by' => (int) $user['id'],
+        'closed_at' => gmdate('Y-m-d H:i:s')], ['id' => $id]);
+    mam_audit('incident_closed', 'user', (int) $i['student_id'], ['incident' => $id]);
 }

@@ -110,6 +110,9 @@ $r->post('/hooks/jaas',    $f('live/hook.php'), [mw_rate_limit('wh_jaas', 600, 6
 // Growth timeline and goals (v102, api/lib/growth.php) — the library decides who may see whom.
 $r->get ('/growth', $f('growth.php'), [mw_user(), mw_rate_limit('growth_read', 300, 600)]);
 $r->post('/growth', $f('growth.php'), [mw_csrf(), mw_user(), mw_rate_limit('growth_write', 60, 600)]);
+// Incidents (v103, safeguarding.php) — teachers record; a safeguarding one goes to the officer.
+$r->get ('/incidents', $f('incidents.php'), [mw_user(), mw_rate_limit('inc_read', 120, 600)]);
+$r->post('/incidents', $f('incidents.php'), [mw_csrf(), mw_user(), mw_rate_limit('inc_write', 30, 600)]);
 // Class spaces (v99, api/lib/spaces.php) — every signed-in role; the library decides who sees what.
 $r->get ('/spaces',       $f('spaces.php'), [mw_user(), mw_rate_limit('spaces_read', 600, 600)]);
 $r->post('/spaces',       $f('spaces.php'), [mw_csrf(), mw_user(), mw_rate_limit('spaces_write', 120, 600)]);

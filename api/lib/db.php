@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 102;
+const MAM_SCHEMA_TARGET = 103;
 
 /**
  * Open (and cache) the PDO connection.
@@ -4151,6 +4151,32 @@ function mam_db_migrate(PDO $db): void {
               CHECK(status IN ('active','achieved','dropped'))
             );
             CREATE INDEX IF NOT EXISTS idx_goals_student ON student_goals(student_id, status);
+        ",
+        103 => "
+            ALTER TABLE safeguarding_concerns ADD COLUMN escalated_at TEXT;
+            CREATE TABLE IF NOT EXISTS incidents (
+              id            INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              kind          TEXT NOT NULL,
+              happened_at   TEXT NOT NULL,
+              place         TEXT,
+              what          TEXT NOT NULL,
+              action_taken  TEXT,
+              family_note   TEXT,
+              status        TEXT NOT NULL DEFAULT 'open',
+              outcome       TEXT,
+              concern_id    INTEGER REFERENCES safeguarding_concerns(id) ON DELETE SET NULL,
+              recorded_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              told_at       TEXT,
+              told_by       INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              told_channels TEXT,
+              closed_by     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              closed_at     TEXT,
+              created_at    TEXT NOT NULL,
+              CHECK(kind IN ('first_aid','health','behaviour','collection','lost_item','safeguarding','other')),
+              CHECK(status IN ('open','closed'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_incidents_student ON incidents(student_id, status);
         ",
     ];
 

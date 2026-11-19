@@ -552,7 +552,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // this button is how a database behind the code is brought level.
         'run_migrations' => 'migrate',
         'vetting_record' => 'users', 'vetting_delete' => 'users', 'safeguarding_mode' => 'settings',
-        'sg_update' => 'safeguarding', 'storage_save' => 'settings', 'live_save' => 'settings', 'dso_set' => 'users',
+        'sg_update' => 'safeguarding', 'incident_record' => 'enrollments', 'incident_tell' => 'enrollments', 'incident_close' => 'enrollments', 'storage_save' => 'settings', 'live_save' => 'settings', 'dso_set' => 'users',
         'term_save' => 'settings', 'term_seed_year' => 'settings', 'term_census' => 'settings',
         'term_refund_reseed' => 'settings', 'closure_add' => 'settings', 'closure_delete' => 'settings',
         // Data protection. Requests and breaches are about identified people, so
@@ -1460,6 +1460,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         mam_setting_set('safeguarding_officer_user_id', (string) $uid);
         mam_audit('dso_named', 'user', $uid, []);
         header('Location: ?v=vetting&ok=' . urlencode('Safeguarding officer named. Concerns now go to them first.')); exit;
+    }
+
+    // ─── Incidents (v103, api/lib/safeguarding.php) ───────
+    if (in_array($action, ['incident_record', 'incident_tell', 'incident_close'], true)) {
+        $actor = mam_admin_require_actor();
+        try {
+            if ($action === 'incident_record') { mam_incident_record($actor, $_POST); $msg = 'Recorded.'; }
+            elseif ($action === 'incident_tell') { $msg = mam_incident_tell($actor, (int) ($_POST['id'] ?? 0))['message']; }
+            else { mam_incident_close($actor, (int) ($_POST['id'] ?? 0), (string) ($_POST['outcome'] ?? '')); $msg = 'Closed.'; }
+            header('Location: ?v=safeguarding&ok=' . urlencode($msg)); exit;
+        } catch (Throwable $e) {
+            $m = ['officer_decides' => 'The safeguarding officer decides who is told and when it closes.', 'forbidden' => 'That student was not found.', 'not_found' => 'That incident was not found.'];
+            header('Location: ?v=safeguarding&err=' . urlencode($m[$e->getMessage()] ?? $e->getMessage())); exit;
+        }
     }
 
     // ─── Safeguarding concerns (v99, api/lib/safeguarding.php) ───────

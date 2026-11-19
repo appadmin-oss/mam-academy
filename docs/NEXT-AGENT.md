@@ -52,6 +52,41 @@ Branch: `afv/mam-audit` (never a `claude/` branch — owner's rule). Suite:
 
 ## 4. NGG safeguarding port — status
 
-(Updated as each item lands.)
+NGG's features were inventoried (its `mentorship-pods.php` case queue,
+`mentor-automations.php` escalation, `momentum.php` crisis reply,
+`community.php` screen, `summer-incidents.php`, `registration.php` consents,
+`family-portal.php` collectors). What MAM now has, and what it does not:
 
-- [ ] Inventory of NGG's safeguarding features — running.
+Done (v103, `api/lib/safeguarding.php`, `test_spaces.php`):
+- [x] **Escalation nobody can switch off** — a concern still unopened after
+  `sg_escalate_hours` (2–72, default 4) is sent again to the officer and every super
+  admin, once (`mam_sg_escalate_sweep`, run-jobs). Not an automation toggle on purpose.
+- [x] **One automatic concern per child per 24h** — later holds become notes on it
+  and make it urgent.
+- [x] **A help reply to the child** whose words were held (`mam_sg_help_text`) —
+  says an adult was told only when one was; always gives 112.
+- [x] **Audited reads** of a concern on the console, with the reader.
+- [x] **Incident log** (`incidents`): first aid, health, behaviour, collection, lost
+  item, safeguarding, other. Recorded by a teacher of the child or an admin; the
+  staff note never leaves the building; the family is told a separate note and
+  "told" is recorded only when something was sent. A safeguarding incident opens an
+  urgent concern, stores no family note, is restricted to the officer, and the
+  teacher can neither tell the family nor close it. Console → Safeguarding, and
+  instructor portal → a student → Incidents.
+- [x] **Support tickets and lesson/helper holds** now reach the officer's queue.
+
+Still to port (in order of value):
+1. **Authorised collectors** — who may collect a child (max 8, staff-edited,
+   family sees read-only), checked at sign-out on the register. NGG has the list but
+   never checks it at the gate either; do both.
+2. **Medical/allergy notes visible to the adult on duty** — today nothing puts them
+   in front of the teacher taking the register. Show on the register and the live
+   class page for staff only; never exported; never on an ID card.
+3. **Only cleared adults see children's records** — NGG refuses an uncleared
+   mentor any child record. MAM's vetting gate (`vetting.php`) runs at assignment in
+   `warn` mode; extend it to class-space membership as a teacher and to the register
+   once the academy switches to `enforce`.
+4. **Two adults / recorded for online classes with children** — MAM only REPORTS a
+   lone adult after the call (`mam_live_reconcile`). An `enforce` option could keep
+   the lobby closed until a second adult or recording consent is present.
+5. **Conduct thresholds** (NGG POLICY §1–2) — a policy decision for the owner first.

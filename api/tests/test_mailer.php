@@ -65,7 +65,9 @@ t_ok((string)$row['body'] === '<p>Hi {{name}}</p>', 'the real send path retains 
 $attemptsBefore = (int)$row['attempts'];
 
 // ── Retry: re-sends, increments attempts, stays failed until a transport works ─
-$sum = mam_mail_retry_failed(50, 6, 0);
+// Wide enough that this test's own row is reached however many failed sends earlier
+// suites left in the shared database (safeguarding alerts email every super admin).
+$sum = mam_mail_retry_failed(5000, 6, 0);
 t_ok($sum['tried'] >= 1, 'retry processed at least one eligible failed row');
 t_ok($sum['failed'] >= 1, 'retry still fails while SMTP is unconfigured (no false success)');
 $row2 = mam_db_row('SELECT * FROM mail_log WHERE to_email = ? ORDER BY id DESC LIMIT 1', ['e2e-fail@x.dev']);

@@ -75,6 +75,8 @@ function mam_lesson_safeguarding_hit(string $text): bool {
 /** Tell the safeguarding officer (and record it) that something was held. */
 function mam_lesson_safeguarding_raise(int $studentId, string $where, int $refId): void {
     mam_audit('lesson_safeguarding_hold', 'user', $studentId, ['where' => $where, 'ref' => $refId]);
+    // Into the officer's queue, like every other held word (safeguarding.php) — not only a notification.
+    if (function_exists('mam_sg_auto')) { mam_sg_auto($studentId, 'lesson', $refId, 'wellbeing', 'Words held from ' . $where . '.'); return; }
     $dso = function_exists('mam_vetting_dso') ? mam_vetting_dso() : null;
     if ($dso && function_exists('mam_notify')) {
         try { mam_notify((int) $dso['id'], 'safeguarding', 'A student\'s words were held for you to read',
