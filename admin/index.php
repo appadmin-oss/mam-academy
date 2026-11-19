@@ -552,7 +552,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // this button is how a database behind the code is brought level.
         'run_migrations' => 'migrate',
         'vetting_record' => 'users', 'vetting_delete' => 'users', 'safeguarding_mode' => 'settings',
-        'sg_update' => 'safeguarding', 'storage_save' => 'settings', 'live_save' => 'settings',
+        'sg_update' => 'safeguarding', 'storage_save' => 'settings', 'live_save' => 'settings', 'dso_set' => 'users',
         'term_save' => 'settings', 'term_seed_year' => 'settings', 'term_census' => 'settings',
         'term_refund_reseed' => 'settings', 'closure_add' => 'settings', 'closure_delete' => 'settings',
         // Data protection. Requests and breaches are about identified people, so
@@ -1450,6 +1450,16 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $iid = (int)($_POST['instructor_id'] ?? 0);
         mam_vetting_delete($rid, (int)($adminUser['id'] ?? 0) ?: null);
         header('Location: ?v=vetting&i=' . $iid . '&ok=' . urlencode('Clearance record removed.')); exit;
+    }
+
+    // ─── Name the Designated Safeguarding Officer (vetting.php reads it) ───
+    if ($action === 'dso_set') {
+        $uid = (int) ($_POST['user_id'] ?? 0);
+        $u = $uid > 0 ? mam_db_row("SELECT id, role FROM users WHERE id = ? AND role IN ('admin','instructor') AND status = 'active'", [$uid]) : null;
+        if (!$u) { header('Location: ?v=vetting&err=' . urlencode('Choose a member of staff.')); exit; }
+        mam_setting_set('safeguarding_officer_user_id', (string) $uid);
+        mam_audit('dso_named', 'user', $uid, []);
+        header('Location: ?v=vetting&ok=' . urlencode('Safeguarding officer named. Concerns now go to them first.')); exit;
     }
 
     // ─── Safeguarding concerns (v99, api/lib/safeguarding.php) ───────

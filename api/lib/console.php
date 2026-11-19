@@ -1894,6 +1894,8 @@ function mam_console_vetting(): array {
         'mode' => mam_console_try('vt.mode', fn() => mam_vetting_mode(), 'warn'),
         'summary' => mam_console_try('vt.sum', fn() => mam_vetting_summary(), []) ?: [],
         'dso' => mam_console_try('vt.dso', fn() => mam_vetting_dso(), null),
+        'types' => defined('MAM_VETTING_TYPES') ? MAM_VETTING_TYPES : [],
+        'staff' => mam_console_rows('vt.staff', "SELECT id, name, email, role FROM users WHERE role IN ('admin','instructor') AND status = 'active' ORDER BY name LIMIT 300"),
         'attention' => mam_console_try('vt.att', fn() => mam_vetting_attention(50), []) ?: [],
     ];
 }

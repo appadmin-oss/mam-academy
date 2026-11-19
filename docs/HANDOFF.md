@@ -2013,3 +2013,62 @@ placement, the study helper, teacher materials, feedback, notes). Schema v98,
 Verified: suite 7079/0; Chromium end to end (student notes, feedback, exam with
 pledge and clock, teacher exam marking, placement, material sent → approved in
 the console, settings saved); console sweep 32 screens × 2 widths clean.
+
+## 4z3. 2026-11-20 — class spaces, storage, live classes, invoices, growth, adaptive, safeguarding (v99–v102)
+
+What was asked: invoice review and negotiation with discounts; assessments that adapt;
+in-app accountability and growth tracking; NGG's community as class spaces for (mostly
+video) assignments, with private classes; uploads compressed well and kept in a suitable
+bucket; a recommendation for closely-monitored online classes with attendance and time;
+strong safeguarding for minors. Forms were left alone at the owner's request (a design is
+coming).
+
+- **Storage (v99, `media-store.php`).** A PRIVATE S3-compatible bucket (Cloudflare R2
+  recommended: cheapest that works, no download charges). Browser asks `/api/media/sign`
+  for a presigned PUT (one key, one type, one exact size, 15 min), uploads straight to the
+  bucket, then `/api/media/done` HEADs the object before it counts. Every read goes through
+  `/api/media/object?id=N`, which checks who is asking and then redirects to a 10-minute
+  link. With no bucket the same flow stores on this host (64 MB cap, Range-capable stream).
+  Console → System health holds the keys and a write/read/delete test. R2 has no African
+  region: note the transfer in the data-protection register.
+- **Compression (`assets/js/media-upload.js`).** Mediabunny (WebCodecs, MPL-2.0, vendored
+  at `assets/js/vendor/mediabunny.min.mjs`) re-encodes video to 720p H.264 ~2.3 Mbps with
+  AAC; photos become 1600px WebP (drops EXIF location). Measured: 12.2 MB 1080p → 2.45 MB in
+  ~4 s. Falls back to the original where WebCodecs is missing.
+- **Class spaces (v99, `spaces.php`, `portal-spaces.js`).** Option 1 as agreed: a feed per
+  class; `class` (the cohort) or `private` (added people only); tasks, hand-ins, marks
+  private to student/family/teachers, comments at a moment in a video, reactions, reports.
+  No private messages of any kind. A minor without media consent shares video with the
+  teacher only. Words are screened (harm → held + urgent concern; contact details, links,
+  "add me on…" and unkind words → held). Student videos wait for a teacher by default. A
+  teacher's own held post is decided by an admin. The future public community must be a
+  separate surface — nothing here is shown outside the space.
+- **Safeguarding (v99, `safeguarding.php`).** Anybody signed in can raise a concern; the
+  named officer (or every super admin) is told at once; closing needs an outcome; nothing
+  deleted. Console → Governance → Safeguarding is the queue. A guardian's "safeguarding"
+  message now raises a concern; harm words in any family thread open one. Console → Staff &
+  vetting now has the forms to record a check and to name the officer.
+- **Invoices (v100, `fee-review.php`).** A draft is checked and signed off by a second
+  person before it is issued; editing it afterwards clears the sign-off. Families can query
+  an invoice, propose a lower total or 2–6 instalments; the office answers, agrees,
+  counters or declines; counters are accepted from the guardian portal. Agreed reductions
+  are waivers naming the query. Reminders pause while a query is open. Discount codes
+  (percent or amount, cap, end date, once per family) apply as waivers with the code as the
+  reason. No interest, no automatic late charges.
+- **Online classes (v101, `live-classes.php`, `portal/live.html`).** Recommendation: JaaS
+  (8x8.vc) — signed identity per person, staff-only moderators, lobby for classes with
+  children, private chat off, webhooks on join/leave; free to 25 monthly users. Presence =
+  signed webhooks + a once-a-minute heartbeat from the class page, merged; "Take the
+  register from the call" writes online attendance (minutes present, late, left early)
+  without overwriting a teacher's mark, and flags one adult alone with children. Meet and
+  plain Jitsi stay as link-out fallbacks. `.htaccess` now allows camera/mic/screen for
+  `https://8x8.vc` only — `camera=()` would have silently killed the call's camera.
+- **Adaptive + growth (v102, `adaptive.php`, `growth.php`, `portal-growth.js`).** Questions
+  carry a difficulty (teacher's 1–5, then learnt); each student an ability per course from
+  first attempts at machine-marked questions only. Spaced recall and the course trial pick
+  near the student's level. Teachers see a suggestion; nothing moves a student by itself.
+  Weekly stored snapshots, a twelve-week timeline, and goals that measure themselves, in
+  all three portals.
+
+Still open: the owner's form design (admissions/apply), NGG-side storage changes, and the
+admissions restructure on NGG's model (task 18).

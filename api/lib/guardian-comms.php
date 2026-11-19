@@ -246,6 +246,10 @@ function mam_thread_post(int $threadId, int $userId, string $body): int {
         'created_at'  => $now,
     ]);
     mam_db_update('guardian_threads', ['last_message_at' => $now], ['id' => $threadId]);
+    // Words about harm reach the safeguarding officer whatever the thread was about (safeguarding.php).
+    if (function_exists('mam_lesson_safeguarding_hit') && function_exists('mam_sg_auto') && mam_lesson_safeguarding_hit($body)) {
+        mam_sg_auto((int) $t['student_id'] ?: null, 'thread', $threadId, 'wellbeing', 'Words in a family message thread may be about harm.');
+    }
 
     // Notify the other participants, on the channels the topic allows.
     foreach (mam_db_all('SELECT user_id, role FROM guardian_thread_participants WHERE thread_id = ? AND user_id <> ?', [$threadId, $userId]) as $p) {

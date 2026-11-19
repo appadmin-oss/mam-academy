@@ -121,3 +121,46 @@ $required = (array) ($d['required'] ?? []);
     </div>
   <?php ac_card_close('Validity is DERIVED from the expiry date, never a stored status column — so a clearance lapsing at midnight reads as lapsed on the next page load rather than the next cron run.'); ?>
 </div>
+
+<div class="ac-cols ac-cols--2">
+  <?php ac_card_open('Record a check'); ?>
+    <div class="ac-cardbody">
+      <?php ac_form('vetting_record', 'vetting'); ?>
+        <div class="ac-grid ac-grid--2">
+          <label class="ac-field"><span class="ac-label">Instructor</span>
+            <select class="ac-select" name="instructor_id" required><option value="">Choose…</option>
+              <?php foreach ($d['instructors'] ?? [] as $vi): ?><option value="<?= (int) $vi['id'] ?>"><?= ac_h((string) $vi['name']) ?></option><?php endforeach; ?>
+            </select></label>
+          <label class="ac-field"><span class="ac-label">Check</span>
+            <select class="ac-select" name="clearance_type" required>
+              <?php foreach ($d['types'] ?? [] as $tk => $tv): ?><option value="<?= ac_h($tk) ?>"><?= ac_h((string) $tv['label']) ?></option><?php endforeach; ?>
+            </select></label>
+          <label class="ac-field"><span class="ac-label">Issued on</span><input class="ac-input" type="date" name="issued_on"></label>
+          <label class="ac-field"><span class="ac-label">Expires on (empty: the usual period)</span><input class="ac-input" type="date" name="expires_on"></label>
+          <label class="ac-field"><span class="ac-label">Issued by</span><input class="ac-input" name="issuing_body" maxlength="120"></label>
+          <label class="ac-field"><span class="ac-label">Reference number</span><input class="ac-input" name="reference_no" maxlength="80"></label>
+        </div>
+        <label class="ac-field ac-mt"><span class="ac-label">Where the evidence is filed (not the evidence itself)</span>
+          <input class="ac-input" name="evidence_held" maxlength="200" placeholder="e.g. HR cabinet, file 12"></label>
+        <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Record it</button>
+          <span class="ac-hint">Recording a check again replaces the last one of that kind.</span></div>
+      <?php ac_form_end(); ?>
+    </div>
+  <?php ac_card_close('Dates and references only — never what a certificate says.'); ?>
+
+  <?php ac_card_open('Name the safeguarding officer'); ?>
+    <div class="ac-cardbody">
+      <?php ac_form('dso_set', 'vetting'); ?>
+        <label class="ac-field"><span class="ac-label">Officer</span>
+          <select class="ac-select" name="user_id" required><option value="">Choose…</option>
+            <?php foreach ($d['staff'] ?? [] as $sf): ?>
+              <option value="<?= (int) $sf['id'] ?>" <?= (int) ($d['dso']['id'] ?? 0) === (int) $sf['id'] ? 'selected' : '' ?>><?= ac_h((string) $sf['name'] . ' · ' . (string) $sf['role']) ?></option>
+            <?php endforeach; ?>
+          </select></label>
+        <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Save</button></div>
+      <?php ac_form_end(); ?>
+      <p class="ac-note ac-mt">Every concern raised in the portals and every post held for harm goes to this person at once.
+      With nobody named, every super admin is told.</p>
+    </div>
+  <?php ac_card_close(); ?>
+</div>

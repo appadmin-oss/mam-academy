@@ -216,3 +216,17 @@ $SP_g = mam_sg_get($SP_cid);
 t_ok($SP_g['acknowledged_at'] !== null && (int) $SP_g['assigned_to'] === $SP_admin && count($SP_g['notes']) === 1, 'working it records who, when, and a note');
 t_ok(!mam_sg_can_manage($SP_user($SP_teach)), 'an ordinary teacher cannot read the queue');
 t_ok(mam_sg_can_manage($SP_user($SP_admin)), 'a super admin can');
+
+t_group('safeguarding — every route reaches the officer');
+
+$SP_tid = mam_thread_open($SP_amy, 'Lessons', 'general', $SP_mum);
+$SP_before2 = (int) mam_db_row("SELECT COUNT(*) AS n FROM safeguarding_concerns WHERE ref_type = 'thread' AND ref_id = ?", [$SP_tid])['n'];
+mam_thread_post($SP_tid, $SP_mum, 'She told me someone hits me— sorry, hits her, at the bus stop.');
+t_eq((int) mam_db_row("SELECT COUNT(*) AS n FROM safeguarding_concerns WHERE ref_type = 'thread' AND ref_id = ?", [$SP_tid])['n'], $SP_before2 + 1,
+    'words about harm in a family message open a concern, whatever the thread was about');
+$SP_tp = (string) file_get_contents(__DIR__ . '/../routes/parent/thread-post.php');
+t_ok(str_contains($SP_tp, 'mam_sg_raise') && !str_contains($SP_tp, "mam_fail('use_safeguarding_route'"), 'a guardian\'s safeguarding message becomes a concern, not a refusal');
+$SP_adm = (string) file_get_contents(__DIR__ . '/../../admin/index.php');
+t_ok(str_contains($SP_adm, "'dso_set' => 'users'") && str_contains($SP_adm, "if (\$action === 'dso_set')"), 'the console can name the safeguarding officer');
+$SP_vt = (string) file_get_contents(__DIR__ . '/../../partials/admin-console/vetting.php');
+t_ok(str_contains($SP_vt, "ac_form('vetting_record'"), 'the console has a form to record a vetting check (it had a handler and no button)');

@@ -1301,6 +1301,25 @@ Two conventions these established:
   total is the bug the v61 column exists to prevent. NULL = unpriced, counted
   and disclosed separately rather than silently dropped.
 
+## Class spaces, stored files, live classes, invoices, growth (HANDOFF §4z3, v99–v102)
+
+- **Every stored file is read through `/api/media/object`**, which checks who is asking
+  (`mam_media_can_read`) before a ten-minute presigned link or a local stream. The bucket
+  is private on purpose — most files are videos of children. Never hand out a bucket URL.
+- **A class space's rules live in `spaces.php`, not in the page**: marks are private,
+  a minor without media consent shares video with the teacher only, words are screened
+  before anybody sees them, and there are no private messages of any kind. Add a write
+  path → run it through `mam_space_screen()`.
+- **Concerns go through `mam_sg_raise()` / `mam_sg_auto()`.** Never refuse a safeguarding
+  message — route it to the officer.
+- **The office issues through `mam_fee_issue_reviewed()`** (a second person reviews a
+  draft); `mam_fee_invoice_issue()` stays the primitive the tests use.
+- **Live-class attendance never overwrites a teacher's mark** (`method = 'instructor'`).
+- **The ability estimate learns only from first attempts at machine-marked questions** and
+  is never shown to a student.
+- `Permissions-Policy` allows camera/mic/screen for `https://8x8.vc` only — a bare
+  `camera=()` silently kills the class call's camera.
+
 ## Lessons — the syllabus as something a student works through (HANDOFF §4z — ported from NGG)
 
 `api/lib/lessons.php`, schema v97. NGG's curriculum (units, questions, per-member
