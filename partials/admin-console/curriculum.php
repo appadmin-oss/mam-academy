@@ -6,8 +6,7 @@ $uncovered = array_values(array_filter($d['coverage'] ?? [], fn($c) => empty($c[
 $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovered));
 ?>
 <?php ac_head('Curriculum',
-    'Programme → course at a level → modules · curriculum is not the schedule and not mastery',
-    '<a class="ac-btn" href="/admin/?v=curriculum">Author a module</a>'); ?>
+    'Programme → course at a level → modules · curriculum is not the schedule and not mastery'); ?>
 
 <?php if ($uncovered && $uncoveredWeight > 0): ?>
   <?php ac_banner('warn', 'fa-triangle-exclamation',

@@ -5,8 +5,7 @@ declare(strict_types=1);
 $median = $d['median_first_reply_min'] ?? null;
 ?>
 <?php ac_head('Support',
-    'Questions from parents, learners and staff · one queue, answered in order',
-    '<a class="ac-btn" href="/admin/?v=support">Full ticket screen</a>'); ?>
+    'Questions from parents, learners and staff · one queue, answered in order'); ?>
 
 <?php ac_kpis([
     ['label' => 'Open', 'value' => (string) (int) ($d['open'] ?? 0),
@@ -23,10 +22,10 @@ $median = $d['median_first_reply_min'] ?? null;
   <div class="ac-tablewrap">
     <table class="ac-table">
       <thead><tr><th>Ticket</th><th>Subject</th><th>From</th><th>Topic</th><th class="ac-num">Waiting</th>
-                 <th>Status</th><th></th></tr></thead>
+                 <th>Status</th></tr></thead>
       <tbody>
         <?php if (!($d['rows'] ?? [])): ?>
-          <?php ac_table_empty(7, 'Nothing in the queue.'); ?>
+          <?php ac_table_empty(6, 'Nothing in the queue.'); ?>
         <?php else: foreach ($d['rows'] as $t):
           $openTicket = in_array((string) $t['status'], ['open', 'pending', 'in_progress'], true); ?>
           <tr>
@@ -40,7 +39,6 @@ $median = $d['median_first_reply_min'] ?? null;
             <td><?= ac_tag((string) ($t['category'] ?: 'general')) ?></td>
             <td class="ac-num"><?= $openTicket ? ac_h(mam_console_age((string) $t['created_at'])) : '<span class="ac-sub">—</span>' ?></td>
             <td><?= ac_status((string) $t['status']) ?></td>
-            <td class="ac-num"><a class="ac-btn ac-btn--sm" href="/admin/?v=support&amp;ticket=<?= (int) $t['id'] ?>">Open</a></td>
           </tr>
         <?php endforeach; endif; ?>
       </tbody>
@@ -65,9 +63,6 @@ $median = $d['median_first_reply_min'] ?? null;
       <p class="ac-note">Payment settlement completes the whole enrolment through one implementation, but a placement
       it cannot work out is deliberately left to the admin backlog rather than failing the payment — so that backlog
       is where to look first.</p>
-      <div class="ac-row ac-mt">
-        <a class="ac-btn" href="/admin/?v=applications&amp;f=incomplete">The incomplete-enrolment backlog</a>
-      </div>
     </div>
   <?php ac_card_close(); ?>
 </div>

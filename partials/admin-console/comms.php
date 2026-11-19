@@ -5,8 +5,7 @@ declare(strict_types=1);
 $by = $d['by_status'] ?? [];
 ?>
 <?php ac_head('Communications',
-    'Every message is written to the outbox by the thing that caused it',
-    '<a class="ac-btn" href="/admin/?v=mail">Outbox</a><a class="ac-btn" href="/admin/?v=classes">New announcement</a>'); ?>
+    'Every message is written to the outbox by the thing that caused it'); ?>
 
 <?php ac_kpis([
     ['label' => 'Sent, 24h', 'value' => (string) (int) ($d['sent_24h'] ?? 0), 'note' => 'across every context'],
@@ -20,8 +19,7 @@ $by = $d['by_status'] ?? [];
   <?php ac_banner('bad', 'fa-envelope-circle-check',
     '<strong>' . (int) $by['failed'] . ' message' . ((int) $by['failed'] === 1 ? '' : 's')
     . ' failed to send.</strong> A failed mail is a row with its error, not a silence — the row is what makes a '
-    . 'retry possible, and a transport that drops mail without one is indistinguishable from success.',
-    '<a class="ac-btn ac-btn--sm" href="/admin/?v=mail">Retry them</a>'); ?>
+    . 'retry possible, and a transport that drops mail without one is indistinguishable from success.'); ?>
 <?php endif; ?>
 
 <?php ac_card_open('By context, last thirty days', count($d['contexts'] ?? []) . ' kinds',

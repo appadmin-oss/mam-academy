@@ -5,8 +5,7 @@ declare(strict_types=1);
 ?>
 <?php ac_head('Reports',
     'Figures as at ' . ac_h(date('j M H:i')) . ' · every number here has rows behind it',
-    '<a class="ac-btn" href="/admin/?v=export&amp;type=applications.csv">Export applications</a>'
-    . '<a class="ac-btn" href="/admin/?v=analytics">Academic analytics</a>'); ?>
+    '<a class="ac-btn" href="/admin/?v=export&amp;type=applications.csv">Export applications</a>'); ?>
 
 <?php ac_kpis($d['kpis'] ?? []); ?>
 

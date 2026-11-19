@@ -46,16 +46,19 @@ header('Content-Type: text/html; charset=utf-8');
 header('Referrer-Policy: same-origin');
 if (!defined('MAM_HTML_RESPONSE')) define('MAM_HTML_RESPONSE', true);
 
-/* An admin on a temporary password sets a new one before using the console. */
-if ($adminUser && (int) ($adminUser['must_change_password'] ?? 0) === 1) {
-    header('Location: /admin/?v=account'); exit;
-}
-
 require_once __DIR__ . '/../partials/admin-console/_ui.php';
 
 $screens = mam_console_screens();
 $screen  = (string) ($_GET['v'] ?? 'dashboard');
 if (!in_array($screen, $screens, true)) $screen = 'dashboard';
+
+/* An admin on a temporary password sets a new one before using the console.
+   The gate sits AFTER the screen is resolved so the account screen itself is
+   exempt — it used to send people to the legacy ?v=account, and with that view
+   retired a gate that also caught its own destination would loop for ever. */
+if ($adminUser && (int) ($adminUser['must_change_password'] ?? 0) === 1 && $screen !== 'account') {
+    header('Location: /admin/console.php?v=account'); exit;
+}
 
 $MAM_CONSOLE_CSRF = mam_csrf_token();
 $nav    = mam_console_nav();
@@ -116,6 +119,7 @@ $providers = [
     'support'        => fn() => mam_console_support(),
     'system'         => fn() => mam_console_system(),
     'settings'       => fn() => mam_console_settings(),
+    'account'        => fn() => mam_console_account(),
 ];
 $d = isset($providers[$screen]) ? ($providers[$screen])() : [];
 
@@ -140,7 +144,7 @@ foreach ($nav as $g) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=Cormorant+Garamond:wght@600;700&amp;family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="/assets/css/admin-v2.css?v=2026.11.19e">
+<link rel="stylesheet" href="/assets/css/admin-v2.css?v=2026.11.19f">
 </head>
 <body>
 <a class="ac-skip" href="#ac-main">Skip to the screen</a>
@@ -197,10 +201,6 @@ foreach ($nav as $g) {
         </a>
       <?php endforeach; ?>
       <div class="ac-navgroup">Other surfaces</div>
-      <a class="ac-nav" href="/admin/" title="The 37-view admin">
-        <span class="ac-navbar"></span><i class="fa-solid fa-table-columns"></i>
-        <span class="ac-navlabel">Old dashboard</span>
-      </a>
       <?php /* The phone subset. It has to be findable from a desk once, or
                nobody ever discovers it — an admin bookmarks it from here and
                then reaches it directly. It links back. */ ?>
@@ -210,13 +210,14 @@ foreach ($nav as $g) {
       </a>
     </div>
 
-    <div class="ac-railfoot">
+    <?php /* Who you are signed in as, and the way to your own account. */ ?>
+    <a class="ac-railfoot" href="<?= ac_h(ac_url('account')) ?>" title="My account"<?= $screen === 'account' ? ' aria-current="page"' : '' ?>>
       <?= ac_avatar($adminUser['name'] ?? 'Break glass', null) ?>
       <div class="ac-rt">
         <div class="ac-railwho"><?= ac_h($adminUser['name'] ?? 'break-glass') ?></div>
         <div class="ac-railrole"><?= ac_h($adminUser ? ucfirst((string) ($adminUser['admin_tier'] ?? 'admin')) : 'Recovery credential') ?></div>
       </div>
-    </div>
+    </a>
   </nav>
   <button type="button" class="ac-navscrim" id="ac-navscrim" hidden aria-label="Close the menu"></button>
 

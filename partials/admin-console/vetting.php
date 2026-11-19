@@ -7,8 +7,7 @@ $mode = (string) ($d['mode'] ?? 'warn');
 $required = (array) ($d['required'] ?? []);
 ?>
 <?php ac_head('Staff & vetting',
-    'Suitability evidence for everyone who teaches a child · references and dates only',
-    '<a class="ac-btn" href="/admin/?v=vetting">Record a check</a>'); ?>
+    'Suitability evidence for everyone who teaches a child · references and dates only'); ?>
 
 <?php ac_kpis([
     ['label' => 'Instructors', 'value' => (string) count($d['instructors'] ?? []), 'note' => 'on the books'],
@@ -117,7 +116,7 @@ $required = (array) ($d['required'] ?? []);
         <?php ac_banner('warn', 'fa-user-shield',
           '<strong>No officer is named.</strong> The policy requires a named person who keeps these records and '
           . 'reports quarterly. A policy with nobody responsible for it is the commonest way this requirement is missed.',
-          '<a class="ac-btn ac-btn--sm" href="/admin/?v=settings">Name one</a>'); ?>
+          ''); ?>
       <?php endif; ?>
     </div>
   <?php ac_card_close('Validity is DERIVED from the expiry date, never a stored status column — so a clearance lapsing at midnight reads as lapsed on the next page load rather than the next cron run.'); ?>

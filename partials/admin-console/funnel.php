@@ -49,7 +49,7 @@ $stepNames = [1 => 'Programme & pathway', 2 => 'Your details', 3 => 'Experience 
       the academy declines and everything it is still waiting on: these are the cheapest families to recruit, and
       today nothing reaches them.</p>
       <div class="ac-row ac-mt">
-        <a class="ac-btn" href="/admin/?v=applications">Read the abandoned drafts</a>
+        
         <a class="ac-btn" href="<?= ac_h(ac_url('comms')) ?>">Draft a nudge</a>
       </div>
     </div>

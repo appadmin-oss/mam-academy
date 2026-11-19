@@ -240,13 +240,15 @@ t_eq((int) (mam_vetting_dso()['id'] ?? 0), $VT_admin, 'a named officer resolves'
 mam_setting_set('safeguarding_officer_user_id', '0');
 t_ok(mam_vetting_dso() === null, 'and an unset officer reads as null rather than a phantom user');
 
-t_group('vetting — the admin surface exists and is wired');
+t_group('vetting — the actions are handled, and the console shows the gaps');
 
-/* A vetting system an admin cannot operate is not shipped. These are static
-   checks on the markup; the browser pass is what proved the write path. */
+/* The legacy dashboard's vetting view was retired on 2026-11-19 with the rest
+   of that interface. Its write handlers live on in admin/index.php — every
+   console form posts there — and the console's Staff & vetting screen draws
+   the matrix and the officer. */
 $vAdmin = (string) file_get_contents(dirname(__DIR__, 2) . '/admin/index.php');
-t_ok(strpos($vAdmin, "'vetting' => ['Staff & Vetting', 'shield-halved']") !== false, 'there is a nav entry');
-t_ok(strpos($vAdmin, "elseif (\$view === 'vetting')") !== false, '…and a view');
+$vConsole = (string) file_get_contents(dirname(__DIR__, 2) . '/partials/admin-console/vetting.php');
+t_ok(in_array('vetting', mam_console_screens(), true), 'the console has a vetting screen');
 foreach (['vetting_record', 'vetting_delete', 'safeguarding_mode'] as $act) {
     t_ok(strpos($vAdmin, "\$action === '$act'") !== false, "the `$act` action is handled");
     t_ok((bool) preg_match("/'$act'\s*=> '(users|settings)'/", $vAdmin), "…behind a capability");
@@ -260,17 +262,5 @@ t_ok(strpos($vAdmin, 'mam_admin_redirect') === false,
 t_ok(strpos($vAdmin, "header('Location: ?v=vetting&i=' . \$iid . '&ok='") !== false,
     '…and redirects back to the instructor it just recorded against');
 
-// The nav probe must not key off vetting_records: an EMPTY vetting table is
-// exactly when this screen is needed, so probing it would fold the section away
-// at the worst possible moment.
-t_ok((bool) preg_match("/'vetting' => 'users',/", $vAdmin),
-    'the nav probe keys off users, not vetting_records');
-
-// The screen must warn, in the UI, against pasting check contents.
-t_ok(strpos($vAdmin, 'Do not paste the contents of a check') !== false,
-    'the form warns against storing check contents');
-t_ok(strpos($vAdmin, 'No Designated Safeguarding Officer named') !== false,
+t_ok(strpos($vConsole, 'No officer is named.') !== false,
     'an unnamed safeguarding officer is surfaced as a finding, not left blank');
-// Removing a clearance can un-clear someone; it must say so before it happens.
-t_ok((bool) preg_match('/vetting_delete.*?\n.*?/s', $vAdmin) && strpos($vAdmin, 'may stop being cleared to teach children') !== false,
-    'removing a clearance confirms with its consequence');

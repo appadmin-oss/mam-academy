@@ -257,22 +257,17 @@ t_ok($sum['terms'] >= 5, '…and counts the terms');
 t_ok(array_key_exists('census_due', $sum), '…and flags a census that is due but not taken');
 t_ok(array_key_exists('missing_dates', $sum), '…and terms missing a deadline');
 
-t_group('calendar — the admin surface exists and is wired');
+t_group('calendar — the actions are handled, and the console shows the calendar');
 
+/* The legacy dashboard's calendar view was retired on 2026-11-19 with the rest
+   of that interface. The write handlers live on in admin/index.php — every
+   console form posts there — and the console draws the calendar. */
 $calAdminSrc = (string) file_get_contents(dirname(__DIR__, 2) . '/admin/index.php');
-t_ok(strpos($calAdminSrc, "'calendar' => ['Academic Calendar', 'calendar-days']") !== false, 'there is a nav entry');
-t_ok(strpos($calAdminSrc, "elseif (\$view === 'calendar')") !== false, '…and a view');
+t_ok(in_array('calendar', mam_console_screens(), true), 'the console has a calendar screen');
 foreach (['term_save', 'term_seed_year', 'term_census', 'term_refund_reseed', 'closure_add', 'closure_delete'] as $act) {
     t_ok(strpos($calAdminSrc, "\$action === '$act'") !== false, "the `$act` action is handled");
     t_ok((bool) preg_match("/'$act'\s*=> 'settings'/", $calAdminSrc), "…behind the settings capability");
 }
-// The nav probe must not key off academic_terms: an EMPTY calendar is exactly
-// when this screen is needed, so probing it would fold the section away then.
-t_ok((bool) preg_match("/'calendar' => 'users',/", $calAdminSrc),
-    'the nav probe keys off users, not academic_terms');
-// Same invented-helper trap as the vetting screen.
-t_ok(strpos($calAdminSrc, "header('Location: ?v=calendar&t='") !== false,
-    'it redirects with this file\'s own header(Location) pattern');
 
 /* An overlap refusal must reach the admin as a sentence about consequences, not
    a raw exception string — `overlaps_term:TONI Term` means nothing to them. */
@@ -280,10 +275,6 @@ t_ok(strpos($calAdminSrc, 'Two terms covering one day means two possible refund 
     'an overlap refusal explains why it matters');
 t_ok(strpos($calAdminSrc, 'Those dates fall outside the term, so the closure would never apply.') !== false,
     'a closure outside its term explains what would happen');
-// Both irreversible actions state their consequence before acting.
-t_ok(strpos($calAdminSrc, 'cannot be retaken') !== false, 'taking the census warns it is one-shot');
-t_ok(strpos($calAdminSrc, 'may have been shown different figures') !== false,
-    'resetting the refund table warns that families saw the current one');
 
 t_group('calendar — a withdrawal records WHICH KIND it was');
 

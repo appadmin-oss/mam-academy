@@ -167,14 +167,10 @@ mam_test_env(['V2_READ_DB' => '']);
 mam_v2_rm_reset_for_test();
 @unlink($rmPath);
 
-t_group('v2 read model — the admin surface, and the one-way boundary');
+t_group('v2 read model — the one-way boundary');
 
-$rmAdmin = file_get_contents(__DIR__ . '/../../admin/index.php');
-t_ok(strpos($rmAdmin, "\$view === 'v2read'") !== false, 'the screen exists');
-t_ok(strpos($rmAdmin, 'mam_v2_rm_status()') !== false, 'and leads with the snapshot status');
-t_ok(strpos($rmAdmin, 'Merges a human should check before any cutover') !== false,
-    'the merge review is surfaced, not just logged once at load time');
-t_ok(strpos($rmAdmin, 'mam_v2_rm_merge_review()') !== false, 'from the read model');
+/* Its admin screen (?v=v2read) was retired on 2026-11-19 with the rest of the
+   legacy dashboard; the read model and its read-only guarantees remain. */
 
 $rmLib = file_get_contents(__DIR__ . '/../lib/v2/readmodel.php');
 t_ok(strpos($rmLib, 'mode=ro') !== false, 'SQLite is opened read-only at the engine level');

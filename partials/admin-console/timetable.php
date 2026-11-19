@@ -29,15 +29,14 @@ ksort($slots);
     . ac_h(mam_console_date((string) $c['a']['scheduled_at'], 'H:i')) . ' and '
     . ac_h((string) ($c['b']['title'] ?: $c['b']['cohort'] ?: 'another')) . ' at '
     . ac_h(mam_console_date((string) $c['b']['scheduled_at'], 'H:i')) . ' overlap by '
-    . (int) $c['overlap_min'] . ' minutes.',
-    '<a class="ac-btn ac-btn--sm" href="/admin/?v=schedule">Move one</a>'); ?>
+    . (int) $c['overlap_min'] . ' minutes.'); ?>
 <?php endforeach; ?>
 
 <?php ac_card_open('Week ' . mam_console_date((string) $d['from'], 'j M') . ' – ' . mam_console_date(date('Y-m-d', strtotime((string) $d['to'] . ' -1 day')), 'j M')); ?>
   <?php if (!$slots): ?>
     <div class="ac-cardbody"><?php ac_empty('Nothing scheduled this week',
         'Sessions are created per cohort. An empty week is either a closure or a gap in the schedule.',
-        '<a class="ac-btn" href="/admin/?v=schedule">Add a session</a>'); ?></div>
+        ''); ?></div>
   <?php else: ?>
     <div class="ac-tablewrap">
       <div class="ac-week">

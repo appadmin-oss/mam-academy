@@ -69,7 +69,12 @@ foreach ($CN_screens as $CN_s) {
 // manager without a capability is never sent to a screen that refuses them.
 $CN_people = array_values(array_filter($CN_areas, fn($a) => $a['key'] === 'people'))[0];
 t_eq(mam_console_area_home($CN_people, fn($c) => true), 'access', 'People opens on People & access');
-t_eq(mam_console_area_home($CN_people, fn($c) => $c !== 'users'), null,
+// People now carries "My account", which needs no capability, so a manager
+// without `users` still has a home there — their own account — rather than
+// losing the area. The barred case is proven with a gate that admits nothing.
+t_eq(mam_console_area_home($CN_people, fn($c) => $c !== 'users'), 'account',
+    'a manager without `users` lands on their own account, not on a screen that refuses them');
+t_eq(mam_console_area_home($CN_people, fn($c) => false), null,
     'an area whose every section is barred returns no home, so the rail omits it rather than offering a dead end');
 
 // Dashboard and Reports are single destinations: a strip holding one tab that
@@ -129,6 +134,7 @@ t_group('console — every provider reads without a schema error');
    admin table silently render as nothing. */
 $GLOBALS['__mam_console_fail'] = [];
 $CN_providers = [
+    'account' => fn() => mam_console_account(),
     'badges' => fn() => mam_console_badges(),
     'term' => fn() => mam_console_term(),
     'health' => fn() => mam_console_health(),

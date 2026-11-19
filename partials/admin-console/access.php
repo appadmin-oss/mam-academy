@@ -4,8 +4,7 @@ declare(strict_types=1);
 /** @var array $d */
 ?>
 <?php ac_head('People & access',
-    'Money and the academic record are deliberately separate hands',
-    '<a class="ac-btn ac-btn--primary" href="/admin/?v=users">Invite staff</a>'); ?>
+    'Money and the academic record are deliberately separate hands'); ?>
 
 <?php ac_card_open('Staff and instructors', count($d['rows'] ?? []) . ''); ?>
   <div class="ac-tablewrap">
@@ -41,7 +40,7 @@ declare(strict_types=1);
                 <?php endif; ?></td>
             <td class="ac-num">
               <div class="ac-row">
-                <a class="ac-btn ac-btn--sm" href="/admin/?v=users&amp;edit=<?= (int) $r['id'] ?>">Edit</a>
+                
                 <?php if ((int) ($r['sessions'] ?? 0) > 0): ?>
                   <?php ac_action_btn('member_signout', 'access', ['user_id' => (int) $r['id']],
                       'Sign out', 'ac-btn ac-btn--sm ac-btn--danger', 'Revoke every session this person holds?'); ?>

@@ -13,8 +13,7 @@ $clock = 0;
 <?php ac_head('Recitals & events',
     $r ? ac_h((string) $r['title']) . ' · ' . ac_h(mam_console_date((string) $r['starts_at'], 'l j F, H:i'))
        . ($r['venue'] ? ' · ' . ac_h((string) $r['venue']) : '')
-       : 'No recital selected',
-    '<a class="ac-btn" href="/admin/?v=recitals">Programme a recital</a>'); ?>
+       : 'No recital selected'); ?>
 
 <?php if (count($d['recitals'] ?? []) > 1): ?>
   <div class="ac-tabs">
@@ -31,7 +30,7 @@ $clock = 0;
   <?php ac_card_open(); ?>
     <div class="ac-cardbody"><?php ac_empty('No recitals yet',
       'A recital collects submissions from instructors, then a running order is built from what is accepted.',
-      '<a class="ac-btn" href="/admin/?v=recitals">Create one</a>'); ?></div>
+      ''); ?></div>
   <?php ac_card_close(); ?>
 <?php else: ?>
 
@@ -52,7 +51,7 @@ $clock = 0;
 
 <div class="ac-cols ac-cols--main">
   <?php ac_card_open('Running order', count($accepted) . ' piece' . (count($accepted) === 1 ? '' : 's'),
-      '<a class="ac-btn ac-btn--sm" href="/admin/?v=recitals&amp;recital=' . (int) $r['id'] . '">Print the programme</a>'); ?>
+      ''); ?>
     <div class="ac-tablewrap">
       <table class="ac-table">
         <thead><tr><th class="ac-num">#</th><th class="ac-num">Time</th><th>Work</th><th>Performer</th><th>Section</th><th class="ac-num">Min</th></tr></thead>

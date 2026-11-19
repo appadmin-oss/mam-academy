@@ -6,15 +6,13 @@ $cur = $d['current'] ?? [];
 ?>
 <?php ac_head('Academic calendar',
     'Everything else in the console reads its dates from here · adjudicated in '
-    . ac_h((string) ($d['tz'] ?? 'Africa/Lagos')) . ', displayed in your zone',
-    '<a class="ac-btn" href="/admin/?v=calendar">Author a term</a>'); ?>
+    . ac_h((string) ($d['tz'] ?? 'Africa/Lagos')) . ', displayed in your zone'); ?>
 
 <?php if (($cur['source'] ?? '') === 'computed'): ?>
   <?php ac_banner('warn', 'fa-circle-info',
     '<strong>The current term is computed, not authored.</strong> The window comes from the code\'s own constants, '
     . 'which is fine for a label on a page and not enough for a refund — a family is entitled to the table that was '
-    . 'published when they enrolled. Author the term to make the refund schedule real.',
-    '<a class="ac-btn ac-btn--sm" href="/admin/?v=calendar">Author it</a>'); ?>
+    . 'published when they enrolled. Author the term to make the refund schedule real.'); ?>
 <?php endif; ?>
 
 <?php ac_card_open('Terms', count($d['terms'] ?? []) . ' on file', '<span class="ac-cardmeta">Overlapping sibling terms are refused</span>'); ?>

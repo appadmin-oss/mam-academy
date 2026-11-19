@@ -54,7 +54,7 @@ header('Referrer-Policy: same-origin');
 if (!defined('MAM_HTML_RESPONSE')) define('MAM_HTML_RESPONSE', true);
 
 if ($adminUser && (int) ($adminUser['must_change_password'] ?? 0) === 1) {
-    header('Location: /admin/?v=account'); exit;
+    header('Location: /admin/console.php?v=account'); exit;
 }
 
 require_once __DIR__ . '/../partials/admin-console/_ui.php';
@@ -105,7 +105,7 @@ $AP_open   = count(array_filter($AP_decide, static fn($i) => empty($i['desk'])))
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=Cormorant+Garamond:wght@600;700&amp;family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="/assets/css/admin-v2.css?v=2026.11.19e">
+<link rel="stylesheet" href="/assets/css/admin-v2.css?v=2026.11.19f">
 </head>
 <body class="ap-body">
 <a class="ac-skip" href="#ap-main">Skip to the panel</a>

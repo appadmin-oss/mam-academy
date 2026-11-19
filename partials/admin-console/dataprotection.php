@@ -8,8 +8,7 @@ $dl = (array) ($d['deadlines'] ?? []);
 $open = array_values(array_filter($d['requests'] ?? [], fn($r) => empty($r['closed_at'])));
 ?>
 <?php ac_head('Data protection',
-    'Subject requests, breaches, the processing register and the retention sweep',
-    '<a class="ac-btn" href="/admin/?v=dataprotection">Full screen</a>'); ?>
+    'Subject requests, breaches, the processing register and the retention sweep'); ?>
 
 <?php ac_kpis([
     ['label' => 'Open requests', 'value' => (string) count($open),
@@ -123,9 +122,12 @@ $open = array_values(array_filter($d['requests'] ?? [], fn($r) => empty($r['clos
         <div class="ac-defs">
           <?php
             ac_def('Distinct subjects, 6 months', (string) (int) ($tier['count'] ?? 0));
-            ac_def('Tier', ac_h((string) ($tier['tier'] ?? '—')));
-            ac_def('Must register?', !empty($tier['registers']) ? 'Yes' : 'No');
-            ac_def('Files audit returns?', !empty($tier['files_returns']) ? 'Yes' : 'No');
+            /* See governance.php: the tier is a record, and the duty is
+               `must_register` — `registers` does not exist, so this answered
+               "No" to the registration duty at every size. */
+            ac_def('Tier', ac_h((string) ($tier['tier']['label'] ?? '—')));
+            ac_def('Must register?', !empty($tier['must_register']) ? 'Yes' : 'No');
+            ac_def('Files audit returns?', !empty($tier['must_file_car']) ? 'Yes' : 'No');
           ?>
         </div>
         <p class="ac-note ac-mt">Counted over a rolling six months — the window the definition

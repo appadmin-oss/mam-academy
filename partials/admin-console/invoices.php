@@ -6,8 +6,7 @@ $a = $d['aging'] ?? [];
 ?>
 <?php ac_head('Invoices & payments',
     'Base currency USD · displayed in ₦ at each row\'s frozen rate',
-    '<a class="ac-btn" href="' . ac_h(ac_url('ledger')) . '">Ledger</a>'
-    . '<a class="ac-btn" href="/admin/?v=payments">Payments</a>'); ?>
+    '<a class="ac-btn" href="' . ac_h(ac_url('ledger')) . '">Ledger</a>'); ?>
 
 <?php if ($d['suspense'] ?? []): ?>
   <?php
@@ -19,7 +18,7 @@ $a = $d['aging'] ?? [];
       . ac_h(mam_console_usd((int) ($s['amount_usd_cents'] ?? 0)))
       . '. The signature verified but there is nothing to apply it to, so it sits unapplied rather than being '
       . 'guessed onto the nearest invoice.',
-      '<a class="ac-btn ac-btn--sm" href="/admin/?v=payments">Match it</a>'); ?>
+      ''); ?>
 <?php endif; ?>
 
 <?php $det = $d['detail'] ?? null; $methods = $d['methods'] ?? []; ?>

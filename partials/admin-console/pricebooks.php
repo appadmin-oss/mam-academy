@@ -13,8 +13,7 @@ $labels = [
 ];
 ?>
 <?php ac_head('Price books',
-    'Accounting stays in USD · a guardian in Lagos reads naira, one in London reads sterling',
-    '<a class="ac-btn" href="/admin/?v=settings">Edit the schedule</a>'); ?>
+    'Accounting stays in USD · a guardian in Lagos reads naira, one in London reads sterling'); ?>
 
 <?php if ((int) ($d['live_invoices'] ?? 0) > 0): ?>
   <?php ac_banner('flat', 'fa-lock',

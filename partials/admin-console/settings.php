@@ -5,8 +5,7 @@ declare(strict_types=1);
 $t = $d['tenant'] ?? [];
 ?>
 <?php ac_head('Settings & vocabulary',
-    'Words, features and fields · changed here, not in a deploy',
-    '<a class="ac-btn" href="/admin/?v=settings">The full settings form</a>'); ?>
+    'Words, features and fields · changed here, not in a deploy'); ?>
 
 <?php ac_card_open('Sessions', count($d['terms'] ?? []) . ' authored',
     '<span class="ac-cardmeta">Four a year · MAM calls these sessions</span>'); ?>

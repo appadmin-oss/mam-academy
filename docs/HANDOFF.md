@@ -1873,3 +1873,78 @@ logged a warning. After: 0 flush text at 1440; at 390 only the week calendar
 on `?v=schedule` scrolls sideways, deliberately. The PHP error log is empty
 across the sweep. `test_admin_layout.php` pins the mechanisms (a mutation of
 the pager fails it).
+
+(The legacy-dashboard layout repairs above were made on 2026-11-19 and the
+dashboard itself was retired the same day — see §4y. They are history.)
+
+## 4y. 2026-11-19 — the legacy admin dashboard is retired
+
+The owner's call, made with the cost in view: retire `admin/index.php`'s
+interface outright rather than phase it out. **The file stays** as the one
+implementation of every admin write — the console and the phone subset post
+every form to it — plus the `?v=export` downloads. Its ~8,900 lines of screens,
+styles and scripts are gone (11,757 → ~2,900 lines). Any other GET redirects to
+the console screen that covers it, carrying `?ok=`/`?err=`.
+
+**What has no button now.** Measured after the change: the file handles 117
+kinds of action and the consoles post 34. The other **83** were reachable only
+from a retired screen. Every handler is intact; each needs a console form that
+posts to it, never a second implementation:
+
+- **Money:** `payment_refund`, `payment_confirm_bank`, `wallet_credit`
+  (instructor earnings), `referral_reward`.
+- **People and access:** `user_create`, `user_edit`, `user_reset`,
+  `user_status`, `set_admin_tier`, `guardian_link`, `avatar_clear`; the faculty
+  pipeline (`faculty_invite`, `faculty_request_review`, `faculty_app_status`,
+  `faculty_assign_subjects`).
+- **Admissions:** `app_bulk_status`, `app_note`, `app_assign`, `app_delete`,
+  `record_placement`, `resend_confirmation`, `summer_set_status`.
+- **Teaching:** `class_create`, `class_edit`, `class_status`, `class_delete`,
+  `enroll`, `enrollment_status`, `course_approve`, `course_promote`,
+  `bridge_legacy_enrollments`, `meet_reconcile`, `meet_sync`,
+  `save_google_meet`.
+- **Curriculum and assessment:** `course_create`, `course_update`,
+  `course_toggle`, `program_create`, `program_update`, `link_course`,
+  `unlink_course`, `module_delete`, `module_scaffold`, `module_import`,
+  `module_proposal_review`, `seed_starter`, `rubric_create`, `rubric_delete`.
+- **Calendar:** `term_save`, `term_seed_year`, `term_refund_reseed`,
+  `closure_add`, `closure_delete`.
+- **Events:** `recital_create`, `recital_update`, `recital_status`,
+  `recital_reorder`, `recital_email`, `recital_recording`, `recital_add_item`.
+- **Compliance:** `vetting_record`, `datarights_erase`, and the whole
+  data-protection register (`dp_request_*`, `dp_breach_*`, `dp_processor_save`,
+  `dp_note_save`, `dp_assessment_save`, `dp_retention_run`).
+- **Settings and content:** `save_settings`, `store_item_save`,
+  `store_item_delete`, `resource_add`, `save_email_branding`,
+  `save_promo_banner`, `delete_promo_banner`, `acadmail_toggle`,
+  `notif_read_all`.
+
+Read-only screens that went with it and have no console equivalent: the
+incomplete-enrolment backlog list (`?v=applications&f=incomplete`), the
+mail outbox, application logs, webhook log, the v2 read-model view, the
+curriculum authoring screens, the BI and analytics screens.
+
+**Added so the console stands alone.** *My account* (People → My account, no
+capability): name, phone, password and signed-in devices, posting the existing
+`change_own_account` / `session_revoke*` handlers. The temporary-password gate
+used to send people to the retired `?v=account`; it now sends them here and
+exempts this screen, or it would loop. The rail's name block opens it. *Run
+migrations* is a real action (`run_migrations`, `migrate` cap) on System
+health; its old link pointed at a view that never existed. 42 console links into
+legacy screens were removed rather than left as dead buttons, with the empty
+table columns they left.
+
+**A bug the sweep found on the way.** Governance and Data protection printed
+the NDPA registration tier as "Array" and read duty keys that
+`mam_dp_tier()` does not return (`registers`, `files_returns`) — so
+"Must register?" and "Files returns?" said **No at every size**. They read
+`tier.label`, `must_register` and `must_file_car` now.
+
+Verified: suite green (6916; `test_admin_tables.php` and `test_admin_layout.php`
+pinned the retired markup and are replaced by `test_admin_retired.php`, which
+fails on a planted legacy link and on the old tier keys); in Chromium, `/admin/`
+and old bookmarks land on the right console screen with their message, the CSV
+export still downloads, a password change and a wrong-password refusal work, an
+admin on a temporary password is held on My account (desktop, phone view, old
+URL) until they change it, and all 32 console screens at 1440 and 390 have no
+overflow, failed reads or page errors, with an empty PHP error log.

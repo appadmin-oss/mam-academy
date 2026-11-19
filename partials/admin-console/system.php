@@ -7,8 +7,7 @@ $behind = ($d['schema']['target'] ?? null) !== null
     && (int) $d['schema']['version'] < (int) $d['schema']['target'];
 ?>
 <?php ac_head('System health',
-    'Automations, outbound events, mail and the schema',
-    '<a class="ac-btn" href="/admin/?v=diag">Diagnostics</a>'); ?>
+    'Automations, outbound events, mail and the schema'); ?>
 
 <?php /* Above the schema warning on purpose: an unstable signing key breaks
          every form on the site, and an admin arriving here because "the forms
@@ -38,7 +37,7 @@ $behind = ($d['schema']['target'] ?? null) !== null
     '<strong>The database is behind the code.</strong> Schema ' . (int) $d['schema']['version']
     . ' against a target of ' . (int) $d['schema']['target']
     . '. Screens that read a newer column will report a failed read rather than showing an empty table.',
-    '<a class="ac-btn ac-btn--sm" href="/admin/?v=migrate">Run migrations</a>'); ?>
+    (function () { ob_start(); ac_action_btn('run_migrations', 'system', [], 'Run migrations'); return (string) ob_get_clean(); })()); ?>
 <?php endif; ?>
 
 <?php ac_kpis([
@@ -126,7 +125,7 @@ $behind = ($d['schema']['target'] ?? null) !== null
             </tbody>
           </table>
         </div>
-      <?php ac_card_close('<a href="/admin/?v=mail">Retry from the outbox</a>. A failure is a row with its error, which is what makes a retry possible.'); ?>
+      <?php ac_card_close('A failure is a row with its error, which is what makes a retry possible; the mail-retry job resends failed rows on its schedule.'); ?>
     <?php endif; ?>
   </div>
 

@@ -112,17 +112,16 @@ $mode = (string) ($d['vetting_mode'] ?? 'warn');
       <?php ac_card_open('Enrolled', count($d['roster'] ?? []) . ' student' . (count($d['roster'] ?? []) === 1 ? '' : 's')); ?>
         <div class="ac-tablewrap">
           <table class="ac-table">
-            <thead><tr><th>Student</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Student</th><th>Status</th></tr></thead>
             <tbody>
               <?php if (!($d['roster'] ?? [])): ?>
-                <?php ac_table_empty(3, 'Nobody enrolled yet.'); ?>
+                <?php ac_table_empty(2, 'Nobody enrolled yet.'); ?>
               <?php else: foreach ($d['roster'] as $s): ?>
                 <tr>
                   <td><div class="ac-row"><?= ac_avatar((string) $s['name'], (string) ($s['avatar_url'] ?? '')) ?>
                     <div class="ac-grow"><div class="ac-strong"><?= ac_h((string) $s['name']) ?></div>
                     <div class="ac-sub"><?= ac_h((string) $s['email']) ?></div></div></div></td>
                   <td><?= ac_status((string) $s['status']) ?></td>
-                  <td class="ac-num"><a class="ac-btn ac-btn--sm" href="/admin/?v=users&amp;edit=<?= (int) $s['student_id'] ?>">Record</a></td>
                 </tr>
               <?php endforeach; endif; ?>
             </tbody>

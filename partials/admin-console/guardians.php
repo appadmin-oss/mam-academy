@@ -7,8 +7,7 @@ $total = (int) ($con['total'] ?? 0);
 $students = (int) ($d['students'] ?? 0);
 ?>
 <?php ac_head('Guardians & consent',
-    'Who may see a record, who may collect a child, and who pays. Three different answers.',
-    '<a class="ac-btn" href="/admin/?v=guardians">Link a guardian</a>'); ?>
+    'Who may see a record, who may collect a child, and who pays. Three different answers.'); ?>
 
 <?php ac_kpis([
     ['label' => 'Linked guardians', 'value' => (string) count($d['links'] ?? []),
@@ -26,8 +25,7 @@ $students = (int) ($d['students'] ?? 0);
     '<strong>' . count($d['no_guardian']) . ' learner' . (count($d['no_guardian']) === 1 ? '' : 's')
     . ' with no guardian named.</strong> They can attend — removing a child from class over a data gap punishes '
     . 'the wrong person — but a termly report cannot be released and no payment can be attributed to a guardian '
-    . 'until one is named.',
-    '<a class="ac-btn ac-btn--sm" href="/admin/?v=guardians">Name them</a>'); ?>
+    . 'until one is named.'); ?>
 <?php endif; ?>
 
 <div class="ac-cols ac-cols--main">
@@ -104,14 +102,13 @@ $students = (int) ($d['students'] ?? 0);
   <?php ac_card_open('Learners with nobody named', count($d['no_guardian']) . ''); ?>
     <div class="ac-tablewrap">
       <table class="ac-table">
-        <thead><tr><th>Learner</th><th>Account since</th><th></th></tr></thead>
+        <thead><tr><th>Learner</th><th>Account since</th></tr></thead>
         <tbody>
           <?php foreach ($d['no_guardian'] as $s): ?>
             <tr>
               <td><div class="ac-strong"><?= ac_h((string) $s['name']) ?></div>
                   <div class="ac-sub"><?= ac_h((string) $s['email']) ?></div></td>
               <td><?= ac_h(mam_console_date((string) $s['created_at'], 'j M Y')) ?></td>
-              <td class="ac-num"><a class="ac-btn ac-btn--sm" href="/admin/?v=guardians">Name a guardian</a></td>
             </tr>
           <?php endforeach; ?>
         </tbody>

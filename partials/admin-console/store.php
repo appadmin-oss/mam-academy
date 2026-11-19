@@ -4,8 +4,7 @@ declare(strict_types=1);
 /** @var array $d */
 ?>
 <?php ac_head('Store & orders',
-    'Books, strings, reeds and hall hire · every order posts to the same ledger as tuition',
-    '<a class="ac-btn" href="/admin/?v=store">Catalogue</a>'); ?>
+    'Books, strings, reeds and hall hire · every order posts to the same ledger as tuition'); ?>
 
 <?php if ($d['out_of_stock'] ?? []): ?>
   <?php ac_banner('bad', 'fa-box-open',
@@ -13,8 +12,7 @@ declare(strict_types=1);
     . ' orderable with nothing in stock:</strong> '
     . ac_h(implode(', ', array_map(fn($i) => (string) $i['name'], array_slice($d['out_of_stock'], 0, 4))))
     . '. The store will keep taking money for them until somebody restocks or hides the line, and a parent who pays '
-    . 'for a book that does not exist has to be refunded by hand.',
-    '<a class="ac-btn ac-btn--sm" href="/admin/?v=store">Hide or restock</a>'); ?>
+    . 'for a book that does not exist has to be refunded by hand.'); ?>
 <?php endif; ?>
 
 <?php ac_kpis([
@@ -53,7 +51,7 @@ declare(strict_types=1);
                 <?php ac_action_btn('store_order_status', 'store',
                     ['order_id' => (int) $o['id'], 'status' => 'delivered'], 'Hand over', 'ac-btn ac-btn--sm ac-btn--primary'); ?>
               <?php elseif ((string) $o['status'] === 'pending'): ?>
-                <a class="ac-btn ac-btn--sm" href="/admin/?v=orders">Chase</a>
+                
               <?php else: ?><span class="ac-sub"><?= ac_h(mam_console_date((string) $o['delivered_at'])) ?></span><?php endif; ?>
             </td>
           </tr>

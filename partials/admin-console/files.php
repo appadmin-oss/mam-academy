@@ -5,7 +5,7 @@ declare(strict_types=1);
 ?>
 <?php ac_head('Files & ID cards',
     'Documents attached to a person or a session, and the cards printed from them',
-    '<a class="ac-btn" href="/card-studio">Card studio</a><a class="ac-btn" href="/admin/?v=media">Media manager</a>'); ?>
+    '<a class="ac-btn" href="/card-studio">Card studio</a>'); ?>
 
 <?php ac_kpis([
     ['label' => 'Learning resources', 'value' => (string) count($d['resources'] ?? []),

@@ -142,8 +142,8 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
           <?php ac_action_btn('member_signout', 'students', ['user_id' => (int) $u['id']], 'Sign out everywhere (' . (int) $m['sessions'] . ')',
               'ac-btn ac-btn--sm ac-btn--danger', 'End every session this person holds?'); ?>
         <?php endif; ?>
-        <a class="ac-btn ac-btn--sm" href="/admin/?v=users&amp;edit=<?= (int) $u['id'] ?>">Edit details</a>
-        <a class="ac-btn ac-btn--sm" href="/admin/?v=audit&amp;user=<?= (int) $u['id'] ?>">Full history</a>
+        
+        
       </div>
 
       <h3 class="ac-label ac-mt">Notes</h3>
@@ -184,7 +184,7 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
 <?php endif; ?>
 
 <?php ac_form('member_bulk', 'students', $filters); ?>
-<?php ac_card_open('', '', ''); ?>
+<?php ac_card_open('', ''); ?>
   <div class="ac-cardbody ac-row">
     <select class="ac-select ac-input--sm" name="bulk_action" required aria-label="Bulk action">
       <option value="">Do this…</option>

@@ -32,7 +32,7 @@ $asDefLine = [];
 foreach ($defs[1] as $d) {
     $asDefLine[$d[0]] = substr_count(substr($asSrc, 0, $d[1]), "\n");
 }
-t_ok(count($asDefLine) >= 5, 'the file defines several admin helpers [' . count($asDefLine) . ']');
+t_ok(isset($asDefLine['mam_admin_console_return']), 'the sweep finds the helpers this file defines [' . count($asDefLine) . ']');
 
 $asLate = [];
 foreach ($asDefLine as $fn => $line) {
@@ -47,8 +47,6 @@ foreach ($asDefLine as $fn => $line) {
 }
 t_eq(count($asLate), 0, 'no helper is defined inside a view branch and called from elsewhere'
     . ($asLate ? ' — ' . json_encode($asLate) : ''));
-t_ok(($asDefLine['mam_admin_instr_metric'] ?? PHP_INT_MAX) < $asFirstBranch,
-    'mam_admin_instr_metric specifically is top-level, so ?v=upper and ?v=academic both work');
 
 t_group('admin — its queries name columns that exist');
 

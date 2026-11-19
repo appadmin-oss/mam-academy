@@ -50,7 +50,7 @@ $gate = (int) ($d['gate'] ?? 0) === 1;
             <td><?= ac_status((string) $r['status']) ?></td>
             <td class="ac-num">
               <?php if ((string) $r['status'] === 'pending'): ?>
-                <a class="ac-btn ac-btn--sm" href="/admin/?v=fines">Resolve or waive</a>
+                
               <?php else: ?><span class="ac-sub"><?= ac_h(mam_console_date((string) $r['resolved_at'])) ?></span><?php endif; ?>
             </td>
           </tr>

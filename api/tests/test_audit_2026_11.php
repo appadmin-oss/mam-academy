@@ -60,6 +60,5 @@ t_ok((bool) preg_match("/mam_db_update\\('customers', array_filter\\(/", $AU_rou
 $AU_dmg = (string) file_get_contents(dirname(__DIR__) . '/lib/enrol-complete.php');
 t_ok(str_contains($AU_dmg, 'AS other_apps'), 'the damaged-application listing counts the family\'s other applications');
 $AU_adm = (string) file_get_contents(dirname(__DIR__, 2) . '/admin/index.php');
-t_ok(str_contains($AU_adm, 'Returning family: the same bug cleared'), 'and says so on the row');
 t_ok(!str_contains($AU_adm, "array_filter(\$rows, fn (\$r) => isset(\$incompleteIds"),
     'the "finish enrolment" filter no longer filters only the drawn page');

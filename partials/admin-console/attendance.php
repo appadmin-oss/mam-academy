@@ -32,10 +32,10 @@ $w = $d['window'] ?? null;
 <?php ac_card_open('Today\'s registers'); ?>
   <div class="ac-tablewrap">
     <table class="ac-table">
-      <thead><tr><th>Time</th><th>Class</th><th>Instructor</th><th class="ac-num">Present</th><th>Register</th><th></th></tr></thead>
+      <thead><tr><th>Time</th><th>Class</th><th>Instructor</th><th class="ac-num">Present</th><th>Register</th></tr></thead>
       <tbody>
         <?php if (!($d['sessions'] ?? [])): ?>
-          <?php ac_table_empty(6, 'No sessions scheduled on this day.'); ?>
+          <?php ac_table_empty(5, 'No sessions scheduled on this day.'); ?>
         <?php else: foreach ($d['sessions'] as $s):
           $ts = strtotime((string) $s['scheduled_at']);
           $marks = (int) $s['marks'];
@@ -57,7 +57,6 @@ $w = $d['window'] ?? null;
                 <?= ac_pill('Scheduled') ?>
               <?php endif; ?>
             </td>
-            <td class="ac-num"><a class="ac-btn ac-btn--sm" href="/admin/?v=schedule">Open</a></td>
           </tr>
         <?php endforeach; endif; ?>
       </tbody>
@@ -89,12 +88,9 @@ $w = $d['window'] ?? null;
           </table>
         </div>
       <?php else: ?>
-        <div class="ac-note ac-mt-sm">Nothing imported. A CSV of
-          <span class="ac-mono">Name, Email, Join, Leave</span> or a Google fetch fills this in.</div>
+        <div class="ac-note ac-mt-sm">Nothing imported for this day. Meeting attendance is filled in by the
+          scheduled Google Meet sync, where one is configured.</div>
       <?php endif; ?>
-      <div class="ac-row ac-mt">
-        <a class="ac-btn" href="/admin/?v=meet">Import or fetch</a>
-      </div>
     </div>
   <?php ac_card_close('Reports emits the moment a participant LEFT plus a duration — there is no join timestamp, so the join is derived by subtraction. A failure here is a degradation, never an exception: the portal clock-in stays the official record.'); ?>
 

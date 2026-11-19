@@ -238,6 +238,11 @@ function mam_console_nav(): array {
         ['key' => 'people', 'label' => 'People', 'icon' => 'fa-user-gear', 'sections' => [
             ['key' => 'access',  'label' => 'People & access', 'cap' => 'users'],
             ['key' => 'vetting', 'label' => 'Staff & vetting',  'cap' => 'users'],
+            /* Everybody's own: name, phone, password, signed-in devices. It
+               used to be the legacy dashboard's ?v=account, retired with it —
+               and the console's temporary-password gate sends people here, so
+               it must exist and must need no capability. */
+            ['key' => 'account', 'label' => 'My account',       'cap' => null],
         ]],
         ['key' => 'reports', 'label' => 'Reports', 'icon' => 'fa-chart-line', 'sections' => [
             ['key' => 'reports', 'label' => 'Reports', 'cap' => null],
@@ -1744,6 +1749,24 @@ function mam_console_comms(): array {
 /* ─────────────────────────────────────────────────────────────────────────────
    26. Settings & vocabulary
    ───────────────────────────────────────────────────────────────────────── */
+
+/**
+ * My account — the signed-in admin's own row and their live sessions. A
+ * break-glass operator (HTTP Basic Auth, no user row) gets `me = null`: there
+ * is no account to edit, and the screen says so rather than drawing a form
+ * whose save would be refused.
+ */
+function mam_console_account(): array {
+    $me = mam_current_user();
+    if (!$me) return ['me' => null, 'sessions' => []];
+    return [
+        'me'       => ['name' => (string) ($me['name'] ?? ''), 'email' => (string) ($me['email'] ?? ''),
+                       'phone' => (string) ($me['phone'] ?? ''), 'role' => (string) ($me['role'] ?? ''),
+                       'tier' => (string) ($me['admin_tier'] ?? ''),
+                       'must_change' => (int) ($me['must_change_password'] ?? 0) === 1],
+        'sessions' => mam_console_try('account.sessions', fn() => mam_sessions_list((int) $me['id']), []),
+    ];
+}
 
 function mam_console_settings(): array {
     $terms = mam_console_try('se.terms', fn() => mam_calendar_terms(8), []) ?: [];

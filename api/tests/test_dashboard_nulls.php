@@ -154,14 +154,8 @@ t_ok(strpos($dnPortalCss, '.portal-hello p strong,.portal-hello strong{color:var
     'and so does sentence emphasis — the figures in "You teach 0 classes" were the least legible part of the line');
 t_ok(strpos($dnPortalCss, 'tabular-nums') !== false, 'table figures are tabular so they stop shifting as they update');
 
-$dnAdmin = file_get_contents(__DIR__ . '/../../admin/index.php');
-foreach (['--pill-warn-text', '--pill-ok-text', '--pill-info-text', '--pill-err-text'] as $tok) {
-    t_ok(strpos($dnAdmin, $tok) !== false, "the admin defines $tok per theme");
-}
-t_ok(preg_match('/\.pill\.in_review,\.pill\.pending,\.pill\.unread,\.pill\.paused\{[^}]*color:var\(--pill-warn-text\)/', $dnAdmin) === 1,
-    'and the pills use them — #FBBF24 on its own tint measured 1.52:1 in the light theme');
-t_ok(strpos($dnAdmin, 'width:24px;height:24px;min-width:24px;min-height:24px') !== false,
-    'checkboxes meet the 24px target floor; `min-height:0` was holding them at the 13px default');
+// (The legacy admin dashboard's pill and checkbox checks went with that
+// dashboard on 2026-11-19; the console's palette is held by test_console.php.)
 
 t_group('dashboards — empty panels offer something to do');
 

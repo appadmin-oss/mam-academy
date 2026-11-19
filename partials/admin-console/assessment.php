@@ -7,8 +7,7 @@ $mod  = $d['moderation'] ?? [];
 $ratifiable = $open === 0 && (int) ($mod['n'] ?? 0) >= (int) ($d['min_sample'] ?? 0);
 ?>
 <?php ac_head('Assessment & boards',
-    'Rubric versions, moderation, appeals, ratification · a mark is provisional until a board says otherwise',
-    '<a class="ac-btn" href="/admin/?v=rubrics">Author a rubric</a>'); ?>
+    'Rubric versions, moderation, appeals, ratification · a mark is provisional until a board says otherwise'); ?>
 
 <?php ac_kpis([
     ['label' => 'Drafts awaiting a board', 'value' => (string) count($d['drafts'] ?? []),

@@ -6,8 +6,7 @@ $vet = $d['vetting'] ?? [];
 $tier = $d['tier'] ?? [];
 ?>
 <?php ac_head('Governance & audit',
-    'What the academy can prove, and what it owes people',
-    '<a class="ac-btn" href="/admin/?v=audit">Full audit log</a>'); ?>
+    'What the academy can prove, and what it owes people'); ?>
 
 <?php ac_kpis([
     ['label' => 'Audit entries', 'value' => number_format((int) ($d['total'] ?? 0)),
@@ -18,7 +17,7 @@ $tier = $d['tier'] ?? [];
      'tone' => ((int) ($vet['gaps'] ?? 0)) > 0 ? 'bad' : '',
      'note' => 'gate in ' . ac_h((string) ($vet['mode'] ?? 'warn')) . ' mode'],
     ['label' => 'Data subjects measured', 'value' => (string) (int) ($tier['count'] ?? 0),
-     'note' => (string) ($tier['tier'] ?? 'below the threshold')],
+     'note' => (string) ($tier['tier']['label'] ?? 'below the threshold')],
 ]); ?>
 
 <?php ac_card_open('Recent consequential actions', count($d['recent'] ?? []) . '',
@@ -95,8 +94,12 @@ $tier = $d['tier'] ?? [];
           ac_def('Retention sweep', ac_pill(ucfirst((string) ($d['retention_mode'] ?? 'report')),
               ($d['retention_mode'] ?? '') === 'enforce' ? 'warn' : ''));
           ac_def('Distinct subjects, 6 mo', (string) (int) ($tier['count'] ?? 0));
-          ac_def('Registration tier', ac_h((string) ($tier['tier'] ?? '—')));
-          ac_def('Files returns?', !empty($tier['files_returns']) ? 'Yes' : 'No');
+          /* mam_dp_tier() returns the tier as a RECORD and the two duties as
+             must_register / must_file_car. This read `tier` as a string and
+             `files_returns`, which does not exist — so it printed "Array" and
+             answered "No" to the filing duty at every size. */
+          ac_def('Registration tier', ac_h((string) ($tier['tier']['label'] ?? '—')));
+          ac_def('Files returns?', !empty($tier['must_file_car']) ? 'Yes' : 'No');
         ?>
       </div>
       <div class="ac-note ac-mt">The tier is MEASURED over a rolling six months and deduplicated

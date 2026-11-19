@@ -21,8 +21,7 @@ $teacherless = array_values(array_filter($rows, fn($r) => !empty($r['no_instruct
   <?php ac_banner('flat', 'fa-code-branch',
     '<strong>' . (int) $d['legacy_only'] . ' legacy class' . ((int) $d['legacy_only'] === 1 ? '' : 'es')
     . ' with no cohort.</strong> This schema carries two enrolment models and they are not reconciled. '
-    . 'Every read in this console spans both; a purely-legacy class must be course-mapped before it can be converged.',
-    '<a class="ac-btn ac-btn--sm" href="/admin/?v=classes">The legacy classes</a>'); ?>
+    . 'Every read in this console spans both; a purely-legacy class must be course-mapped before it can be converged.'); ?>
 <?php endif; ?>
 
 <div class="ac-kpis">

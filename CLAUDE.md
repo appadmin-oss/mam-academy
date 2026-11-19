@@ -18,9 +18,11 @@ hosting behind Cloudflare.
 - `admin/console.php` — the **redesigned admin console**, 31 screens, reads via
   `api/lib/console.php` and renderers in `partials/admin-console/`. Where new
   admin work goes. See "The admin console" below.
-- `admin/index.php` — large (~8.6K lines) server-rendered + JS admin dashboard
-  with **37 views**, and still the owner of **every admin POST handler**,
-  including the console's. Edit carefully.
+- `admin/index.php` — **draws no screens** since the legacy dashboard was
+  RETIRED (2026-11-19, owner's call). It is now only the **one implementation of
+  every admin write** — the console and the phone subset post every form here —
+  plus the downloads under `?v=export`. Any other GET redirects to the console.
+  See "The legacy admin dashboard is retired" below.
 - `portal/{student,instructor,parent}/index.html` — the three redesigned
   portals (note the **parent/guardian portal**), all on `portal-v2.css` with
   their apps in `assets/js/portal-{student,instructor,guardian}.js`;
@@ -568,31 +570,25 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    `record_placement` action). When the `auditer_placement` automation is on it also
    ensures the student account + enrols them at the recommended level. The student Auditer
    tab still falls back to live `mam_auditer_status()` for validity/booking state.
-9. **`admin/index.php` is ~200KB.** Grep for the section; make surgical edits; don't reflow.
+9. **`admin/index.php` is the admin's write path, and nothing else.** It drew
+   ~40 legacy views until 2026-11-19; they were retired, and with them the
+   `.card` layout rules and the per-view helpers. What remains — sign-in, the
+   `?v=export` downloads, ~2,300 lines of POST handlers, and a GET redirect to
+   the console — keeps these rules:
    ⚠️ **A helper must be defined ABOVE the `$view === …` dispatch, never inside a
    branch.** PHP declares a top-level function at compile time, but one inside an
-   `if` block is declared only when that block RUNS — so a helper defined in one
-   view and called from another is a hard fatal on the second. `?v=upper` threw
-   `Call to undefined function mam_admin_instr_metric()` while `?v=academic` worked,
-   and it survived because the two screens are never open at once. Same family as
-   gotcha #4. `test_admin_screens.php` now fails on any such helper.
-   ⚠️ **A PDO exception in a view is caught and LOGGED, not shown** — so a bad
-   column renders the card as nothing at all rather than as an error. `ORDER BY
-   e.created_at` on `enrollments` (which has `enrolled_at`) silently emptied the
-   All-enrollments table. The same test checks every aliased `ORDER BY` column
-   against the live schema. **Read `api/logs/app-*.log` after touching this file**;
-   a clean-looking screen is not evidence.
-   ⚠️ **A `.card` here has no padding of its own** — its `h3`, tables and
-   `.form-grid` pad themselves, and one rule gives any other direct child the
-   20px gutter. Put new content in a `<p>`/`<div>`, never as bare text inside
-   the card, and do not give a card an inline `padding:0` "to fix" a table:
-   tables are already full-bleed. Inline grids are overridden on phones by
-   attribute selector, so a new inline `grid-template-columns` spelled
-   differently will NOT stack — prefer a class. `test_admin_layout.php`.
+   `if` block is declared only when that block RUNS. `test_admin_screens.php`
+   still fails on any such helper (the export branch is the dispatch now).
+   ⚠️ **A handler redirects relative (`?v=…&ok=`)** and the console's
+   `_console` hook rewrites it at shutdown; without `_console` the GET redirect
+   maps the old view name to a console screen and carries `ok`/`err`. So a
+   handler's `?v=` is a hint, not a page — never add a view branch to honour it
+   (`test_admin_retired.php` fails on one).
    ⚠️ It has NO `mam_admin_redirect()` helper — writing one from memory produced a
    blank page on every POST of a new screen. Redirect with
    `header('Location: ?v=…&ok=' . urlencode($msg)); exit;`, which is what every
-   other action does.
+   other action does. **Read `api/logs/` after touching this file**; a
+   clean-looking screen is not evidence.
 10. **Safeguarding gate (`api/lib/vetting.php`, schema v82).** The academy teaches
    children one-to-one, so instructor vetting is the highest-consequence control
    here. Child Rights Act 2003 s.2(2) requires standards on the **suitability of
@@ -933,7 +929,7 @@ the notation showcase.**
   (pending applications/registrations/unassigned/proposals/messages/faculty), toast
   feedback for ?ok/?err (string values carry the message; URL cleaned after), '/' or
   Ctrl+K focuses global search.
-- ✅ **Admin redesign (MAM Redesign design system)** — `admin/index.php` adopts the
+- ⛔ **Admin redesign of the legacy dashboard** — RETIRED with that dashboard on 2026-11-19; kept as history. `admin/index.php` adopted the
   prototype's tokens/type (warm `--bg:#1B140D` … `--gold:#E8961F`; Bebas/Cormorant/Inter;
   radii 14/20). Grouped left nav (`#adminNav`, `aria-current`, gold-outline active pill,
   live `nav-count` badges); top-bar search chip → **⌘K command palette** (focus-return,
@@ -1408,8 +1404,8 @@ page.** Build notes + the open questions:
 the old 13-tab surface and still serves the six destinations the redesign has
 not rebuilt (classes, sessions, assignments, gradebook, analytics, announce,
 handbook, account). It is linked from the v2 More sheet as "Everything else"
-and links back. Same arrangement as `admin/index.php` beside
-`admin/console.php`, for the same reason. `test_portal_forms.php`,
+and links back. (The admin's own legacy dashboard was retired outright on
+2026-11-19; the portals' `classic.html` surfaces were not.) `test_portal_forms.php`,
 `test_instructor_worklist.php` and `test_dashboard_nulls.php` assert against
 THAT file and follow it.
 
@@ -1470,8 +1466,8 @@ larger text twice and wonder which one took.
 the old ~3,100-line surface and still serves every tab the redesign has not
 rebuilt (courses, curriculum, assignments, grades, payments, orders, recitals,
 support). Same arrangement as `portal/instructor/classic.html` and
-`admin/index.php` beside `admin/console.php`, for the same reason; both link to
-each other. `test_checkin_page.php`, `test_dashboard_nulls.php`,
+the way the legacy admin dashboard once stood beside the console (that one was
+retired on 2026-11-19); both link to each other. `test_checkin_page.php`, `test_dashboard_nulls.php`,
 `test_engagement2.php` and `test_portal_forms.php` assert against THAT file.
 
 **Four refusals are enforced in the PROVIDER, not the template**, because a
@@ -1869,9 +1865,33 @@ Teaching lit); and the three navigation levels keep three different shapes —
 do not unify the rail, the strip and in-screen pill filters.
 ⚠️ The strip is a `<nav>`, deliberately **not** `role="tablist"` — it navigates
 between separate screens rather than toggling panels, so tab semantics would
-promise arrow-key movement that does not exist. **The legacy `admin/index.php` is NOT retired**: it still serves 37
-views and — this is the load-bearing part — **every POST handler the console
-uses**. Both are reachable; each links to the other.
+promise arrow-key movement that does not exist. **The legacy dashboard is RETIRED** (2026-11-19): `admin/index.php` serves no
+screens, but it still holds — this is the load-bearing part — **every POST
+handler the console uses**.
+
+### The legacy admin dashboard is retired (2026-11-19)
+
+The owner retired it outright, knowing what that cost, rather than phasing it
+out. Measured before the cut: admin/index.php handled **116** kinds of action and
+the console posted only **30**; the other **86** had their only button on a
+legacy screen and have **no button now** until each is rebuilt in the console.
+They are listed in `docs/HANDOFF.md` §4y — money (refunds, confirming bank
+payments, instructor earnings), configuration (settings, programmes and courses,
+term dates), compliance (the data-protection register, erasure, recording a
+vetting check), recitals, rubrics, enrolments and classes, creating users and
+admin tiers, the faculty pipeline. **The handlers are all still there** — a
+rebuilt console screen posts to the existing action; it never grows a second one.
+- Old `?v=<view>` names in the history above name retired screens. A GET to one
+  redirects to the console screen that now covers it (the map is at the foot of
+  admin/index.php), carrying `?ok=`/`?err=`.
+- What the console needed and gained in the same change: **My account**
+  (`?v=account`: details, password, devices — the temporary-password gate sends
+  people there, so it must exist and needs no capability) and a real **Run
+  migrations** button (`run_migrations`, `migrate` cap) on System health; the
+  console's link for it had pointed at a view that never existed.
+- 42 console links that opened a legacy screen were removed rather than left as
+  dead buttons. `test_admin_retired.php` fails on a new one, on a new view
+  branch, and on a redirect target that is not a console screen.
 
 ```
 admin/console.php               the shell: rail, topbar, ⌘K, flash, screen dispatch
