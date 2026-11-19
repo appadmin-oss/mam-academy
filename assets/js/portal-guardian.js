@@ -951,7 +951,9 @@
       + '<p class="p-body p-gap-t">Every school and child-centred institution in Lagos State must name '
       + 'one, and ours is named in your enrolment agreement together with their direct contact. '
       + 'They keep the records and report to the Ministry of Youth and Social Development.</p>'
-      + '<a class="p-action" href="/contact">Contact the academy office</a></section>'
+      + '<button type="button" class="p-action" data-screen="concern">Tell the safeguarding officer now</button>'
+      + '<p class="p-caption p-gap-t">It goes straight to the officer, and nobody else reads it.</p>'
+      + '<a class="p-ghost p-gap-t" href="/contact">Contact the academy office</a></section>'
       + '<section class="p-card is-quiet"><h2 class="p-title">What happens next</h2>'
       + '<p class="p-body p-gap-t">A concern is recorded, and the Designated Safeguarding Officer decides '
       + 'within one working day whether it is referred on. You will be told what was done unless telling '
@@ -1033,20 +1035,24 @@
     dashboard: renderDashboard, children: renderChildren, reports: renderReports,
     finance: renderFinance, consents: renderConsents, messages: renderMessages,
     makeup: renderMakeup, bursary: renderBursary, timetable: renderTimetable,
-    safeguarding: renderSafeguarding, complaints: renderComplaints, a11y: renderA11y
+    safeguarding: renderSafeguarding, complaints: renderComplaints, a11y: renderA11y, space: renderSpace, concern: renderConcern
   };
+  /* Class spaces (read-only for a guardian — the server refuses any write) and
+     the safeguarding form: shared with the other portals (portal-spaces.js). */
+  function renderSpace() { MAM_SPACES.mount(main, { toast: toast, paint: paint }); }
+  function renderConcern() { MAM_SPACES.concernForm(main, { toast: toast, paint: paint, back: function () { go('safeguarding'); } }); }
   var TITLES = {
     dashboard: 'Home', children: 'My Children', reports: 'Reports', finance: 'Finance',
     consents: 'Consents', messages: 'Messages', makeup: 'Make-up lessons',
     bursary: 'Bursary', timetable: 'Timetable', safeguarding: 'Safeguarding',
-    complaints: 'Complaints', a11y: 'Display & access'
+    complaints: 'Complaints', a11y: 'Display & access', space: 'Class', concern: 'Tell the safeguarding officer'
   };
   /* Which bottom-bar tab owns each destination, so a More-sheet screen does not
      leave every tab looking inactive. */
   var TAB_OF = {
     dashboard: 'dashboard', children: 'children', reports: 'reports', finance: 'finance',
     consents: null, messages: null, makeup: null, bursary: null, timetable: null,
-    safeguarding: null, complaints: null, a11y: null
+    safeguarding: null, complaints: null, a11y: null, space: null, concern: null
   };
 
   function go(screen, childId) {

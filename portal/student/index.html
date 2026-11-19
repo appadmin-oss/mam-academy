@@ -16,7 +16,7 @@
      and portal.css are the warm dark set, and the legacy dashboard at
      classic.html loads all three. Loading both palettes on one page is the
      theme-on-theme bug this rebuild removes. -->
-<link rel="stylesheet" href="/assets/css/portal-v2.css?v=20261119c">
+<link rel="stylesheet" href="/assets/css/portal-v2.css?v=20261120a">
 <script>
 /* Pre-paint, so a student who has chosen larger text or dark never sees one
    frame of the other. Attributes on the root; portal-v2.css does the rest.
@@ -130,6 +130,17 @@
       <i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i>
     </button>
 
+    <button type="button" class="p-row" data-screen="space">
+      <i class="fa-solid fa-people-group p-row-ico" aria-hidden="true"></i>
+      <span class="p-row-main"><span class="p-title">Class</span><span class="p-caption">Hand in work, see your class</span></span>
+      <i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i>
+    </button>
+    <button type="button" class="p-row" data-screen="concern">
+      <i class="fa-solid fa-shield-halved p-row-ico" aria-hidden="true"></i>
+      <span class="p-row-main"><span class="p-title">Worried about something?</span><span class="p-caption">Tell the safeguarding officer</span></span>
+      <i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i>
+    </button>
+
     <div class="p-label p-sheet-head">Account</div>
     <button type="button" class="p-row" data-screen="money">
       <i class="fa-solid fa-receipt p-row-ico" aria-hidden="true"></i>
@@ -179,6 +190,8 @@
 
 <script src="/assets/js/config.js?v=20260807a"></script>
 <script src="/assets/js/portal.js?v=20261119b"></script>
-<script src="/assets/js/portal-student.js?v=20261119b"></script>
+<script src="/assets/js/media-upload.js?v=20261120a"></script>
+<script src="/assets/js/portal-spaces.js?v=20261120a"></script>
+<script src="/assets/js/portal-student.js?v=20261120a"></script>
 </body>
 </html>

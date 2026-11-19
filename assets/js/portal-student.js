@@ -1225,8 +1225,14 @@
 
   var SCREENS = {
     home: renderHome, train: renderTrain, learn: renderLearn, attend: renderAttend,
-    money: renderMoney, repertoire: renderRepertoire, a11y: renderA11y, lesson: renderLesson, exam: renderExam
+    money: renderMoney, repertoire: renderRepertoire, a11y: renderA11y, lesson: renderLesson, exam: renderExam,
+    space: renderSpace, concern: renderConcern
   };
+  /* The class space and the safeguarding form are shared with the other two
+     portals (assets/js/portal-spaces.js); the server decides what each role
+     sees, so this portal only hands over its own paint and toast. */
+  function renderSpace() { MAM_SPACES.mount(main, { toast: toast, paint: paint }); }
+  function renderConcern() { MAM_SPACES.concernForm(main, { toast: toast, paint: paint }); }
   /* Which bar item lights for a screen the bar does not itself carry. Fees and
      Repertoire light NOTHING rather than borrowing another tab's highlight — a
      bar that claims you are on Home while you are reading an invoice is worse

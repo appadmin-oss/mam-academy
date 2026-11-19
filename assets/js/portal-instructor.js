@@ -806,8 +806,11 @@
   var SCREENS = {
     home: renderHome, register: renderRegister, marking: renderMarking,
     teachbacks: renderTeachbacks, report: renderReport, students: renderStudents, lessons: renderStudentLessons,
-    earnings: renderEarnings, a11y: renderA11y
+    earnings: renderEarnings, a11y: renderA11y, space: renderSpace, concern: renderConcern
   };
+  /* Class spaces and the safeguarding form: shared (assets/js/portal-spaces.js). */
+  function renderSpace() { MAM_SPACES.mount(main, { toast: toast, paint: paint }); }
+  function renderConcern() { MAM_SPACES.concernForm(main, { toast: toast, paint: paint }); }
   /* Which bar item lights for a screen the bar does not itself carry. */
   var TAB_OF = { home: 'home', register: 'register', marking: 'marking', students: 'students', lessons: 'students' };
 

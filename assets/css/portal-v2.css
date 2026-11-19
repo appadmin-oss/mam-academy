@@ -1553,3 +1553,42 @@
 [data-portal="v2"] .i-lsn-place { display: grid; grid-template-columns: minmax(140px, 200px) 1fr auto; gap: 10px; align-items: end; }
 @media (max-width: 480px) { [data-portal="v2"] .i-lsn-place { grid-template-columns: 1fr; } }
 [data-portal="v2"] .i-lsn-mat summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--accent-text); font-weight: 600; }
+
+/* ── Class spaces (portal-spaces.js, schema v99) — shared by all three portals ── */
+[data-portal="v2"] button.p-link { background: none; border: 0; padding: 0; min-height: 44px; font: 600 14px var(--font-ui); color: var(--accent-text); cursor: pointer; }
+[data-portal="v2"] button.p-link:hover { text-decoration: underline; }
+[data-portal="v2"] .p-check { display: flex; align-items: center; gap: 10px; min-height: 44px; font: 400 15px var(--font-ui); color: var(--text); }
+[data-portal="v2"] .p-check input { width: 20px; height: 20px; flex: none; }
+[data-portal="v2"] .p-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 420px) { [data-portal="v2"] .p-grid2 { grid-template-columns: 1fr; } }
+[data-portal="v2"] .p-chip.is-on { background: var(--accent); color: var(--accent-ink); }
+[data-portal="v2"] button.sp-space { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+[data-portal="v2"] .sp-space-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+[data-portal="v2"] .sp-task { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--rule); }
+[data-portal="v2"] .sp-task:first-of-type { border-top: 0; }
+[data-portal="v2"] .sp-task .p-row-main { flex: 1 1 60%; display: flex; flex-direction: column; gap: 4px; }
+[data-portal="v2"] .sp-task.is-closed .p-title { color: var(--text-2); }
+[data-portal="v2"] .sp-newtask summary, [data-portal="v2"] .sp-review summary, [data-portal="v2"] details.p-card > summary,
+[data-portal="v2"] .sp-new summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+[data-portal="v2"] .sp-post { display: flex; flex-direction: column; gap: 8px; }
+[data-portal="v2"] .sp-post.is-held { border-style: dashed; }
+[data-portal="v2"] .sp-post-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+[data-portal="v2"] .sp-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+[data-portal="v2"] .sp-media { width: 100%; max-height: 70vh; border-radius: var(--radius-control); background: var(--inset); }
+[data-portal="v2"] img.sp-media { object-fit: contain; background: var(--inset); }
+[data-portal="v2"] .sp-audio { width: 100%; }
+[data-portal="v2"] .sp-react { display: flex; gap: 8px; flex-wrap: wrap; }
+[data-portal="v2"] .sp-react .p-chip { min-height: 36px; min-width: 44px; border: 0; cursor: pointer; font: 600 13px var(--font-ui); }
+[data-portal="v2"] .sp-comment { padding: 8px 0 0; border-top: 1px solid var(--rule); overflow-wrap: anywhere; }
+[data-portal="v2"] .sp-comment.is-held { opacity: .85; }
+[data-portal="v2"] .sp-commentform { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+[data-portal="v2"] .sp-commentform input[name="body"] { flex: 1 1 200px; min-width: 0; min-height: 44px; padding: 9px 12px; font: 400 16px var(--font-ui);
+  color: var(--text); background: var(--raised); border: 1px solid var(--border-strong); border-radius: var(--radius-control); }
+[data-portal="v2"] .sp-acts { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+[data-portal="v2"] .sp-report { color: var(--text-2); }
+[data-portal="v2"] .sp-progress { display: flex; flex-direction: column; gap: 4px; }
+[data-portal="v2"] .sp-progress[hidden] { display: none; }
+[data-portal="v2"] .sp-progress progress { width: 100%; height: 8px; accent-color: var(--accent); }
+[data-portal="v2"] .sp-people { list-style: none; margin: 8px 0; padding: 0; }
+[data-portal="v2"] .sp-people li { display: flex; gap: 8px; align-items: center; min-height: 40px; border-top: 1px solid var(--rule); }
+[data-portal="v2"] button.sp-tell { align-self: flex-start; }

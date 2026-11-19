@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
         if (!empty($_GET['queue'])) mam_ok(['queue' => mam_space_queue($u)]);
         $id = (int) ($_GET['id'] ?? 0);
-        if ($id < 1) mam_ok(['spaces' => mam_space_list_for($u)]);
+        if ($id < 1) { mam_space_ensure_for_user($u); mam_ok(['spaces' => mam_space_list_for($u)]); }
         $s = $space($id);
         $role = (string) mam_space_role($s, $u);
         $feed = mam_space_feed($s, $u, (int) ($_GET['before'] ?? 0), 20, (int) ($_GET['task'] ?? 0));

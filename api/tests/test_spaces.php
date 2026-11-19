@@ -144,6 +144,9 @@ t_ok(isset($SP_feed($SP_ben)[$SP_p1['id']]), 'approved, the class sees it');
 t_ok(mam_media_can_read(mam_db_row('SELECT * FROM media_objects WHERE id = ?', [$SP_m2]), $SP_user($SP_ben)), '…and can play it');
 t_ok(!mam_media_can_read(mam_db_row('SELECT * FROM media_objects WHERE id = ?', [$SP_m2]), $SP_user($SP_out)), 'somebody outside the space never can');
 
+$SP_q = mam_space_queue($SP_user($SP_teach));
+t_ok(is_array($SP_q['held']) && is_array($SP_q['to_mark']), 'the teacher\'s queue reads held items and work to mark (a UNION SQLite can order)');
+
 t_group('class spaces — a mark is private');
 
 t_throws(fn() => mam_space_review($SP_p1['id'], $SP_user($SP_ben), 18, 'Nice'), 'forbidden', 'a classmate cannot mark');

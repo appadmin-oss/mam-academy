@@ -176,6 +176,27 @@ function mam_space_guardian_children(array $s, int $parentId): array {
 
 function mam_space_is_staff(?string $role): bool { return $role === 'teacher' || $role === 'admin'; }
 
+/**
+ * Make sure each live class this person is in has its space, so a class's
+ * space exists from the first time anybody in it looks — nobody has to
+ * remember to open one. Cheap: one query, and an insert only for a class
+ * that has none.
+ */
+function mam_space_ensure_for_user(array $user): void {
+    $uid = (int) $user['id'];
+    $rows = mam_db_all(
+        "SELECT DISTINCT co.id FROM cohorts co
+           LEFT JOIN class_spaces s ON s.cohort_id = co.id
+          WHERE s.id IS NULL AND COALESCE(co.status, 'active') = 'active'
+            AND (co.instructor_id = ?
+                 OR EXISTS (SELECT 1 FROM course_enrollments ce WHERE ce.cohort_id = co.id AND ce.status IN ('active','completed')
+                             AND (ce.student_id = ? OR ce.instructor_id = ?)))
+          LIMIT 20", [$uid, $uid, $uid]);
+    foreach ($rows as $r) {
+        try { mam_space_for_cohort((int) $r['id']); } catch (Throwable $e) { /* a race with another request made it first */ }
+    }
+}
+
 /** Every space this person can open, with their role in each. */
 function mam_space_list_for(array $user): array {
     $uid = (int) $user['id'];
@@ -654,14 +675,17 @@ function mam_space_queue(array $user): array {
     $ids = array_column($spaces, 'id');
     if (!$ids) return ['held' => [], 'reports' => [], 'to_mark' => []];
     $in = implode(',', array_fill(0, count($ids), '?'));
-    $held = mam_db_all("SELECT 'post' AS type, p.id, p.space_id, s.title AS space_title, p.body, p.hold_reason, p.media_id, p.author_id, u.name AS author, p.created_at
+    // ⚠️ Every column ALIASED: a UNION's ORDER BY on SQLite must name result columns (CLAUDE.md gotcha #2).
+    $held = mam_db_all("SELECT 'post' AS type, p.id AS id, p.space_id AS space_id, s.title AS space_title, p.body AS body, p.hold_reason AS hold_reason,
+                               p.media_id AS media_id, p.author_id AS author_id, u.name AS author, p.created_at AS created_at
                           FROM space_posts p JOIN class_spaces s ON s.id = p.space_id LEFT JOIN users u ON u.id = p.author_id
                          WHERE p.space_id IN ($in) AND p.status = 'held'
                          UNION ALL
-                        SELECT 'comment' AS type, c.id, p.space_id, s.title AS space_title, c.body, c.hold_reason, NULL AS media_id, c.author_id, u.name AS author, c.created_at
+                        SELECT 'comment' AS type, c.id AS id, p.space_id AS space_id, s.title AS space_title, c.body AS body, c.hold_reason AS hold_reason,
+                               NULL AS media_id, c.author_id AS author_id, u.name AS author, c.created_at AS created_at
                           FROM space_comments c JOIN space_posts p ON p.id = c.post_id JOIN class_spaces s ON s.id = p.space_id LEFT JOIN users u ON u.id = c.author_id
                          WHERE p.space_id IN ($in) AND c.status = 'held'
-                         ORDER BY created_at", array_merge($ids, $ids));
+                         ORDER BY created_at, id", array_merge($ids, $ids));
     foreach ($held as &$h) {
         $h['media'] = $h['media_id'] ? mam_media_public_view(mam_db_row("SELECT * FROM media_objects WHERE id = ?", [(int) $h['media_id']])) : null;
         $h['own'] = (int) $h['author_id'] === (int) $user['id'];
