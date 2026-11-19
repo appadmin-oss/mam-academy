@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 93;
+const MAM_SCHEMA_TARGET = 94;
 
 /**
  * Open (and cache) the PDO connection.
@@ -3659,6 +3659,34 @@ function mam_db_migrate(PDO $db): void {
               created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
               CHECK(over_minor > 0 AND over_minor = CAST(over_minor AS INTEGER))
             );
+        ",
+        /* v94 — member records (members.php, HANDOFF §4w; the rules are NGG's).
+         * member_status_log: every status change, with who, when and WHY. A
+         * suspension used to be one UPDATE and an audit line with no reason, so
+         * "why can this child not sign in" had no answer anywhere.
+         * member_notes: staff-only notes on a PERSON. Notes existed only on an
+         * application, so anything learnt after enrolment had nowhere to live.
+         * Append-only, like the log: a note is a record of what was known when. */
+        94 => "
+            CREATE TABLE IF NOT EXISTS member_status_log (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              from_status TEXT,
+              to_status   TEXT    NOT NULL,
+              reason      TEXT,
+              changed_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_mstatus_user ON member_status_log(user_id, id);
+            CREATE TABLE IF NOT EXISTS member_notes (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              body       TEXT    NOT NULL,
+              author_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+              CHECK(length(body) > 0)
+            );
+            CREATE INDEX IF NOT EXISTS idx_mnotes_user ON member_notes(user_id, id);
         ",
     ];
 

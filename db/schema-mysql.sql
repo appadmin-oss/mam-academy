@@ -3231,3 +3231,29 @@ CREATE TABLE IF NOT EXISTS fee_online_unapplied (
   CONSTRAINT chk_feeunap_status CHECK (status IN ('open','refunded','applied','dismissed'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (93) ON DUPLICATE KEY UPDATE version = version;
+
+-- v94 — member status history (with reasons) and staff notes on a person (members.php).
+CREATE TABLE IF NOT EXISTS member_status_log (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  user_id     INT NOT NULL,
+  from_status VARCHAR(20) NULL,
+  to_status   VARCHAR(20) NOT NULL,
+  reason      VARCHAR(500) NULL,
+  changed_by  INT NULL,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_mstatus_user (user_id, id),
+  CONSTRAINT fk_mstatus_user FOREIGN KEY (user_id)    REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_mstatus_by   FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS member_notes (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  user_id    INT NOT NULL,
+  body       VARCHAR(2000) NOT NULL,
+  author_id  INT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_mnotes_user (user_id, id),
+  CONSTRAINT fk_mnotes_user   FOREIGN KEY (user_id)   REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_mnotes_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT chk_mnotes_body  CHECK (CHAR_LENGTH(body) > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (94) ON DUPLICATE KEY UPDATE version = version;

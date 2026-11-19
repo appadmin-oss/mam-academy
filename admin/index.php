@@ -658,6 +658,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'dp_retention_mode' => 'settings', 'dp_retention_preview' => 'settings', 'dp_retention_run' => 'settings',
         'user_create' => 'users', 'user_reset' => 'users', 'user_status' => 'users',
         'user_delete' => 'users', 'user_edit' => 'users', 'set_admin_tier' => 'rbac',
+        // Member records (members.php, HANDOFF §4w).
+        'member_signout' => 'users', 'member_note_add' => 'users', 'member_status_set' => 'users',
         'wallet_credit' => 'users',
         'faculty_invite' => 'users', 'faculty_app_status' => 'users', 'faculty_request_review' => 'users',
         'faculty_assign_subjects' => 'users',
@@ -1108,17 +1110,36 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         exit;
     }
 
-    if ($action === 'user_status') {
+    /* Every change to whether somebody can sign in goes through ONE setter
+       (members.php): a reason for a suspension, a history row, the person's
+       sessions ended, and the two lockouts refused — your own account, and the
+       last super admin. This used to be a bare UPDATE with none of that. */
+    if ($action === 'user_status' || $action === 'user_delete' || $action === 'member_status_set') {
         $uid = (int)($_POST['user_id'] ?? 0);
-        $status = (string)($_POST['status'] ?? '');
-        if ($uid && in_array($status, ['active', 'suspended'], true)) {
-            mam_db_update('users', ['status' => $status, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $uid]);
-            if ($status === 'suspended') {
-                mam_db()->prepare('DELETE FROM sessions WHERE user_id = ?')->execute([$uid]);
-            }
-            mam_audit('update_status', 'user', $uid, ['status' => $status]);
+        $status = $action === 'user_delete' ? 'suspended' : (string)($_POST['status'] ?? '');
+        $r = mam_member_set_status($uid, $status, (string)($_POST['reason'] ?? ''), $adminUser ? (int)$adminUser['id'] : null);
+        $words = mam_member_verdict_words();
+        $msg = $words[$r['code']] ?? ('Not changed (' . $r['code'] . ').');
+        header('Location: ?v=users&' . ($r['result'] === 'refused' ? 'err=' : 'ok=') . urlencode($msg));
+        exit;
+    }
+
+    if ($action === 'member_signout') {
+        $uid = (int)($_POST['user_id'] ?? 0);
+        $n = $uid ? mam_member_revoke_sessions($uid) : 0;
+        mam_audit('member_signout', 'user', $uid, ['sessions' => $n]);
+        header('Location: ?v=users&ok=' . urlencode($n . ' session' . ($n === 1 ? '' : 's') . ' ended.'));
+        exit;
+    }
+
+    if ($action === 'member_note_add') {
+        $uid = (int)($_POST['user_id'] ?? 0);
+        try {
+            mam_member_note_add($uid, (string)($_POST['body'] ?? ''), $adminUser ? (int)$adminUser['id'] : null);
+            header('Location: ?v=users&edit=' . $uid . '&ok=' . urlencode('Note added.'));
+        } catch (Throwable $e) {
+            header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode('Write the note first.'));
         }
-        header('Location: ?v=users&ok=1');
         exit;
     }
 
@@ -2580,14 +2601,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // ─── Soft-delete / deactivation across core entities ─────────────
     // We never hard-delete user-visible records (audit + finance integrity);
     // these flip a status column instead so the row stays for history.
-    if ($action === 'user_delete') {
-        $uid = (int)($_POST['user_id'] ?? 0);
-        if ($uid) {
-            mam_db_update('users', ['status' => 'suspended', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $uid]);
-            mam_audit('user_suspend', 'user', $uid);
-        }
-        header('Location: ?v=users&ok=1'); exit;
-    }
     if ($action === 'class_delete') {
         $cid = (int)($_POST['class_id'] ?? 0);
         if ($cid) {
@@ -2628,6 +2641,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!in_array($role, ['student','instructor','admin'], true)) { header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode('Invalid role')); exit; }
         if (mam_db_row('SELECT id FROM users WHERE email = ? AND id != ?', [$email, $uid])) {
             header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode('That email is already taken by another user.')); exit;
+        }
+        // Taking admin away from yourself, or from the last super admin, is the
+        // same lockout as suspending them — by another door.
+        $roleRefusal = mam_member_role_change_refusal($uid, $role, $adminUser ? (int)$adminUser['id'] : null);
+        if ($roleRefusal !== null) {
+            header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode(mam_member_verdict_words()[$roleRefusal])); exit;
         }
         mam_db_update('users', ['email' => $email, 'name' => $name, 'phone' => $phone, 'role' => $role, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $uid]);
         // Secondary portal access (user_roles): a user can be both student +
@@ -7054,6 +7073,8 @@ V2_READ_TENANT=mam</pre>
                 <option value="active" <?= $u['status']==='active'?'selected':'' ?>>active</option>
                 <option value="suspended" <?= $u['status']==='suspended'?'selected':'' ?>>suspended</option>
               </select>
+              <input type="text" name="reason" class="tiny" placeholder="reason (needed to suspend)" maxlength="500"
+                     aria-label="Reason for the status change for <?= htmlspecialchars((string)($u['name'] ?: $u['email'])) ?>">
               <button class="tiny" type="submit">Save</button>
             </form>
             <a class="tiny btn ghost" style="margin-left:6px;padding:6px 10px" href="?v=users&edit=<?= (int)$u['id'] ?>">Edit</a>

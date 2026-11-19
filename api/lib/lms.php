@@ -115,6 +115,13 @@ function mam_lms_transition(int $enrollmentId, string $to, ?int $by = null, ?str
     mam_lms_log_event($enrollmentId, $from, $to, $actor, $reason);
     mam_audit('lms_transition', 'course_enrollment', $enrollmentId, ['from' => $from, 'to' => $to, 'reason' => $reason]);
 
+    // The member number is minted where an enrolment first goes active, beside
+    // the ID card — every path that enrols somebody passes through here.
+    if ($to === 'active' && function_exists('mam_member_ensure_ref')) {
+        $sidRow = mam_db_row('SELECT student_id FROM course_enrollments WHERE id = ?', [$enrollmentId]);
+        if ($sidRow) mam_member_ensure_ref((int) $sidRow['student_id']);
+    }
+
     // Automation #9: issue ID card when enrolment activates.
     if ($to === 'active' && mam_automation_on('id_card_issue')) {
         mam_card_mint_for_enrollment($enrollmentId);

@@ -43,7 +43,7 @@ declare(strict_types=1);
               <div class="ac-row">
                 <a class="ac-btn ac-btn--sm" href="/admin/?v=users&amp;edit=<?= (int) $r['id'] ?>">Edit</a>
                 <?php if ((int) ($r['sessions'] ?? 0) > 0): ?>
-                  <?php ac_action_btn('session_revoke', 'access', ['user_id' => (int) $r['id']],
+                  <?php ac_action_btn('member_signout', 'access', ['user_id' => (int) $r['id']],
                       'Sign out', 'ac-btn ac-btn--sm ac-btn--danger', 'Revoke every session this person holds?'); ?>
                 <?php endif; ?>
               </div>
