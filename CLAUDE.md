@@ -1093,7 +1093,24 @@ easy to "simplify" into being wrong:
     asks for is a REQUEST until `mam_fee_plan_approve()`. `mam_fee_dunning_sweep()`
     is the reminder ladder (automation `fee_reminders`), forward-only and claimed by
     compare-and-set. Console actions are `fee_*` / `bursary_decide` under the
-    `fees` capability. Online payment of a fee invoice is NOT built yet.
+    `fees` capability.
+  - **Paying online (v92, HANDOFF §4u).** `POST /api/parent/fee-pay` opens an
+    ordinary `payments` row, `purpose='fee'`, carrying `fee_invoice_id`,
+    `fee_minor` (in the INVOICE's currency) and `fee_payer_id`; verify and both
+    webhooks settle it through `mam_payment_settle()` →
+    `mam_payment_settle_fee()`, which records a normal `fee_payments` row. What is
+    credited is `fee_minor`, never the naira the gateway took. If the balance
+    shrank before the charge cleared, only what is still owed is credited and the
+    rest is shown on the console invoice as **to refund** — never thrown away,
+    never a negative balance. Paystack only (it redirects; the inline checkouts
+    need a script the portal CSP does not admit). Gateway amounts are compared in
+    integer kobo by `mam_payment_amount_ok()`, never `amount * 100`.
+  - ⚠️ **A charge the gateway confirmed is `status = 'succeeded'`.** The console
+    read `'success'` in eight money queries, which nothing writes, so Collected
+    and the ledger's accounts read zero. `MAM_CONSOLE_PAID` /
+    `MAM_CONSOLE_SUSPENSE` in `console.php` are the one spelling; suspense is an
+    APPLICATION charge with no application — store orders and fee payments have
+    none by design.
   - A **bursary** is assessed on a declared income BAND; there is no hardship /
     circumstances / case_text column and nothing linking it to an admission
     decision, both asserted by test. The published table is a CEILING a committee

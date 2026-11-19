@@ -43,7 +43,7 @@ try {
             $ref = $d['tx_ref'] ?? '';
             $payment = mam_db_row('SELECT * FROM payments WHERE reference = ?', [$ref]);
             $currency = strtoupper((string)($d['currency'] ?? 'NGN'));
-            $amountOk = $payment && $currency === 'NGN' && (float)($d['amount'] ?? 0) >= (float)$payment['amount'];
+            $amountOk = $payment && mam_payment_amount_ok($payment, (float)($d['amount'] ?? 0) * 100, $currency);
             if ($payment && !$amountOk) {
                 mam_log('warn', 'flw_webhook_amount_mismatch', ['ref' => $ref, 'paid' => $d['amount'] ?? 0, 'expected' => $payment['amount'], 'currency' => $currency]);
             }

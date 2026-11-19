@@ -197,6 +197,16 @@ the key it was taken under (`signing_key_fingerprint`), so you can tell before
 restoring whether the key you have is the right one. The admin console's
 **System** screen compares them for you.
 
+⚠️ **An install with no `APP_KEY` in `api/.env` has its key in a FILE —
+`api/storage/.app_key`** — generated on first boot, and that is the state most
+installs are in. It lives beside the database, so the disaster that loses one
+usually loses the other, and a fresh install restored from a dump generates a
+*new* key on its first request. Before you need it, copy that file's contents
+into `APP_KEY=` in `api/.env` (it is byte-identical, so nothing already signed
+changes) and keep `.env` wherever you keep other credentials. An `APP_KEY`
+shorter than 32 characters is **ignored** in favour of the file, so it is not a
+copy of anything.
+
 ### 8.2 · Taking a backup
 
 The nightly snapshot is the cron line in §7. For the engine dump:

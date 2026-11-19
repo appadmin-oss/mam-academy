@@ -577,6 +577,18 @@
                   + '</span><b>' + esc(i.amount) + '</b>'
                   + (i.status === 'paid' ? ' <span class="p-chip is-good">Paid</span>' : '') + '</div>';
               }).join('')
+            /* Only an AGREED plan offers its next instalment: a requested one is
+               a proposal, and paying against it would read as the office having
+               accepted dates it has not. Never more than what is owed — the
+               server refuses that too, but the button should not offer it. */
+            + (function () {
+                if (inv.plan.approved !== true) return '';
+                var next = inv.plan.schedule.filter(function (i) { return i.status !== 'paid'; })[0];
+                if (!next || !(next.amount_minor > 0) || next.amount_minor >= inv.due_minor) return '';
+                return '<button type="button" class="p-action is-alt" data-pay="' + esc(inv.id)
+                  + '" data-amount="' + esc(next.amount_minor) + '">Pay instalment ' + esc(next.seq)
+                  + ' · ' + esc(next.amount) + '</button>';
+              })()
             + '</div>'
           : '<button type="button" class="p-action is-alt" data-plan="' + esc(inv.id) + '">'
             + 'Pay in 3 instalments instead</button>')
@@ -1110,11 +1122,27 @@
     }
     if (t.hasAttribute('data-pay')) {
       e.preventDefault();
-      /* Deliberately NOT wired to a gateway here. The academy's payment path runs
-         through the existing checkout, and a button that opens a half-built
-         payment flow is worse than one that says where to go. */
-      toast('The academy office will send you a secure payment link for this invoice. '
-        + 'Nothing about your child’s lessons or report is affected in the meantime.', 'info');
+      /* The server opens the charge and hands back the gateway's own checkout
+         page; settlement happens when the browser comes back (`?paid=`) or by
+         webhook, whichever lands first. The amount is never decided here — at
+         most it names an instalment, and the server checks that against what
+         is owed. */
+      var amt = t.getAttribute('data-amount');
+      write(t, API.request('parent/fee-pay', { method: 'POST', body: {
+          invoice_id: Number(t.getAttribute('data-pay')),
+          amount_minor: amt ? Number(amt) : null } }),
+        function (r) {
+          if (r && r.authorization_url) {
+            toast('Opening the secure checkout for ' + (r.amount_ngn || 'this payment') + '…', 'info');
+            location.href = r.authorization_url;
+          }
+        }).catch(function (err) {
+          var code = (err && err.body && err.body.error) || '';
+          if (code === 'online_payment_unavailable') {
+            toast('Online payment is not switched on yet. The academy office will send you bank details '
+              + 'for this invoice. Nothing about your child’s lessons or report is affected in the meantime.', 'info');
+          }
+        });
       return;
     }
 
@@ -1250,6 +1278,29 @@
       }
 
       renderSwitcher();
+      /* Back from the gateway. Ask the academy — never the address bar — whether
+         it went through: `?paid=` only says which charge to ask about. The query
+         is dropped first so a refresh does not ask again. */
+      var qs = new URLSearchParams(location.search);
+      var paidRef = qs.get('paid');
+      if (paidRef) {
+        var payChild = qs.get('child');
+        history.replaceState(null, '', location.pathname + '#finance' + (payChild ? '/' + payChild : ''));
+        go('finance', payChild);
+        API.request('payment/verify', { method: 'POST', body: { reference: paidRef, provider: 'paystack' } })
+          .then(function () {
+            toast('Payment received — thank you. A receipt is on its way to your email.', 'good');
+            if (S.screen === 'finance') renderFinance();
+          })
+          .catch(function (err) {
+            var code = (err && err.body && err.body.error) || '';
+            toast(code === 'verification_failed'
+              ? 'That payment did not go through, so nothing has been taken. You can try again below.'
+              : 'We could not confirm that payment yet. If money left your account it will show here '
+                + 'within a few minutes — please do not pay twice.', 'bad');
+          });
+        return;
+      }
       var parts = location.hash.replace('#', '').split('/');
       go(SCREENS[parts[0]] ? parts[0] : 'dashboard', parts[1]);
     })

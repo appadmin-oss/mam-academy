@@ -48,7 +48,7 @@ try {
         $payment = mam_db_row('SELECT * FROM payments WHERE reference = ?', [$ref]);
         // Never credit an underpayment or a different currency, even from a
         // signature-valid webhook.
-        $amountOk = $payment && $currency === 'NGN' && (float)($payload['data']['amount'] ?? 0) >= (float)$payment['amount'] * 100;
+        $amountOk = $payment && mam_payment_amount_ok($payment, (float)($payload['data']['amount'] ?? 0), $currency);
         if ($payment && !$amountOk) {
             mam_log('warn', 'paystack_webhook_amount_mismatch', ['ref' => $ref, 'paid' => $amount, 'expected' => $payment['amount'], 'currency' => $currency]);
         }

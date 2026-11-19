@@ -81,12 +81,13 @@ catch (\InvalidArgumentException $e) { t_ok(true, 'a waiver states its reason â€
 t_throws(fn() => mam_fee_line_waive($FE_mat['id'], '900.00', 'too much'), 'waiver_exceeds_line',
     'a waiver cannot exceed the line it reduces');
 
+$FE_pay0 = (int) mam_db_row('SELECT COUNT(*) AS n FROM payments')['n'];
 mam_fee_line_waive($FE_mat['id'], '20.00', 'Books already owned', $FE_admin);
 $FE_s2 = mam_fee_invoice_get($FE_inv);
 t_eq($FE_s2['gross'],  '$370.00', 'the gross still shows what was billed');
 t_eq($FE_s2['waiver'], '$20.00',  'the waiver is stated separately, not netted away');
 t_eq($FE_s2['total'],  '$350.00', 'and the total is reduced by it');
-t_eq((int) mam_db_row('SELECT COUNT(*) AS n FROM payments WHERE application_id IS NULL')['n'], 0,
+t_eq((int) mam_db_row('SELECT COUNT(*) AS n FROM payments')['n'] - $FE_pay0, 0,
     'and NOTHING was written to payments â€” a waiver is not money');
 t_eq((int) mam_db_row('SELECT COUNT(*) AS n FROM fee_invoice_credits WHERE invoice_id = ?', [$FE_inv])['n'], 0,
     'nor to the gift-aid credits, which is a different mechanism');

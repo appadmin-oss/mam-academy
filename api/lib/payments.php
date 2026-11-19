@@ -68,12 +68,32 @@ function mam_payment_settle(array $payment, ?array $providerData, string $rawRes
 
     if ($purpose === 'store') {
         mam_payment_settle_store($ref);
+    } elseif ($purpose === 'fee') {
+        // A fee invoice paid online (fees.php). Before the tuition fallback,
+        // which would otherwise read a NULL application_id as application 0.
+        mam_payment_settle_fee($payment, $providerData);
     } elseif ($purpose === 'booking_fee') {
         mam_payment_settle_booking((int)$payment['application_id']);
     } else { // tuition
         $out['portal'] = mam_payment_settle_tuition((int)$payment['application_id']);
     }
     return $out;
+}
+
+/**
+ * Did the gateway take at least what this payment row asked for, in naira?
+ * `$paidKobo` is the gateway's own integer. Compared against `amount_minor`
+ * (kobo, an integer) where the row has one, because `amount * 100` is float
+ * arithmetic on a DECIMAL and can land a hair above an exact charge — 1234.56
+ * becomes 123456.00000000001 — which would fail a payment that was exact. The
+ * fee path charges to the kobo, so it is the first to be able to hit that.
+ */
+function mam_payment_amount_ok(array $payment, float $paidKobo, string $currency): bool {
+    if (strtoupper($currency) !== 'NGN') return false;
+    $expected = isset($payment['amount_minor']) && $payment['amount_minor'] !== null && (int) $payment['amount_minor'] > 0
+        ? (int) $payment['amount_minor']
+        : (int) round((float) $payment['amount'] * 100);
+    return (int) round($paidKobo) >= $expected;
 }
 
 /**

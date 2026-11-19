@@ -784,7 +784,10 @@ function mam_fee_statement(int $parentId, int $studentId): array {
         if ($inv) $out[] = $inv;
     }
 
-    $owedMinor = 0; $cur = mam_fee_currency();
+    // With nothing owed the figure is still printed ("Due now ₦0.00"), so it takes
+    // the family's own currency from their newest invoice, not the academy's
+    // default — a naira family was told they owed "$0.00".
+    $owedMinor = 0; $cur = $out[0]['currency'] ?? mam_fee_currency();
     foreach ($out as $i) {
         if (in_array($i['status'], ['issued', 'part_paid'], true)) { $owedMinor += $i['due_minor']; $cur = $i['currency']; }
     }
@@ -1182,4 +1185,177 @@ function mam_fee_dunning_sweep(int $limit = 100): int {
         if ($ok) $sent++;
     }
     return $sent;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Paying a fee invoice online (schema v92)
+
+   The guardian's Pay button. The charge is an ordinary `payments` row
+   (purpose 'fee'), so the interactive verify and both webhooks settle it
+   through mam_payment_settle() — the one race-safe claim every other charge
+   uses — and settlement then records an ordinary `fee_payments` row, so the
+   office sees an online payment exactly where it sees a bank transfer it
+   typed in. Nothing here holds money of its own.
+
+   Three things are easy to get wrong:
+   - What is CREDITED is `fee_minor`, in the invoice's own currency, fixed when
+     Pay was pressed. The naira charge is a conversion at today's rate; a
+     dollar invoice must never be credited with whatever the naira came to.
+   - The balance can shrink between Pay and settlement (the office records a
+     cash payment in the meantime). The gateway has the money either way, so
+     settlement credits what is still owed and records the rest as an
+     overpayment for the office to refund — it never throws the money away
+     and never drives a balance negative (`more_than_due` would refuse it).
+   - The charge is compared against `amount_minor` (kobo, an integer), never
+     `amount * 100`, which is a float and can land a hair above the kobo the
+     gateway reports and fail a payment that was exact.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * What a fee charge costs at the gateway, which charges in naira.
+ * NGN invoice: the balance itself, to the kobo. USD invoice: today's rate —
+ * the same rate the statement's "You will be charged" sentence used.
+ * @return array{kobo:int, usd_cents:?int, rate:?float}
+ */
+function mam_fee_online_quote(string $currency, int $feeMinor): array {
+    $rate = function_exists('mam_usd_to_ngn_rate') ? (float) mam_usd_to_ngn_rate(false) : 0.0;
+    if ($currency === 'NGN') {
+        return ['kobo' => $feeMinor, 'usd_cents' => $rate > 0 ? (int) round($feeMinor / $rate) : null, 'rate' => $rate > 0 ? $rate : null];
+    }
+    if ($currency === 'USD') {
+        if ($rate <= 0) throw new RuntimeException('no_exchange_rate');
+        return ['kobo' => mam_money_ngn_from_usd_cents($feeMinor, $rate) * 100, 'usd_cents' => $feeMinor, 'rate' => $rate];
+    }
+    throw new RuntimeException('currency_not_payable_online');
+}
+
+/**
+ * Open a gateway charge for (part of) an invoice. Does NOT talk to the gateway —
+ * the route does — so this is testable and the refusals are the library's.
+ *
+ * @param ?int $feeMinor  how much of the balance, in the invoice currency; null = all of it
+ * @return array the payments row, plus 'quote'
+ */
+function mam_fee_online_start(int $parentId, int $invoiceId, ?int $feeMinor, string $provider = 'paystack'): array {
+    $inv = mam_db_row('SELECT * FROM fee_invoices WHERE id = ?', [$invoiceId]);
+    if (!$inv) throw new RuntimeException('invoice_not_found');
+    $sid = (int) $inv['student_id'];
+    if (!mam_parent_can_view($parentId, $sid) || !mam_parent_scope_allows($parentId, $sid, 'payments')) {
+        throw new RuntimeException('forbidden');
+    }
+    if (!in_array($inv['status'], ['issued', 'part_paid'], true)) throw new RuntimeException('not_payable');
+    $due = (int) $inv['total_minor'] - (int) $inv['paid_minor'];
+    if ($due <= 0) throw new RuntimeException('nothing_owing');
+    $amt = $feeMinor ?? $due;
+    if ($amt <= 0) throw new InvalidArgumentException('bad_amount');
+    if ($amt > $due) throw new RuntimeException('more_than_due');
+
+    $q = mam_fee_online_quote((string) $inv['currency'], $amt);
+    if ($q['kobo'] < 100) throw new InvalidArgumentException('bad_amount'); // gateways refuse under ₦1
+
+    // A fresh reference per press: a gateway refuses a reference it has seen,
+    // and an abandoned attempt is a harmless pending row.
+    $ref = 'FEE' . $invoiceId . '-' . strtoupper(bin2hex(random_bytes(5)));
+    $now = date('Y-m-d H:i:s');
+    $id = mam_db_insert('payments', [
+        'application_id'   => null,
+        'reference'        => $ref,
+        'provider'         => $provider,
+        'purpose'          => 'fee',
+        'status'           => 'pending',
+        'amount'           => number_format($q['kobo'] / 100, 2, '.', ''),
+        'currency'         => 'NGN',
+        'amount_minor'     => $q['kobo'],
+        'amount_usd_cents' => $q['usd_cents'],
+        'fx_rate_usd_ngn'  => $q['rate'],
+        'fx_backfilled'    => 0,
+        'fee_invoice_id'   => $invoiceId,
+        'fee_minor'        => $amt,
+        'fee_payer_id'     => $parentId,
+        'created_at'       => $now,
+        'updated_at'       => $now,
+    ]);
+    mam_audit('fee_online_start', 'fee_invoice', $invoiceId, ['payment' => $id, 'ref' => $ref, 'minor' => $amt, 'kobo' => $q['kobo'], 'by' => $parentId]);
+    $row = mam_db_row('SELECT * FROM payments WHERE id = ?', [$id]);
+    $row['quote'] = $q;
+    return $row;
+}
+
+/** The fee_payments method an online charge is recorded under, from the gateway's channel. */
+function mam_fee_online_method(?array $providerData): string {
+    $ch = strtolower((string) ($providerData['channel'] ?? $providerData['payment_type'] ?? ''));
+    if ($ch === 'card') return 'card';
+    if (in_array($ch, ['bank', 'bank_transfer', 'banktransfer', 'account'], true)) return 'transfer';
+    return 'other';
+}
+
+/**
+ * Settlement for purpose 'fee'. Called by mam_payment_settle() AFTER its atomic
+ * claim, so it runs once per charge; the reference check below makes it safe to
+ * call again anyway. Never throws — the money has arrived whatever happens here.
+ */
+function mam_payment_settle_fee(array $payment, ?array $providerData = null): void {
+    $ref = (string) $payment['reference'];
+    try {
+        $invId = (int) ($payment['fee_invoice_id'] ?? 0);
+        $want  = (int) ($payment['fee_minor'] ?? 0);
+        $inv   = $invId ? mam_db_row('SELECT * FROM fee_invoices WHERE id = ?', [$invId]) : null;
+        if (!$inv || $want <= 0) {
+            mam_log('error', 'fee_online_unmatched', ['ref' => $ref, 'invoice' => $invId]);
+            mam_audit('fee_online_unmatched', 'payment', (int) ($payment['id'] ?? 0), ['ref' => $ref]);
+            return;
+        }
+        if (mam_db_row('SELECT 1 FROM fee_payments WHERE invoice_id = ? AND reference = ?', [$invId, $ref])) return;
+
+        $cur  = (string) $inv['currency'];
+        $due  = in_array($inv['status'], ['issued', 'part_paid'], true) ? (int) $inv['total_minor'] - (int) $inv['paid_minor'] : 0;
+        $take = max(0, min($want, $due));
+        $over = $want - $take;
+        $prov = ucfirst((string) ($payment['provider'] ?? 'online'));
+        if ($take > 0) {
+            mam_fee_payment_record($invId, mam_fee_from_minor($take), mam_fee_online_method($providerData), null, [
+                'reference' => $ref,
+                'note' => 'Paid online through ' . $prov
+                    . ($over > 0 ? '. ' . mam_fee_display($over, $cur) . ' more than the balance was taken — refund it.' : '.'),
+            ]);
+        }
+        if ($over > 0) {
+            // The balance shrank between Pay and settlement (or the invoice was
+            // voided). The family paid it; the office owes it back.
+            mam_log('warn', 'fee_online_overpaid', ['ref' => $ref, 'invoice' => $invId, 'over_minor' => $over]);
+            mam_audit('fee_online_overpaid', 'fee_invoice', $invId, ['ref' => $ref, 'over_minor' => $over, 'currency' => $cur]);
+        }
+        mam_fee_online_receipt($payment, $inv, $take, $over);
+    } catch (\Throwable $e) {
+        mam_log('error', 'fee_online_settle_failed', ['ref' => $ref, 'err' => $e->getMessage()]);
+    }
+}
+
+/** A receipt to whoever pressed Pay. Best-effort; a mail outage does not undo a payment. */
+function mam_fee_online_receipt(array $payment, array $inv, int $taken, int $over): void {
+    $payer = mam_db_row('SELECT name, email FROM users WHERE id = ?', [(int) ($payment['fee_payer_id'] ?? 0)]);
+    if (!$payer || !filter_var((string) $payer['email'], FILTER_VALIDATE_EMAIL)) return;
+    $stu = mam_db_row('SELECT name FROM users WHERE id = ?', [(int) $inv['student_id']]);
+    $cur = (string) $inv['currency'];
+    $now = mam_db_row('SELECT total_minor, paid_minor FROM fee_invoices WHERE id = ?', [(int) $inv['id']]);
+    $left = $now ? max(0, (int) $now['total_minor'] - (int) $now['paid_minor']) : 0;
+    $h = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES);
+    $first = trim(explode(' ', (string) $payer['name'])[0] ?? '') ?: 'there';
+    $appUrl = rtrim((string) mam_env('APP_URL', ''), '/');
+    $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>Payment received</h2>"
+        . "<p style='color:#4A3624;font-size:15px'>Hi " . $h($first) . " — thank you. We have received <strong>"
+        . $h(mam_fee_display($taken + $over, $cur)) . "</strong> towards " . $h($stu['name'] ?? 'your child') . "'s fees ("
+        . $h($inv['public_ref']) . ", " . $h($inv['term_label']) . ").</p>"
+        . "<p style='color:#4A3624;font-size:15px'>Reference: <strong>" . $h($payment['reference']) . "</strong>. "
+        . ($left > 0 ? 'Still to pay on this invoice: <strong>' . $h(mam_fee_display($left, $cur)) . '</strong>.' : 'This invoice is now paid in full.') . "</p>"
+        . ($over > 0 ? "<p style='color:#4A3624;font-size:15px'>" . $h(mam_fee_display($over, $cur))
+            . " of this was more than the balance by the time it cleared. The academy office will refund it to you.</p>" : '')
+        . ($appUrl !== '' ? mam_email_button($appUrl . '/portal/parent/', 'See your statement') : '');
+    $html = mam_email_layout([
+        'header' => 'MAM ACADEMY',
+        'preheader' => 'Payment received for ' . (string) ($stu['name'] ?? 'your child'),
+        'reason' => 'You received this because you paid a fee invoice at MAM Academy.',
+        'body' => $inner,
+    ]);
+    mam_send((string) $payer['email'], 'Payment received: ' . (string) $inv['public_ref'], $html, 'fee_receipt', true);
 }

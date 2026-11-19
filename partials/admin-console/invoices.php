@@ -101,6 +101,26 @@ $a = $d['aging'] ?? [];
         <?php endif; ?>
       <?php ac_card_close('Prices are typed in the invoice\'s own currency. A waiver reduces the line and is never a cash entry.'); ?>
 
+      <?php if (!empty($det['online'])): ?>
+        <?php ac_card_open('Paid online', count($det['online']) . ''); ?>
+          <div class="ac-tablewrap">
+            <table class="ac-table">
+              <thead><tr><th>Cleared</th><th class="ac-num">Paid</th><th class="ac-num">Credited</th><th>To refund</th></tr></thead>
+              <tbody>
+                <?php foreach ($det['online'] as $o): ?>
+                  <tr>
+                    <td><?= ac_h(substr((string) $o['verified_at'], 0, 10)) ?><div class="ac-sub"><?= ac_h($o['reference'] . ' · ' . ucfirst((string) $o['provider'])) ?></div></td>
+                    <td class="ac-num"><?= ac_h(mam_fee_display((int) $o['fee_minor'], $cur)) ?><div class="ac-sub">₦<?= ac_h(number_format((int) $o['amount_minor'] / 100, 2)) ?> charged</div></td>
+                    <td class="ac-num"><?= ac_h(mam_fee_display((int) $o['credited'], $cur)) ?></td>
+                    <td><?= (int) $o['refund_minor'] > 0 ? ac_pill(mam_fee_display((int) $o['refund_minor'], $cur), 'bad') : ac_h('—') ?></td>
+                  </tr>
+                <?php endforeach; ?>
+              </tbody>
+            </table>
+          </div>
+        <?php ac_card_close('A charge that cleared after the balance was already settled, by hand or by a void, is credited only what was still owed. The rest belongs to the family; refund it from the gateway\'s own dashboard.'); ?>
+      <?php endif; ?>
+
       <?php ac_card_open('Payments received', count($det['payments']) . ''); ?>
         <div class="ac-tablewrap">
           <table class="ac-table">

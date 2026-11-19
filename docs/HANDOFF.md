@@ -1661,10 +1661,7 @@ Built:
   payments, plan approve/decline). Bursaries gained a decision form, with the
   band ceiling stated. Handlers in `admin/index.php` under a new **`fees`**
   capability, super-only by default like refunds. Driven end to end in a browser.
-- Still NOT built: **paying a fee invoice online.** The guardian's Pay button
-  says the office will send a payment link; wiring Paystack/Flutterwave to
-  `fee_invoices` is the next piece, and should settle through
-  `mam_fee_payment_record()` so there is one way an invoice becomes paid.
+- ~~Still NOT built: paying a fee invoice online.~~ Built 2026-11-19, §4u.
 
 ### Six defects in the recent work, fixed
 
@@ -1695,5 +1692,54 @@ owner but not done here: a capped aid fund, a refund record against the
 calendar, transcripts, the "Enrolment" relabel (terms.php is legal text),
 opt-in staff 2FA, a report-only strict CSP, MySQL 8 portability.
 Not verified: whether short APP_KEY installs (<32 chars) have printed cards
-that now fail to verify after f4d33fc — nothing marks them; and the restore
-runbook does not name `api/storage/.app_key`.
+that now fail to verify after f4d33fc — nothing marks them. ~~The restore
+runbook does not name `api/storage/.app_key`~~ — it does now (§4u).
+
+## 4u. 2026-11-19 — a guardian pays a fee invoice online
+
+Branch `afv/mam-audit`. Suite 6770 → **6808, 0 failed**.
+
+- **v92**: `payments.fee_invoice_id`, `fee_minor`, `fee_payer_id`. The Pay button
+  calls `POST /api/parent/fee-pay` (billing scope required, rate-limited), which
+  opens a `purpose='fee'` charge through `mam_fee_online_start()` and returns
+  Paystack's checkout page. Back at `/portal/parent/?paid=REF`, the portal asks
+  `/api/payment/verify` — never the address bar — and the webhook settles it too,
+  whichever lands first, through the same race-safe `mam_payment_settle()`.
+  Settlement records an ordinary `fee_payments` row (method from the gateway's
+  channel: card / transfer / other), so the office sees it with the cash.
+- **Credited in the invoice's currency.** A dollar invoice is charged in naira at
+  the rate the statement already quoted and credited `fee_minor` cents. A naira
+  invoice is charged to the kobo.
+- **Money that clears after the balance moved is kept.** If the office records
+  cash before the charge clears, only what is still owed is credited; the rest is
+  on the payment's note and on the console invoice's new **Paid online** card as
+  "to refund". Measured end to end: ₦100,000 charged against ₦90,000 owed →
+  ₦90,000 credited, ₦10,000 shown to refund, invoice paid.
+- An approved plan offers **Pay instalment N** for its next unpaid instalment; a
+  requested plan does not.
+- Paystack only: it redirects, and the inline checkouts need a gateway script the
+  portal CSP does not admit. With no `PAYSTACK_SECRET_KEY` the button says online
+  payment is not switched on, instead of opening a checkout that cannot finish.
+- Gateway amounts are compared in integer kobo (`mam_payment_amount_ok()`, used
+  by verify and both webhooks); `amount * 100` is float arithmetic and can fail
+  an exact charge, which a kobo-exact fee charge is the first to produce.
+
+**Found on the way: the redesigned console's money figures read zero.** Eight
+queries in `console.php` asked for `status = 'success'`; settlement writes
+`'succeeded'` (as BI and the legacy admin read). So Collected, the ledger's
+accounts and the currency breakdown ignored every payment ever taken. Fixing the
+spelling alone would have put every store order and fee payment into "suspense ·
+unmatched", because that was defined as "no application"; it is now an
+APPLICATION charge (tuition or booking) with no application.
+
+Also: a fully-paid naira family was shown "Due now $0.00"; DEPLOYMENT.md §8.1 now
+says the key of an install without `APP_KEY` lives in `api/storage/.app_key`, to
+copy into `.env` before it is needed.
+
+Verified: PHP suite; the four CI JS checks; three mutations (no fee branch in
+settlement, crediting the full charge, the console's old spelling) each fail the
+new tests; the guardian flow driven in Chromium at 390px with the gateway
+simulated (no Paystack account here), and a real settlement against the dev
+database checked on both the guardian statement and the console. Not exercised:
+a live Paystack charge.
+

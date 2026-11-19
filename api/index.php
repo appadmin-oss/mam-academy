@@ -277,6 +277,7 @@ $r->group('/parent', function (MamRouter $r) use ($f) {
     // including billing-only — that is what the scope exists for.
     $r->get ('/fees',    $f('parent/fees.php'),    [mw_role('parent')]);
     $r->post('/plan',    $f('parent/plan.php'),    [mw_csrf(), mw_role('parent')]);
+    $r->post('/fee-pay', $f('parent/fee-pay.php'), [mw_csrf(), mw_role('parent'), mw_rate_limit('fee_pay', 20, 3600)]);
     $r->get ('/bursary', $f('parent/bursary.php'), [mw_role('parent')]);
     $r->post('/bursary', $f('parent/bursary.php'), [mw_csrf(), mw_role('parent'), mw_rate_limit('bursary', 5, 3600)]);
     $r->get ('/makeup',  $f('parent/makeup.php'),  [mw_role('parent')]);

@@ -3167,3 +3167,11 @@ CREATE TABLE IF NOT EXISTS fee_payments (
   CONSTRAINT chk_feepay_void   CHECK (status <> 'void' OR void_reason IS NOT NULL)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (91) ON DUPLICATE KEY UPDATE version = version;
+
+-- v92 — a guardian pays a fee invoice online: the gateway charge says which
+-- invoice, how much of it in the invoice's own currency, and who paid.
+ALTER TABLE payments ADD COLUMN fee_invoice_id INT NULL;
+ALTER TABLE payments ADD COLUMN fee_minor BIGINT NULL;
+ALTER TABLE payments ADD COLUMN fee_payer_id INT NULL;
+CREATE INDEX idx_pay_fee_invoice ON payments(fee_invoice_id);
+INSERT INTO schema_version (version) VALUES (92) ON DUPLICATE KEY UPDATE version = version;

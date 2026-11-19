@@ -377,8 +377,26 @@ function mam_console_outstanding_cents(): int {
 
 function mam_console_collected_cents(): int {
     return (int) mam_console_scalar('money.collected',
-        "SELECT COALESCE(SUM(amount_usd_cents), 0) FROM payments WHERE status = 'success'", [], 0);
+        "SELECT COALESCE(SUM(amount_usd_cents), 0) FROM payments WHERE " . MAM_CONSOLE_PAID, [], 0);
 }
+
+/**
+ * A charge the gateway confirmed. `'succeeded'` is the one word
+ * mam_payment_settle() writes, and the word the BI screen
+ * (mam_bi_revenue_where) and the legacy admin's revenue tiles read. Every money
+ * figure on this console used to ask for `'success'`, which nothing writes — so
+ * Collected, the ledger's accounts and the currency breakdown all read zero
+ * whatever had come in, beside a legacy screen showing the real revenue.
+ */
+const MAM_CONSOLE_PAID = "status = 'succeeded'";
+
+/**
+ * A charge with nothing to apply it to: an APPLICATION charge (tuition or a
+ * booking fee) whose application is gone. Store orders and fee invoices carry
+ * no application by design, so "application_id IS NULL" alone would put every
+ * one of them in suspense the moment the spelling above was corrected.
+ */
+const MAM_CONSOLE_SUSPENSE = "status = 'succeeded' AND application_id IS NULL AND COALESCE(purpose, 'tuition') NOT IN ('store', 'fee')";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    1. Dashboard
@@ -402,7 +420,7 @@ function mam_console_decisions(): array {
         'why' => 'Waiting for a first look. That is a staffing figure, not an applicant-quality figure.'];
 
     $suspense = mam_console_int('dec.suspense',
-        "SELECT COUNT(*) FROM payments WHERE status = 'success' AND application_id IS NULL");
+        "SELECT COUNT(*) FROM payments WHERE " . MAM_CONSOLE_SUSPENSE);
     if ($suspense > 0) $q[] = ['screen' => 'invoices', 'blocking' => true, 'age' => 'now',
         'title' => $suspense . ' payment' . ($suspense === 1 ? '' : 's') . ' with no matching application',
         'why' => 'Signature verified, nothing to apply it to. Sitting in suspense, not applied.'];
@@ -707,7 +725,7 @@ function mam_console_invoices(array $q = []): array {
         'rows'  => $rows,
         'suspense' => mam_console_rows('inv.suspense',
             "SELECT reference, provider, provider_reference, amount, currency, amount_usd_cents, created_at
-               FROM payments WHERE status = 'success' AND application_id IS NULL
+               FROM payments WHERE " . MAM_CONSOLE_SUSPENSE . "
               ORDER BY created_at DESC LIMIT 10"),
         'outstanding' => mam_console_outstanding_cents(),
         'collected'   => mam_console_collected_cents(),
@@ -739,6 +757,23 @@ function mam_console_invoice_detail(int $id): ?array {
     $inv['plan_row'] = mam_db_row("SELECT * FROM fee_payment_plans WHERE invoice_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [$id]);
     $inv['editable'] = mam_fee_editable(['status' => $row['status']]);
     $inv['has_guardian'] = $row['guardian_id'] !== null;
+    /* Online charges against this invoice that have CLEARED, beside what each
+     * one was credited. A charge can clear after the office has recorded the
+     * same money by hand, or after a void; the family has paid either way, so
+     * the difference is a refund the office owes and must be able to see here,
+     * not only in the audit log. */
+    $inv['online'] = [];
+    foreach (mam_console_rows('inv.online',
+        "SELECT p.reference, p.provider, p.fee_minor, p.amount_minor, p.verified_at,
+                COALESCE((SELECT SUM(fp.amount_minor) FROM fee_payments fp
+                           WHERE fp.invoice_id = p.fee_invoice_id AND fp.reference = p.reference
+                             AND fp.status = 'recorded'), 0) AS credited
+           FROM payments p
+          WHERE p.fee_invoice_id = ? AND p.purpose = 'fee' AND " . MAM_CONSOLE_PAID . "
+          ORDER BY p.id", [$id]) as $o) {
+        $o['refund_minor'] = max(0, (int) $o['fee_minor'] - (int) $o['credited']);
+        $inv['online'][] = $o;
+    }
     return $inv;
 }
 
@@ -754,21 +789,21 @@ function mam_console_ledger(): array {
 
     $byCur = mam_console_rows('led.bycur',
         "SELECT currency, COUNT(*) n, COALESCE(SUM(amount_usd_cents),0) usd
-           FROM payments WHERE status = 'success' GROUP BY currency ORDER BY usd DESC");
+           FROM payments WHERE " . MAM_CONSOLE_PAID . " GROUP BY currency ORDER BY usd DESC");
 
     $unpriced = mam_console_int('led.unpriced',
-        "SELECT COUNT(*) FROM payments WHERE status = 'success' AND amount_usd_cents IS NULL");
+        "SELECT COUNT(*) FROM payments WHERE " . MAM_CONSOLE_PAID . " AND amount_usd_cents IS NULL");
 
     return [
         'rows' => $rows,
         'accounts' => [
-            ['label' => 'Tuition received',   'cents' => mam_console_int('led.tuition',
-                "SELECT COALESCE(SUM(amount_usd_cents),0) FROM payments WHERE status='success' AND (purpose IS NULL OR purpose <> 'store')")],
+            ['label' => 'Tuition & fees received', 'cents' => mam_console_int('led.tuition',
+                "SELECT COALESCE(SUM(amount_usd_cents),0) FROM payments WHERE " . MAM_CONSOLE_PAID . " AND (purpose IS NULL OR purpose <> 'store')")],
             ['label' => 'Store & materials',  'cents' => mam_console_int('led.store',
-                "SELECT COALESCE(SUM(amount_usd_cents),0) FROM payments WHERE status='success' AND purpose = 'store'")],
+                "SELECT COALESCE(SUM(amount_usd_cents),0) FROM payments WHERE " . MAM_CONSOLE_PAID . " AND purpose = 'store'")],
             ['label' => 'Student receivable', 'cents' => mam_console_outstanding_cents()],
             ['label' => 'Suspense · unmatched', 'cents' => mam_console_int('led.susp',
-                "SELECT COALESCE(SUM(amount_usd_cents),0) FROM payments WHERE status='success' AND application_id IS NULL")],
+                "SELECT COALESCE(SUM(amount_usd_cents),0) FROM payments WHERE " . MAM_CONSOLE_SUSPENSE)],
             ['label' => 'Gift aid credited',  'cents' => -mam_console_int('led.aid',
                 "SELECT COALESCE(SUM(amount_minor),0) FROM fee_invoice_credits")],
         ],

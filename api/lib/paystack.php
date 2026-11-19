@@ -38,14 +38,17 @@ function mam_paystack_request(string $method, string $path, array $payload = [])
     return ['code' => $code, 'data' => $data, 'raw' => $resp];
 }
 
-function mam_paystack_initialize(string $email, int $amountKobo, string $reference, array $metadata = []): array {
+function mam_paystack_initialize(string $email, int $amountKobo, string $reference, array $metadata = [], ?string $callbackPath = null): array {
+    // $callbackPath: where the buyer lands afterwards. The default is the
+    // applicant's thank-you page; a guardian paying fees returns to the portal.
+    $base = rtrim((string)mam_env('APP_URL', ''), '/');
     return mam_paystack_request('POST', '/transaction/initialize', [
         'email' => $email,
         'amount' => $amountKobo,
         'reference' => $reference,
         'currency' => 'NGN',
         'metadata' => $metadata,
-        'callback_url' => rtrim((string)mam_env('APP_URL', ''), '/') . '/thank-you?ref=' . urlencode($reference),
+        'callback_url' => $base . ($callbackPath ?? ('/thank-you?ref=' . urlencode($reference))),
     ]);
 }
 

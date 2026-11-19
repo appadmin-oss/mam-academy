@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 91;
+const MAM_SCHEMA_TARGET = 92;
 
 /**
  * Open (and cache) the PDO connection.
@@ -3590,6 +3590,19 @@ function mam_db_migrate(PDO $db): void {
               CHECK(status <> 'void' OR void_reason IS NOT NULL)
             );
             CREATE INDEX IF NOT EXISTS idx_feepay_invoice ON fee_payments(invoice_id, status);
+        ",
+        /* v92 — a guardian pays a fee invoice ONLINE (fees.php mam_fee_online_start).
+         * The gateway charge is a `payments` row like every other (purpose='fee'),
+         * so verify and both webhooks settle it through the one shared path. These
+         * three say what it was FOR: which invoice, how much of it in the invoice's
+         * own currency (the naira charge is a conversion and must never be what is
+         * credited), and who pressed Pay — the receipt goes to them. No FK on the
+         * invoice: `payments` is the money ledger and outlives anything it paid. */
+        92 => "
+            ALTER TABLE payments ADD COLUMN fee_invoice_id INTEGER;
+            ALTER TABLE payments ADD COLUMN fee_minor INTEGER;
+            ALTER TABLE payments ADD COLUMN fee_payer_id INTEGER;
+            CREATE INDEX IF NOT EXISTS idx_pay_fee_invoice ON payments(fee_invoice_id);
         ",
     ];
 

@@ -24,6 +24,10 @@ $order = null;
 if ($purpose === 'store') {
     $order = mam_db_row('SELECT * FROM store_orders WHERE reference = ?', [$ref]);
     if (!$order) mam_fail('order_not_found', 404);
+} elseif ($purpose === 'fee') {
+    // A fee invoice paid online: the subject is the invoice, and there is no
+    // application. Settlement checks it; a missing one is logged, not a 404 —
+    // the gateway already has the money.
 } else {
     $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$payment['application_id']]);
     if (!$app) mam_fail('application_not_found', 404);
@@ -44,8 +48,7 @@ try {
         // a token amount and still be marked "paid".
         $paidKobo     = (float)($data['amount'] ?? 0);
         $expectedKobo = (float)$payment['amount'] * 100;
-        $currencyOk   = strtoupper((string)($data['currency'] ?? 'NGN')) === 'NGN';
-        $ok = ($status === 'success' && $currencyOk && $paidKobo >= $expectedKobo);
+        $ok = ($status === 'success' && mam_payment_amount_ok($payment, $paidKobo, (string)($data['currency'] ?? 'NGN')));
         if ($status === 'success' && !$ok) {
             mam_log('warn', 'paystack_amount_or_currency_mismatch', ['ref' => $ref, 'paid_kobo' => $paidKobo, 'expected_kobo' => $expectedKobo, 'currency' => $data['currency'] ?? '']);
         }
@@ -67,7 +70,8 @@ try {
         $crossBound  = $verifiedRef !== ''
             && strcasecmp($verifiedRef, $ref) !== 0
             && mam_db_row('SELECT 1 FROM payments WHERE reference = ?', [$verifiedRef]) !== null;
-        $ok = ($status === 'successful' && $currencyOk && !$crossBound && (float)($data['amount'] ?? 0) >= (float)$payment['amount']);
+        $ok = ($status === 'successful' && $currencyOk && !$crossBound
+               && mam_payment_amount_ok($payment, (float)($data['amount'] ?? 0) * 100, (string)($data['currency'] ?? 'NGN')));
         if ($status === 'successful' && !$ok) {
             mam_log('warn', 'flw_amount_or_currency_mismatch', ['ref' => $ref, 'paid' => $data['amount'] ?? 0, 'expected' => $payment['amount'], 'currency' => $data['currency'] ?? '', 'tx_ref' => $verifiedRef, 'cross_bound' => $crossBound]);
         }
