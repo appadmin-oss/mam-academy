@@ -6,13 +6,11 @@ $email = mam_email(mam_str($in, 'email', 120));
 $name  = mam_str($in, 'name', 120);
 $role  = mam_str($in, 'role', 16);
 $phone = mam_str($in, 'phone', 24) ?: null;
-$password = mam_str($in, 'password', 200);
 
 $errors = [];
 if (!$email) $errors[] = 'email';
 if (!$name)  $errors[] = 'name';
-if (!in_array($role, ['admin', 'instructor', 'student'], true)) $errors[] = 'role';
-if (strlen($password) < 8) $errors[] = 'password';
+if (!in_array($role, ['admin', 'instructor', 'student', 'parent'], true)) $errors[] = 'role';
 if ($errors) mam_fail('validation', 422, ['fields' => $errors]);
 
 $existing = mam_db_row('SELECT id FROM users WHERE email = ?', [$email]);
@@ -23,8 +21,9 @@ $id = mam_db_insert('users', [
     'name'  => $name,
     'phone' => $phone,
     'role'  => $role,
-    'password_hash' => password_hash($password, PASSWORD_BCRYPT),
-    'must_change_password' => 1,
+    // No password is set or emailed: the person is sent a link to choose one.
+    'password_hash' => mam_auth_unusable_password(),
+    'must_change_password' => 0,
 ]);
 
 // Mirror the primary role into the multi-role join so the two role stores
@@ -39,13 +38,8 @@ if ($role === 'student') {
     try { mam_enrollment_ref_generate($id); } catch (Throwable $e) { /* non-fatal — admin can trigger later */ }
 }
 
-$loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
 // The user already exists; a mail issue must not fail the admin action.
-try {
-    mam_send($email, 'Your MAM Academy account is ready',
-        mam_email_account_created($name, $email, $password, $role, $loginUrl),
-        'account_created', true);
-} catch (Throwable $e) { mam_log('warn', 'mail_build_failed', ['context' => 'account_created', 'err' => $e->getMessage()]); }
+$invited = (bool) mam_auth_send_invite($id, $role, 'account_invite');
 
 mam_audit('create', 'user', $id, ['role' => $role, 'email' => $email]);
-mam_ok(['user_id' => $id]);
+mam_ok(['user_id' => $id, 'invited' => $invited]);

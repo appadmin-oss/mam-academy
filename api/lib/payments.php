@@ -299,19 +299,13 @@ function mam_payment_settle_tuition(int $appId): ?string {
             }
         }
 
-        if (empty($provision['password'])) return 'portal_already_provisioned';
+        if (empty($provision['created'])) return 'portal_already_provisioned';
 
         // A LINK to choose a password, not the password itself. This used to email
         // a temporary one in a dashed box and tell the family to change it on first
         // sign-in — which meant a plaintext credential sitting in an inbox (usually
         // a parent's shared one) that could not be revoked once sent, and taught
-        // exactly the habit phishing relies on.
-        //
-        // mam_ensure_student_user() still generates one, because other callers read
-        // it; it is overwritten here with a hash of random bytes so no plaintext is
-        // valid, and the invitation becomes the only way in.
-        mam_db_update('users', ['password_hash' => mam_auth_unusable_password(), 'must_change_password' => 0],
-            ['id' => (int) $provision['user']['id']]);
+        // exactly the habit phishing relies on. The provisioner no longer makes one.
         $inv = mam_auth_send_invite((int) $provision['user']['id'], 'student', 'portal_welcome');
         // A failed mint is reported, never silent: "the family never got the link"
         // is the support question this produces, and the answer has to be in the log.

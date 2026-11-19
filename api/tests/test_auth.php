@@ -34,13 +34,16 @@ t_ok(!mam_user_has_role($mu, 'student'), 'unrelated role still refused');
 // ── Student auto-provision from a customer (tuition-paid path) ──
 $cid = mam_db_insert('customers', ['email' => 't_cust@x.dev', 'first_name' => 'Ada', 'last_name' => 'Obi', 'phone' => '+2348000000']);
 $p1 = mam_ensure_student_user((int)$cid);
-t_ok(!empty($p1['password']) && strlen($p1['password']) === 10, 'first provision returns a 10-char temp password');
+// No password is generated any more (HANDOFF §4w): three callers made one and
+// gave it to nobody, one emailed it in plain text. The account is reached by an
+// invitation the caller sends; `created` says one is owed.
+t_ok($p1['password'] === null && $p1['created'] === true, 'first provision creates the account and returns NO password');
 $su = mam_db_row('SELECT * FROM users WHERE email = ?', ['t_cust@x.dev']);
 t_eq($su['role'], 'student', 'provisioned as a student');
-t_eq((int)$su['must_change_password'], 1, 'temp password is flagged for forced change');
-t_ok(password_verify($p1['password'], $su['password_hash']), 'temp password verifies against the stored hash');
+t_eq((int)$su['must_change_password'], 0, 'nothing to force-change: the invitation sets the first password');
+t_ok(str_starts_with((string)$su['password_hash'], '$2y$') && !password_verify('', $su['password_hash']), 'the stored hash is a real bcrypt of something nobody knows');
 $p2 = mam_ensure_student_user((int)$cid);
-t_ok($p2['password'] === null, 're-provisioning is idempotent (no new password)');
+t_ok($p2['password'] === null && $p2['created'] === false, 're-provisioning is idempotent and owes no invitation');
 t_eq((int)$p2['user']['id'], (int)$su['id'], 're-provision returns the same account');
 
 // ── The application headshot becomes the portal avatar automatically ──
@@ -250,8 +253,11 @@ t_ok(strpos($ivPage, 'valid for 7 days') !== false, 'and its expiry sentence');
 $ivPay = (string) file_get_contents(dirname(__DIR__) . '/lib/payments.php');
 t_ok(strpos($ivPay, 'mam_auth_send_invite') !== false, 'payment settlement sends an invitation');
 t_ok(strpos($ivPay, 'Temporary password') === false, 'and no longer emails a temporary password');
-t_ok(strpos($ivPay, 'mam_auth_unusable_password') !== false,
-    'overwriting the generated one, so no plaintext it produced is ever valid');
+$ivAuth = (string) file_get_contents(dirname(__DIR__) . '/lib/auth.php');
+$ivEns  = substr($ivAuth, (int) strpos($ivAuth, 'function mam_ensure_student_user'), 3000);
+t_ok(strpos($ivEns, 'mam_auth_unusable_password()') !== false && strpos($ivEns, 'random_bytes(5)') === false,
+    'the provisioner itself never makes a usable password, so there is no plaintext for any caller to lose or send');
+t_ok(strpos($ivPay, "empty(\$provision['created'])") !== false, 'and settlement invites exactly when an account was created');
 $ivSummer = (string) file_get_contents(dirname(__DIR__) . '/routes/admin/summer.php');
 t_ok(strpos($ivSummer, "mam_auth_send_invite((int) \$enrolment['user_id'], 'student'") !== false,
     'a summer enrolment invites the child');

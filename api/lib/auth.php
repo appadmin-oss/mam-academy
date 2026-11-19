@@ -434,23 +434,28 @@ function mam_ensure_student_user(int $customerId): array {
         // Backfill the avatar if the account never had one and a headshot exists.
         if ($avatar && empty($existing['avatar_url'])) $patch['avatar_url'] = $avatar;
         if ($patch) { mam_db_update('users', $patch, ['id' => (int)$existing['id']]); $existing = mam_db_row('SELECT * FROM users WHERE id = ?', [(int)$existing['id']]); }
-        return ['user' => $existing, 'password' => null];
+        return ['user' => $existing, 'password' => null, 'created' => false];
     }
 
-    $plain = bin2hex(random_bytes(5)); // 10-char temp password
+    /* No password is generated, ever (HANDOFF §4w). This used to return a
+     * 10-character temporary one that three of its five callers never sent to
+     * anybody — the account existed and nobody could get into it — and one
+     * emailed in plain text. The account gets a hash of random bytes nobody
+     * knows; the caller sends the invitation (mam_auth_send_invite), which is
+     * the only way in. `created` says whether one is owed. */
     $userId = mam_db_insert('users', [
         'email'         => $cust['email'],
-        'password_hash' => password_hash($plain, PASSWORD_BCRYPT),
+        'password_hash' => mam_auth_unusable_password(),
         'role'          => 'student',
         'name'          => trim(($cust['first_name'] ?? '') . ' ' . ($cust['last_name'] ?? '')),
         'phone'         => $cust['phone'],
         'customer_id'   => $customerId,
         'avatar_url'    => $avatar,
-        'must_change_password' => 1,
+        'must_change_password' => 0,
     ]);
     $user = mam_db_row('SELECT * FROM users WHERE id = ?', [$userId]);
     mam_audit('create', 'user', $userId, ['role' => 'student', 'auto' => true]);
-    return ['user' => $user, 'password' => $plain];
+    return ['user' => $user, 'password' => null, 'created' => true];
 }
 
 /**
@@ -537,10 +542,15 @@ function mam_auth_invite(int $userId, int $ttl = MAM_INVITE_TTL_SEC): ?array {
 function mam_auth_send_invite(int $userId, string $role = 'student', string $context = 'account_invite'): ?array {
     $inv = mam_auth_invite($userId);
     if (!$inv) return null;
+    // `sent` says whether the email actually left. The link exists either way
+    // (and is returned, as before), but a caller reporting to an operator must
+    // not say "invitation sent" about a message that failed.
+    $inv['sent'] = false;
     if (!function_exists('mam_send') || !function_exists('mam_email_account_invite')) return $inv;
     try {
         $ok = mam_send($inv['email'], 'Set up your MAM Academy account',
             mam_email_account_invite($inv['name'], $inv['link'], $role, $inv['ttl_days']), $context);
+        $inv['sent'] = (bool) $ok;
         if (!$ok) mam_log('warn', 'invite_email_failed', ['user' => $userId, 'context' => $context]);
     } catch (Throwable $e) {
         mam_log('warn', 'invite_email_failed', ['user' => $userId, 'err' => $e->getMessage()]);

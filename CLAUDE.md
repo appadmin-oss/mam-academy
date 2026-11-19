@@ -918,7 +918,7 @@ the notation showcase.**
   REQUEST (v37); admin approves (?v=users#faculty) → single-use, 7-day HMAC link to
   `/instructor-apply` (details + headshot, v36 `instructor_applications`); submit consumes
   the invite (never reusable) and directs the candidate to book their interview (/book).
-  Admin user-create emails credentials (`mam_email_account_created`).
+  Admin user-create emails an INVITATION to set a password (`mam_auth_send_invite`); no password is ever typed or emailed (HANDOFF §4w).
 - ✅ **Versioning** — API: `MAM_API_VERSION` + `X-MAM-API-Version` header; `/api/v1/…`
   aliases the current major, unknown majors 404. UI: `MAM_CONFIG.uiVersion`; both shown
   in the admin sidebar (UI · API · schema).
@@ -1297,6 +1297,46 @@ Two conventions these established:
   `payments.amount` — that is the *charge* currency, and summing NGN into a USD
   total is the bug the v61 column exists to prevent. NULL = unpriced, counted
   and disclosed separately rather than silently dropped.
+
+## Member records, the roster and onboarding (HANDOFF §4w — ported from NGG)
+
+`api/lib/members.php`, schema v94–v95. NGG's member management, ported to the
+people MAM already had. The rules, each easy to "simplify" away:
+
+- **One status setter, `mam_member_set_status()`.** Every change to whether
+  somebody can sign in goes through it: a reason to suspend
+  (`MAM_MEMBER_REASON_MIN`), a `member_status_log` row (who, when, why), the
+  person's sessions ended at once, and two refusals — `own_account` and
+  `last_super_admin`. `user_edit` refuses a role change that would do the same
+  lockout (`mam_member_role_change_refusal()`). Erasure (`closed`) and
+  break-glass (`system`) are written only by their own code.
+- **A members list does not administer staff** (`staff_account`): an admin or
+  instructor BY ANY ROLE they hold is refused by every roster action.
+- **The member number is minted where an enrolment first goes active**
+  (`mam_lms_transition()` → `mam_member_ensure_ref()`), beside the ID card,
+  because the JE/MAM prefix depends on the programme. Highest + 1, never reissued.
+- **The roster** (console Students): filters and sort ALLOW-LISTED with a
+  fallback, true totals, paging, attendance in one grouped query, the band shown
+  and never a sort key. Bulk actions are ONE declaration
+  (`mam_member_bulk_actions()`), validated before any write, capped at
+  `MAM_MEMBERS_BULK_MAX`, a verdict per row with `unchanged` kept apart, one
+  `member_bulk_runs` row + one audit per run. "All N matching" is resolved on the
+  server from the filter (`mam_console_students_ids()`), never from the page.
+  Duplicates (same name / same phone) are LISTED, never merged.
+- **No password is ever generated, typed or emailed.** `mam_ensure_student_user()`
+  and `mam_parent_provision()` create accounts with `mam_auth_unusable_password()`
+  and return `created`; every caller sends `mam_auth_send_invite()`. Admin create
+  and reset send a link. Three paths used to make a password nobody received; two
+  emailed one in plain text. `mam_email_account_created()` is deleted on purpose.
+  `mam_auth_send_invite()` returns `sent` — report THAT to an operator, not
+  whether a link exists.
+- **Onboarding is DERIVED, never ticked** (`mam_onboarding_batch()`): signed in,
+  member number, photo, guardian (under 18; unknown age counts as a child),
+  consents RECORDED (a no counts), enrolled, ID card, first attendance. Money is
+  deliberately not an item. The reminder tells a family only what THEY can do,
+  and its quiet period reads `mail_log` rows that did not fail — a failed send
+  must not block the retry.
+- Not ported, deliberately: merging records, CSV import, two-person approvals.
 
 ## Performance marking — the audio-only control (`api/lib/marking.php`)
 

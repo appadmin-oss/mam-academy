@@ -801,11 +801,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $rel   = mam_str($_POST, 'relationship', 32) ?: 'guardian';
         $me    = mam_current_user();
         if ($sid < 1 || $email === '') { header('Location: ?v=guardians&err=' . urlencode('Enter a student id and guardian email.')); exit; }
-        try { mam_parent_link($email, $sid, $rel, $me ? (int)$me['id'] : null); }
+        try { $gl = mam_parent_link($email, $sid, $rel, $me ? (int)$me['id'] : null); }
         catch (\Throwable $e) { header('Location: ?v=guardians&err=' . urlencode('Could not link this guardian.')); exit; }
-        // A newly-created guardian must set a password via the reset flow — we
-        // never surface the temp secret in a URL.
-        header('Location: ?v=guardians&student=' . $sid . '&ok=1'); exit;
+        // A guardian account made just now is sent an invitation. It used to be
+        // made with a password nobody was given, so the guardian could never sign in.
+        $gInv = !empty($gl['account_created']) ? mam_auth_send_invite((int) $gl['parent_id'], 'parent', 'guardian_invite') : null;
+        header('Location: ?v=guardians&student=' . $sid . '&ok=' . urlencode(!empty($gl['account_created'])
+            ? ($gInv ? 'Linked. The guardian was emailed an invitation to set a password.' : 'Linked, but the invitation could not be sent.')
+            : 'Linked to their existing account.')); exit;
     }
     if ($action === 'guardian_unlink') {
         $pid = (int)($_POST['parent_id'] ?? 0);
@@ -909,24 +912,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 if ($app && $app['customer_id']) {
                     try {
                         $prov = mam_ensure_student_user((int)$app['customer_id']);
-                        if ($prov['password']) {
-                            $customer = mam_db_row('SELECT * FROM customers WHERE id = ?', [(int)$app['customer_id']]);
-                            $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login.html';
-                            $name = htmlspecialchars(trim($customer['first_name'] . ' ' . $customer['last_name']), ENT_QUOTES);
-                            $body = "<!doctype html><html><body style='background:#120D08;color:#fff;font-family:Arial,sans-serif;padding:24px'>"
-                                  . "<table style='max-width:560px;margin:0 auto;background:#1A120B;border:1px solid #251A10;border-radius:18px;overflow:hidden'>"
-                                  . "<tr><td style='background:linear-gradient(135deg,#E08A1A,#FBBF24);padding:24px;text-align:center'>"
-                                  . "<div style='font-family:Impact,sans-serif;font-size:24px;color:#1A120B;font-weight:900;letter-spacing:.08em'>MAM ACADEMY</div></td></tr>"
-                                  . "<tr><td style='padding:32px 28px;color:#FBF7F3;line-height:1.7'>"
-                                  . "<h2 style='font-family:Georgia,serif;margin:0 0 12px;color:#fff'>Welcome, $name</h2>"
-                                  . "<p>Your application has been confirmed. Sign in to your portal to track your classes and MAM Auditer placement.</p>"
-                                  . "<div style='background:#251A10;border:1px dashed #FBBF24;border-radius:10px;padding:14px 18px;font-family:monospace;font-size:14px;color:#FBBF24;margin:16px 0'>"
-                                  . "<div>Email: <strong>" . htmlspecialchars($customer['email']) . "</strong></div>"
-                                  . "<div>Temporary password: <strong>" . htmlspecialchars($prov['password']) . "</strong></div></div>"
-                                  . "<p>Please change this password on first sign-in.</p>"
-                                  . "<p><a href='$loginUrl' style='display:inline-block;padding:12px 22px;background:linear-gradient(135deg,#E08A1A,#FBBF24);color:#1A120B;border-radius:8px;font-weight:800;text-decoration:none'>Open student portal →</a></p>"
-                                  . "</td></tr></table></body></html>";
-                            @mam_send_mail($customer['email'], 'Your MAM Academy student portal is ready', $body, true);
+                        // A link to set a password, never a password: this used to
+                        // email a temporary one in plain text to the applicant.
+                        if (!empty($prov['created'])) {
+                            mam_auth_send_invite((int)$prov['user']['id'], 'student', 'portal_welcome');
                         }
                         // Issue + email the student ID card on approval (idempotent;
                         // gated by the id_card_issue automation). This makes approval a
@@ -1042,12 +1031,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $name  = trim((string)($_POST['name'] ?? ''));
         $role  = (string)($_POST['role'] ?? '');
         $phone = trim((string)($_POST['phone'] ?? '')) ?: null;
-        $pass  = (string)($_POST['password'] ?? '');
         $errors = [];
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'email';
         if ($name === '') $errors[] = 'name';
-        if (!in_array($role, ['admin', 'instructor', 'student'], true)) $errors[] = 'role';
-        if (strlen($pass) < 8) $errors[] = 'password';
+        if (!in_array($role, ['admin', 'instructor', 'student', 'parent'], true)) $errors[] = 'role';
         if ($errors) {
             $flash = ['err', 'Invalid: ' . implode(', ', $errors)];
         } elseif (mam_db_row('SELECT id FROM users WHERE email = ?', [$email])) {
@@ -1058,54 +1045,39 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 'name'  => $name,
                 'phone' => $phone,
                 'role'  => $role,
-                'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
-                'must_change_password' => 1,
+                // No password is typed or emailed: the new person is sent a
+                // 7-day link to choose their own (HANDOFF §4w). An admin used to
+                // type one here and the welcome email carried it in plain text.
+                'password_hash' => mam_auth_unusable_password(),
+                'must_change_password' => 0,
             ]);
+            mam_user_ensure_role($uid, $role);
             if ($role === 'instructor') {
                 try { mam_db_insert('instructor_profiles', ['user_id' => $uid]); } catch (Throwable $e) {}
             }
             mam_audit('create', 'user', $uid, ['role' => $role, 'email' => $email]);
-            // Welcome the new user with their sign-in details (same template the
-            // password-reset flow uses) — an account isn't useful if nobody
-            // tells its owner it exists.
-            $mailed = false;
-            try {
-                $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . ($role === 'admin' ? '/admin/' : '/portal/login');
-                $mailed = mam_send($email, 'Your MAM Academy ' . $role . ' account is ready',
-                    mam_email_account_created($name, $email, $pass, $role, $loginUrl),
-                    'account_created', true);
-            } catch (Throwable $e) { /* account still created; surface below */ }
-            $flash = ['ok', 'User created · #' . $uid . ($mailed ? ' · welcome email sent' : ' · ⚠ welcome email failed — share the password manually')];
+            // An account isn't useful if nobody tells its owner it exists.
+            $mailed = (bool) mam_auth_send_invite($uid, $role, 'account_invite');
+            $flash = ['ok', 'User created · #' . $uid . ($mailed ? ' · an invitation to set a password was emailed'
+                : ' · ⚠ the invitation could not be sent — send one again from the member record')];
         }
         $_SESSION_FLASH = $flash;
         header('Location: ?v=users' . ($flash[0] === 'ok' ? '&ok=1' : '&err=' . urlencode($flash[1])));
         exit;
     }
 
+    /* "Reset" sends the person a link to choose a new password and ends their
+       sessions. It used to take a password an administrator typed and email it
+       in plain text — a credential that sat in an inbox, known to two people. */
     if ($action === 'user_reset') {
         $uid = (int)($_POST['user_id'] ?? 0);
-        $pass = (string)($_POST['password'] ?? '');
-        if ($uid && strlen($pass) >= 8) {
-            mam_db_update('users', [
-                'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
-                'must_change_password' => 1,
-                'updated_at' => date('Y-m-d H:i:s'),
-            ], ['id' => $uid]);
-            mam_db()->prepare('DELETE FROM sessions WHERE user_id = ?')->execute([$uid]);
-            // Email the new credentials so the reset actually reaches the user.
-            $urow = mam_db_row('SELECT email, name, role FROM users WHERE id = ?', [$uid]);
-            if ($urow && !empty($urow['email'])) {
-                $loginUrl = rtrim((string)mam_env('APP_URL', ''), '/') . '/portal/login';
-                try {
-                    mam_send((string)$urow['email'], 'Your MAM Academy password was reset',
-                        mam_email_account_created((string)($urow['name'] ?? ''), (string)$urow['email'], $pass, (string)$urow['role'], $loginUrl),
-                        'account_reset', true);
-                } catch (Throwable $e) { mam_log('warn', 'reset_email_failed', ['err' => $e->getMessage()]); }
-            }
-            mam_audit('admin_reset_password', 'user', $uid, ['emailed' => !empty($urow['email'])]);
-            header('Location: ?v=users&ok=1');
+        $sent = $uid ? mam_auth_send_invite($uid, 'portal', 'admin_password_reset') : null;
+        if ($sent) {
+            mam_member_revoke_sessions($uid);
+            mam_audit('admin_reset_password', 'user', $uid, ['link' => true]);
+            header('Location: ?v=users&ok=' . urlencode('A link to set a new password was emailed. Their sessions have ended.'));
         } else {
-            header('Location: ?v=users&err=' . urlencode('Password must be at least 8 characters.'));
+            header('Location: ?v=users&err=' . urlencode('No link was sent: the account must be active and have an email address.'));
         }
         exit;
     }
@@ -6879,8 +6851,8 @@ V2_READ_TENANT=mam</pre>
       <label>Phone<input type="text" name="phone" value="<?= htmlspecialchars((string)($editUser['phone'] ?? '')) ?>"></label>
       <label>Primary role
         <select name="role" required>
-          <?php foreach (['student','instructor','admin'] as $r): ?>
-            <option value="<?= $r ?>" <?= ($editUser['role'] ?? 'student') === $r ? 'selected' : '' ?>><?= ucfirst($r) ?></option>
+          <?php foreach ($editUser ? ['student','instructor','admin'] : ['student','parent','instructor','admin'] as $r): ?>
+            <option value="<?= $r ?>" <?= ($editUser['role'] ?? 'student') === $r ? 'selected' : '' ?>><?= $r === 'parent' ? 'Parent / guardian' : ucfirst($r) ?></option>
           <?php endforeach; ?>
         </select>
       </label>
@@ -6894,8 +6866,7 @@ V2_READ_TENANT=mam</pre>
       </label>
       <?php endif; ?>
       <?php if (!$editUser): ?>
-        <label>Temporary password<input type="text" name="password" minlength="8" required placeholder="≥ 8 chars"
-          autocomplete="new-password" spellcheck="false"></label>
+        <p class="hint">They are emailed a link to choose their own password; nobody types one for them.</p>
       <?php endif; ?>
       <div class="actions">
         <button class="btn" type="submit"><?= $editUser ? 'Save changes' : 'Create user' ?></button>
@@ -7079,18 +7050,12 @@ V2_READ_TENANT=mam</pre>
           <td class="muted" data-label="Created"><?= htmlspecialchars(substr((string)$u['created_at'], 0, 16)) ?></td>
           <td data-label="">
             <?php $uWho = (string)($u['name'] ?: $u['email']); ?>
-            <form class="inline" method="post" title="Set a new password for this user"
-                  onsubmit="return confirm('Set a new password for <?= htmlspecialchars(addslashes($uWho)) ?>?\n\nTheir current password stops working immediately, and they cannot sign in until you give them the new one.');">
+            <form class="inline" method="post" title="Email this person a link to set a new password"
+                  onsubmit="return confirm('Email <?= htmlspecialchars(addslashes($uWho)) ?> a link to set a new password?\n\nTheir current sessions end now.');">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">
               <input type="hidden" name="action" value="user_reset">
               <input type="hidden" name="user_id" value="<?= (int)$u['id'] ?>">
-              <!-- Deliberately type=text: whoever sets it has to read it back to
-                   the user. autocomplete/spellcheck off so the browser neither
-                   remembers this password nor offers someone else's. -->
-              <input type="text" name="password" class="tiny" placeholder="new password" minlength="8" required
-                     autocomplete="new-password" spellcheck="false"
-                     aria-label="New password for <?= htmlspecialchars($uWho) ?>">
-              <button class="tiny" type="submit" aria-label="Set new password for <?= htmlspecialchars($uWho) ?>">Reset</button>
+              <button class="tiny" type="submit" aria-label="Email a password reset link to <?= htmlspecialchars($uWho) ?>">Send reset link</button>
             </form>
             <form class="inline" method="post" style="display:inline-flex;gap:6px;align-items:center">
               <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf) ?>">

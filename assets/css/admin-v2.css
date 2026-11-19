@@ -1123,3 +1123,10 @@
    so the sentence sits beside a full-size box rather than under a 13px one. */
 [data-admin="v2"] .ac-tick { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; line-height: 1.45; color: var(--ac-ink); }
 [data-admin="v2"] .ac-tick input { width: 20px; height: 20px; margin: 1px 0 0; flex: none; accent-color: var(--ac-accent); }
+
+/* A row of filters sits on ONE line where it fits: a select is full-width by
+   default in the console, which stacked the roster's four filters into four
+   rows above the table. They wrap on a narrow screen instead. */
+[data-admin="v2"] .ac-filters { flex-wrap: wrap; }
+[data-admin="v2"] .ac-filters .ac-select { width: auto; flex: 0 1 auto; min-width: 0; }
+[data-admin="v2"] .ac-filters .ac-searchbox { flex: 1 1 220px; min-width: 0; }

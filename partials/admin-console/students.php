@@ -18,7 +18,8 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
 ?>
 <?php ac_head('Students',
     'Members of the academy · ' . (int) ($d['stages']['active'] ?? 0) . ' current',
-    '<a class="ac-btn" href="' . ac_h(ac_url('students', ['dupes' => 1])) . '">Possible duplicates</a>'
+    '<a class="ac-btn" href="' . ac_h(ac_url('students', ['onboarding' => 1])) . '">Onboarding</a>'
+    . '<a class="ac-btn" href="' . ac_h(ac_url('students', ['dupes' => 1])) . '">Possible duplicates</a>'
     . '<a class="ac-btn" href="/admin/?v=export&amp;type=users.csv">Export</a>'); ?>
 
 <div class="ac-tabs">
@@ -30,7 +31,7 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
   <?php endforeach; ?>
 </div>
 
-<form method="get" class="ac-row ac-mt" role="search">
+<form method="get" class="ac-row ac-mt ac-filters" role="search">
   <input type="hidden" name="v" value="students">
   <?php if ($stage !== ''): ?><input type="hidden" name="stage" value="<?= ac_h($stage) ?>"><?php endif; ?>
   <input class="ac-input ac-input--sm ac-searchbox" type="search" name="q" value="<?= ac_h($d['q'] ?? '') ?>"
@@ -41,7 +42,7 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
     <option value="scholarship"<?= $sel('type', 'scholarship') ?>>Scholarship</option>
   </select>
   <select class="ac-select ac-input--sm" name="missing" aria-label="Missing">
-    <option value="">Nothing missing filter</option>
+    <option value="">Any record</option>
     <option value="number"<?= $sel('missing', 'number') ?>>No member number</option>
     <option value="photo"<?= $sel('missing', 'photo') ?>>No photo</option>
     <option value="guardian"<?= $sel('missing', 'guardian') ?>>No guardian linked</option>
@@ -73,6 +74,24 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
       <?php endif; ?>
     </div>
   <?php ac_card_close('One record of this run is kept, with each member\'s outcome.'); ?>
+<?php endif; ?>
+
+<?php if (is_array($d['onboarding'] ?? null)): $labels = MAM_ONBOARDING_ITEMS; ?>
+  <?php ac_card_open('Still joining', count($d['onboarding']) . ''); ?>
+    <div class="ac-cardbody">
+      <?php if (!$d['onboarding']): ?>
+        <p class="ac-note">Every current student has everything on the onboarding list.</p>
+      <?php else: ?>
+        <div class="ac-defs">
+          <?php foreach ($d['onboarding'] as $ob): ?>
+            <?php ac_def((string) $ob['name'] . ' · ' . (int) $ob['onboarding']['done'] . ' of ' . (int) $ob['onboarding']['total'],
+                '<a href="' . ac_h(ac_url('students', ['id' => (int) $ob['id']])) . '">'
+                . ac_h(implode(', ', array_map(fn($k) => $labels[$k] ?? $k, $ob['onboarding']['missing']))) . '</a>'); ?>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+    </div>
+  <?php ac_card_close('Read from each record, never ticked by hand. To nudge families, tick them in the list below and choose "Remind the family what is missing" — they are told only what they can do themselves.'); ?>
 <?php endif; ?>
 
 <?php if (is_array($d['duplicates'] ?? null)): ?>
@@ -200,7 +219,8 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
                     <?php if ((string) ($r['student_type'] ?? '') === 'scholarship'): ?><?= ac_pill('Scholar', 'accent') ?><?php endif; ?>
                     <?php if ((string) $r['status'] !== 'active'): ?><?= ac_status((string) $r['status']) ?><?php endif; ?>
                   </div>
-                  <div class="ac-sub"><?= ac_h((string) $r['email']) ?><?= (int) $r['guardians'] === 0 ? ' · no guardian' : '' ?></div>
+                  <div class="ac-sub"><?= ac_h((string) $r['email']) ?><?= (int) $r['guardians'] === 0 ? ' · no guardian' : '' ?>
+                    <?php if (!empty($r['onboarding']) && !$r['onboarding']['complete']): ?> · onboarding <?= (int) $r['onboarding']['done'] ?>/<?= (int) $r['onboarding']['total'] ?><?php endif; ?></div>
                 </div>
               </div>
             </td>

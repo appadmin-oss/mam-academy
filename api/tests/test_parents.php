@@ -16,10 +16,10 @@ $PR_stu2 = mam_db_insert('users', ['name' => 'Kid Two', 'email' => 'kid2@test.lo
 $prov = mam_parent_provision('guardian@test.local', 'Pat Guardian');
 t_ok($prov['user'] !== null && (int) $prov['user']['id'] > 0, 'parent user provisioned');
 t_eq($prov['user']['role'], 'parent', 'primary role is parent');
-t_ok($prov['password'] !== null, 'a temp password is returned for a new account');
+t_ok($prov['password'] === null && $prov['created'] === true, 'a new guardian account is created with no password — the invitation is the way in');
 t_ok(mam_user_has_role($prov['user'], 'parent'), 'parent role granted');
 // Re-provision is idempotent (no new password).
-t_ok(mam_parent_provision('guardian@test.local')['password'] === null, 're-provision returns no new password');
+t_ok(mam_parent_provision('guardian@test.local')['created'] === false, 're-provision owes no invitation');
 
 $link = mam_parent_link('guardian@test.local', $PR_stu, 'mother', null);
 t_ok($link['created'], 'guardian linked to the child');

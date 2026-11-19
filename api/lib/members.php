@@ -161,6 +161,13 @@ function mam_member_verdict_words(): array {
         'own_account' => 'You cannot change your own account this way. Ask another administrator.',
         'staff_account' => 'That is a staff account. Change it from People & access, not from the members list.',
         'last_super_admin' => 'That is the last active super administrator. Make somebody else a super administrator first.',
+        'not_active' => 'That account is not active, so nothing was sent.',
+        'already_signed_in' => 'Already signs in; no invitation needed.',
+        'no_address' => 'No email address that mail could be sent to.',
+        'not_sent' => 'The email could not be sent just now (see Email health). Nothing is blocked; try again.',
+        'nothing_for_family' => 'Nothing missing that the family can do — the rest is the office\'s to finish.',
+        'reminded_recently' => 'Reminded in the last ' . MAM_ONBOARDING_QUIET_DAYS . ' days; not sent again yet.',
+        'number_failed' => 'A member number could not be minted.',
         'reason_required' => 'Give a reason for the suspension (at least ' . MAM_MEMBER_REASON_MIN . ' characters). It is kept with the record.',
     ];
 }
@@ -182,6 +189,8 @@ function mam_member_bulk_actions(): array {
         'scholarship' => ['label' => 'Mark as scholarship'],
         'paying'      => ['label' => 'Mark as fee-paying'],
         'number'      => ['label' => 'Give a member number'],
+        'invite'      => ['label' => 'Send a new invitation to set a password'],
+        'remind'      => ['label' => 'Remind the family what is missing'],
     ];
 }
 
@@ -203,8 +212,15 @@ function mam_member_bulk_one(string $action, int $userId, array $params, ?int $a
         case 'number':
             if (!empty($u['enrollment_ref'])) return ['result' => 'unchanged', 'code' => 'unchanged'];
             return mam_member_ensure_ref($userId) !== null ? ['result' => 'applied', 'code' => 'applied'] : ['result' => 'refused', 'code' => 'number_failed'];
+        case 'invite':
+            if ($u['status'] !== 'active') return ['result' => 'refused', 'code' => 'not_active'];
+            if (!empty($u['last_login'])) return ['result' => 'unchanged', 'code' => 'already_signed_in'];
+            $inv = mam_auth_send_invite($userId, 'student', 'account_invite');
+            if (!$inv) return ['result' => 'refused', 'code' => 'no_address'];
+            return !empty($inv['sent']) ? ['result' => 'applied', 'code' => 'applied'] : ['result' => 'refused', 'code' => 'not_sent'];
+        case 'remind':
+            return mam_onboarding_remind($userId, $actorId);
     }
-    if (function_exists('mam_member_bulk_extra')) return mam_member_bulk_extra($action, $u, $params, $actorId);
     return ['result' => 'refused', 'code' => 'unknown_action'];
 }
 
@@ -267,4 +283,154 @@ function mam_member_duplicates(int $limit = 20): array {
             WHERE role = 'student' AND status <> 'closed' AND phone = ? ORDER BY id", [$g['k']])];
     }
     return array_slice($groups, 0, $limit);
+}
+
+/* ── Onboarding: what a new student has and has not got yet ───────────────────
+   NGG's registration checklist, the AUTOMATIC half (RCL_AUTO): every item is
+   READ from the record, never ticked by hand, so the checklist cannot disagree
+   with the data it describes, and there is nothing to keep in step. MAM had no
+   way at all to see that a student enrolled three weeks ago had never signed
+   in, has no photo for their card and no guardian on file.
+
+   Money is deliberately NOT an item. "Nothing is withheld from a child over
+   money" (fees.php) — an onboarding list that showed a fee as the thing between
+   a child and being fully joined would be that, in a different column.
+
+   A guardian is required only for somebody under 18 — and an unknown age counts
+   as a minor, the same default the safeguarding gate uses (vetting.php). */
+
+const MAM_ONBOARDING_ITEMS = [
+    'account'  => 'Has signed in',
+    'number'   => 'Member number',
+    'photo'    => 'Photo on file',
+    'guardian' => 'Guardian linked',
+    'consent'  => 'Consents recorded',
+    'learning' => 'Enrolled in a class or course',
+    'card'     => 'ID card issued',
+    'attended' => 'Attended a first class',
+];
+const MAM_ONBOARDING_QUIET_DAYS = 3;
+
+/** Checklists for many students at once — one grouped query per item, never one per student. */
+function mam_onboarding_batch(array $ids): array {
+    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn($i) => $i > 0)));
+    if (!$ids) return [];
+    $in = implode(',', $ids);   // integers only
+    $set = static function (string $sql) { $o = []; foreach (mam_db_all($sql) as $r) $o[(int) $r['id']] = true; return $o; };
+    $users = [];
+    foreach (mam_db_all("SELECT u.id, u.last_login, u.enrollment_ref, u.avatar_url, c.dob FROM users u
+            LEFT JOIN customers c ON c.id = u.customer_id WHERE u.id IN ($in)") as $u) $users[(int) $u['id']] = $u;
+    $guard   = $set("SELECT DISTINCT student_id AS id FROM parent_links WHERE student_id IN ($in)");
+    $consent = $set("SELECT student_id AS id FROM student_consents WHERE student_id IN ($in)");
+    $learn   = $set("SELECT DISTINCT student_id AS id FROM course_enrollments WHERE status = 'active' AND student_id IN ($in)
+                     UNION SELECT DISTINCT student_id AS id FROM enrollments WHERE status = 'active' AND student_id IN ($in)");
+    $now = date('Y-m-d H:i:s');
+    $card    = $set("SELECT DISTINCT user_id AS id FROM id_cards WHERE status = 'active' AND (expires_at IS NULL OR expires_at > '$now') AND user_id IN ($in)");
+    $went    = $set("SELECT DISTINCT student_id AS id FROM session_attendance WHERE status IN ('present','late') AND student_id IN ($in)
+                     UNION SELECT DISTINCT e.student_id AS id FROM attendance a JOIN enrollments e ON e.id = a.enrollment_id
+                      WHERE a.status IN ('present','late') AND e.student_id IN ($in)");
+    $invited = $set("SELECT DISTINCT user_id AS id FROM password_resets WHERE user_id IN ($in)");
+    $today = function_exists('mam_calendar_today') ? mam_calendar_today() : date('Y-m-d');
+
+    $out = [];
+    foreach ($ids as $id) {
+        $u = $users[$id] ?? null;
+        if (!$u) continue;
+        $age = null;
+        if (!empty($u['dob']) && strtotime((string) $u['dob'])) {
+            $age = (int) ((new DateTime((string) $u['dob']))->diff(new DateTime($today))->y);
+        }
+        $done = [
+            'account'  => !empty($u['last_login']),
+            'number'   => trim((string) $u['enrollment_ref']) !== '',
+            'photo'    => trim((string) $u['avatar_url']) !== '',
+            'guardian' => isset($guard[$id]),
+            'consent'  => isset($consent[$id]),
+            'learning' => isset($learn[$id]),
+            'card'     => isset($card[$id]),
+            'attended' => isset($went[$id]),
+        ];
+        $hints = [
+            'account'  => $done['account'] ? '' : (isset($invited[$id]) ? 'Invited — has not set a password yet' : 'No invitation has been sent'),
+            'guardian' => $age === null ? 'Age unknown, so treated as a child' : '',
+        ];
+        $items = [];
+        foreach (MAM_ONBOARDING_ITEMS as $k => $label) {
+            if ($k === 'guardian' && $age !== null && $age >= 18) continue;   // an adult needs no guardian
+            $items[] = ['key' => $k, 'label' => $label, 'done' => $done[$k], 'hint' => $hints[$k] ?? ''];
+        }
+        $n = count(array_filter($items, fn($i) => $i['done']));
+        $out[$id] = ['items' => $items, 'done' => $n, 'total' => count($items), 'complete' => $n === count($items),
+                     'missing' => array_values(array_map(fn($i) => $i['key'], array_filter($items, fn($i) => !$i['done'])))];
+    }
+    return $out;
+}
+
+function mam_onboarding_checklist(int $userId): ?array {
+    return mam_onboarding_batch([$userId])[$userId] ?? null;
+}
+
+/** Active students whose onboarding is not complete, newest first. */
+function mam_onboarding_incomplete(int $limit = 200): array {
+    $rows = mam_db_all("SELECT id, name, email, created_at FROM users WHERE role = 'student' AND status = 'active'
+        ORDER BY created_at DESC, id DESC LIMIT " . max(1, min(1000, $limit * 3)));
+    $lists = mam_onboarding_batch(array_column($rows, 'id'));
+    $out = [];
+    foreach ($rows as $r) {
+        $c = $lists[(int) $r['id']] ?? null;
+        if ($c && !$c['complete']) $out[] = $r + ['onboarding' => $c];
+        if (count($out) >= $limit) break;
+    }
+    return $out;
+}
+
+/**
+ * Tell a family what is still missing — only what THEY can do (sign in, a photo,
+ * consents), never what the office owes them (a number, a card, a class). To
+ * the student and to every linked guardian. At most once in
+ * MAM_ONBOARDING_QUIET_DAYS per student, so a bulk press twice in a morning does
+ * not send twice. Returns a bulk verdict.
+ */
+function mam_onboarding_remind(int $userId, ?int $actorId): array {
+    $c = mam_onboarding_checklist($userId);
+    if (!$c) return ['result' => 'refused', 'code' => 'not_found'];
+    $theirs = array_values(array_intersect($c['missing'], ['account', 'photo', 'consent']));
+    if (!$theirs) return ['result' => 'unchanged', 'code' => 'nothing_for_family'];
+    $u = mam_db_row('SELECT name, email, status FROM users WHERE id = ?', [$userId]);
+    if (!$u || $u['status'] !== 'active') return ['result' => 'refused', 'code' => 'not_active'];
+    // The quiet period is read from mail_log — the record of what was actually
+    // SENT to this student's address — not from a flag that could say "sent"
+    // about a message that never left.
+    $since = date('Y-m-d H:i:s', time() - MAM_ONBOARDING_QUIET_DAYS * 86400);
+    // A send that FAILED does not count: it must not block the retry for days.
+    if (mam_db_row("SELECT 1 FROM mail_log WHERE context = 'onboarding_reminder' AND status <> 'failed' AND LOWER(to_email) = LOWER(?) AND created_at >= ? LIMIT 1",
+            [(string) $u['email'], $since])) {
+        return ['result' => 'unchanged', 'code' => 'reminded_recently'];
+    }
+    // Signing in comes first, and the only way to do it is the invitation.
+    if (in_array('account', $theirs, true)) mam_auth_send_invite($userId, 'student', 'onboarding_invite');
+    $h = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES);
+    $what = ['account' => 'set a password and sign in to the student portal (the link is in a separate email)',
+             'photo' => 'add a photo for the ID card, from the portal\'s profile page',
+             'consent' => 'record the photo, media and data consents in the portal'];
+    $app = rtrim((string) mam_env('APP_URL', ''), '/');
+    $list = implode('', array_map(fn($k) => '<li>' . $h($what[$k]) . '</li>', $theirs));
+    $to = [['email' => (string) $u['email'], 'name' => (string) $u['name']]];
+    foreach (mam_db_all('SELECT g.email, g.name FROM parent_links pl JOIN users g ON g.id = pl.parent_id WHERE pl.student_id = ?', [$userId]) as $g) $to[] = $g;
+    $sent = 0; $tried = 0;
+    foreach ($to as $r) {
+        if (!filter_var((string) $r['email'], FILTER_VALIDATE_EMAIL)) continue;
+        $tried++;
+        $first = trim(explode(' ', (string) $r['name'])[0] ?? '') ?: 'there';
+        $html = mam_email_layout(['header' => 'MAM ACADEMY', 'preheader' => 'A few things to finish joining MAM Academy',
+            'reason' => 'You received this because you are a student, or the guardian of a student, at MAM Academy.',
+            'body' => "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>A few things to finish joining</h2>"
+                . "<p style='color:#4A3624;font-size:15px'>Hi " . $h($first) . " — to finish " . $h($u['name']) . "'s registration, please:</p>"
+                . "<ul style='color:#4A3624;font-size:15px'>" . $list . "</ul>"
+                . ($app !== '' ? mam_email_button($app . '/portal/login', 'Open the portal') : '')]);
+        if (mam_send((string) $r['email'], 'Finish joining MAM Academy', $html, 'onboarding_reminder', true)) $sent++;
+    }
+    mam_audit('onboarding_remind', 'user', $userId, ['items' => $theirs, 'sent' => $sent, 'by' => $actorId]);
+    if ($tried === 0) return ['result' => 'refused', 'code' => 'no_address'];
+    return $sent > 0 ? ['result' => 'applied', 'code' => 'applied'] : ['result' => 'refused', 'code' => 'not_sent'];
 }

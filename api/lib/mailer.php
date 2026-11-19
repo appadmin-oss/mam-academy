@@ -984,26 +984,10 @@ function mam_email_admin_notice(string $title, array $rows, array $opts = []): s
     ]);
 }
 
-/** New portal account created by an admin — sends the temporary credentials. */
-function mam_email_account_created(string $name, string $email, string $tempPassword, string $role, string $loginUrl): string {
-    $n = htmlspecialchars($name ?: 'there', ENT_QUOTES);
-    $e = htmlspecialchars($email, ENT_QUOTES);
-    $p = htmlspecialchars($tempPassword, ENT_QUOTES);
-    $r = htmlspecialchars(ucfirst($role), ENT_QUOTES);
-    $u = htmlspecialchars($loginUrl, ENT_QUOTES);
-    $inner = "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>Your MAM Academy $r account is ready, $n</h2>
-      <p style='color:#4A3624;font-size:15px'>An administrator created a portal account for you. Sign in with these temporary credentials and you'll be asked to set your own password right away.</p>
-      <div style='background:#FBF4E8;border:1px dashed #B8721B;border-radius:10px;padding:14px 18px;font-family:monospace;font-size:14px;color:#FBBF24;margin:16px 0'>
-        <div>Email: <strong>$e</strong></div><div>Temporary password: <strong>$p</strong></div></div>
-      " . mam_email_button($loginUrl, 'Sign in to your portal') . "
-      <p style='font-size:13px;color:#9A8264;margin:0'>If you weren't expecting this, please contact us — don't share these credentials.</p>";
-    return mam_email_layout([
-        'header' => 'MAM ACADEMY',
-        'preheader' => 'Your MAM Academy portal account and temporary password.',
-        'reason' => 'You received this because an administrator created a MAM Academy portal account for you.',
-        'body' => $inner,
-    ]);
-}
+/* mam_email_account_created() — the template that carried a temporary password
+ * in plain text — was deleted (HANDOFF §4w). Every account is now reached by an
+ * invitation link (mam_auth_send_invite / mam_email_account_invite). Do not bring
+ * back a template whose job is to put a credential in an inbox. */
 
 /** Security notice: password was changed (admin reset, self-service, or token reset). */
 function mam_email_password_changed(string $name, string $context = 'changed'): string {

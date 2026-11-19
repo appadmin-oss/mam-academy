@@ -97,6 +97,11 @@ function mam_auditer_record(int $customerId, string $recommendedPathway, array $
     $studentId = (int)($prov['user']['id'] ?? 0);
     if ($studentId <= 0) throw new RuntimeException('student_unresolved');
     $out['student_id'] = $studentId;
+    // A placement can be the moment an account is first made. It used to be
+    // made with a password nobody was given; the invitation is the way in.
+    if (!empty($prov['created']) && function_exists('mam_auth_send_invite')) {
+        $out['invited'] = (bool) mam_auth_send_invite($studentId, 'student', 'portal_welcome');
+    }
 
     // The capture: one authoritative placement row.
     $out['result_id'] = mam_db_insert('auditer_results', [

@@ -923,8 +923,10 @@ function mam_console_students(array $q = []): array {
             $att[(int) $a['student_id']] = $a;
         }
     }
+    $onb = function_exists('mam_onboarding_batch') ? mam_console_try('stu.onb', fn() => mam_onboarding_batch($ids), []) : [];
     foreach ($rows as &$r) {
         $sid = (int) $r['id'];
+        $r['onboarding'] = $onb[$sid] ?? null;
         $r['attendance'] = isset($att[$sid]) && (int) $att[$sid]['tot'] > 0 ? mam_console_pct((int) $att[$sid]['pres'], (int) $att[$sid]['tot']) : null;
         $m = mam_console_try('stu.mastery', fn() => mam_mastery_publishable(mam_mastery_score_cached($sid)), null);
         $r['band'] = ($m && ($m['band'] ?? null)) ? $m['band'] : null;
@@ -947,6 +949,7 @@ function mam_console_students(array $q = []): array {
         'run' => isset($q['run']) ? mam_console_try('stu.run', fn() => mam_member_bulk_run_get((int) $q['run']), null) : null,
         'member' => isset($q['id']) && (int) $q['id'] > 0 ? mam_console_try('stu.member', fn() => mam_console_member((int) $q['id']), null) : null,
         'duplicates' => !empty($q['dupes']) ? mam_console_try('stu.dupes', fn() => mam_member_duplicates(), []) : null,
+        'onboarding' => !empty($q['onboarding']) ? mam_console_try('stu.onbl', fn() => mam_onboarding_incomplete(100), []) : null,
     ];
 }
 

@@ -33,6 +33,10 @@ try {
         $rel   = mam_str($in, 'relationship', 32) ?: 'guardian';
         if ($email === '' || $sid < 1) mam_fail('validation', 422, ['fields' => ['parent_email', 'student_id']]);
         $res = mam_parent_link($email, $sid, $rel, (int) $u['id']);
+        // A guardian account made just now is invited; it used to be made with a
+        // password nobody was given.
+        $res['invited'] = !empty($res['account_created'])
+            && (bool) mam_auth_send_invite((int) $res['parent_id'], 'parent', 'guardian_invite');
         mam_ok(['link' => $res], $res['created'] ? 201 : 200);
     }
     if ($action === 'unlink') {

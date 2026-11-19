@@ -163,3 +163,74 @@ t_eq([$MB_nested, $MB_depth], [0, 0], 'the rendered roster opens no form inside 
 t_ok(str_contains($MB_html, 'Term fees unpaid') && str_contains($MB_html, 'Status history'), 'the member panel shows the status history with its reason');
 t_ok(str_contains($MB_html, 'That is a staff account'), 'and the last run names who was refused, in words');
 t_ok(substr_count($MB_html, 'name="ids[]"') === 7, 'one tick box per member on the page');
+
+t_group('onboarding — the checklist is read from the record, never ticked');
+
+$OB_cust = mam_db_insert('customers', ['email' => 'obkid@test.local', 'first_name' => 'Ob', 'last_name' => 'Kid', 'phone' => '0801', 'dob' => date('Y-m-d', strtotime('-10 years'))]);
+$OB_prov = mam_ensure_student_user($OB_cust);
+$OB = (int) $OB_prov['user']['id'];
+$OB_c = mam_onboarding_checklist($OB);
+t_eq($OB_c['done'], 0, 'a brand-new ten-year-old has done nothing yet');
+t_eq(array_column($OB_c['items'], 'key'), array_keys(MAM_ONBOARDING_ITEMS), 'and every item applies, guardian included');
+t_ok(!in_array('fees', array_column($OB_c['items'], 'key'), true), 'money is not an onboarding item — nothing is withheld from a child over fees');
+$OB_hint = array_values(array_filter($OB_c['items'], fn($i) => $i['key'] === 'account'))[0]['hint'];
+t_eq($OB_hint, 'No invitation has been sent', 'the sign-in item says why it is not done');
+mam_auth_send_invite($OB, 'student', 'portal_welcome');
+mam_db_update('users', ['avatar_url' => 'https://example.org/p.jpg'], ['id' => $OB]);
+mam_parent_link('obguardian@test.local', $OB);
+mam_consent_set($OB, ['photo_consent' => 0, 'media_consent' => 0, 'data_consent' => 1]);
+$OB_c = mam_onboarding_checklist($OB);
+$OB_by = array_column($OB_c['items'], null, 'key');
+t_ok($OB_by['photo']['done'] && $OB_by['guardian']['done'] && $OB_by['consent']['done'], 'a photo, a guardian and recorded consents tick themselves off');
+t_ok($OB_by['consent']['done'], 'consents count as RECORDED even where the answer is no — the decision is the step, not a yes');
+t_eq($OB_by['account']['hint'], 'Invited — has not set a password yet', 'an invitation that was not taken up is named as such');
+$OB_adult = mam_db_insert('users', ['name' => 'Ob Adult', 'email' => 'obadult@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active',
+    'customer_id' => mam_db_insert('customers', ['email' => 'obadult@test.local', 'first_name' => 'Ob', 'last_name' => 'Adult', 'dob' => date('Y-m-d', strtotime('-30 years'))])]);
+t_ok(!in_array('guardian', array_column(mam_onboarding_checklist($OB_adult)['items'], 'key'), true), 'an adult has no guardian item');
+$OB_noage = $MB_mk('obnoage@test.local');
+t_eq(array_values(array_filter(mam_onboarding_checklist($OB_noage)['items'], fn($i) => $i['key'] === 'guardian'))[0]['hint'] ?? '',
+    'Age unknown, so treated as a child', 'an unknown age counts as a child, as the safeguarding gate does');
+t_ok(in_array($OB, array_map('intval', array_column(mam_onboarding_incomplete(500), 'id')), true), 'and the student is on the "still joining" list');
+
+t_group('onboarding — a reminder tells the family only what they can do, and not twice in a row');
+
+$OB_mail = static fn(string $ctx) => (int) mam_db_row('SELECT COUNT(*) n FROM mail_log WHERE context = ?', [$ctx])['n'];
+$OB_before = $OB_mail('onboarding_reminder');
+// The harness has no mail transport, so every send FAILS here — which is the
+// case worth pinning first: a failure is reported as such and blocks nothing.
+$OB_r = mam_onboarding_remind($OB, $MB_admin);
+t_eq($OB_mail('onboarding_reminder') - $OB_before, 2, 'a student who has not signed in is reminded, and their guardian too — one each');
+t_eq($OB_r['code'], 'not_sent', 'a send that failed is reported as not sent — not as "no address", and never as done');
+t_eq(mam_onboarding_remind($OB, $MB_admin)['code'], 'not_sent', 'and a failed send does not start the quiet period, so it can be tried again');
+mam_db()->exec("UPDATE mail_log SET status = 'sent' WHERE context = 'onboarding_reminder'");   // as if delivered
+t_eq(mam_onboarding_remind($OB, $MB_admin)['code'], 'reminded_recently', 'once one was delivered, pressing it again the same day sends nothing');
+mam_db_update('users', ['last_login' => date('Y-m-d H:i:s')], ['id' => $OB]);
+$OB_quiet = $MB_mk('obquiet@test.local', 'student', ['last_login' => date('Y-m-d H:i:s'), 'avatar_url' => 'https://example.org/q.jpg']);
+mam_consent_set($OB_quiet, ['data_consent' => 1]);
+t_eq(mam_onboarding_remind($OB_quiet, $MB_admin)['code'], 'nothing_for_family',
+    'a student missing only what the OFFICE owes (a number, a card, a class) is not asked to do anything');
+
+t_group('onboarding — inviting in bulk');
+
+$OB_inv = $MB_mk('obinvite@test.local');
+$OB_out = mam_member_bulk_run('invite', [$OB_inv, $OB_quiet], [], $MB_admin);
+// No mail transport in the harness: the link is minted and the email fails, and
+// the verdict has to say so rather than "done".
+t_eq(array_column($OB_out['results'], 'code', 'id'), [$OB_inv => 'not_sent', $OB_quiet => 'already_signed_in'],
+    'somebody who never signed in is sent a new invitation (reported as NOT sent when the email fails); somebody who signs in is left alone');
+t_ok(mam_db_row('SELECT 1 FROM password_resets WHERE user_id = ?', [$OB_inv]) !== null, 'the link itself is a real single-use token');
+
+t_group('onboarding — every way an account is made sends a link, never a password');
+
+$OB_src = static fn(string $rel) => (string) file_get_contents(dirname(__DIR__) . '/' . $rel);
+t_ok(str_contains($OB_src('lib/enrol-complete.php'), "mam_auth_send_invite(\$studentId, 'student', 'portal_welcome')"),
+    '"Complete enrolment" invites — its step said "sign-in details emailed" while nothing was sent');
+t_ok(str_contains($OB_src('lib/auditer.php'), 'mam_auth_send_invite($studentId'), 'an Auditer placement that makes an account invites');
+t_ok(str_contains($OB_src('routes/admin/parent-link.php'), "'guardian_invite'") && str_contains($MB_adm, "'guardian_invite'"),
+    'linking a new guardian invites them — the account used to be made with a password nobody was given');
+$OB_admin = (string) file_get_contents(dirname(__DIR__, 2) . '/admin/index.php');
+t_ok(!str_contains($OB_admin, 'Temporary password:') && !str_contains($OB_admin, 'password_hash($pass'),
+    'no admin path emails or sets a password an administrator chose');
+t_ok(!str_contains($OB_src('routes/admin/reset-password.php'), 'password_hash(') && !str_contains($OB_src('routes/admin/create-user.php'), 'password_hash($password'),
+    'nor do the JSON twins');
+t_ok(!function_exists('mam_email_account_created'), 'and the template that carried a password in plain text is gone');

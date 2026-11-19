@@ -18,21 +18,23 @@ function mam_parent_provision(string $email, ?string $name = null, ?string $phon
     $existing = mam_db_row('SELECT * FROM users WHERE email = ?', [$email]);
     if ($existing) {
         mam_user_ensure_role((int) $existing['id'], 'parent');
-        return ['user' => $existing, 'password' => null];
+        return ['user' => $existing, 'password' => null, 'created' => false];
     }
-    $plain = bin2hex(random_bytes(5));
+    // No password is generated: the caller sends the invitation (see
+    // mam_ensure_student_user). A temporary one used to be made here and given
+    // to nobody, so a guardian linked by the office could never sign in.
     $userId = mam_db_insert('users', [
         'email'         => $email,
-        'password_hash' => password_hash($plain, PASSWORD_BCRYPT),
+        'password_hash' => mam_auth_unusable_password(),
         'role'          => 'parent',
         'name'          => $name !== null && trim($name) !== '' ? trim($name) : 'Parent/Guardian',
         'phone'         => $phone,
         'status'        => 'active',
-        'must_change_password' => 1,
+        'must_change_password' => 0,
     ]);
     mam_user_ensure_role($userId, 'parent');
     mam_audit('create', 'user', $userId, ['role' => 'parent']);
-    return ['user' => mam_db_row('SELECT * FROM users WHERE id = ?', [$userId]), 'password' => $plain];
+    return ['user' => mam_db_row('SELECT * FROM users WHERE id = ?', [$userId]), 'password' => null, 'created' => true];
 }
 
 /** Link a guardian (by email) to a student. Provisions the parent if needed.
@@ -50,7 +52,7 @@ function mam_parent_link(string $parentEmail, int $studentId, string $relationsh
         $created = true;
         mam_audit('parent_link', 'user', $studentId, ['parent' => $parentId, 'by' => $by]);
     }
-    return ['parent_id' => $parentId, 'student_id' => $studentId, 'password' => $prov['password'], 'created' => $created];
+    return ['parent_id' => $parentId, 'student_id' => $studentId, 'created' => $created, 'account_created' => !empty($prov['created'])];
 }
 
 /** Remove a guardian↔student link. */

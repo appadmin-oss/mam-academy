@@ -594,7 +594,7 @@ function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
             // True only when the guardian account was created just now, so a
             // guardian who already had one is never sent an invitation to an
             // account they are already using.
-            $out['guardian_invite'] = !empty($link['password']);
+            $out['guardian_invite'] = !empty($link['account_created']);
         } catch (Throwable $e) {
             mam_log('warn', 'summer_guardian_link_failed', ['summer_app' => $summerAppId, 'err' => $e->getMessage()]);
         }

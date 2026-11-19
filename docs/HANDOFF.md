@@ -1781,3 +1781,43 @@ console lists it; the downloaded slip is byte-identical to the one sent; a wrong
 retyped reference is refused; the right one credits the invoice and the guardian
 sees nothing outstanding and a receipt.
 
+## 4w. 2026-11-19 — member management and onboarding, ported from NGG
+
+Branch `afv/mam-audit`, three commits. Suite 6859 → **6940, 0 failed**. CLAUDE.md
+has the rules; this is what changed and what was found.
+
+**Records and status (v94).** One status setter with a required reason, a
+history table and two lockout refusals (your own account; the last super
+admin), also on role changes. Staff notes on a person. The member number is
+minted where an enrolment goes active, so office, Summer and Auditer enrolments
+get one (only settlement did). The console's People & access "Sign out" posted an
+action that only ever touched the operator's own sessions — it did nothing.
+
+**Roster (v95).** The console Students screen was 200 rows, unsorted, unpaged,
+with two queries per student. It now has allow-listed filters (status, fee type,
+what is missing) and sort, paging, true totals, a member panel (status +
+history, notes, guardians, checklist, sign-out), possible duplicates, and bulk
+actions — suspend, reactivate, fee type, member number, invite, remind — with a
+verdict per row, shown on the screen the run returns to.
+
+**Onboarding.** Found: `mam_enrol_complete()` said "sign-in details emailed" and
+sent nothing; Auditer placements and office guardian links made accounts with a
+password nobody received; paid/enrolled status changes and admin create/reset
+emailed passwords in plain text. Every path now sends a 7-day invite; no
+password is generated anywhere. Each student has a derived checklist, the
+console lists who is still joining, and a reminder tells families only what they
+can do themselves.
+
+Verified: suite; mutations on own-account, last-super-admin, the history write,
+the nested-form check (the rendered screen is walked), unknown-age-as-child and
+family-only reminders, each failing its test; the roster driven in Chromium
+(filters, tick-all with indeterminate, refused-whole bulk, all-matching, panel,
+note, suspension with reason, onboarding and duplicates views, phone width 390
+with no sideways scroll, a name with an apostrophe rendered correctly).
+
+Not ported, and why: **merge** (NGG needs a per-table policy and blocks on money;
+the users↔customers split makes it riskier here), **CSV import**, and
+**two-person approvals** (MAM managers cannot touch people at all, so there is no
+queued role). Also open: year-round `/apply` collects no guardian email, so an
+under-18's guardian is linked only by the office.
+

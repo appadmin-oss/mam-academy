@@ -219,8 +219,15 @@ function mam_enrol_complete(int $appId, array $overrides = [], ?int $actorId = n
         try {
             $prov = mam_ensure_student_user((int) $app['customer_id']);
             $studentId = (int) ($prov['user']['id'] ?? 0);
+            /* This step used to say "sign-in details emailed" while nothing was
+               sent: the provisioner made a password and nobody received it. The
+               invitation is sent now, and the step says whether it went. */
+            $invited = ($studentId && !empty($prov['created'])) ? mam_auth_send_invite($studentId, 'student', 'portal_welcome') : null;
             $steps[] = ['step' => 'account', 'ok' => (bool) $studentId,
-                        'detail' => $studentId ? 'Portal account created; sign-in details emailed.' : 'Account was not created.'];
+                        'detail' => !$studentId ? 'Account was not created.'
+                            : (empty($prov['created']) ? 'Already had a portal account.'
+                            : (!empty($invited['sent']) ? 'Portal account created; an invitation to set a password was emailed.'
+                                        : 'Portal account created, but the invitation could not be sent — send one from the member record.'))];
             if (!$studentId) return ['ok' => false, 'steps' => $steps, 'plan' => $plan,
                                      'error' => 'The portal account could not be created, so nothing else was attempted.'];
         } catch (Throwable $e) {

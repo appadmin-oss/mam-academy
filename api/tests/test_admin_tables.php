@@ -237,18 +237,17 @@ foreach (['user_reset', 'module_delete'] as $act) {
     t_ok($found > 0 && $found === $guarded, "$act asks before it acts ($guarded/$found forms)");
 }
 // "Are you sure?" is not a confirmation — say what happens.
-t_ok(strpos($admin, 'Their current password stops working immediately') !== false,
+t_ok(strpos($admin, 'a link to set a new password?\\n\\nTheir current sessions end now.') !== false,
     'the password reset states the consequence, not "Are you sure?"');
 t_ok(strpos($admin, 'removed for every student on the course. This cannot be undone.') !== false,
     'deleting a week states who it affects and that it is irreversible');
 
-t_group('admin forms — an admin-set password is never remembered');
+t_group('admin forms — an administrator never sets, sees or sends anybody\'s password');
 
-// Both fields are deliberately type=text: whoever sets the password has to read
-// it back to the person. That makes autocomplete off mandatory rather than
-// optional — otherwise the browser offers to save someone else's credential,
-// and may autofill the admin's own into it.
-t_eq(substr_count($admin, 'autocomplete="new-password" spellcheck="false"'), 2,
-    'both admin-set password fields are excluded from autofill and spellcheck');
-t_ok(strpos($admin, 'Deliberately type=text') !== false,
-    '…and the reason the field is visible is written down, so it is not "fixed" into type=password');
+// There used to be two visible password fields here (create and reset), and the
+// value typed was emailed in plain text. Since HANDOFF §4w both send a link the
+// person uses to choose their own; no admin form takes a password for somebody else.
+$ADM_users = substr($admin, (int) strpos($admin, "\$view === 'users'"));
+t_eq(preg_match_all('/<input[^>]*name="password"/', $ADM_users), 0, 'no form in the users view takes a password for somebody else');
+t_ok(strpos($admin, 'nobody types one for them') !== false, 'and the create form says how the new person gets in');
+t_ok(strpos($admin, 'Send reset link') !== false, 'reset sends a link');
