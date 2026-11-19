@@ -229,6 +229,7 @@ function mam_payment_settle_tuition(int $appId): ?string {
     try {
         $provision  = mam_ensure_student_user((int)$app['customer_id']);
         $studentId  = (int)($provision['user']['id'] ?? 0);
+        if ($studentId > 0 && function_exists('mam_application_link_guardian')) mam_application_link_guardian($app, $studentId);
 
         // Generate the stable enrollment ref (MAM/YY/NNN) — used for QR codes,
         // attendance lookup and the learner-report page. Idempotent: skipped if already set.

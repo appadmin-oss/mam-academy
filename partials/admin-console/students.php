@@ -115,7 +115,8 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
 <?php if ($m): $u = $m['user']; ?>
   <?php ac_card_open((string) ($u['name'] ?: $u['email']), (string) ($u['enrollment_ref'] ?: 'No member number yet'),
       '<a class="ac-btn ac-btn--sm" href="' . ac_h(ac_url('students', $filters)) . '">Close</a>'); ?>
-    <div class="ac-cardbody">
+    <div class="ac-cardbody ac-memgrid">
+     <div>
       <div class="ac-defs">
         <?php ac_def('Email', ac_h((string) $u['email'])); ?>
         <?php ac_def('Status', ac_status((string) $u['status'])); ?>
@@ -123,14 +124,6 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
         <?php ac_def('Signed in', $u['last_login'] ? ac_h(mam_console_age((string) $u['last_login'])) . ' ago' : 'Never'); ?>
         <?php ac_def('Guardians', $m['guardians'] ? ac_h(implode(', ', array_map(fn($g) => $g['name'] . ' (' . $g['access_scope'] . ')', $m['guardians']))) : 'None linked'); ?>
       </div>
-      <?php if (!empty($m['onboarding'])): $ob = $m['onboarding']; ?>
-        <h3 class="ac-label ac-mt">Onboarding · <?= (int) $ob['done'] ?> of <?= (int) $ob['total'] ?></h3>
-        <div class="ac-defs">
-          <?php foreach ($ob['items'] as $it): ?>
-            <?php ac_def((string) $it['label'], ($it['done'] ? ac_status('recorded', 'Done') : ac_pill('To do', 'warn')) . ($it['hint'] ? ' <span class="ac-sub">' . ac_h((string) $it['hint']) . '</span>' : '')); ?>
-          <?php endforeach; ?>
-        </div>
-      <?php endif; ?>
       <?php if ($m['is_staff']): ?>
         <p class="ac-note ac-mt">This person is also staff. Their status is changed from People &amp; access, not from the members list.</p>
       <?php else: ?>
@@ -175,6 +168,17 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
           <?php endforeach; ?>
         </div>
       <?php endif; ?>
+     </div>
+     <div>
+      <?php if (!empty($m['onboarding'])): $ob = $m['onboarding']; ?>
+        <h3 class="ac-label">Onboarding · <?= (int) $ob['done'] ?> of <?= (int) $ob['total'] ?></h3>
+        <div class="ac-defs">
+          <?php foreach ($ob['items'] as $it): ?>
+            <?php ac_def((string) $it['label'], ($it['done'] ? ac_status('recorded', 'Done') : ac_pill('To do', 'warn')) . ($it['hint'] ? ' <span class="ac-sub">' . ac_h((string) $it['hint']) . '</span>' : '')); ?>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+     </div>
     </div>
   <?php ac_card_close('Notes and status history are kept; nothing here is edited after the fact.'); ?>
 <?php endif; ?>

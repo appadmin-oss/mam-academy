@@ -917,6 +917,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                         if (!empty($prov['created'])) {
                             mam_auth_send_invite((int)$prov['user']['id'], 'student', 'portal_welcome');
                         }
+                        // And the guardian the application named gets their own account.
+                        mam_application_link_guardian($app, (int)$prov['user']['id'], $adminUser ? (int)$adminUser['id'] : null);
                         // Issue + email the student ID card on approval (idempotent;
                         // gated by the id_card_issue automation). This makes approval a
                         // reliable delivery point for a normal application, mirroring the

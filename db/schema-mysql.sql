@@ -3272,3 +3272,7 @@ CREATE TABLE IF NOT EXISTS member_bulk_runs (
   CONSTRAINT fk_mbulk_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (95) ON DUPLICATE KEY UPDATE version = version;
+
+-- v96 — the guardian's email on a year-round application, so the guardian can be given their own account.
+ALTER TABLE applications ADD COLUMN parent_email VARCHAR(190) NULL;
+INSERT INTO schema_version (version) VALUES (96) ON DUPLICATE KEY UPDATE version = version;

@@ -231,7 +231,9 @@
 [data-admin="v2"] .ac-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 [data-admin="v2"] .ac-topbar {
   position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px;
-  padding: 11px 20px; background: rgba(241, 243, 246, 0.92);
+  /* Solid, like the strip beneath it: at 92% opacity the page scrolling under
+     it showed through as ghosted words behind the search box. */
+  padding: 11px 20px; background: var(--ac-app);
   border-bottom: 1px solid var(--ac-line);
 }
 [data-admin="v2"] .ac-search {
@@ -272,7 +274,13 @@
   border-radius: 50%; background: var(--ac-bad);
 }
 
-[data-admin="v2"] .ac-scroll { flex: 1; min-width: 0; overflow-y: auto; padding: 22px 20px 56px; }
+/* The DOCUMENT scrolls (the rail and the top bar are sticky against it), so
+   this column must not be a scroll container. It was `overflow-y:auto`, which
+   made it the sticky ancestor of the section strip while never scrolling
+   itself (the shell is min-height, not height) — so the strip, styled sticky,
+   scrolled away with the page. `clip` keeps a wide child from leaking sideways
+   without creating a scroll container. */
+[data-admin="v2"] .ac-scroll { flex: 1; min-width: 0; overflow-x: clip; overflow-y: visible; padding: 22px 20px 56px; }
 [data-admin="v2"] .ac-screen { display: flex; flex-direction: column; gap: 16px; max-width: 1400px; }
 
 /* ── Screen header ────────────────────────────────────────────────────────── */
@@ -772,9 +780,10 @@
   [data-admin="v2"] .ac-rail {
     position: fixed; left: 0; top: 0; bottom: 0; z-index: 70; height: 100vh;
     transform: translateX(-100%); transition: transform 160ms ease;
-    box-shadow: 12px 0 40px rgba(9, 13, 19, 0.34);
   }
-  [data-admin="v2"][data-nav="open"] .ac-rail { transform: none; }
+  /* The shadow belongs to the OPEN drawer. Set on the closed one it bled 40px
+     back into the viewport as a grey band down the left of every phone screen. */
+  [data-admin="v2"][data-nav="open"] .ac-rail { transform: none; box-shadow: 12px 0 40px rgba(9, 13, 19, 0.34); }
   [data-admin="v2"] .ac-navscrim { position: fixed; inset: 0; z-index: 65; background: rgba(15, 20, 28, 0.46); border: 0; width: 100%; }
   [data-admin="v2"] .ac-navscrim[hidden] { display: none; }
   [data-admin="v2"] .ac-hamburger { display: inline-flex; }
@@ -814,7 +823,9 @@
    of content past the edge.
    ───────────────────────────────────────────────────────────────────────── */
 [data-admin="v2"] .ac-strip {
-  position: sticky; top: 0; z-index: 20;
+  /* Under the sticky top bar, not behind it: both used top:0, so had the strip
+     ever stuck it would have slid underneath. */
+  position: sticky; top: var(--ac-topbar-h, 57px); z-index: 19;
   margin: -22px -20px 20px; padding: 16px 20px 0;
   background: var(--ac-app);
   border-bottom: 1px solid var(--ac-line);
@@ -1130,3 +1141,25 @@
 [data-admin="v2"] .ac-filters { flex-wrap: wrap; }
 [data-admin="v2"] .ac-filters .ac-select { width: auto; flex: 0 1 auto; min-width: 0; }
 [data-admin="v2"] .ac-filters .ac-searchbox { flex: 1 1 220px; min-width: 0; }
+
+/* ── Layout repairs (2026-11-19) ─────────────────────────────────────────────
+   A select or a growing input in a ROW is not a full-width form field. Every
+   select in a row stretched to the row's whole width — a two-option status
+   select 1,130px wide — and on a phone a growing input beside two buttons was
+   squeezed to a 10px sliver instead of wrapping onto its own line. */
+[data-admin="v2"] .ac-row > .ac-select { width: auto; flex: 0 1 auto; min-width: 0; }
+[data-admin="v2"] .ac-row > .ac-input.ac-grow { flex: 1 1 220px; }
+
+/* A member record is two columns on a desktop — who they are and what they
+   lack — so a label and its value sit a column apart, not 1,100px apart. */
+[data-admin="v2"] .ac-memgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 36px; align-items: start; }
+@media (max-width: 960px) { [data-admin="v2"] .ac-memgrid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Space BETWEEN the sections of every screen. `.ac-screen` (gap 16px) was the
+   intended wrapper and no screen ever used it, so on every console page each
+   card sat flush on the one above — measured 0px on Dashboard, Invoices,
+   Admissions, Cohorts, Access and Students. Set once here, on the column every
+   screen renders into, rather than in 31 partials. The strip keeps its own
+   bottom margin, so whatever follows it takes none. */
+[data-admin="v2"] .ac-scroll > * + * { margin-top: 16px; }
+[data-admin="v2"] .ac-scroll > .ac-strip + * { margin-top: 0; }

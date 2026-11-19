@@ -129,6 +129,7 @@ try {
         'readiness_signal'       => $v['readinessSignal'],
         'parent_name'            => $v['parentName'],
         'parent_phone'           => $v['parentPhone'],
+        'parent_email'           => $v['parentEmail'],
         'auditer_optin'          => $v['auditer'],
         'include_registration'   => $v['includeRegistration'],
         'include_certification'  => $v['includeCertification'],

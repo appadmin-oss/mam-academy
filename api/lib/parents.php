@@ -512,3 +512,43 @@ function mam_parent_instructor_feedback(int $studentId, int $limit = 10): array 
         return [];
     }
 }
+
+/**
+ * Give an application's guardian their own account, linked to the student, and
+ * invite them — the promise the apply form makes ("they get their own portal
+ * account once you are enrolled"). Called wherever the student's account is
+ * made (payment settlement, Complete enrolment, an admin marking the
+ * application paid, an Auditer placement), so no path forgets it. Idempotent.
+ *
+ * Skipped, never refused, when there is nothing safe to do: no address, a
+ * malformed one, or the student's OWN address — many families apply from one
+ * inbox, and linking it would hand the child's login the guardian's role. The
+ * office then links a guardian by hand and the onboarding list shows it as missing.
+ *
+ * @return array{linked:bool, invited:bool, reason:?string, parent_id:?int}
+ */
+function mam_application_link_guardian(array $app, int $studentId, ?int $by = null): array {
+    $out = ['linked' => false, 'invited' => false, 'reason' => null, 'parent_id' => null];
+    $email = strtolower(trim((string) ($app['parent_email'] ?? '')));
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) { $out['reason'] = 'no_guardian_email'; return $out; }
+    $stu = mam_db_row('SELECT email FROM users WHERE id = ?', [$studentId]);
+    if (!$stu) { $out['reason'] = 'student_not_found'; return $out; }
+    if (strtolower(trim((string) $stu['email'])) === $email) { $out['reason'] = 'same_as_student'; return $out; }
+    try {
+        // Provision first with the name and phone the family gave, so the
+        // account is not called "Parent/Guardian".
+        $prov = mam_parent_provision($email, (string) ($app['parent_name'] ?? '') ?: null, (string) ($app['parent_phone'] ?? '') ?: null);
+        $link = mam_parent_link($email, $studentId, 'guardian', $by);
+        $out['linked'] = true;
+        $out['parent_id'] = (int) $link['parent_id'];
+        if (!empty($prov['created']) && function_exists('mam_auth_send_invite')) {
+            $inv = mam_auth_send_invite((int) $link['parent_id'], 'parent', 'guardian_invite');
+            $out['invited'] = !empty($inv['sent']);
+        }
+    } catch (\Throwable $e) {
+        $out['reason'] = 'link_failed';
+        mam_log('warn', 'application_guardian_link_failed', ['student' => $studentId, 'err' => $e->getMessage()]);
+    }
+    return $out;
+}
+

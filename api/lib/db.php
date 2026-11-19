@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 95;
+const MAM_SCHEMA_TARGET = 96;
 
 /**
  * Open (and cache) the PDO connection.
@@ -3705,6 +3705,11 @@ function mam_db_migrate(PDO $db): void {
               created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
             );
         ",
+        /* v96 — the guardian's EMAIL on a year-round application. The form
+         * promised a guardian "their own portal account once you are enrolled"
+         * and collected only a name and a phone, so no account could ever be
+         * made and every under-16 reached the office's "no guardian" list. */
+        96 => "ALTER TABLE applications ADD COLUMN parent_email TEXT;",
     ];
 
     foreach ($migrations as $version => $sql) {

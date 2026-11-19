@@ -102,6 +102,11 @@ function mam_auditer_record(int $customerId, string $recommendedPathway, array $
     if (!empty($prov['created']) && function_exists('mam_auth_send_invite')) {
         $out['invited'] = (bool) mam_auth_send_invite($studentId, 'student', 'portal_welcome');
     }
+    // The guardian the (newest) application named, with their own account.
+    if (function_exists('mam_application_link_guardian')) {
+        $gApp = mam_db_row("SELECT * FROM applications WHERE customer_id = ? AND COALESCE(parent_email, '') <> '' ORDER BY id DESC LIMIT 1", [$customerId]);
+        if ($gApp) mam_application_link_guardian($gApp, $studentId, $auditedBy);
+    }
 
     // The capture: one authoritative placement row.
     $out['result_id'] = mam_db_insert('auditer_results', [

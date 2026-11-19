@@ -407,6 +407,13 @@ function mam_validate_application(array $in): array {
     $out['readinessReasons'] = $readiness['reasons'];
     $out['parentName']  = mam_str($in, 'parentName',  120) ?: null;
     $out['parentPhone'] = mam_str($in, 'parentPhone', 24)  ?: null;
+    // The guardian's own address, so they can be given their own portal account
+    // at enrolment (mam_application_link_guardian). Required where the guardian
+    // is (under 16); a malformed one is refused rather than stored and later
+    // mailed into the void.
+    $pe = strtolower(trim((string) ($in['parentEmail'] ?? '')));
+    $out['parentEmail'] = $pe !== '' ? mb_substr($pe, 0, 190) : null;
+    if ($out['parentEmail'] !== null && !filter_var($out['parentEmail'], FILTER_VALIDATE_EMAIL)) $errors[] = 'parentEmail';
 
     $out['auditer']               = mam_bool($in, 'auditer');
     $out['includeRegistration']   = mam_bool($in, 'includeRegistration');
@@ -422,6 +429,9 @@ function mam_validate_application(array $in): array {
     // Under-16 (KTAMS) students must have a parent/guardian on record.
     if ($out['programTrack'] === 'KTAMS' && ($out['parentName'] === null || $out['parentName'] === '')) {
         $errors[] = 'parentName';
+    }
+    if ($out['programTrack'] === 'KTAMS' && $out['parentEmail'] === null && !in_array('parentEmail', $errors, true)) {
+        $errors[] = 'parentEmail';
     }
 
     // Class policy agreement (online -> home policy, onsite -> onsite policy).

@@ -1337,6 +1337,13 @@ people MAM already had. The rules, each easy to "simplify" away:
   and its quiet period reads `mail_log` rows that did not fail — a failed send
   must not block the retry.
 - Not ported, deliberately: merging records, CSV import, two-person approvals.
+- **The guardian on `/apply` (v96)** gives an email (`applications.parent_email`,
+  required under 16), and `mam_application_link_guardian()` links and invites
+  them wherever the student's account is made — payment, Complete enrolment,
+  Auditer, admin paid. Add any NEW account-making path to that list (a test
+  sweeps the call sites). An address equal to the student's is never linked:
+  one inbox is one login, and linking it gives the child's login the guardian
+  role.
 
 ## Performance marking — the audio-only control (`api/lib/marking.php`)
 
@@ -1880,6 +1887,11 @@ api/tests/test_console.php      the guards below
   **three** status filters naming values the CHECK constraints forbid (an
   always-zero badge nobody would ever have seen). Add a provider → add it to
   `$CN_providers` in the test, which asserts every screen is covered.
+- ⚠️ **The DOCUMENT scrolls, not `.ac-scroll`.** The rail, top bar and section
+  strip are `position:sticky` against the page; making `.ac-scroll` an overflow
+  container again (`overflow:auto`) silently stops the strip sticking, because
+  a sticky element sticks to its nearest scroll container and that one never
+  scrolls. Sections get their 16px from `.ac-scroll > * + *`, not per screen.
 - **Writes stay in `admin/index.php`.** Every action form posts to `/admin/`, so
   there is one capability table, one audit call and one implementation of
   "approve"/"waive"/"enrol". `_console=<screen>` on the form tells

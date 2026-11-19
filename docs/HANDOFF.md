@@ -1818,6 +1818,37 @@ with no sideways scroll, a name with an apostrophe rendered correctly).
 Not ported, and why: **merge** (NGG needs a per-table policy and blocks on money;
 the users↔customers split makes it riskier here), **CSV import**, and
 **two-person approvals** (MAM managers cannot touch people at all, so there is no
-queued role). Also open: year-round `/apply` collects no guardian email, so an
-under-18's guardian is linked only by the office.
+queued role). (The missing guardian email on `/apply` is closed in §4x.)
 
+
+## 4x. 2026-11-19 — the guardian's email on `/apply`, and the console's layout
+
+**Guardian email (v96).** `/apply`'s guardian screen promised the guardian
+"their own portal account once you are enrolled" and collected only a name and a
+phone, so the account could not be made (the open item at the end of §4w). It
+now asks for their email: required for an under-16 (`KTAMS`), refused when
+malformed, optional for an adult, stored as `applications.parent_email`.
+`mam_application_link_guardian()` (`parents.php`) provisions, links and invites
+the guardian, and runs wherever the student's account is made: payment
+settlement, "Complete enrolment" (reported as a step), an Auditer placement, and
+an admin marking the application paid. It is idempotent and invites only an
+account it has just created. **An address equal to the student's is not
+linked** (`same_as_student`): one inbox is one login, and linking it would give
+the child's login the guardian role. The form's help text says so; the office
+links that guardian by hand on `?v=guardians`.
+
+Verified in Chromium at 390: the field shows, a malformed address is refused on
+the page, the review row shows it, the payload carries it, and the stored row
+has it. `test_guardian_email.php` holds validation, linking, idempotence, the
+same-inbox refusal and every call site.
+
+**Console layout (`admin/console.php`, not the legacy `admin/index.php`).**
+Measured on all 31 screens: sections had no gap between them; the section strip
+never stuck, because `.ac-scroll` was an overflow container that never scrolled
+(the document does); the heading sat under the strip; the top bar was
+translucent, so text showed through it; a status select filled its row; the bulk
+reason input shrank to a sliver on a phone; and the hidden mobile rail cast its
+shadow down the left edge. Fixed in `admin-v2.css`, plus the Students member
+panel laid out in two columns (details and history | onboarding checklist).
+Swept afterwards: 31 screens × 1440 and 390, no overflow, no failed reads, no
+flush sections, no page errors.

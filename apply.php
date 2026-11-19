@@ -646,6 +646,12 @@ if ($showChooser) {
               <div class="field-error" id="err-parentName"><i class="fa-solid fa-circle-exclamation"></i><span>A parent/guardian is required for under-16 students</span></div>
             </div>
             <div class="field">
+              <label class="field-label" for="parentEmail">Their email address</label>
+              <input type="email" id="parentEmail" class="field-input" autocomplete="email" inputmode="email" aria-describedby="help-parentEmail">
+              <div class="field-help" id="help-parentEmail">Their own address, so they get their own login. One address can hold only one login, so if the family shares an inbox with the student, the guardian&rsquo;s login is set up with the office instead.</div>
+              <div class="field-error" id="err-parentEmail"><i class="fa-solid fa-circle-exclamation"></i><span>Enter the guardian&rsquo;s email address</span></div>
+            </div>
+            <div class="field">
               <label class="field-label" for="parentPhone">Their mobile number</label>
               <input type="tel" id="parentPhone" class="field-input" autocomplete="tel">
               <div class="field-error" id="err-parentPhone"><i class="fa-solid fa-circle-exclamation"></i><span>A guardian phone number is required</span></div>
@@ -928,7 +934,7 @@ if ($showChooser) {
 <script src="assets/js/main.js?v=20260920"></script>
 <script src="assets/js/validate.js?v=20260530a"></script>
 <script src="assets/js/headshot.js?v=20260817a"></script>
-<script src="assets/js/apply.js?v=20260920"></script>
+<script src="assets/js/apply.js?v=20261119"></script>
 <script src="assets/js/apply-discovery.js?v=20260703a"></script>
 <?php if ($showChooser): ?>
 <script>

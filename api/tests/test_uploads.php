@@ -100,7 +100,7 @@ $app = [
     'level' => 'cert', 'expression' => 'classical', 'program' => 'classical',
     'discipline' => 'piano', 'sex' => 'female', 'address' => '12 Road',
     'lga' => 'Ikeja', 'state' => 'Lagos', 'dob' => '2016-01-01',
-    'parentName' => 'Ngozi Obi', 'parentPhone' => '+2348011111111',
+    'parentName' => 'Ngozi Obi', 'parentPhone' => '+2348011111111', 'parentEmail' => 'ngozi.obi@example.com',
     'policyAgreed' => true, 'policySignedName' => 'Ngozi Obi', 'includeRegistration' => true,
 ];
 $noPhoto = mam_validate_application($app);

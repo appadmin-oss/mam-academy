@@ -119,7 +119,7 @@
       sex: '', address: '', lga: '', state: '',
       country: 'Nigeria', city: '', dob: '',
       experience: '', goals: '', referrer: '',
-      auditer: true, parentName: '', parentPhone: '',
+      auditer: true, parentName: '', parentPhone: '', parentEmail: '',
       headshotUrl: '',
       includeRegistration: true, includeCertification: false, payment: '', currency: 'USD',
       programTrack: '', policyAgree: false, policySignName: '',
@@ -570,6 +570,8 @@
         // intl-tel-input is wired on parentPhone, also validate it.
         if (deriveTrack(data.dob) === 'KTAMS') {
           check('parentName', (data.parentName || '').trim().length > 1);
+          // Their own address, so they can be given their own portal account.
+          check('parentEmail', /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((data.parentEmail || '').trim()));
           if (parentPhoneIti) {
             var ppOk = false;
             try { ppOk = parentPhoneIti.isValidNumber(); } catch (e) {}
@@ -789,7 +791,7 @@
          is a SKIPPED screen rather than a hidden block inside a longer one.
          An adult applicant never sees it in either direction. */
       skipSub(1, 'guardian', !isKid);
-      if (!isKid) { clearError('parentName'); clearError('parentPhone'); }
+      if (!isKid) { clearError('parentName'); clearError('parentPhone'); clearError('parentEmail'); }
       // Update signature prompt so it reflects who must sign
       var sigEl = $('#policySignName');
       if (sigEl) sigEl.placeholder = isKid ? "Guardian's full legal name" : 'Your full legal name';
@@ -871,7 +873,7 @@
       var loc = [data.address, data.lga, data.city, data.state, data.country]
         .filter(function (v) { return v && v.trim(); }).join(', ');
       if (loc) push('Address', loc, 1, 'address');
-      if (data.parentName) push('Guardian', data.parentName + (data.parentPhone ? ' \u00b7 ' + data.parentPhone : ''), 1, 'guardian');
+      if (data.parentName) push('Guardian', [data.parentName, data.parentEmail, data.parentPhone].filter(function (v) { return v && String(v).trim(); }).join(' \u00b7 '), 1, 'guardian');
       push('Intake', data.sessionLabel || titleCase(data.session) || 'Set from the academic calendar', 0, 'pathway');
       push('MAM Auditer', data.auditer ? 'Yes \u2014 book a session' : 'No', 2, 'background');
       var html = '<div class="a-rev">' + rows.join('') + '</div>';
@@ -964,7 +966,7 @@
     bindRadioGroup('sex', 'sex');
     // phone + parentPhone are owned by intl-tel-input below; binding them here
     // would race with the country picker's setNumber().
-    ['firstName','lastName','email','address','lga','state','country','city','dob','experience','goals','referrer','parentName'].forEach(function (id) { bindField(id, id); });
+    ['firstName','lastName','email','address','lga','state','country','city','dob','experience','goals','referrer','parentName','parentEmail'].forEach(function (id) { bindField(id, id); });
 
     /* ── Searching a list of rows ───────────────────────────────────────────
        Fourteen instruments and eleven focus areas are more than a thumb wants
@@ -1473,6 +1475,8 @@
         country: data.country, city: data.city, dob: data.dob,
         experience: data.experience, goals: data.goals, referrer: data.referrer,
         parentName: data.parentName, parentPhone: data.parentPhone,
+        // Sent only where the guardian screen applied; an adult's stale entry is not.
+        parentEmail: data.programTrack === 'KTAMS' ? (data.parentEmail || '').trim() : '',
         headshotUrl: data.headshotUrl,
         auditer: !!data.auditer,
         includeRegistration: !!data.includeRegistration,
@@ -1509,6 +1513,7 @@
       country:          { id: 'country',         step: 1, sub: 'address' },
       dob:              { id: 'dob',             step: 1, sub: 'who' },
       parentName:       { id: 'parentName',      step: 1, sub: 'guardian' },
+      parentEmail:      { id: 'parentEmail',     step: 1, sub: 'guardian' },
       policyAgreed:     { id: 'policyAgree',     step: 3, sub: 'review' },
       policySignedName: { id: 'policySignName',  step: 3, sub: 'review' }
     };
@@ -1519,6 +1524,7 @@
       address: 'address', lga: 'local government', state: 'state', country: 'country',
       dob: 'date of birth',
       parentName: 'parent/guardian (under-16 students)',
+      parentEmail: "guardian's email address",
       policyAgreed: 'class policy agreement',
       policySignedName: 'policy signature'
     };

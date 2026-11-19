@@ -241,6 +241,15 @@ function mam_enrol_complete(int $appId, array $overrides = [], ?int $actorId = n
         $steps[] = ['step' => 'account', 'ok' => true, 'detail' => 'Already had a portal account.'];
     }
 
+    /* 1b — the guardian the application named, with their own account. */
+    if (function_exists('mam_application_link_guardian') && trim((string) ($app['parent_email'] ?? '')) !== '') {
+        $g = mam_application_link_guardian($app, (int) $studentId, $actorId);
+        $steps[] = ['step' => 'guardian', 'ok' => $g['linked'] || $g['reason'] === 'same_as_student',
+            'detail' => $g['linked'] ? ('Guardian linked' . ($g['invited'] ? ' and invited to set a password.' : '.'))
+                : ($g['reason'] === 'same_as_student' ? 'The guardian gave the student\'s own email, so no separate guardian account was made — link one from the guardian screen.'
+                : 'The guardian could not be linked (' . $g['reason'] . ').')];
+    }
+
     /* 2 — the course enrolment, which resolves the cohort and instructor */
     try {
         $r = mam_lms_add_course(
