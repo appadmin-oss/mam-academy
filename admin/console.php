@@ -386,6 +386,6 @@ window.MAM_CONSOLE = {
   csrf: <?= json_encode($MAM_CONSOLE_CSRF) ?>
 };
 </script>
-<script src="/assets/js/admin-console.js?v=2026.08.20"></script>
+<script src="/assets/js/admin-console.js?v=2026.11.19"></script>
 </body>
 </html>

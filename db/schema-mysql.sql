@@ -3257,3 +3257,18 @@ CREATE TABLE IF NOT EXISTS member_notes (
   CONSTRAINT chk_mnotes_body  CHECK (CHAR_LENGTH(body) > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (94) ON DUPLICATE KEY UPDATE version = version;
+
+-- v95 — one row per members-roster bulk run, with its per-row verdicts (members.php).
+CREATE TABLE IF NOT EXISTS member_bulk_runs (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  action       VARCHAR(40) NOT NULL,
+  actor_id     INT NULL,
+  requested    INT NOT NULL DEFAULT 0,
+  applied      INT NOT NULL DEFAULT 0,
+  unchanged    INT NOT NULL DEFAULT 0,
+  refused      INT NOT NULL DEFAULT 0,
+  results_json MEDIUMTEXT NOT NULL,
+  created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_mbulk_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (95) ON DUPLICATE KEY UPDATE version = version;

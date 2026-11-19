@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 94;
+const MAM_SCHEMA_TARGET = 95;
 
 /**
  * Open (and cache) the PDO connection.
@@ -3687,6 +3687,23 @@ function mam_db_migrate(PDO $db): void {
               CHECK(length(body) > 0)
             );
             CREATE INDEX IF NOT EXISTS idx_mnotes_user ON member_notes(user_id, id);
+        ",
+        /* v95 — one row per bulk run on the members roster (members.php). It is
+         * NGG's "one audit event per run" and also where the per-row verdicts
+         * live: the console redirects after a POST, and a run where 28 of 40 were
+         * refused must be able to say which 28 and why on the screen it lands on. */
+        95 => "
+            CREATE TABLE IF NOT EXISTS member_bulk_runs (
+              id           INTEGER PRIMARY KEY AUTOINCREMENT,
+              action       TEXT    NOT NULL,
+              actor_id     INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              requested    INTEGER NOT NULL DEFAULT 0,
+              applied      INTEGER NOT NULL DEFAULT 0,
+              unchanged    INTEGER NOT NULL DEFAULT 0,
+              refused      INTEGER NOT NULL DEFAULT 0,
+              results_json TEXT    NOT NULL,
+              created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
         ",
     ];
 

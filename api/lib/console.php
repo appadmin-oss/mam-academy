@@ -844,49 +844,126 @@ function mam_console_ledger(): array {
    5. Students
    ───────────────────────────────────────────────────────────────────────── */
 
-function mam_console_students(array $q = []): array {
-    $stage = (string) ($q['stage'] ?? '');
+/**
+ * The members roster (HANDOFF §4w — NGG's list rules, ported).
+ *
+ * Every filter and the sort are ALLOW-LISTED by name; the caller never
+ * contributes SQL text, and an unknown value falls back to the default rather
+ * than erroring, so a stale bookmark still shows the roster. The total is the
+ * true total for the filter, counted before paging, and "select all N
+ * matching" asks mam_console_students_ids() for the same WHERE — a filter is
+ * never applied to the drawn page.
+ *
+ * The band is shown and is NOT a sort key: sorting children by a composite
+ * makes the table a ranking whatever the heading says (CLAUDE.md #12/#13).
+ */
+const MAM_ROSTER_PAGE = 50;
+const MAM_ROSTER_SORTS = [
+    'name'   => 'LOWER(u.name) ASC, u.id ASC',
+    'newest' => 'u.created_at DESC, u.id DESC',
+    'number' => "CASE WHEN COALESCE(u.enrollment_ref,'') = '' THEN 1 ELSE 0 END, u.enrollment_ref ASC, u.id ASC",
+    'login'  => 'CASE WHEN u.last_login IS NULL THEN 1 ELSE 0 END, u.last_login DESC, u.id ASC',
+];
+
+function mam_console_students_where(array $q): array {
     $where = ["u.role = 'student'"]; $args = [];
-    if ($stage === 'active')    $where[] = "u.status = 'active'";
-    elseif ($stage === 'roster') $where[] = "u.status = 'roster'";
-    elseif ($stage === 'suspended') $where[] = "u.status = 'suspended'";
-    if (($s = trim((string) ($q['q'] ?? ''))) !== '') {
-        $where[] = '(u.name LIKE ? OR u.email LIKE ? OR u.enrollment_ref LIKE ?)';
-        $like = '%' . $s . '%'; array_push($args, $like, $like, $like);
+    $stage = (string) ($q['stage'] ?? '');
+    if (in_array($stage, ['active', 'roster', 'suspended'], true)) { $where[] = 'u.status = ?'; $args[] = $stage; }
+    $type = (string) ($q['type'] ?? '');
+    if ($type === 'scholarship') $where[] = "u.student_type = 'scholarship'";
+    elseif ($type === 'paying') $where[] = "COALESCE(u.student_type, '') <> 'scholarship'";
+    switch ((string) ($q['missing'] ?? '')) {
+        case 'number':   $where[] = "COALESCE(u.enrollment_ref, '') = ''"; break;
+        case 'photo':    $where[] = "COALESCE(u.avatar_url, '') = ''"; break;
+        case 'guardian': $where[] = 'NOT EXISTS (SELECT 1 FROM parent_links pl WHERE pl.student_id = u.id)'; break;
+        case 'learning': $where[] = "NOT EXISTS (SELECT 1 FROM course_enrollments ce WHERE ce.student_id = u.id AND ce.status = 'active')
+                                    AND NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = u.id AND e.status = 'active')"; break;
+        case 'login':    $where[] = 'u.last_login IS NULL'; break;
     }
+    if (($s = trim((string) ($q['q'] ?? ''))) !== '') {
+        $where[] = '(u.name LIKE ? OR u.email LIKE ? OR u.enrollment_ref LIKE ? OR u.phone LIKE ?)';
+        $like = '%' . $s . '%'; array_push($args, $like, $like, $like, $like);
+    }
+    return [implode(' AND ', $where), $args];
+}
+
+/** Every id matching the filter, up to the bulk cap — "select all N matching". */
+function mam_console_students_ids(array $q, int $cap = 500): array {
+    [$w, $args] = mam_console_students_where($q);
+    $sort = MAM_ROSTER_SORTS[(string) ($q['sort'] ?? '')] ?? MAM_ROSTER_SORTS['name'];
+    return array_map('intval', array_column(mam_console_rows('stu.ids', "SELECT u.id FROM users u WHERE $w ORDER BY $sort LIMIT " . (int) $cap, $args), 'id'));
+}
+
+function mam_console_students(array $q = []): array {
+    [$w, $args] = mam_console_students_where($q);
+    $sortKey = isset(MAM_ROSTER_SORTS[(string) ($q['sort'] ?? '')]) ? (string) $q['sort'] : 'name';
+    $total = mam_console_int('stu.total', "SELECT COUNT(*) FROM users u WHERE $w", $args);
+    $pages = max(1, (int) ceil($total / MAM_ROSTER_PAGE));
+    $page  = min($pages, max(1, (int) ($q['page'] ?? 1)));
 
     $rows = mam_console_rows('stu.rows',
-        "SELECT u.id, u.name, u.email, u.status, u.enrollment_ref, u.student_type, u.avatar_url,
+        "SELECT u.id, u.name, u.email, u.status, u.enrollment_ref, u.student_type, u.avatar_url, u.last_login, u.created_at,
                 (SELECT COUNT(*) FROM course_enrollments ce WHERE ce.student_id = u.id AND ce.status = 'active') courses,
                 (SELECT COUNT(*) FROM enrollments e WHERE e.student_id = u.id AND e.status = 'active') classes,
+                (SELECT COUNT(*) FROM parent_links pl WHERE pl.student_id = u.id) guardians,
                 (SELECT COALESCE(SUM(i.total_usd_cents - CAST(i.paid_minor AS INTEGER)), 0) FROM fee_invoices i
                    WHERE i.student_id = u.id AND i.status IN ('issued','part_paid')) owed
-           FROM users u WHERE " . implode(' AND ', $where) . "
-          ORDER BY u.name LIMIT 200", $args);
+           FROM users u WHERE $w
+          ORDER BY " . MAM_ROSTER_SORTS[$sortKey] . ' LIMIT ' . MAM_ROSTER_PAGE . ' OFFSET ' . (($page - 1) * MAM_ROSTER_PAGE), $args);
 
-    // Attendance and the mastery band, per student. The band is what a table may
-    // show: a computed composite in a sortable column turns a cohort of children
-    // into a ranking whatever the heading says (CLAUDE.md #12/#13).
+    // Attendance for the whole page in ONE grouped query — it used to be two
+    // queries per student, up to 400 for one screen.
+    $ids = array_map('intval', array_column($rows, 'id'));
+    $att = [];
+    if ($ids) {
+        $in = implode(',', $ids);   // integers, cast above
+        foreach (mam_console_rows('stu.att', "SELECT student_id, COUNT(*) tot,
+                SUM(CASE WHEN status IN ('present','late') THEN 1 ELSE 0 END) pres
+                FROM session_attendance WHERE student_id IN ($in) GROUP BY student_id") as $a) {
+            $att[(int) $a['student_id']] = $a;
+        }
+    }
     foreach ($rows as &$r) {
         $sid = (int) $r['id'];
-        $tot = mam_console_int('stu.att', "SELECT COUNT(*) FROM session_attendance WHERE student_id = ?", [$sid]);
-        $pres = mam_console_int('stu.attp', "SELECT COUNT(*) FROM session_attendance WHERE student_id = ? AND status IN ('present','late')", [$sid]);
-        $r['attendance'] = $tot > 0 ? mam_console_pct($pres, $tot) : null;
+        $r['attendance'] = isset($att[$sid]) && (int) $att[$sid]['tot'] > 0 ? mam_console_pct((int) $att[$sid]['pres'], (int) $att[$sid]['tot']) : null;
         $m = mam_console_try('stu.mastery', fn() => mam_mastery_publishable(mam_mastery_score_cached($sid)), null);
         $r['band'] = ($m && ($m['band'] ?? null)) ? $m['band'] : null;
         $r['band_withheld'] = $m ? (bool) ($m['withheld'] ?? false) : true;
     }
     unset($r);
 
+    $keep = array_intersect_key($q, array_flip(['stage', 'type', 'missing', 'q', 'sort']));
     return [
-        'rows' => $rows,
-        'stage' => $stage,
-        'q' => (string) ($q['q'] ?? ''),
+        'rows' => $rows, 'total' => $total, 'page' => $page, 'pages' => $pages, 'page_size' => MAM_ROSTER_PAGE,
+        'filters' => $keep, 'sort' => $sortKey,
+        'stage' => (string) ($q['stage'] ?? ''), 'q' => (string) ($q['q'] ?? ''),
         'stages' => [
             'active'    => mam_console_int('stu.s.a', "SELECT COUNT(*) FROM users WHERE role='student' AND status='active'"),
             'roster'    => mam_console_int('stu.s.r', "SELECT COUNT(*) FROM users WHERE role='student' AND status='roster'"),
             'suspended' => mam_console_int('stu.s.s', "SELECT COUNT(*) FROM users WHERE role='student' AND status='suspended'"),
         ],
+        'bulk_actions' => function_exists('mam_member_bulk_actions') ? mam_member_bulk_actions() : [],
+        'bulk_max' => defined('MAM_MEMBERS_BULK_MAX') ? MAM_MEMBERS_BULK_MAX : 500,
+        'run' => isset($q['run']) ? mam_console_try('stu.run', fn() => mam_member_bulk_run_get((int) $q['run']), null) : null,
+        'member' => isset($q['id']) && (int) $q['id'] > 0 ? mam_console_try('stu.member', fn() => mam_console_member((int) $q['id']), null) : null,
+        'duplicates' => !empty($q['dupes']) ? mam_console_try('stu.dupes', fn() => mam_member_duplicates(), []) : null,
+    ];
+}
+
+/** One member's record panel: who, status and its history, notes, guardians, sessions. */
+function mam_console_member(int $id): ?array {
+    $u = mam_db_row('SELECT * FROM users WHERE id = ?', [$id]);
+    if (!$u) return null;
+    unset($u['password_hash']);
+    return [
+        'user' => $u,
+        'history' => mam_member_status_history($id),
+        'notes' => mam_member_notes($id),
+        'sessions' => mam_console_int('mem.sess', 'SELECT COUNT(*) FROM sessions WHERE user_id = ?', [$id]),
+        'guardians' => mam_console_rows('mem.guard', 'SELECT g.id, g.name, g.email, pl.access_scope FROM parent_links pl
+            JOIN users g ON g.id = pl.parent_id WHERE pl.student_id = ? ORDER BY g.name', [$id]),
+        'is_staff' => mam_member_is_staff($u),
+        'onboarding' => function_exists('mam_onboarding_checklist') ? mam_console_try('mem.onb', fn() => mam_onboarding_checklist($id), null) : null,
     ];
 }
 

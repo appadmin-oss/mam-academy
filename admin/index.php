@@ -659,7 +659,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'user_create' => 'users', 'user_reset' => 'users', 'user_status' => 'users',
         'user_delete' => 'users', 'user_edit' => 'users', 'set_admin_tier' => 'rbac',
         // Member records (members.php, HANDOFF §4w).
-        'member_signout' => 'users', 'member_note_add' => 'users', 'member_status_set' => 'users',
+        'member_signout' => 'users', 'member_note_add' => 'users', 'member_status_set' => 'users', 'member_bulk' => 'users',
         'wallet_credit' => 'users',
         'faculty_invite' => 'users', 'faculty_app_status' => 'users', 'faculty_request_review' => 'users',
         'faculty_assign_subjects' => 'users',
@@ -1114,33 +1114,60 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
        (members.php): a reason for a suspension, a history row, the person's
        sessions ended, and the two lockouts refused — your own account, and the
        last super admin. This used to be a bare UPDATE with none of that. */
+    /* Where a member action returns to: the console's member panel when it came
+       from there (so the operator sees the verdict beside the record), the
+       legacy users view otherwise. */
+    $memberBack = static function (int $uid, string $kind, string $msg): void {
+        if (($_POST['_console'] ?? '') === 'students') {
+            header('Location: /admin/console.php?' . http_build_query(['v' => 'students', 'id' => $uid, $kind => $msg])); exit;
+        }
+        header('Location: ?v=users&' . ($kind === 'err' ? 'err=' : 'ok=') . urlencode($msg)); exit;
+    };
+
+    if ($action === 'member_bulk') {
+        $words = mam_member_verdict_words();
+        $filters = array_intersect_key($_POST, array_flip(['stage', 'type', 'missing', 'q', 'sort']));
+        $filters = array_map(static fn($v) => is_string($v) ? $v : '', $filters);
+        // "All N matching" is resolved HERE from the filter, never from the page
+        // the operator happened to have on screen.
+        $ids = !empty($_POST['all_matching']) ? mam_console_students_ids($filters, MAM_MEMBERS_BULK_MAX + 1)
+                                              : array_map('intval', (array) ($_POST['ids'] ?? []));
+        try {
+            $run = mam_member_bulk_run((string) ($_POST['bulk_action'] ?? ''), $ids, ['reason' => (string) ($_POST['reason'] ?? '')],
+                $adminUser ? (int) $adminUser['id'] : null);
+            $msg = $run['applied'] . ' changed, ' . $run['unchanged'] . ' already so, ' . $run['refused'] . ' refused.';
+            header('Location: /admin/console.php?' . http_build_query(['v' => 'students', 'run' => $run['run_id']] + $filters
+                + [$run['refused'] > 0 ? 'err' : 'ok' => $msg])); exit;
+        } catch (Throwable $e) {
+            $say = ['unknown_action' => 'Choose what to do.', 'nothing_selected' => 'Tick at least one member, or choose all matching.',
+                'too_many' => 'At most ' . MAM_MEMBERS_BULK_MAX . ' at once. Narrow the filter.', 'reason_required' => $words['reason_required']];
+            header('Location: /admin/console.php?' . http_build_query(['v' => 'students'] + $filters + ['err' => $say[$e->getMessage()] ?? 'That did not run.'])); exit;
+        }
+    }
+
     if ($action === 'user_status' || $action === 'user_delete' || $action === 'member_status_set') {
         $uid = (int)($_POST['user_id'] ?? 0);
         $status = $action === 'user_delete' ? 'suspended' : (string)($_POST['status'] ?? '');
         $r = mam_member_set_status($uid, $status, (string)($_POST['reason'] ?? ''), $adminUser ? (int)$adminUser['id'] : null);
         $words = mam_member_verdict_words();
-        $msg = $words[$r['code']] ?? ('Not changed (' . $r['code'] . ').');
-        header('Location: ?v=users&' . ($r['result'] === 'refused' ? 'err=' : 'ok=') . urlencode($msg));
-        exit;
+        $memberBack($uid, $r['result'] === 'refused' ? 'err' : 'ok', $words[$r['code']] ?? ('Not changed (' . $r['code'] . ').'));
     }
 
     if ($action === 'member_signout') {
         $uid = (int)($_POST['user_id'] ?? 0);
         $n = $uid ? mam_member_revoke_sessions($uid) : 0;
         mam_audit('member_signout', 'user', $uid, ['sessions' => $n]);
-        header('Location: ?v=users&ok=' . urlencode($n . ' session' . ($n === 1 ? '' : 's') . ' ended.'));
-        exit;
+        $memberBack($uid, 'ok', $n . ' session' . ($n === 1 ? '' : 's') . ' ended.');
     }
 
     if ($action === 'member_note_add') {
         $uid = (int)($_POST['user_id'] ?? 0);
         try {
             mam_member_note_add($uid, (string)($_POST['body'] ?? ''), $adminUser ? (int)$adminUser['id'] : null);
-            header('Location: ?v=users&edit=' . $uid . '&ok=' . urlencode('Note added.'));
         } catch (Throwable $e) {
-            header('Location: ?v=users&edit=' . $uid . '&err=' . urlencode('Write the note first.'));
+            $memberBack($uid, 'err', 'Write the note first.');
         }
-        exit;
+        $memberBack($uid, 'ok', 'Note added.');
     }
 
     if ($action === 'class_create') {

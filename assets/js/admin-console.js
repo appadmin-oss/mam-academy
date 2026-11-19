@@ -290,4 +290,21 @@
     u2.searchParams.delete('ok'); u2.searchParams.delete('err');
     history.replaceState(null, '', u2.pathname + (u2.searchParams.toString() ? '?' + u2.searchParams.toString() : ''));
   }
+
+  /* "Tick every row on this page" for a bulk form. Progressive enhancement
+     only: without it rows are ticked one by one, and "all N matching" is a
+     server-side button that never needed a tick at all. The header box goes
+     half-ticked when some rows are, which has to be set as a property. */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-ac-checkall]'), function (all) {
+    var form = all.form; if (!form) return;
+    var name = all.getAttribute('data-ac-checkall');
+    function boxes() { return Array.prototype.filter.call(form.elements, function (el) { return el.name === name && el.type === 'checkbox'; }); }
+    function sync() {
+      var b = boxes(), on = b.filter(function (x) { return x.checked; }).length;
+      all.checked = b.length > 0 && on === b.length;
+      all.indeterminate = on > 0 && on < b.length;
+    }
+    all.addEventListener('change', function () { boxes().forEach(function (x) { x.checked = all.checked; }); sync(); });
+    form.addEventListener('change', function (e) { if (e.target && e.target.name === name) sync(); });
+  });
 })();
