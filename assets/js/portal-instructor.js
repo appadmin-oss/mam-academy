@@ -336,9 +336,11 @@
     paint(loading('Loading the marking queue…'));
     screenReq('marking').then(function (d) {
       S.marking = d;
-      var q = d.queue || [];
-      if (!q.length) { paint(h1('Marking') + empty('circle-check', 'Nothing waiting to be marked.')); return; }
+      var q = d.queue || [], lq = d.lessons || [];
+      if (!q.length && !lq.length) { paint(h1('Marking') + empty('circle-check', 'Nothing waiting to be marked.')); return; }
+      if (!q.length) { paint(h1('Marking', lq.length + ' lesson ' + plural(lq.length, 'answer', 'answers') + ' waiting, oldest first') + lessonMarking(lq)); return; }
       paint(h1('Marking', q.length + ' ' + plural(q.length, 'performance', 'performances') + ' waiting, oldest first')
+        + lessonMarking(lq)
         + '<section class="p-card is-flush"><div class="p-rows">'
         + q.map(function (s) {
           var sub = [s.title, s.days != null ? s.days + 'd waiting' : null].filter(Boolean).join(' · ');
@@ -353,6 +355,37 @@
         + '<div class="p-notice p-gap-t"><i class="fa-solid fa-headphones" aria-hidden="true"></i>'
         + '<span>' + esc(d.audio_only_notice) + '</span></div>');
     }).catch(function (err) { paint(h1('Marking') + empty('triangle-exclamation', errOf(err, 'Could not load the queue.'))); });
+  }
+
+  /**
+   * Written answers to lesson questions (api/lib/lessons.php). Each attempt is
+   * a card: the question, what a good answer looks like, the student's answer
+   * and a mark out of the question's worth. Only the questions a person marks
+   * arrive here — multiple choice and put-in-order were marked by the server
+   * and are not the teacher's to change.
+   */
+  function lessonMarking(lq) {
+    if (!lq.length) return '';
+    return '<h2 class="p-label p-gap-t">Lesson answers</h2>' + lq.map(function (a) {
+      return '<section class="p-card i-lsn" data-lsn-card="' + esc(a.progress_id) + '">'
+        + '<div class="p-title">' + esc(a.student_name) + '</div>'
+        + '<p class="p-caption">' + esc([a.course_name, 'Week ' + a.week + ' · ' + a.title].join(' · ')) + '</p>'
+        + a.items.map(function (it) {
+          var ans = it.answer == null ? '' : String(it.answer);
+          var shown = it.kind === 'evidence' && /^https:\/\//i.test(ans)
+            ? '<a href="' + esc(ans) + '" target="_blank" rel="noopener">Open the recording or photo</a>'
+            : esc(ans);
+          return '<div class="i-lsn-item p-gap-t" data-check="' + esc(it.check_id) + '">'
+            + '<div class="p-label">' + esc(it.prompt) + '</div>'
+            + (it.rubric ? '<p class="p-caption">' + esc('A good answer: ' + it.rubric) + '</p>' : '')
+            + '<p class="p-body i-lsn-ans">' + shown + '</p>'
+            + '<div class="i-lsn-row"><label class="p-field"><span>' + esc('Mark out of ' + it.points) + '</span>'
+            + '<input type="number" inputmode="decimal" min="0" max="' + esc(it.points) + '" step="0.5" data-award></label>'
+            + '<label class="p-field"><span>A line for the student (optional)</span><input type="text" maxlength="1000" data-comment></label></div></div>';
+        }).join('')
+        + '<label class="p-field p-gap-t"><span>A note on the whole attempt (optional)</span><textarea maxlength="2000" data-feedback></textarea></label>'
+        + '<button type="button" class="p-primary" data-lsn-mark="' + esc(a.progress_id) + '">Save the marks</button></section>';
+    }).join('');
   }
 
   /**
@@ -568,7 +601,7 @@
       + ' placeholder="Search ' + S.students.length + ' ' + plural(S.students.length, 'student', 'students') + '"></div>'
       + (list.length
         ? '<section class="p-card is-flush"><div class="p-rows">' + list.map(function (s) {
-            return '<div class="p-row is-tall">'
+            return '<button type="button" class="p-row is-tall" data-screen="lessons" data-student="' + esc(s.id) + '">'
               + '<span class="p-avatar" aria-hidden="true">' + esc(initials(s.name)) + '</span>'
               + '<span class="p-row-main"><span class="p-title">' + esc(s.name) + '</span>'
               /* The design's caption is the standing facts; the attention
@@ -578,7 +611,8 @@
               + '<span class="p-caption">' + (s.attention
                   ? '<span class="p-accent">' + esc(s.attention) + '</span>'
                   : esc(s.summary || '')) + '</span></span>'
-              + '<span class="p-caption p-strong">' + esc(s.band_label) + '</span></div>';
+              + '<span class="p-caption p-strong">' + esc(s.band_label) + '</span>'
+              + '<i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i></button>';
           }).join('') + '</div></section>'
         : empty('magnifying-glass', 'No student matches that.'))
       + '<div class="p-notice p-gap-t"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span>'
@@ -586,6 +620,44 @@
       + 'could be given is not a substitute for you ringing a guardian.</span></div>');
     var inp = $('#stuSearch');
     if (inp && S.filter) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+  }
+
+  /* ── 6b · One student's lessons ─────────────────────────────────────────────
+
+     The lessons a teacher teaches this child, and where they stand on each
+     (api/lib/lessons.php). A lesson done in the room is ticked here — it is the
+     only record a question-free syllabus week can have. An untick takes back
+     only a tick: a lesson the student did online stays theirs, and the server
+     refuses it, so this screen offers it only where it can work. */
+  function lessonState(l) {
+    if (l.state === 'completed') return l.ticked ? 'Ticked done' : 'Done online' + (l.best_pct != null ? ' · ' + l.best_pct + '%' : '');
+    if (l.pending) return 'Answers waiting for you';
+    if (l.state === 'attempted') return 'Tried' + (l.best_pct != null ? ' · best ' + l.best_pct + '%' : '');
+    if (l.state === 'started') return 'Opened';
+    return 'Not started';
+  }
+  function renderStudentLessons(studentId) {
+    paint(loading('Loading their lessons…'));
+    API.request('instructor/lessons?student=' + encodeURIComponent(studentId || ''), { method: 'GET' }).then(function (d) {
+      var html = backTo('students', 'Students') + h1((d.student && d.student.name) || 'Student', 'Lessons on the courses you teach them');
+      var cs = d.courses || [];
+      if (!cs.length) { paint(html + empty('book-open', 'No published lessons on the courses you teach them yet.')); return; }
+      paint(html + cs.map(function (c) {
+        return '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">'
+          + esc(c.course_name + (c.level_name ? ' · ' + c.level_name : '')) + '</span>'
+          + '<span class="p-caption p-num">' + esc(c.done + ' of ' + c.total + ' done') + '</span></div><div class="p-rows">'
+          + c.lessons.map(function (l) {
+            var act = l.state !== 'completed'
+              ? '<button type="button" class="p-outline i-lsn-tick" data-lsn-tick="' + esc(l.id) + '" data-student-id="' + esc(d.student.id) + '" data-done="1"'
+                + ' aria-label="' + esc('Tick “' + l.title + '” done') + '">Tick done</button>'
+              : (l.ticked ? '<button type="button" class="p-outline i-lsn-tick" data-lsn-tick="' + esc(l.id) + '" data-student-id="' + esc(d.student.id) + '" data-done="0"'
+                + ' aria-label="' + esc('Take back the tick on “' + l.title + '”') + '">Untick</button>' : '');
+            return '<div class="p-row"><span class="i-lsn-wk p-num">' + esc('W' + l.week) + '</span>'
+              + '<span class="p-row-main"><span class="p-title">' + esc(l.title) + '</span>'
+              + '<span class="p-caption">' + esc(lessonState(l) + (l.syllabus_only ? ' · no questions' : '')) + '</span></span>' + act + '</div>';
+          }).join('') + '</div></section>';
+      }).join(''));
+    }).catch(function (err) { paint(backTo('students', 'Students') + h1('Lessons') + empty('triangle-exclamation', errOf(err, 'Could not load their lessons.'))); });
   }
 
   /* ── 7 · Earnings & clearance ───────────────────────────────────────────── */
@@ -683,11 +755,11 @@
 
   var SCREENS = {
     home: renderHome, register: renderRegister, marking: renderMarking,
-    teachbacks: renderTeachbacks, report: renderReport, students: renderStudents,
+    teachbacks: renderTeachbacks, report: renderReport, students: renderStudents, lessons: renderStudentLessons,
     earnings: renderEarnings, a11y: renderA11y
   };
   /* Which bar item lights for a screen the bar does not itself carry. */
-  var TAB_OF = { home: 'home', register: 'register', marking: 'marking', students: 'students' };
+  var TAB_OF = { home: 'home', register: 'register', marking: 'marking', students: 'students', lessons: 'students' };
 
   function go(screen, arg) {
     if (!SCREENS[screen]) screen = 'home';
@@ -738,6 +810,30 @@
   /* ── Events. One delegated listener; every control is a real <button>. ───── */
 
   document.addEventListener('click', function (e) {
+    /* Save the marks on one lesson attempt. A blank mark is left unmarked, not
+       zero — the server keeps that answer waiting. */
+    var tk = e.target && e.target.closest && e.target.closest('[data-lsn-tick]');
+    if (tk) {
+      var sid = tk.dataset.studentId;
+      write(tk, API.request('instructor/lessons', { method: 'POST', body: { action: 'tick', lesson_id: Number(tk.dataset.lsnTick),
+        student_id: Number(sid), done: tk.dataset.done === '1' } }),
+        function () { renderStudentLessons(sid); }, tk.dataset.done === '1' ? 'Ticked done.' : 'Tick taken back.');
+      return;
+    }
+    var lm = e.target && e.target.closest && e.target.closest('[data-lsn-mark]');
+    if (lm) {
+      var card = lm.closest('[data-lsn-card]'), awards = {}, comments = {};
+      Array.prototype.slice.call(card.querySelectorAll('[data-check]')).forEach(function (it) {
+        var v = (it.querySelector('[data-award]') || {}).value;
+        if (v !== '' && v != null) awards[it.dataset.check] = Number(v);
+        var c = (it.querySelector('[data-comment]') || {}).value;
+        if (c) comments[it.dataset.check] = c;
+      });
+      write(lm, API.request('instructor/lessons', { method: 'POST', body: { action: 'mark', progress_id: Number(lm.dataset.lsnMark),
+        awards: awards, comments: comments, feedback: (card.querySelector('[data-feedback]') || {}).value || '' } }),
+        function () { renderMarking(); }, 'Marks saved — the student has been told.');
+      return;
+    }
     var t = e.target;
 
     var sheetOpen = t.closest && t.closest('[data-sheet-open]');

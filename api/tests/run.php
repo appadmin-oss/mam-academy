@@ -129,7 +129,8 @@ require $ROOT . '/lib/marking.php';           // audio-only performance marking 
 require $ROOT . '/lib/instructor-portal.php';  // instructor portal v2 read providers (design)
 require $ROOT . '/lib/student-portal.php';     // student portal v2 read providers (design)
 require $ROOT . '/lib/fees.php';              // fee invoices, four kinds of aid, payment plans (v87)
-require $ROOT . '/lib/members.php';           // member records: status setter + history, notes, member number (v94)
+require $ROOT . '/lib/members.php';
+require $ROOT . '/lib/lessons.php';           // lessons: questions, materials, per-student progress (v97, ported from NGG)           // member records: status setter + history, notes, member number (v94)
 require $ROOT . '/lib/guardian-comms.php';    // guardian threads, channels, make-up credits (v88)
 require $ROOT . '/lib/console.php';           // admin console read model (one provider per screen)
 require $ROOT . '/lib/console-phone.php';     // the console's phone subset (frame #5b)

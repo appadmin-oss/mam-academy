@@ -423,7 +423,10 @@ function mam_iportal_marking(int $instructorId): array {
         $r['second_marker'] = mam_marking_needs_second_marker((int) $r['id']);
     }
     unset($r);
-    return ['queue' => $rows, 'audio_only_notice' => MAM_MARKING_AUDIO_NOTICE];
+    return ['queue' => $rows, 'audio_only_notice' => MAM_MARKING_AUDIO_NOTICE,
+        /* Written answers to lesson questions (api/lib/lessons.php): a person
+           marks these, never the machine. Only this teacher's students. */
+        'lessons' => mam_iportal_try(fn() => function_exists('mam_lesson_marking_queue') ? mam_lesson_marking_queue($instructorId, 50) : [], [])];
 }
 
 /** The teach-back queue, carrying the sentence that keeps it formative. */

@@ -578,6 +578,23 @@
           + '<p class="p-caption p-gap-t">These sit beside your score, never inside it.</p></section>';
       }
 
+      /* Lessons — the syllabus with where this student stands on each one
+         (api/lib/lessons.php). The count is lessons DONE out of lessons
+         published; a week with no questions is the teacher's to tick off. */
+      (d.lessons || []).forEach(function (c) {
+        if (!c.total) return;
+        html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">'
+          + esc(c.course_name + (c.level_name ? ' · ' + c.level_name : '')) + '</span>'
+          + '<span class="p-caption p-num">' + esc(c.done + ' of ' + c.total + ' done') + '</span></div>'
+          + '<div class="p-rows">' + c.lessons.map(function (l) {
+            return '<button type="button" class="p-row s-lsn-row" data-open-lesson="' + esc(l.id) + '">'
+              + '<span class="s-wk">' + esc(l.week) + '</span>'
+              + '<span class="p-row-main"><span class="p-title">' + esc(l.title) + '</span>'
+              + (l.summary ? '<span class="p-caption">' + esc(l.summary) + '</span>' : '') + '</span>'
+              + lessonChip(l) + '</button>';
+          }).join('') + '</div></section>';
+      });
+
       var en = d.enrolments || [];
       if (en.length) {
         html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">Your courses</span></div>'
@@ -886,17 +903,157 @@
       + '</section></div>');
   }
 
+  /* ── 3b · A lesson ──────────────────────────────────────────────────────────
+
+     The player for one lesson (api/lib/lessons.php). What it never does is
+     decide anything: whether an answer is right, whether the right answer may
+     be shown yet, whether the lesson is done — all of that arrives from the
+     server. It only collects answers and shows what came back. Nothing here
+     needs a drag: put-in-order steps move with buttons, so the question works
+     from a keyboard and a screen reader. */
+
+  function lessonChip(l) {
+    if (l.state === 'completed') return '<span class="p-chip is-good">Done</span>';
+    if (l.pending) return '<span class="p-chip">With your teacher</span>';
+    if (l.stale) return '<span class="p-chip is-warn">Questions changed</span>';
+    if (l.state === 'attempted') return '<span class="p-chip is-warn">' + esc(l.best_pct != null ? 'Best ' + l.best_pct + '%' : 'Try again') + '</span>';
+    if (l.state === 'started') return '<span class="p-chip">Started</span>';
+    return '';
+  }
+
+  function lessonQuestion(c, n, prev) {
+    /* Spans, not blocks: for a choice question this IS the fieldset's legend,
+       so a screen reader announces the question together with its choices. */
+    var head = '<span class="p-label">Question ' + n + ' · ' + esc(c.points + (c.points === 1 ? ' point' : ' points')) + '</span>'
+      + '<span class="p-body s-lsn-q">' + esc(c.prompt) + '</span>';
+    var name = 'lq' + c.id;
+    if (c.kind === 'mcq') {
+      return '<fieldset class="s-lsn-check" data-q="' + esc(c.id) + '" data-kind="mcq"><legend class="s-lsn-legend">' + head + '</legend>'
+        + '<div class="s-lsn-opts">' + (c.options || []).map(function (o, i) {
+          return '<label class="s-lsn-opt"><input type="radio" name="' + name + '" value="' + i + '"'
+            + (prev != null && Number(prev) === i ? ' checked' : '') + '><span>' + esc(o) + '</span></label>';
+        }).join('') + '</div></fieldset>';
+    }
+    if (c.kind === 'order') {
+      return '<fieldset class="s-lsn-check" data-q="' + esc(c.id) + '" data-kind="order"><legend class="s-lsn-legend">' + head + '</legend>'
+        + '<p class="p-caption">Use the arrows to put these in order, first at the top.</p>'
+        + '<ol class="s-lsn-order">' + (c.options || []).map(function (o) {
+          return '<li data-i="' + esc(o.i) + '"><span class="s-lsn-step">' + esc(o.text) + '</span>'
+            + '<button type="button" class="s-lsn-mv" data-move="up" aria-label="' + esc('Move “' + o.text + '” up') + '"><i class="fa-solid fa-arrow-up" aria-hidden="true"></i></button>'
+            + '<button type="button" class="s-lsn-mv" data-move="down" aria-label="' + esc('Move “' + o.text + '” down') + '"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i></button></li>';
+        }).join('') + '</ol></fieldset>';
+    }
+    if (c.kind === 'evidence') {
+      return '<div class="s-lsn-check" data-q="' + esc(c.id) + '" data-kind="evidence"><div class="s-lsn-legend">' + head + '</div>'
+        + '<label class="p-field"><span>Link to your recording or photo</span>'
+        + '<input type="url" inputmode="url" placeholder="https://" value="' + esc(prev || '') + '"></label></div>';
+    }
+    return '<div class="s-lsn-check" data-q="' + esc(c.id) + '" data-kind="text"><div class="s-lsn-legend">' + head + '</div>'
+      + '<label class="p-field"><span>Your answer</span><textarea maxlength="8000">' + esc(prev || '') + '</textarea></label></div>';
+  }
+
+  function lessonReview(l) {
+    var r = l.review;
+    if (!r || !r.items || !r.items.length) return '';
+    var byId = {};
+    (l.checks || []).forEach(function (c, i) { byId[c.id] = { n: i + 1, c: c }; });
+    var rows = r.items.map(function (it) {
+      var q = byId[it.check_id] || { n: '?', c: {} };
+      var verdict = it.pending ? 'Waiting for your teacher' : (it.right ? 'Right' : (Number(it.awarded) > 0 ? 'Part right' : 'Not yet'));
+      var tone = it.pending ? '' : (it.right ? ' is-good' : ' is-warn');
+      var extra = '';
+      if (it.slip) extra += '<p class="p-caption">' + esc(it.slip) + '</p>';
+      if (it.comment) extra += '<p class="p-caption">' + esc('Your teacher: ' + it.comment) + '</p>';
+      if (r.revealed && it.answer != null && q.c.options) extra += '<p class="p-caption">' + esc('The answer: ' + q.c.options[it.answer]) + '</p>';
+      if (r.revealed && it.answer_order) extra += '<p class="p-caption">' + esc('The order: ' + it.answer_order.join(' → ')) + '</p>';
+      return '<div class="p-row"><span class="p-row-main"><span class="p-title">' + esc('Question ' + q.n) + '</span>' + extra + '</span>'
+        + '<span class="p-chip' + tone + '">' + esc(verdict) + '</span></div>';
+    }).join('');
+    var head = r.revealed ? 'Your last try' : 'Your last try · the answers show after you pass, or after ' + r.reveal_after + ' tries';
+    return '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">' + esc(head) + '</span>'
+      + '<span class="p-caption p-num">' + esc('Tries: ' + r.attempts) + '</span></div>'
+      + (r.feedback ? '<p class="p-body s-lsn-fb">' + esc('Your teacher: ' + r.feedback) + '</p>' : '')
+      + '<div class="p-rows">' + rows + '</div></section>';
+  }
+
+  function renderLesson(id) {
+    deferLoading('Opening the lesson…');
+    API.request('student/lessons?id=' + encodeURIComponent(id || ''), { method: 'GET' }).then(function (d) {
+      var l = d.lesson || {};
+      S.lesson = l;
+      var p = l.progress || {};
+      var html = backTo('learn', 'Where I stand') + h1(l.title || 'Lesson',
+        [l.course_name, l.level_name, 'Week ' + l.week].filter(Boolean).join(' · ')) + '<div class="p-stack">';
+      if (p.state === 'completed') html += notice('Done. You can look back at it any time.', 'good', 'circle-check');
+      else if (p.pending) html += notice('Your written answers are with your teacher. You will be told when they are marked.', null, 'hourglass-half');
+      else if (p.stale) html += notice('The questions have changed since your last try, so that score is from an older version.', 'warn', 'triangle-exclamation');
+
+      if (l.summary || (l.objectives || []).length) {
+        html += '<section class="p-card">' + (l.summary ? '<p class="p-body">' + esc(l.summary) + '</p>' : '')
+          + ((l.objectives || []).length ? '<div class="p-label p-gap-t">By the end you can</div><ul class="s-lsn-list">'
+            + l.objectives.map(function (o) { return '<li>' + esc(o) + '</li>'; }).join('') + '</ul>' : '')
+          + (l.duration_mins ? '<p class="p-caption p-gap-t">' + esc('About ' + l.duration_mins + ' minutes') + '</p>' : '')
+          + '</section>';
+      }
+      if (l.body) {
+        html += '<section class="p-card">' + String(l.body).split(/\n{2,}/).map(function (para) {
+          return '<p class="p-body s-lsn-para">' + esc(para) + '</p>';
+        }).join('') + '</section>';
+      }
+      if ((l.materials || []).length) {
+        html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">Materials</span></div><div class="p-rows">'
+          + l.materials.map(function (m) {
+            var safe = /^https:\/\//i.test(m.url) || /^\/api\/media\//.test(m.url);
+            return '<div class="p-row"><span class="p-row-main">'
+              + (safe ? '<a class="p-title" href="' + esc(m.url) + '" target="_blank" rel="noopener">' + esc(m.title) + '</a>' : '<span class="p-title">' + esc(m.title) + '</span>')
+              + (m.guide ? '<span class="p-caption">' + esc(m.guide) + '</span>' : '') + '</span></div>';
+          }).join('') + '</div></section>';
+      }
+
+      html += lessonReview(l);
+
+      if (l.syllabus_only) {
+        html += notice('This week has no questions. Your teacher ticks it off once you have done it in class.', null, 'chalkboard-user');
+      } else if (!p.pending) {
+        var prev = {};
+        try { prev = (l.review && l.review.items || []).reduce(function (acc, it) { acc[it.check_id] = it.your_answer; return acc; }, {}); } catch (e) { prev = {}; }
+        html += '<section class="p-card"><div class="p-label">' + esc(p.state === 'completed' ? 'Try it again' : 'Questions') + '</div>'
+          + '<p class="p-caption">' + esc('Pass mark: ' + l.pass_mark + '%. Written answers are marked by your teacher.') + '</p>'
+          + '<div class="p-gap-t">' + (l.checks || []).map(function (c, i) {
+            return lessonQuestion(c, i + 1, c.kind === 'order' ? null : prev[c.id]);
+          }).join('') + '</div>'
+          + '<button type="button" class="p-action" id="lsnSend" data-lesson-id="' + esc(l.id) + '">Send my answers</button></section>';
+      }
+      paint(html + '</div>');
+    }).catch(function (err) {
+      paint(backTo('learn', 'Where I stand') + h1('Lesson') + empty('triangle-exclamation', errOf(err, 'Could not open this lesson.')));
+    });
+  }
+
+  /** Read every answer off the page. A blank one is sent blank; the server says which are missing. */
+  function lessonAnswers() {
+    var out = {};
+    $$('.s-lsn-check', main).forEach(function (el) {
+      var q = el.dataset.q, kind = el.dataset.kind;
+      if (kind === 'mcq') { var r = el.querySelector('input[type=radio]:checked'); out[q] = r ? r.value : ''; }
+      else if (kind === 'order') out[q] = $$('li', el).map(function (li) { return Number(li.dataset.i); });
+      else if (kind === 'evidence') out[q] = (el.querySelector('input') || {}).value || '';
+      else out[q] = (el.querySelector('textarea') || {}).value || '';
+    });
+    return out;
+  }
+
   /* ── Routing ────────────────────────────────────────────────────────────── */
 
   var SCREENS = {
     home: renderHome, train: renderTrain, learn: renderLearn, attend: renderAttend,
-    money: renderMoney, repertoire: renderRepertoire, a11y: renderA11y
+    money: renderMoney, repertoire: renderRepertoire, a11y: renderA11y, lesson: renderLesson
   };
   /* Which bar item lights for a screen the bar does not itself carry. Fees and
      Repertoire light NOTHING rather than borrowing another tab's highlight — a
      bar that claims you are on Home while you are reading an invoice is worse
      than a bar that claims nothing. */
-  var TAB_OF = { home: 'home', train: 'train', learn: 'learn', attend: 'attend' };
+  var TAB_OF = { home: 'home', train: 'train', learn: 'learn', attend: 'attend', lesson: 'learn' };
 
   function go(screen, arg) {
     if (!SCREENS[screen]) screen = 'home';
@@ -994,6 +1151,32 @@
 
     var nav = t.closest('[data-screen]');
     if (nav) { go(nav.dataset.screen, null); return; }
+
+    var openL = t.closest('[data-open-lesson]');
+    if (openL) { go('lesson', openL.dataset.openLesson); return; }
+
+    /* Put-in-order: a step moves one place, and focus stays on the button that
+       moved it, so a keyboard user can keep pressing. */
+    var mv = t.closest('.s-lsn-mv');
+    if (mv) {
+      var li = mv.closest('li'), up = mv.dataset.move === 'up';
+      var sib = up ? li.previousElementSibling : li.nextElementSibling;
+      if (sib) { if (up) li.parentNode.insertBefore(li, sib); else li.parentNode.insertBefore(sib, li); }
+      var again = li.querySelector('[data-move="' + mv.dataset.move + '"]');
+      if (again) again.focus();
+      return;
+    }
+
+    if (t.closest('#lsnSend')) {
+      var sb = t.closest('#lsnSend'), lid = Number(sb.dataset.lessonId);
+      write(sb, API.request('student/lessons', { method: 'POST', body: { action: 'submit', lesson_id: lid, answers: lessonAnswers() } }),
+        function (r) {
+          toast(r.passed ? 'Passed — well done.' : (r.pending ? 'Sent. Your teacher will mark the written answers.' : 'Not this time — have a look at what came back and try again.'),
+            r.passed ? 'good' : null);
+          renderLesson(lid);
+        });
+      return;
+    }
 
     /* Check in. The gate is the server's — this only asks. `mode` follows the
        session's own mode so an online student is not recorded as onsite. */

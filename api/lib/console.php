@@ -224,7 +224,7 @@ function mam_console_nav(): array {
             ['key' => 'events',     'label' => 'Recitals & events',  'cap' => null],
         ]],
         ['key' => 'curriculum', 'label' => 'Curriculum', 'icon' => 'fa-book-open', 'sections' => [
-            ['key' => 'curriculum', 'label' => 'Modules',             'cap' => 'curriculum'],
+            ['key' => 'curriculum', 'label' => 'Lessons',             'cap' => 'curriculum'],
             ['key' => 'assessment', 'label' => 'Assessment & boards', 'cap' => null],
         ]],
         ['key' => 'finance', 'label' => 'Finance', 'icon' => 'fa-naira-sign', 'sections' => [
@@ -1162,10 +1162,15 @@ function mam_console_curriculum(array $q = []): array {
 
     // Resources attach to a class or a cohort, never to a module, so a per-module
     // resource count is not a thing v1 can answer — don't invent a column for it.
+    // A module is a LESSON since v97 (api/lib/lessons.php): its state, how many
+    // questions it has and how many students have started it, in one query.
     $modules = $course > 0 ? mam_console_rows('cur.modules',
-        "SELECT m.id, m.week, m.title, m.kind, l.code level_code
+        "SELECT m.id, m.week, m.title, m.kind, m.status, m.version, l.code level_code,
+                (SELECT COUNT(*) FROM module_checks mc WHERE mc.module_id = m.id) questions,
+                (SELECT COUNT(*) FROM module_progress mp WHERE mp.module_id = m.id) started,
+                (SELECT COUNT(*) FROM module_progress mp WHERE mp.module_id = m.id AND mp.status = 'completed') done
            FROM modules m LEFT JOIN levels l ON l.id = m.level_id
-          WHERE m.course_id = ? ORDER BY m.week, m.id", [$course]) : [];
+          WHERE m.course_id = ? ORDER BY l.sort_order, m.week, m.id", [$course]) : [];
 
     $weeks = (int) (mam_console_scalar('cur.weeks', "SELECT weeks FROM programs WHERE id = ?", [$prog], 0) ?: 0);
     $have = array_map(fn($m) => (int) $m['week'], $modules);
@@ -1192,9 +1197,30 @@ function mam_console_curriculum(array $q = []): array {
             'weight' => (float) ($meta['weight'] ?? 0), 'evidenced' => isset($evidenced[$key])];
     }
 
+    // The lesson open in the editor: ?lesson=N, or ?lesson=new for a blank one
+    // on the course in view, at the first week that has no lesson yet.
+    $editing = null;
+    $lq = (string) ($q['lesson'] ?? '');
+    if ($lq === 'new') {
+        $next = 1;
+        while (in_array($next, $have, true)) $next++;
+        $editing = ['id' => null, 'course_id' => $course, 'level_id' => null, 'week' => $next, 'kind' => 'module',
+            'title' => '', 'summary' => '', 'body' => '', 'objectives' => [], 'duration_mins' => null, 'pass_mark' => 60,
+            'status' => 'draft', 'version' => 1, 'checks' => [], 'materials' => [], 'started' => 0];
+    } elseif ((int) $lq > 0) {
+        $editing = mam_console_try('cur.lesson', fn() => mam_lesson_get((int) $lq, true, true), null);
+        if ($editing) $editing['started'] = (int) mam_console_scalar('cur.lstarted', 'SELECT COUNT(*) FROM module_progress WHERE module_id = ?', [(int) $lq], 0);
+    }
+
     return ['programs' => $programs, 'program' => $prog, 'courses' => $courses,
         'course' => $course, 'modules' => $modules, 'gaps' => $gaps, 'weeks' => $weeks,
-        'coverage' => $coverage,
+        'coverage' => $coverage, 'editing' => $editing,
+        'all_courses' => mam_console_rows('cur.allcourses',
+            "SELECT c.id, c.code, c.name, c.kind, c.active,
+                    (SELECT COUNT(*) FROM program_courses pc WHERE pc.course_id = c.id AND pc.program_id = ?) linked
+               FROM courses c ORDER BY c.sort_order, c.name", [$prog]),
+        'report' => mam_console_try('cur.report', fn() => mam_lesson_course_report(), []),
+        'waiting' => (int) mam_console_scalar('cur.waiting', 'SELECT COUNT(*) FROM module_progress WHERE pending = 1', [], 0),
         'levels' => mam_console_rows('cur.levels', "SELECT id, code, name FROM levels ORDER BY sort_order")];
 }
 

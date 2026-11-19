@@ -436,6 +436,13 @@ function mam_sportal_learn(int $studentId): array {
         'convention' => 'The 80% mark is a standard the academy chose and reviews. It is not a fact about music.',
         'enrolments' => $enrolments,
         'weeks'      => $weeks,
+        /* The syllabus as lessons, with where this student stands on each
+           (api/lib/lessons.php). In the same payload so the screen is still one
+           request; a failure here costs the card, never the screen. */
+        'lessons'    => (function () use ($studentId) {
+            try { return function_exists('mam_lesson_student_board') ? mam_lesson_student_board($studentId) : []; }
+            catch (Throwable $e) { return []; }
+        })(),
     ];
 }
 

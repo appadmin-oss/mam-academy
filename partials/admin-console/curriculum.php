@@ -2,11 +2,19 @@
 /** Curriculum — programme → course at a level → modules. Not the schedule, not mastery. */
 declare(strict_types=1);
 /** @var array $d */
+// A lesson open in the editor takes the whole screen (partials/admin-console/_lesson-editor.php).
+if (($d['editing'] ?? null) !== null) { require __DIR__ . '/_lesson-editor.php'; return; }
 $uncovered = array_values(array_filter($d['coverage'] ?? [], fn($c) => empty($c['evidenced'])));
 $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovered));
 ?>
 <?php ac_head('Curriculum',
-    'Programme → course at a level → modules · curriculum is not the schedule and not mastery'); ?>
+    'Programme → course at a level → lessons · curriculum is not the schedule and not mastery',
+    (int) ($d['course'] ?? 0) > 0 ? '<a class="ac-btn ac-btn--primary" href="' . ac_h(ac_url('curriculum', ['program' => (int) ($d['program'] ?? 0), 'course' => (int) $d['course'], 'lesson' => 'new'])) . '">New lesson</a>' : ''); ?>
+
+<?php if ((int) ($d['waiting'] ?? 0) > 0): ?>
+  <?php ac_banner('warn', 'fa-pen-to-square', '<strong>' . (int) $d['waiting'] . ' lesson attempt' . ((int) $d['waiting'] === 1 ? ' is' : 's are')
+    . ' waiting for a teacher to mark the written answers.</strong> Teachers mark them on the Marking screen of their portal; until then the student reads "with your teacher".'); ?>
+<?php endif; ?>
 
 <?php if ($uncovered && $uncoveredWeight > 0): ?>
   <?php ac_banner('warn', 'fa-triangle-exclamation',
@@ -17,7 +25,7 @@ $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovere
     . 'curriculum gap, not a reporting one.'); ?>
 <?php endif; ?>
 
-<div class="ac-cols ac-cols--3">
+<div class="ac-cols ac-cols--2">
   <?php ac_card_open('Programme'); ?>
     <div class="ac-queue">
       <?php foreach ($d['programs'] ?? [] as $p): ?>
@@ -29,7 +37,7 @@ $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovere
           <span class="ac-qage"><?= ac_h((string) $p['code']) ?></span>
         </a>
       <?php endforeach; ?>
-      <?php if (!($d['programs'] ?? [])): ?><?php ac_empty('No programmes', 'Seed the catalogue from the legacy curriculum screen.'); ?><?php endif; ?>
+      <?php if (!($d['programs'] ?? [])): ?><?php ac_empty('No programmes', 'There is no programme to put courses in yet.'); ?><?php endif; ?>
     </div>
   <?php ac_card_close(); ?>
 
@@ -48,31 +56,51 @@ $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovere
     </div>
   <?php ac_card_close(); ?>
 
-  <?php ac_card_open('Modules', count($d['modules'] ?? []) . ' authored', '<span class="ac-cardmeta">Week is the planned position, not a date</span>'); ?>
+</div>
+
+<?php ac_card_open('Lessons', count($d['modules'] ?? []) . ' in this course', '<span class="ac-cardmeta">Week is the planned position, not a date</span>'); ?>
+    <?php ac_form('lesson_status', 'curriculum', ['course' => (string) (int) ($d['course'] ?? 0)]); ?>
     <div class="ac-tablewrap">
       <table class="ac-table">
-        <thead><tr><th>Wk</th><th>Title</th><th>Kind</th></tr></thead>
+        <thead><tr><th><span class="ac-sr">Select</span></th><th>Wk</th><th>Lesson</th><th>State</th><th class="ac-num">Questions</th><th class="ac-num">Done / started</th></tr></thead>
         <tbody>
           <?php if (!($d['modules'] ?? [])): ?>
-            <?php ac_table_empty(3, 'No modules for this course yet.'); ?>
-          <?php else: foreach ($d['modules'] as $m): ?>
+            <?php ac_table_empty(6, 'No lessons for this course yet. Start one with New lesson.'); ?>
+          <?php else: foreach ($d['modules'] as $m): $st = (string) ($m['status'] ?? 'published'); ?>
             <tr>
+              <td><input type="checkbox" name="ids[]" value="<?= (int) $m['id'] ?>" aria-label="Select week <?= (int) $m['week'] ?>, <?= ac_h((string) $m['title']) ?>"></td>
               <td class="ac-num ac-mono">W<?= (int) $m['week'] ?></td>
-              <td><?= ac_h((string) $m['title']) ?>
-                <?php if (!empty($m['level_code'])): ?><div class="ac-sub"><?= ac_h((string) $m['level_code']) ?></div><?php endif; ?></td>
-              <td><?= (string) ($m['kind'] ?? '') !== '' ? ac_tag((string) $m['kind']) : '<span class="ac-sub">—</span>' ?></td>
+              <td><a href="<?= ac_h(ac_url('curriculum', ['program' => (int) ($d['program'] ?? 0), 'course' => (int) ($d['course'] ?? 0), 'lesson' => (int) $m['id']])) ?>"><?= ac_h((string) $m['title']) ?></a>
+                <div class="ac-sub"><?= ac_h(trim(((string) ($m['level_code'] ?? '') ?: 'every level') . ' · ' . ((string) ($m['kind'] ?? 'module') === 'module' ? 'lesson' : (string) $m['kind']))) ?></div></td>
+              <td><?= ac_pill(['published' => 'Published', 'draft' => 'Draft', 'retired' => 'Retired'][$st] ?? $st, $st === 'published' ? 'good' : ($st === 'draft' ? 'warn' : '')) ?>
+                <?php if ($st === 'published' && (int) $m['questions'] === 0): ?><div class="ac-sub">no questions — the teacher ticks it off</div><?php endif; ?></td>
+              <td class="ac-num"><?= (int) $m['questions'] ?></td>
+              <td class="ac-num"><?= (int) $m['done'] ?> / <?= (int) $m['started'] ?></td>
             </tr>
           <?php endforeach; endif; ?>
           <?php if ($d['gaps'] ?? []): ?>
-            <tr><td colspan="3"><div class="ac-note">Week<?= count($d['gaps']) === 1 ? '' : 's' ?>
+            <tr><td colspan="6"><div class="ac-note">Week<?= count($d['gaps']) === 1 ? '' : 's' ?>
               <strong><?= ac_h(implode(', ', array_slice($d['gaps'], 0, 14))) ?><?= count($d['gaps']) > 14 ? '…' : '' ?></strong>
-              have no module yet.</div></td></tr>
+              have no lesson yet.</div></td></tr>
           <?php endif; ?>
         </tbody>
       </table>
     </div>
-  <?php ac_card_close('Week is the planned position in the course, not a date; when a learner actually reaches it is recorded per learner.'); ?>
-</div>
+    <?php if ($d['modules'] ?? []): ?>
+      <div class="ac-row ac-bulkbar">
+        <label class="ac-field"><span class="ac-label">With the ticked lessons</span>
+          <select class="ac-select" name="status" required>
+            <option value="">Choose…</option>
+            <option value="published">Publish</option>
+            <option value="draft">Move back to draft</option>
+            <option value="retired">Retire</option>
+          </select></label>
+        <button type="submit" class="ac-btn">Apply</button>
+      </div>
+    <?php endif; ?>
+    <?php ac_form_end(); ?>
+  <?php ac_card_close('A lesson somebody has started is retired, never deleted — their progress is the record of what they did. Publishing needs questions, at least one of them marked by a teacher.'); ?>
+
 
 <div class="ac-cols ac-cols--2">
   <?php ac_card_open('Coverage check', count($uncovered) . ' unevidenced',
@@ -123,4 +151,63 @@ $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovere
       </div>
     <?php ac_card_close('<a href="' . ac_h(ac_url('pricebooks')) . '">Price books</a> is where the second half of that lives.'); ?>
   </div>
+</div>
+
+<div class="ac-stack">
+  <?php ac_card_open('How far students are', '', '<span class="ac-cardmeta">Lessons completed, every course</span>'); ?>
+    <div class="ac-tablewrap">
+      <table class="ac-table">
+        <thead><tr><th>Course</th><th class="ac-num">Published</th><th class="ac-num">Drafts</th><th class="ac-num">Students</th><th class="ac-num">Completed</th><th class="ac-num">Waiting to mark</th></tr></thead>
+        <tbody>
+          <?php $rep = array_values(array_filter($d['report'] ?? [], fn($r) => $r['published'] + $r['draft'] + $r['students'] > 0)); ?>
+          <?php if (!$rep): ?>
+            <?php ac_table_empty(6, 'No course has lessons or students yet.'); ?>
+          <?php else: foreach ($rep as $r): ?>
+            <tr>
+              <td><?= ac_h((string) $r['name']) ?><?= $r['active'] ? '' : ' ' . ac_pill('Inactive') ?></td>
+              <td class="ac-num"><?= (int) $r['published'] ?></td>
+              <td class="ac-num"><?= (int) $r['draft'] ?></td>
+              <td class="ac-num"><?= (int) $r['students'] ?></td>
+              <td class="ac-num"><?= $r['completion_pct'] === null ? '<span class="ac-sub">—</span>' : (int) $r['completion_pct'] . '%' ?></td>
+              <td class="ac-num"><?= (int) $r['waiting'] ?: '<span class="ac-sub">—</span>' ?></td>
+            </tr>
+          <?php endforeach; endif; ?>
+        </tbody>
+      </table>
+    </div>
+  <?php ac_card_close('Completed is lessons done out of every published lesson times every student on the course. A dash means there is nothing to divide by yet — not 0%.'); ?>
+
+  <?php ac_card_open('Courses', count($d['all_courses'] ?? []) . ' in the catalogue'); ?>
+    <div class="ac-tablewrap">
+      <table class="ac-table">
+        <thead><tr><th>Course</th><th>Kind</th><th>In this programme</th><th class="ac-num"></th></tr></thead>
+        <tbody>
+          <?php foreach ($d['all_courses'] ?? [] as $c): ?>
+            <tr>
+              <td><?= ac_h((string) $c['name']) ?><div class="ac-sub ac-mono"><?= ac_h((string) $c['code']) ?></div></td>
+              <td><?= ac_tag((string) ($c['kind'] ?: 'elective')) ?><?= (int) $c['active'] ? '' : ' ' . ac_pill('Inactive') ?></td>
+              <td><?php if ((int) $c['linked'] > 0): ?>
+                  <?php ac_action_btn('unlink_course', 'curriculum', ['program_id' => (int) ($d['program'] ?? 0), 'course_id' => (int) $c['id']], 'Take out',
+                      'ac-btn ac-btn--sm', 'Take this course out of the programme? Its lessons and students are not touched.'); ?>
+                <?php else: ?>
+                  <?php ac_action_btn('link_course', 'curriculum', ['program_id' => (int) ($d['program'] ?? 0), 'course_id' => (int) $c['id']], 'Add to programme'); ?>
+                <?php endif; ?></td>
+              <td class="ac-num"><?php ac_action_btn('course_toggle', 'curriculum', ['course_id' => (int) $c['id']], (int) $c['active'] ? 'Make inactive' : 'Make active'); ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <div class="ac-cardbody">
+      <?php ac_form('course_create', 'curriculum'); ?>
+        <div class="ac-inline">
+          <label class="ac-field ac-w-xs"><span class="ac-label">Code</span><input class="ac-input" name="code" required maxlength="40" placeholder="violin"></label>
+          <label class="ac-field"><span class="ac-label">Name</span><input class="ac-input" name="name" required maxlength="120" placeholder="Violin"></label>
+          <label class="ac-field ac-w-xs"><span class="ac-label">Kind</span>
+            <select class="ac-select" name="kind"><option value="elective">Elective</option><option value="core">Core</option></select></label>
+          <button type="submit" class="ac-btn ac-btn--primary">Add the course</button>
+        </div>
+      <?php ac_form_end(); ?>
+    </div>
+  <?php ac_card_close('An inactive course keeps its lessons and its students\' progress; it is just not offered.'); ?>
 </div>

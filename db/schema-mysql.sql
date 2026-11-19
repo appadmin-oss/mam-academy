@@ -3276,3 +3276,78 @@ INSERT INTO schema_version (version) VALUES (95) ON DUPLICATE KEY UPDATE version
 -- v96 — the guardian's email on a year-round application, so the guardian can be given their own account.
 ALTER TABLE applications ADD COLUMN parent_email VARCHAR(190) NULL;
 INSERT INTO schema_version (version) VALUES (96) ON DUPLICATE KEY UPDATE version = version;
+
+-- v97 — lessons (ported from NGG's curriculum): a module becomes a lesson with a
+-- draft/published/retired life, questions, materials and per-student progress.
+ALTER TABLE modules ADD COLUMN status VARCHAR(12) NOT NULL DEFAULT 'published';
+ALTER TABLE modules ADD COLUMN summary VARCHAR(600) NULL;
+ALTER TABLE modules ADD COLUMN objectives TEXT NULL;
+ALTER TABLE modules ADD COLUMN duration_mins INT NULL;
+ALTER TABLE modules ADD COLUMN pass_mark INT NOT NULL DEFAULT 60;
+ALTER TABLE modules ADD COLUMN version INT NOT NULL DEFAULT 1;
+ALTER TABLE modules ADD COLUMN published_at DATETIME NULL;
+ALTER TABLE modules ADD COLUMN updated_at DATETIME NULL;
+ALTER TABLE modules ADD COLUMN updated_by INT NULL;
+CREATE TABLE IF NOT EXISTS module_checks (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  module_id  INT NOT NULL,
+  kind       VARCHAR(12) NOT NULL,
+  prompt     TEXT NOT NULL,
+  options    TEXT NULL,
+  answer     TEXT NULL,
+  whys       TEXT NULL,
+  rubric     TEXT NULL,
+  points     INT NOT NULL DEFAULT 1,
+  position   INT NOT NULL DEFAULT 1,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_mchecks_module (module_id, position),
+  CONSTRAINT fk_mchecks_module FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE,
+  CONSTRAINT chk_mchecks_kind   CHECK (kind IN ('mcq','order','short','task','reflection','evidence')),
+  CONSTRAINT chk_mchecks_points CHECK (points BETWEEN 0 AND 100),
+  CONSTRAINT chk_mchecks_prompt CHECK (CHAR_LENGTH(prompt) > 0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS module_materials (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  module_id  INT NOT NULL,
+  kind       VARCHAR(16) NOT NULL DEFAULT 'link',
+  title      VARCHAR(200) NOT NULL,
+  url        VARCHAR(1000) NOT NULL,
+  guide      VARCHAR(300) NULL,
+  position   INT NOT NULL DEFAULT 1,
+  status     VARCHAR(10) NOT NULL DEFAULT 'approved',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_mmat_module (module_id, position),
+  CONSTRAINT fk_mmat_module FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE,
+  CONSTRAINT chk_mmat_status CHECK (status IN ('approved','pending','rejected'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS module_progress (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  module_id      INT NOT NULL,
+  student_id     INT NOT NULL,
+  status         VARCHAR(10) NOT NULL DEFAULT 'started',
+  module_version INT NOT NULL DEFAULT 1,
+  score          DOUBLE NULL,
+  max_score      DOUBLE NULL,
+  best_pct       DOUBLE NULL,
+  attempts       INT NOT NULL DEFAULT 0,
+  answers        MEDIUMTEXT NULL,
+  marks          MEDIUMTEXT NULL,
+  feedback       TEXT NULL,
+  pending        TINYINT NOT NULL DEFAULT 0,
+  marked_by      INT NULL,
+  confirmed_by   INT NULL,
+  started_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  completed_at   DATETIME NULL,
+  reviewed_at    DATETIME NULL,
+  updated_at     DATETIME NULL,
+  UNIQUE KEY uq_mprog (module_id, student_id),
+  KEY idx_mprog_student (student_id),
+  KEY idx_mprog_pending (pending, module_id),
+  CONSTRAINT fk_mprog_module  FOREIGN KEY (module_id)    REFERENCES modules(id) ON DELETE CASCADE,
+  CONSTRAINT fk_mprog_student FOREIGN KEY (student_id)   REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_mprog_marker  FOREIGN KEY (marked_by)    REFERENCES users(id)   ON DELETE SET NULL,
+  CONSTRAINT fk_mprog_confirm FOREIGN KEY (confirmed_by) REFERENCES users(id)   ON DELETE SET NULL,
+  CONSTRAINT chk_mprog_status  CHECK (status IN ('started','attempted','submitted','completed')),
+  CONSTRAINT chk_mprog_pending CHECK (pending IN (0,1))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (97) ON DUPLICATE KEY UPDATE version = version;

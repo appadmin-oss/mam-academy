@@ -257,6 +257,10 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     // Pre-class learning + teach-back (LMS 2.0, PDF §8-9).
     $r->get ('/preclass',            $f('student/preclass.php'),            [mw_role('student')]);
     $r->post('/preclass',            $f('student/preclass.php'),            [mw_csrf(), mw_role('student'), mw_rate_limit('preclass', 40, 600)]);
+
+    // Lessons: the syllabus with questions and per-student progress (v97, api/lib/lessons.php).
+    $r->get ('/lessons',             $f('student/lessons.php'),             [mw_role('student')]);
+    $r->post('/lessons',             $f('student/lessons.php'),             [mw_csrf(), mw_role('student'), mw_rate_limit('lesson_submit', 60, 600)]);
 });
 
 /* ─── Parent portal (LMS 2.0, PDF §26) ─── */
@@ -336,6 +340,9 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     // Pre-class command centre + teach-back review + module content (§17-19).
     $r->get ('/preclass',           $f('instructor/preclass.php'),           [mw_role('instructor', 'admin')]);
     $r->post('/preclass',           $f('instructor/preclass.php'),           [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('preclass_ins', 80, 600)]);
+    // Lessons: written answers to mark, and ticking a lesson done (v97, api/lib/lessons.php).
+    $r->get ('/lessons',            $f('instructor/lessons.php'),            [mw_role('instructor', 'admin')]);
+    $r->post('/lessons',            $f('instructor/lessons.php'),            [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('lesson_mark', 200, 600)]);
     // Module status + carry-forward (LMS 2.0, PDF §6-7, 29-30).
     $r->get ('/module',             $f('instructor/module.php'),             [mw_role('instructor', 'admin')]);
     $r->post('/module',             $f('instructor/module.php'),             [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('module_status', 80, 600)]);

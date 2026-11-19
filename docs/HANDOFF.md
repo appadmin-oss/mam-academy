@@ -1948,3 +1948,47 @@ export still downloads, a password change and a wrong-password refusal work, an
 admin on a temporary password is held on My account (desktop, phone view, old
 URL) until they change it, and all 32 console screens at 1440 and 390 have no
 overflow, failed reads or page errors, with an empty PHP error log.
+
+## 4z. 2026-11-19 — lessons and learning tracking, ported from NGG
+
+NGG's curriculum is units with questions, materials and a progress row per
+member. MAM had a syllabus (`modules`: one course · level · week, a title and a
+paragraph) and **nothing recording a student against it** — per-student
+progress lived only on cohort `lessons`, which nothing links to the syllabus.
+Phase 1 makes a module a lesson (schema v97, `api/lib/lessons.php`):
+
+- **Content:** state (draft / published / retired), summary, objectives,
+  duration, pass mark, version; questions in `module_checks` (multiple choice,
+  put in order, short answer, task, reflection, evidence); materials in
+  `module_materials`.
+- **Tracking:** `module_progress`, one row per student per lesson — started,
+  attempted, submitted (waiting for a teacher) or completed, with score, best %,
+  attempts, answers and marks.
+- **The rules carried over** (each was a bug NGG shipped first): publishing needs
+  a question a teacher marks; answers hidden until a pass or three tries;
+  completion sticky; version bumps only when an answered question changes; a
+  started lesson is retired, never deleted; a tick never overwrites online work.
+- **Who does what:** an admin writes and publishes lessons and manages courses on
+  the console's Curriculum → Lessons; a student opens and answers them on Learn;
+  their teacher marks written answers on Marking and ticks off classroom weeks
+  from Students → the student. A teacher reaches only students they teach on that
+  course (refused on view, queue and tick — measured with a second teacher).
+
+Found in the browser and fixed: the editor matched each "why this option is
+tempting" line to an option by position, with the right answer's line blank — a
+browser drops a textarea's leading blank line, so every reason landed on the
+wrong option and shifted again on each save. Lines are keyed by option number now.
+
+Verified: suite (6979; `test_lessons.php`, with mutations of the reveal rule and
+of sticky completion each failing it); in Chromium, an admin's mcq-only lesson
+was kept as a draft with the reason, publishing worked once a written question
+was added, a student at 390 opened it, answered (wrong on purpose, then told why
+the option was tempting), the teacher marked the written answer, and the student
+saw Done; a question-free syllabus week was ticked and unticked; the console's 32
+screens at 1440 and 390 with no overflow, failed reads or page errors, and an
+empty PHP log.
+
+**Not in this phase:** fines for overdue lessons (the owner's decision — money
+penalties on children are gated by law here), AI marking, exams, mastery tiers and
+certificates, placement years, the study helper, materials submitted by
+instructors, lesson feedback and private notes.

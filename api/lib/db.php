@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 96;
+const MAM_SCHEMA_TARGET = 97;
 
 /**
  * Open (and cache) the PDO connection.
@@ -3710,6 +3710,82 @@ function mam_db_migrate(PDO $db): void {
          * and collected only a name and a phone, so no account could ever be
          * made and every under-16 reached the office's "no guardian" list. */
         96 => "ALTER TABLE applications ADD COLUMN parent_email TEXT;",
+        /* v97 — lessons, ported from NGG's curriculum (api/lib/lessons.php).
+         * A `modules` row (one course · level · week) becomes a LESSON: a draft
+         * → published → retired life, a version, objectives and a pass mark,
+         * with questions (module_checks), materials (module_materials) and one
+         * progress row per student (module_progress). Before this nothing
+         * recorded a student against the syllabus at all — per-student progress
+         * existed only on cohort `lessons`, which nothing links to a module.
+         * Existing rows default to `published` so no week a family can see today
+         * disappears; a NEW lesson starts as a draft. */
+        97 => "
+            ALTER TABLE modules ADD COLUMN status TEXT NOT NULL DEFAULT 'published';
+            ALTER TABLE modules ADD COLUMN summary TEXT;
+            ALTER TABLE modules ADD COLUMN objectives TEXT;
+            ALTER TABLE modules ADD COLUMN duration_mins INTEGER;
+            ALTER TABLE modules ADD COLUMN pass_mark INTEGER NOT NULL DEFAULT 60;
+            ALTER TABLE modules ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+            ALTER TABLE modules ADD COLUMN published_at TEXT;
+            ALTER TABLE modules ADD COLUMN updated_at TEXT;
+            ALTER TABLE modules ADD COLUMN updated_by INTEGER;
+            CREATE TABLE IF NOT EXISTS module_checks (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              module_id  INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+              kind       TEXT    NOT NULL,
+              prompt     TEXT    NOT NULL,
+              options    TEXT,
+              answer     TEXT,
+              whys       TEXT,
+              rubric     TEXT,
+              points     INTEGER NOT NULL DEFAULT 1,
+              position   INTEGER NOT NULL DEFAULT 1,
+              created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+              CHECK(kind IN ('mcq','order','short','task','reflection','evidence')),
+              CHECK(points BETWEEN 0 AND 100),
+              CHECK(length(prompt) > 0)
+            );
+            CREATE INDEX IF NOT EXISTS idx_mchecks_module ON module_checks(module_id, position);
+            CREATE TABLE IF NOT EXISTS module_materials (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              module_id  INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+              kind       TEXT    NOT NULL DEFAULT 'link',
+              title      TEXT    NOT NULL,
+              url        TEXT    NOT NULL,
+              guide      TEXT,
+              position   INTEGER NOT NULL DEFAULT 1,
+              status     TEXT    NOT NULL DEFAULT 'approved',
+              created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+              CHECK(status IN ('approved','pending','rejected'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_mmat_module ON module_materials(module_id, position);
+            CREATE TABLE IF NOT EXISTS module_progress (
+              id             INTEGER PRIMARY KEY AUTOINCREMENT,
+              module_id      INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+              student_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              status         TEXT    NOT NULL DEFAULT 'started',
+              module_version INTEGER NOT NULL DEFAULT 1,
+              score          REAL,
+              max_score      REAL,
+              best_pct       REAL,
+              attempts       INTEGER NOT NULL DEFAULT 0,
+              answers        TEXT,
+              marks          TEXT,
+              feedback       TEXT,
+              pending        INTEGER NOT NULL DEFAULT 0,
+              marked_by      INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              confirmed_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              started_at     TEXT    NOT NULL DEFAULT (datetime('now')),
+              completed_at   TEXT,
+              reviewed_at    TEXT,
+              updated_at     TEXT,
+              UNIQUE(module_id, student_id),
+              CHECK(status IN ('started','attempted','submitted','completed')),
+              CHECK(pending IN (0,1))
+            );
+            CREATE INDEX IF NOT EXISTS idx_mprog_student ON module_progress(student_id);
+            CREATE INDEX IF NOT EXISTS idx_mprog_pending ON module_progress(pending, module_id);
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {

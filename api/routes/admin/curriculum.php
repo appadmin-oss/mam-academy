@@ -121,7 +121,8 @@ if ($action === 'save') {
 if ($action === 'delete') {
     $id = (int)($in['id'] ?? 0);
     if ($id < 1) mam_fail('missing_field', 400, ['field' => 'id']);
-    mam_lms_delete_module($id);
+    try { mam_lms_delete_module($id); }
+    catch (RuntimeException $e) { mam_fail('has_progress', 409, ['hint' => 'Students have started this lesson; retire it instead.']); }
     mam_ok(['id' => $id, 'deleted' => true]);
 }
 

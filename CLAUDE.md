@@ -1301,6 +1301,57 @@ Two conventions these established:
   total is the bug the v61 column exists to prevent. NULL = unpriced, counted
   and disclosed separately rather than silently dropped.
 
+## Lessons — the syllabus as something a student works through (HANDOFF §4z — ported from NGG)
+
+`api/lib/lessons.php`, schema v97. NGG's curriculum (units, questions, per-member
+progress, marking) ported onto MAM's `modules`. **A `modules` row (course · level
+· week) IS a lesson now** — before v97 nothing recorded a student against the
+syllabus at all; per-student progress lived only on cohort `lessons`, which
+nothing links to a module. The rules, each a bug NGG shipped before it had it:
+
+- **Draft → published → retired**, and only `published` reaches anyone — the
+  student's board, the lesson itself and the public `/course/outline` (which now
+  skips the others). Rows from before v97 migrated as `published`.
+- **Publishing needs questions, and at least one a teacher marks**
+  (`mam_lesson_publish_refusal()`): multiple choice and put-in-order are the
+  machine's; short / task / reflection / evidence are a PERSON's, never the
+  machine's — no AI marking, and nothing scores a child's playing (an `evidence`
+  question takes a link to a recording). A pre-v97 week with no questions stays
+  publishable when edited ("syllabus only"); its record is a teacher's TICK.
+  The console's save keeps a lesson that fails only this rule as a DRAFT rather
+  than throwing the typing away.
+- **Answers stay hidden until a pass or `MAM_LESSON_REVEAL_AFTER` (3) tries** —
+  NGG revealed them after one and the second attempt was copying. Put-in-order
+  steps are a STABLE shuffle that is never the right order.
+- **Completion is sticky**; the **version bumps only when what a question asks
+  changes AND somebody has answered it** (a rubric reword does not), and check
+  ids survive the edit so stored answers still point at their questions; an
+  older-version attempt reads `stale`.
+- **A started lesson is RETIRED, never deleted** — `mam_lms_delete_module()`
+  throws `has_progress`; both callers turn it into a sentence.
+- **A tick never overwrites online work**: an untick removes only a tick-made row
+  with no attempts (`done_online` otherwise).
+- **Which lessons a student has = their active/completed `course_enrollments` at
+  that level.** A legacy-class-only student has none until the console's
+  "converge" brings their cohort across (gotcha #2) — never guess a course from a
+  class's free-text discipline.
+- **A teacher acts only on students they teach on that course**
+  (`mam_lesson_instructor_teaches()`: the enrolment's instructor or its cohort's),
+  for marking, ticking and viewing alike; an admin reaches everyone.
+- ⚠️ **"Why it is tempting" lines are keyed by option NUMBER (`2: …`), never by
+  line position.** A browser drops a textarea's leading blank line, so the
+  positional version moved every reason onto the wrong option, silently, on every
+  re-save — measured in the first browser pass.
+- Surfaces: the console's Curriculum → **Lessons** (list + bulk publish/retire,
+  the editor in `_lesson-editor.php`, course management, a progress report);
+  the student's **Learn** (a card per course, the lesson player — `#lesson/N`);
+  the instructor's **Marking** (written answers) and **Students → a student**
+  (their lessons, Tick done). `test_lessons.php`.
+- **Not ported (later phases, or the owner's call):** fines for overdue lessons
+  (money penalties on children are gated by law here — gotcha #11), AI marking,
+  exams/sittings, mastery tiers and certificates, placement years, the study
+  helper, instructor-submitted materials, lesson feedback and notes.
+
 ## Member records, the roster and onboarding (HANDOFF §4w — ported from NGG)
 
 `api/lib/members.php`, schema v94–v95. NGG's member management, ported to the

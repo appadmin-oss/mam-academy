@@ -1486,3 +1486,44 @@
      large-scale movement the preference is about. */
   [data-portal="v2"] .p-spin { animation: p-spin 2.4s linear infinite !important; }
 }
+
+/* ── Lessons (api/lib/lessons.php, ported from NGG's curriculum) ─────────────
+   The student's lesson player. A question is a fieldset whose legend is the
+   question itself; choices are real radio inputs at the 16px floor; put-in-
+   order steps move with two 44px buttons, so nothing needs a drag. */
+[data-portal="v2"] .s-lsn-row { width: 100%; text-align: left; background: none; border: 0; font: inherit; color: inherit; }
+[data-portal="v2"] .s-lsn-check { border: 0; padding: 0; margin: 0 0 22px; min-width: 0; }
+[data-portal="v2"] .s-lsn-legend { display: block; padding: 0; margin-bottom: 10px; }
+[data-portal="v2"] .s-lsn-legend .p-label { display: block; }
+[data-portal="v2"] .s-lsn-q { display: block; margin-top: 4px; font-weight: 600; color: var(--text); }
+[data-portal="v2"] .s-lsn-opts { display: grid; gap: 8px; }
+[data-portal="v2"] .s-lsn-opt {
+  display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 14px;
+  border: 1px solid var(--border-btn); border-radius: var(--radius-control-sm); background: var(--raised); cursor: pointer;
+  font-size: 16px; color: var(--text);
+}
+[data-portal="v2"] .s-lsn-opt input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); flex: 0 0 auto; }
+[data-portal="v2"] .s-lsn-opt:has(input:checked) { border-color: var(--accent); background: var(--inset); }
+[data-portal="v2"] .s-lsn-order { list-style: decimal inside; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+[data-portal="v2"] .s-lsn-order li {
+  display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 4px 6px 4px 14px;
+  border: 1px solid var(--border-btn); border-radius: var(--radius-control-sm); background: var(--raised); font-size: 16px; color: var(--text);
+}
+[data-portal="v2"] .s-lsn-step { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+[data-portal="v2"] .s-lsn-mv {
+  flex: 0 0 44px; width: 44px; height: 44px; display: grid; place-items: center;
+  border: 1px solid var(--border-btn); border-radius: var(--radius-control-sm); background: var(--inset); color: var(--text-2); cursor: pointer;
+}
+[data-portal="v2"] .s-lsn-order li:first-child .s-lsn-mv[data-move="up"],
+[data-portal="v2"] .s-lsn-order li:last-child .s-lsn-mv[data-move="down"] { visibility: hidden; }
+[data-portal="v2"] .s-lsn-list { margin: 6px 0 0 18px; padding: 0; color: var(--text); font-size: 15px; line-height: 1.55; }
+[data-portal="v2"] .s-lsn-para { white-space: pre-line; }
+[data-portal="v2"] .s-lsn-para + .s-lsn-para { margin-top: 12px; }
+[data-portal="v2"] .s-lsn-fb { padding: 0 20px 12px; }
+
+/* Lesson answers on the instructor's Marking screen (api/lib/lessons.php). */
+[data-portal="v2"] .i-lsn-ans { padding: 10px 12px; background: var(--inset); border-radius: var(--radius-control-sm); white-space: pre-line; overflow-wrap: anywhere; }
+[data-portal="v2"] .i-lsn-row { display: grid; grid-template-columns: minmax(120px, 160px) 1fr; gap: 10px; margin-top: 8px; }
+@media (max-width: 480px) { [data-portal="v2"] .i-lsn-row { grid-template-columns: 1fr; } }
+[data-portal="v2"] .i-lsn-wk { flex: 0 0 40px; font: 700 13px var(--font-ui); color: var(--text-2); }
+[data-portal="v2"] button.i-lsn-tick { flex: 0 0 auto; width: auto; min-height: 44px; margin: 0; padding: 0 14px; font-size: 14px; }

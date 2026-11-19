@@ -110,6 +110,12 @@ function mam_admin_console_return(string $screen): void {
         parse_str(ltrim($loc, '?'), $q);
         $keep = [$key => $screen];
         foreach (['ok', 'err'] as $k) if (isset($q[$k]) && is_string($q[$k])) $keep[$k] = $q[$k];
+        /* A handler may name WHICH record to come back to — the lesson just
+           saved, the course it sits in. Only these names, and only short plain
+           values: anything else in the handler's query is still dropped. */
+        foreach (['lesson', 'course', 'program'] as $k) {
+            if (isset($q[$k]) && is_string($q[$k]) && preg_match('/^[a-z0-9_-]{1,20}$/i', $q[$k])) $keep[$k] = $q[$k];
+        }
         header_remove('Location');
         header('Location: ' . $base . http_build_query($keep));
     });
@@ -584,6 +590,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'cohort_converge' => 'settings', 'cohort_create' => 'curriculum', 'cohort_edit' => 'curriculum',
         'bridge_legacy_enrollments' => 'settings',
         'module_save' => 'curriculum', 'module_delete' => 'curriculum',
+        // Lessons (api/lib/lessons.php): writing one, and publishing or retiring in bulk.
+        'lesson_save' => 'curriculum', 'lesson_status' => 'curriculum',
         'module_scaffold' => 'curriculum', 'module_import' => 'curriculum',
         'rubric_create' => 'curriculum', 'rubric_update' => 'curriculum', 'rubric_delete' => 'curriculum',
         'meet_reconcile' => 'settings',
@@ -1602,8 +1610,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
         if ($action === 'module_delete') {
             $mid = (int)($_POST['module_id'] ?? 0);
-            if ($mid) mam_lms_delete_module($mid);
-            header('Location: ' . $back . '&ok=1'); exit;
+            if ($mid) {
+                try { mam_lms_delete_module($mid); }
+                catch (RuntimeException $e) {
+                    header('Location: ' . $back . '&err=' . urlencode('Students have started this lesson, so it can only be retired — their progress is their record.')); exit;
+                }
+            }
+            header('Location: ' . $back . '&ok=' . urlencode('Lesson deleted.')); exit;
         }
         if (!$courseId) { header('Location: ?v=modules&err=' . urlencode('Pick a course first.')); exit; }
 
@@ -1997,13 +2010,84 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=modules&ok=1'); exit;
     }
 
+    // ─── Lessons: the console's editor and its bulk bar (api/lib/lessons.php) ──
+    if ($action === 'lesson_save') {
+        $lid = (int) ($_POST['lesson_id'] ?? 0) ?: null;
+        $checks = [];
+        foreach ((array) ($_POST['checks'] ?? []) as $c) {
+            if (!is_array($c)) continue;
+            // An empty slot on the form is not a question.
+            if (trim((string) ($c['prompt'] ?? '')) === '' && trim((string) ($c['options'] ?? '')) === '') continue;
+            // The form asks for the right option by its NUMBER as a person counts (1, 2, 3); stored as an index.
+            $n = trim((string) ($c['answer_n'] ?? ''));
+            $c['answer'] = ($n !== '' && ctype_digit($n) && (int) $n >= 1) ? (string) ((int) $n - 1) : null;
+            /* "Why it is tempting" is one line PER OPTION, each naming the option
+               by number ("2: C to E-flat would be minor"). It used to be matched
+               by line position with the right answer's line left blank — and a
+               browser drops a textarea's leading blank line, so every reason
+               shifted onto the wrong option, silently, on every re-save. */
+            $whys = [];
+            foreach (preg_split('/\R/', (string) ($c['whys'] ?? '')) as $line) {
+                if (preg_match('/^\s*(\d{1,2})\s*[:.)\-]\s*(.+)$/u', $line, $wm)) $whys[(int) $wm[1] - 1] = trim($wm[2]);
+            }
+            $nOpts = count(array_filter(preg_split('/\R/', (string) ($c['options'] ?? '')), fn($o) => trim($o) !== ''));
+            $c['whys'] = [];
+            for ($k = 0; $k < $nOpts; $k++) $c['whys'][] = $whys[$k] ?? '';
+            $checks[] = $c;
+        }
+        $in = [
+            'course_id' => (int) ($_POST['course_id'] ?? 0), 'level_id' => $_POST['level_id'] ?? null,
+            'week' => (int) ($_POST['week'] ?? 0), 'kind' => (string) ($_POST['kind'] ?? 'module'),
+            'title' => (string) ($_POST['title'] ?? ''), 'summary' => (string) ($_POST['summary'] ?? ''),
+            'body' => (string) ($_POST['body'] ?? ''), 'objectives' => (string) ($_POST['objectives'] ?? ''),
+            'duration_mins' => $_POST['duration_mins'] ?? null, 'pass_mark' => (int) ($_POST['pass_mark'] ?? 60),
+            'status' => (string) ($_POST['status'] ?? 'draft'), 'checks' => $checks,
+            'materials' => array_values(array_filter((array) ($_POST['materials'] ?? []), 'is_array')),
+        ];
+        $by = $adminUser ? (int) $adminUser['id'] : null;
+        try {
+            $r = mam_lesson_save($lid, $in, $by);
+            header('Location: ?v=curriculum&lesson=' . $r['id'] . '&course=' . $in['course_id'] . '&ok=' . urlencode(
+                ($lid ? 'Lesson saved' : 'Lesson created') . ($r['version'] > 1 && $lid ? ' — the questions changed after students answered, so it is now version ' . $r['version'] . ' and older scores read as stale.' : '.'))); exit;
+        } catch (InvalidArgumentException $e) {
+            /* Asked to publish and refused only by the publishing rule: keep the
+               work as a draft rather than throwing away a lesson's worth of typing,
+               and say why it is not live. */
+            if ($in['status'] === 'published') {
+                try {
+                    $r = mam_lesson_save($lid, ['status' => 'draft'] + $in, $by);
+                    header('Location: ?v=curriculum&lesson=' . $r['id'] . '&course=' . $in['course_id'] . '&err=' . urlencode('Saved as a draft, not published: ' . $e->getMessage())); exit;
+                } catch (InvalidArgumentException $e2) { /* fall through with the first reason */ }
+            }
+            header('Location: ?v=curriculum&lesson=' . ($lid ?: 'new') . '&course=' . $in['course_id'] . '&err=' . urlencode($e->getMessage())); exit;
+        }
+    }
+    if ($action === 'lesson_status') {
+        $ids = array_map('intval', (array) ($_POST['ids'] ?? []));
+        $status = (string) ($_POST['status'] ?? '');
+        $course = (int) ($_POST['course'] ?? 0);
+        if (!$ids) { header('Location: ?v=curriculum&course=' . $course . '&err=' . urlencode('Tick at least one lesson.')); exit; }
+        try {
+            $r = mam_lesson_set_status($ids, $status, $adminUser ? (int) $adminUser['id'] : null);
+        } catch (InvalidArgumentException $e) {
+            header('Location: ?v=curriculum&course=' . $course . '&err=' . urlencode('Choose what to do with them.')); exit;
+        }
+        $msg = $r['applied'] . ' lesson' . ($r['applied'] === 1 ? '' : 's') . ' ' . ['published' => 'published', 'draft' => 'moved back to draft', 'retired' => 'retired'][$status]
+            . ($r['unchanged'] ? ', ' . $r['unchanged'] . ' already were' : '') . '.';
+        if ($r['refused']) {
+            $first = reset($r['refused']);
+            header('Location: ?v=curriculum&course=' . $course . '&err=' . urlencode($msg . ' ' . count($r['refused']) . ' refused — ' . $first)); exit;
+        }
+        header('Location: ?v=curriculum&course=' . $course . '&ok=' . urlencode($msg)); exit;
+    }
+
     // ─── Load the bundled starter curriculum (from MAM's documents) ──
     if ($action === 'seed_starter') {
         $force = (int)($_POST['force'] ?? 0) === 1;
         $res = mam_lms_seed_starter_curriculum($force);
         $c = 0; $u = 0;
         foreach ($res as $r) { $c += (int)($r['created'] ?? 0); $u += (int)($r['updated'] ?? 0); }
-        header('Location: ?v=modules&seed_c=' . $c . '&seed_u=' . $u . '&seed_n=' . count($res)); exit;
+        header('Location: ?v=modules&ok=' . urlencode('Starter curriculum loaded: ' . $c . ' week' . ($c === 1 ? '' : 's') . ' created, ' . $u . ' updated, across ' . count($res) . ' course' . (count($res) === 1 ? '' : 's') . '.')); exit;
     }
 
     // ─── Enterprise curriculum management (v41) ──────────────────────

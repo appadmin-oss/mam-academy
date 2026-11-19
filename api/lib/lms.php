@@ -1485,9 +1485,9 @@ function mam_lms_program_week_plan(?int $programId): array {
 /** Authored module rows for a course at a level (level_id NULL = level-agnostic). */
 function mam_lms_course_modules(int $courseId, ?int $levelId): array {
     if ($levelId !== null) {
-        return mam_db_all('SELECT id, week, title, kind, content FROM modules WHERE course_id = ? AND level_id = ? ORDER BY week', [$courseId, $levelId]);
+        return mam_db_all('SELECT id, week, title, kind, content, status FROM modules WHERE course_id = ? AND level_id = ? ORDER BY week', [$courseId, $levelId]);
     }
-    return mam_db_all('SELECT id, week, title, kind, content FROM modules WHERE course_id = ? AND level_id IS NULL ORDER BY week', [$courseId]);
+    return mam_db_all('SELECT id, week, title, kind, content, status FROM modules WHERE course_id = ? AND level_id IS NULL ORDER BY week', [$courseId]);
 }
 
 /** Full week-by-week outline for a course (at a level, within a programme):
@@ -1502,7 +1502,13 @@ function mam_lms_course_outline(string $courseCode, ?string $levelCode = null, ?
     $programId = $program ? (int)$program['id'] : null;
 
     $authored = [];
-    foreach (mam_lms_course_modules((int)$course['id'], $levelId) as $m) $authored[(int)$m['week']] = $m;
+    // A draft or retired lesson is not part of the syllabus anybody is shown:
+    // the outline is public (/course/outline) and a student's. Authoring tools
+    // (scaffold, export, the console) read mam_lms_course_modules() directly.
+    foreach (mam_lms_course_modules((int)$course['id'], $levelId) as $m) {
+        if (($m['status'] ?? 'published') !== 'published') continue;
+        $authored[(int)$m['week']] = $m;
+    }
 
     $plan = mam_lms_program_week_plan($programId);
     $weeks = [];
@@ -1543,6 +1549,11 @@ function mam_lms_save_module(?int $id, int $courseId, ?int $levelId, int $week, 
 }
 
 function mam_lms_delete_module(int $id): void {
+    // A lesson anybody has started is RETIRED, never deleted: deleting cascades
+    // through module_progress, which is the record of what a child did.
+    if (function_exists('mam_lesson_has_progress') && mam_lesson_has_progress($id)) {
+        throw new RuntimeException('has_progress');
+    }
     mam_db()->prepare('DELETE FROM modules WHERE id = ?')->execute([$id]);
     mam_audit('lms_module_delete', 'module', $id, []);
 }
