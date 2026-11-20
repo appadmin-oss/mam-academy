@@ -59,14 +59,6 @@ const MAM_LESSON_MAX_CHECKS    = 30;
 const MAM_LESSON_MAX_MATERIALS = 20;
 const MAM_LESSON_BULK_MAX      = 500;
 
-/** Words for a check kind, for any screen that names one. */
-function mam_lesson_check_kind_label(string $k): string {
-    return [
-        'mcq' => 'Multiple choice', 'order' => 'Put in order', 'short' => 'Short answer',
-        'task' => 'Task', 'reflection' => 'Reflection', 'evidence' => 'Evidence (a link to a recording or photo)',
-    ][$k] ?? $k;
-}
-
 function mam_lesson_now(): string { return gmdate('Y-m-d H:i:s'); }
 
 function mam_lesson_json_list($v): array {

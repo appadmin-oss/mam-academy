@@ -185,15 +185,6 @@ function ac_action_btn(string $action, string $screen, array $hidden, string $la
     ac_form_end();
 }
 
-/** Money, both ways: the accounting figure and the reader's figure. */
-function ac_money(int $usdCents, ?float $rate = null): string {
-    return '<span class="ac-num">' . ac_h(mam_console_usd($usdCents)) . '</span>';
-}
-function ac_money_dual(int $usdCents, ?float $rate = null): string {
-    return ac_h(mam_console_usd($usdCents)) . ' <span class="ac-subi">'
-        . ac_h(mam_console_ngn($usdCents, $rate)) . '</span>';
-}
-
 /** A "nothing here" table body with the right column span. */
 function ac_table_empty(int $cols, string $text): void { ?>
   <tr><td colspan="<?= (int) $cols ?>"><div class="ac-empty"><?= ac_h($text) ?></div></td></tr>

@@ -123,7 +123,7 @@
       headshotUrl: '',
       includeRegistration: true, includeCertification: false, payment: '', currency: 'USD',
       programTrack: '', policyAgree: false, policySignName: '',
-      reference: null, applicationId: null, serverTotalUsd: null
+      reference: null, applicationId: null
     };
     // Clean up legacy draft shape — early-2026 drafts had `age` and `emergencyContact`.
     if ('age' in data) delete data.age;
@@ -668,11 +668,6 @@
         subtotal: adjusted, registration: registration, total: adjusted + registration
       };
     }
-    function programmeFeeUsd() { return priceBreakdown().subtotal; }
-    function computeTotalUsd() {
-      if (data.serverTotalUsd != null) return data.serverTotalUsd;
-      return priceBreakdown().total;
-    }
     function fmtMoney(usd, cur) {
       cur = cur || data.currency || 'USD';
       // Single source of truth: local-currency formatting via MAM_CCY (config.js).
@@ -708,7 +703,6 @@
     // MetaMusic Order have no level; Grand spans all expressions (so the
     // expression step is hidden and set to 'all'); minors apply to Certified &
     // Grand only.
-    function toggleHidden(sel, hide) { var el = $(sel); if (el) el.hidden = !!hide; }
     function uncheck(name) { $$('input[name="' + name + '"]').forEach(function (i) { i.checked = false; }); }
     function updateProgrammeUI() {
       var prog = data.pathway;
@@ -936,7 +930,7 @@
       e.preventDefault();
       // Editing an earlier step invalidates the server reference; the
       // user will re-submit when they return to the review step.
-      data.reference = null; data.applicationId = null; data.serverTotalUsd = null;
+      data.reference = null; data.applicationId = null;
       saveDraft(); updateSummary();
       /* `data-sub` carries the QUESTION, so "Edit" beside Level opens the level
          screen rather than the top of step 1. The index is resolved against
@@ -1296,7 +1290,7 @@
           var pn = $('#policySignName'); if (pn) pn.value = '';
           // Editing the mode also invalidates the server-issued reference — the
           // next "Continue to Payment" will resubmit with the new policy mode.
-          data.reference = null; data.applicationId = null; data.serverTotalUsd = null;
+          data.reference = null; data.applicationId = null;
           saveDraft();
         }
         renderPolicy();
@@ -1403,7 +1397,6 @@
         .then(function (resp) {
           data.reference = resp.reference;
           data.applicationId = resp.application_id;
-          data.serverTotalUsd = resp.total_usd;
           saveDraft();
           // A retry that worked must not leave the previous attempt's red banner
           // standing over the payment step — read there, it says the payment failed.
@@ -1638,9 +1631,6 @@
       setNotice(msg + ' &middot; If this keeps happening, email <a href="mailto:' + cfg.site.contactEmail
         + '" style="color:var(--gold-bright)">' + cfg.site.contactEmail + '</a>', 'error', true);
     }
-    // Positive/neutral info: green, role=status (polite) — for "no action needed"
-    // outcomes (e.g. already paid / Auditer still valid) so they don't read as errors.
-    function apiInfo(msg) { setNotice(msg, 'info', false); }
 
     // ---------- Regional booking-fee pricing ----------
     // Pulled from /api/booking/pricing on page load. The server picks the tier

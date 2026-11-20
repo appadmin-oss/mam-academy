@@ -735,49 +735,6 @@ function mam_email_button(string $url, string $label, string $accent = ''): stri
 }
 
 /**
- * The MAM brand badge as a base64 PNG data URI, generated once with GD so it
- * renders in EVERY email client (Gmail/Outlook don't render SVG, and the SVG
- * logo is 150KB). A dark gold-ringed disc with a gold "equalizer" motif —
- * small (~a few KB), retina-friendly at 64px. Cached per request; returns ''
- * if GD is unavailable, in which case the header falls back to the wordmark.
- */
-function mam_email_logo_png_b64(): string {
-    static $cache = null;
-    if ($cache !== null) return $cache;
-    $cache = '';
-    if (!function_exists('imagecreatetruecolor') || !function_exists('imagepng')) return $cache;
-    try {
-        $sz = 220;
-        $im = imagecreatetruecolor($sz, $sz);
-        imagealphablending($im, true);
-        imagesavealpha($im, true);
-        imagefill($im, 0, 0, imagecolorallocatealpha($im, 0, 0, 0, 127)); // transparent ground
-        $dark = imagecolorallocate($im, 0x1A, 0x12, 0x0B);
-        $gold = imagecolorallocate($im, 0xFB, 0xBF, 0x24);
-        $c = intdiv($sz, 2);
-        imagefilledellipse($im, $c, $c, $sz - 6, $sz - 6, $gold);   // gold ring …
-        imagefilledellipse($im, $c, $c, $sz - 22, $sz - 22, $dark); // … over a dark disc
-        // Gold "equalizer" bars (a music/audio motif), centred, varied heights.
-        $heights = [52, 96, 70, 116, 60];
-        $bw = 16; $gap = 12;
-        $totalW = count($heights) * $bw + (count($heights) - 1) * $gap;
-        $x = $c - intdiv($totalW, 2);
-        $baseY = $c + 58;
-        foreach ($heights as $h) {
-            imagefilledrectangle($im, $x, $baseY - $h, $x + $bw, $baseY, $gold);
-            imagefilledellipse($im, $x + intdiv($bw, 2), $baseY - $h, $bw, $bw, $gold); // rounded top
-            $x += $bw + $gap;
-        }
-        ob_start();
-        imagepng($im, null, 9);
-        $png = ob_get_clean();
-        imagedestroy($im);
-        if (is_string($png) && $png !== '') $cache = 'data:image/png;base64,' . base64_encode($png);
-    } catch (\Throwable $e) { $cache = ''; }
-    return $cache;
-}
-
-/**
  * Responsive, Outlook-compatible, legally-compliant email layout used by every
  * template. Provides: viewport + dark/light color-scheme meta, a fluid
  * max-width:600px container, a hidden preheader, MSO ghost-table wrapping, and

@@ -1282,7 +1282,10 @@ Two conventions these established:
   call with `MAM_PORTAL.seenOnce(key)` — it records the key per-device, so a
   re-render does not replay yesterday's badge. Never animates under
   `prefers-reduced-motion` (particles are not *created*, not merely hidden).
-- **`MAM_INLINE_EDIT`'s allowlist is a security boundary, not a config list.**
+- **`api/lib/inline-edit.php`'s allowlist is a security boundary, not a config list.**
+  (Its browser half, `assets/js/inline-edit.js`, went with the retired legacy
+  dashboard — nothing loaded it — and was deleted on 2026-11-20; the server side
+  and its allowlist remain, and a console screen that edits in place must reuse them.)
   `api/lib/inline-edit.php` is the only thing standing between "edit a cell"
   and "set `users.admin_tier`". Adding a field there is a security decision:
   never identity, authentication, roles, money already taken, or the audit log.

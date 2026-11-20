@@ -2337,3 +2337,49 @@ Reports / "Reports & results". The sheet copies are gone (and the instructor's
 dead `#sheetMarkBadge` write with them). "Reports & comments" now reads
 "Termly reports"; the guardian's "My Children" is "Children", as on the bar.
 `test_student_portal_ui.php` fails on a screen listed twice.
+
+## 4z14. 2026-11-20 — code structure: dead code removed, features without a way in listed
+
+Found by counting every identifier once across the repo (PHP, JS, HTML) and
+checking each unreferenced definition for a dynamic call before touching it.
+No behaviour changed; `test_code_structure.php` keeps the removals removed.
+
+**Removed (defined, never called):** `ac_money`, `ac_money_dual`,
+`mam_acadmail_appurl`, `mam_ach_icon`, `mam_card_for_summer_app`,
+`mam_csrf_field` (for the retired dashboard), `mam_email_logo_png_b64` (35
+lines), `mam_fx_fetch_usd_ngn`, `mam_lesson_check_kind_label`, `mam_lms2_rooms`,
+five `mam_v2_load_*` stages the plan-driven loader replaced (267 lines); in JS
+`apiInfo`, `computeTotalUsd`, `programmeFeeUsd`, `toggleHidden` (apply.js, and
+`serverTotalUsd`, written three times and read only by the dead
+`computeTotalUsd` — the payment step charges the server's booking fee via
+`loadFee`, so nothing shown or charged depended on it), `durClass`
+(notation.js), `fmtScore` (progress.php).
+- **store.php's checkout dialog** (~280 lines: markup, styles, script, a
+  Paystack inline path). The cart's Checkout goes to `/checkout`; nothing could
+  open the dialog, though a comment called it "a fallback". ⚠️ The first cut ran
+  to the end of the script and took `load();` with it — the store drew no items
+  and threw nothing. Caught in the browser; the test pins the boot call.
+- **`assets/js/inline-edit.js`** — loaded by no page since the legacy dashboard
+  went. The server half (`api/lib/inline-edit.php`, its allowlist, the route)
+  stays; CLAUDE.md now names the allowlist by the file that enforces it.
+- The safeguarding badge counted open concerns with its own copy of
+  `mam_sg_open_count()`'s query; it calls the function now.
+
+**Kept — a claim with no caller (wire these up, or retire them deliberately):**
+- `mam_lesson_class_board()` — "a class's lessons against its students, for the
+  teacher". No teacher screen shows it.
+- `mam_recital_available_recordings()`, `mam_referral_admin_list()`,
+  `mam_report_list_for_student()` — helpers for console screens still to be
+  rebuilt (§4y: recitals, referral rewards, a student's reports).
+
+**Reached only by tests (~40 library functions)** — the same shape as §4y's
+actions: a feature built and tested whose screen went with the legacy dashboard
+or was never built. Worth a decision each, not a deletion: the report workflow's
+`mam_report_moderate` / `_withdraw` / `_appeal_decide` / `_pending`; BI
+(`mam_bi_funnel`, `_retention`, `_revenue_by_month`, `_ltv_by_pathway`);
+`mam_analytics_overview` / `_at_risk`; `mam_audit_timeline` (the per-person audit
+view); admissions `mam_admissions_pipeline` / `_notes` / `_events`;
+`mam_funnel_report`; `mam_thread_close`; `mam_makeup_grant` / `_spend`;
+`mam_reschedule_mark_paid`; and the lms2 set (rooms, assignment groups,
+calendar tokens and .ics, resource versions, submission reviews). Re-run the
+scan to see the current list (the script is in this entry's commit message).

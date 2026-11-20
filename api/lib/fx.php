@@ -220,12 +220,6 @@ function mam_fx_fetch_rates(): ?array {
     return null;
 }
 
-/** Back-compat single-rate fetch (USD→NGN). */
-function mam_fx_fetch_usd_ngn(): ?float {
-    $map = mam_fx_fetch_rates();
-    return $map['NGN'] ?? null;
-}
-
 /**
  * Pull the USD-based rate map out of a provider JSON body. Understands:
  *   fawaz currency-api:                   { "date":…, "usd": { "ngn":1600, … } }

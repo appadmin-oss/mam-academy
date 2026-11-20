@@ -351,7 +351,9 @@ function mam_console_badges(): array {
     /* The summary's own keys. This read `gaps`/`expiring`, which it has never
        returned, so the rail never flagged an instructor missing every check. */
     $b['vetting'] = (int) (($v['needs_action'] ?? 0) + ($v['expiring_soon'] ?? 0));
-    $b['safeguarding'] = mam_console_int('badge.safeguarding', "SELECT COUNT(*) FROM safeguarding_concerns WHERE status = 'open'");
+    // The library's own count, not a second copy of its query: one answer to
+    // "how many need somebody now", which is what mam_sg_open_count() says it is.
+    $b['safeguarding'] = (int) mam_console_try('badge.safeguarding', fn() => mam_sg_open_count(), 0);
     $b['bursaries'] = mam_console_int('badge.bursaries',
         "SELECT COUNT(*) FROM bursary_applications WHERE status IN ('submitted','assessing')");
     return array_filter($b, fn($n) => $n > 0);

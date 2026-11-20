@@ -106,73 +106,11 @@
 .store-empty h3{font-family:var(--font-serif);color:var(--text);font-size:1.4rem;margin:0 0 8px}
 .store-empty p{margin:0 0 6px;line-height:1.7}
 
-/* ── Checkout modal — clean, focused, no display:flex bug ─────
-   Crucial: when the modal is hidden via [hidden] attribute, the
-   browser default is display:none, BUT a class-based display:flex
-   beats that by specificity. So we explicitly override the [hidden]
-   case to win — and ALSO use a .is-open class as a belt-and-braces
-   second toggle so even if `hidden` somehow strips, the modal stays
-   hidden until JS explicitly opens it. */
-.modal-backdrop{position:fixed;inset:0;background:rgba(10,7,4,0.78);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:1000;align-items:center;justify-content:center;padding:18px;opacity:0;visibility:hidden;transition:opacity .2s var(--ease),visibility .2s var(--ease);display:flex}
-.modal-backdrop[hidden],
-.modal-backdrop:not(.is-open){opacity:0;visibility:hidden;pointer-events:none}
-.modal-backdrop.is-open{opacity:1;visibility:visible}
-.modal-backdrop[hidden]{display:flex !important;opacity:0 !important;visibility:hidden !important;pointer-events:none !important}
-
-.modal{background:var(--bg-surface);border:1px solid var(--border-gold);border-radius:20px;width:100%;max-width:540px;max-height:calc(100vh - 36px);overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,0.5);transform:translateY(20px) scale(0.98);opacity:0;transition:transform .25s var(--ease),opacity .25s var(--ease)}
-.modal-backdrop.is-open .modal{transform:translateY(0) scale(1);opacity:1}
-
-.modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:24px 28px 16px;border-bottom:1px solid var(--border)}
-.modal-head .titles{flex:1;min-width:0}
-.modal-head h2{font-family:var(--font-serif);font-size:1.35rem;margin:0 0 4px;color:var(--text);line-height:1.25}
-.modal-head .sub{color:var(--text-muted);font-size:0.88rem;margin:0;line-height:1.5}
+/* The cart drawer's close button. (The checkout dialog these rules came
+   with was removed: checkout is its own page, /checkout.) */
 .modal-close{flex-shrink:0;width:36px;height:36px;border-radius:50%;background:var(--bg-raised);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:0.95rem;transition:all .15s var(--ease)}
 .modal-close:hover{background:var(--bg-elevated);color:var(--text);border-color:var(--border-strong)}
 
-.modal-body{padding:20px 28px}
-.modal-body label{display:block;font-size:0.74rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin:14px 0 6px}
-.modal-body label:first-child{margin-top:0}
-.modal-body label.req::after{content:" *";color:#FCA5A5}
-.modal-body input,
-.modal-body textarea{width:100%;padding:13px 14px;background:var(--bg-raised);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:16px;font-family:inherit;min-height:46px;outline:none;transition:border-color .15s var(--ease),box-shadow .15s var(--ease)}
-.modal-body input:focus,
-.modal-body textarea:focus{border-color:var(--gold-bright);box-shadow:0 0 0 4px rgba(252,198,71,0.22)}
-.modal-body textarea{min-height:84px;resize:vertical;line-height:1.5}
-
-/* Two-column row for name+email on desktop */
-.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media (max-width:520px){.modal-grid{grid-template-columns:1fr;gap:0}}
-
-/* Order summary inside the modal */
-.modal-summary{margin:18px 0 0;padding:14px 16px;background:var(--bg-raised);border:1px solid var(--border);border-radius:12px}
-.modal-summary .row{display:flex;justify-content:space-between;align-items:center;gap:14px;font-size:0.88rem;color:var(--text-soft);padding:2px 0}
-.modal-summary .row.total{padding-top:10px;margin-top:6px;border-top:1px dashed var(--border);font-size:1rem;color:var(--text);font-weight:700}
-.modal-summary .row.total b{font-family:var(--font-display);font-size:1.55rem;color:var(--gold-bright);letter-spacing:0.02em;font-weight:normal}
-
-.modal-foot{padding:18px 28px 24px;border-top:1px solid var(--border);background:rgba(0,0,0,0.12)}
-.modal-foot .actions{display:flex;gap:10px}
-.modal-foot button{flex:1;padding:14px;border-radius:10px;font-weight:800;font-size:0.92rem;cursor:pointer;min-height:48px;border:0;letter-spacing:0.04em;transition:all .15s var(--ease)}
-.modal-foot .cancel{background:transparent;border:1px solid var(--border-strong);color:var(--text-muted);flex:0 0 auto;padding:14px 22px}
-.modal-foot .cancel:hover{background:var(--bg-raised);color:var(--text)}
-.modal-foot .buy{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-size:0.96rem;text-transform:uppercase;letter-spacing:0.06em;display:inline-flex;align-items:center;justify-content:center;gap:8px}
-.modal-foot .buy:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 22px rgba(224,138,26,0.4)}
-.modal-foot .buy:disabled{opacity:0.6;cursor:wait}
-.modal-foot .trust{margin:10px 0 0;text-align:center;font-size:0.74rem;color:var(--text-muted);letter-spacing:0.02em}
-.modal-foot .trust i{color:var(--gold-bright);margin-right:4px}
-
-.modal-err{display:none;margin:14px 28px 0;padding:11px 14px;border-radius:10px;background:rgba(244,63,94,0.10);border:1px solid rgba(244,63,94,0.35);color:#FECDD3;font-size:0.86rem;line-height:1.5}
-.modal-err.show{display:block}
-
-/* Success state — replaces the form with a centered confirmation */
-.modal-success{display:none;padding:40px 28px;text-align:center}
-.modal-success.show{display:block}
-.modal-success .check{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#34D399,#10B981);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:1.6rem;margin-bottom:18px;box-shadow:0 8px 28px rgba(16,185,129,0.4)}
-.modal-success h3{font-family:var(--font-serif);font-size:1.35rem;color:var(--text);margin:0 0 8px}
-.modal-success p{color:var(--text-soft);margin:0 0 18px;line-height:1.65;font-size:0.94rem}
-.modal-success .ref{font-family:'SF Mono',Menlo,Consolas,monospace;font-size:0.86rem;color:var(--gold-bright);background:var(--bg-raised);padding:6px 12px;border-radius:8px;display:inline-block;margin-bottom:18px}
-
-/* Spinner */
-.spinner-sm{display:inline-block;width:16px;height:16px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:-3px}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* ── Cart: floating button, slide-in drawer, toast ───────────── */
@@ -222,12 +160,6 @@
 
 @media (max-width:600px){
   .store-shell{padding:24px 16px 80px}
-  .modal-head{padding:20px 22px 14px}
-  .modal-body{padding:18px 22px}
-  .modal-foot{padding:16px 22px 22px}
-  .modal-foot .actions{flex-direction:column-reverse}
-  .modal-foot .cancel{flex:1;padding:14px}
-  .modal{max-height:calc(100vh - 24px);border-radius:16px}
   .item-name{font-size:1.05rem}
   .item-foot{padding:12px 16px}
   .item-body{padding:14px 16px 12px}
@@ -298,65 +230,6 @@
   <button type="button" id="toastView">View cart</button>
 </div>
 
-<!-- Checkout modal — starts hidden (CSS + attribute both enforce). Don't
-     remove the [hidden] attribute below; the !important rule in CSS uses
-     it as the single source of truth for the closed state. -->
-<div class="modal-backdrop" id="checkoutModal" hidden aria-hidden="true">
-  <div class="modal" role="dialog" aria-labelledby="checkoutTitle" aria-modal="true" tabindex="-1">
-
-    <div class="modal-head">
-      <div class="titles">
-        <h2 id="checkoutTitle">Checkout</h2>
-        <p class="sub" id="checkoutSub">Quick — almost done.</p>
-      </div>
-      <button type="button" class="modal-close" id="coClose" aria-label="Close checkout">
-        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-      </button>
-    </div>
-
-    <form id="checkoutForm" autocomplete="on" novalidate>
-      <div class="modal-body">
-        <div class="modal-grid">
-          <div>
-            <label class="req" for="coName">Full name</label>
-            <input type="text" id="coName" name="name" required autocomplete="name" placeholder="Ada Bello">
-          </div>
-          <div>
-            <label class="req" for="coEmail">Email</label>
-            <input type="email" id="coEmail" name="email" required autocomplete="email" placeholder="you@example.com">
-          </div>
-        </div>
-        <label for="coPhone">Phone <span style="color:var(--text-muted);text-transform:none;letter-spacing:0;font-weight:500">(optional)</span></label>
-        <input type="tel" id="coPhone" name="phone" autocomplete="tel" placeholder="+234…">
-
-        <div id="shipBlock" hidden>
-          <label class="req" for="coShip">Shipping address</label>
-          <textarea id="coShip" name="shipping_address" placeholder="Street, City, State, Country, Postcode"></textarea>
-        </div>
-
-        <div class="modal-summary" id="coSummary"></div>
-      </div>
-
-      <div class="modal-err" id="coErr" role="alert"></div>
-
-      <div class="modal-foot">
-        <div class="actions">
-          <button type="button" class="cancel" id="coCancel">Back</button>
-          <button type="submit" class="buy" id="coBuy"><i class="fa-solid fa-lock"></i> Secure payment</button>
-        </div>
-        <p class="trust"><i class="fa-solid fa-shield-halved"></i> Encrypted via Paystack &middot; we never see your card</p>
-      </div>
-    </form>
-
-    <div class="modal-success" id="coSuccess" aria-live="polite">
-      <div class="check"><i class="fa-solid fa-check" aria-hidden="true"></i></div>
-      <h3 id="coSuccessTitle">Order confirmed</h3>
-      <p id="coSuccessMsg">Check your email — your receipt and any download links are on the way.</p>
-      <div class="ref" id="coSuccessRef"></div>
-      <button type="button" class="cancel" id="coDone" style="display:inline-block;padding:12px 28px;background:var(--bg-raised);border:1px solid var(--border);color:var(--text);border-radius:10px;font-weight:700;cursor:pointer;letter-spacing:0.02em">Browse more →</button>
-    </div>
-  </div>
-</div>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
 <script src="assets/js/config.js?v=20260807a"></script>
@@ -372,7 +245,6 @@
   var allItems = [];          // unfiltered catalogue
   var activeCat = '';         // current category filter ('' = All)
   var activeSearch = '';      // current search term
-  var lastFocus = null;       // for restoring focus when modal closes
 
   // ── Cart (localStorage-persisted) ──────────────────────────
   // Each line snapshots display fields so the drawer renders without a
@@ -647,166 +519,15 @@
   $('#cartBackdrop').addEventListener('click', closeCart);
   document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && drawer.classList.contains('is-open')) closeCart(); });
 
-  // Checkout from the drawer → the dedicated, full checkout page (/checkout),
-  // which reads the same localStorage cart. The legacy in-drawer modal below is
-  // kept as a fallback but is no longer the primary path.
+  // Checkout from the drawer → the dedicated checkout page (/checkout), which
+  // reads the same localStorage cart. The in-page checkout dialog that used to
+  // sit below was unreachable — nothing opened it — and has been removed.
   $('#cartCheckout').addEventListener('click', function(){ if (!cart.length) return; window.location.href = '/checkout'; });
 
   // Live pricing/shipping can arrive after first paint — re-render everything.
   // Guard on a loaded catalogue so a config event can't flash an empty grid
   // before /api/store/items has resolved.
   document.addEventListener('mam:config', function(){ if (!allItems.length) { updateCartUI(); return; } reconcileCart(); render(); updateCartUI(); });
-
-  // ── Checkout modal ─────────────────────────────────────────
-  var modalEl = $('#checkoutModal');
-
-  function openCheckout() {
-    if (!cart.length) return;
-    lastFocus = document.activeElement;
-
-    // Reset state every open
-    $('#checkoutForm').style.display = '';
-    $('#coSuccess').classList.remove('show');
-    $('#coErr').classList.remove('show');
-    $('#coName').value = '';
-    $('#coEmail').value = '';
-    $('#coPhone').value = '';
-    $('#coShip').value = '';
-
-    var hasPhysical = cartHasPhysical();
-    $('#checkoutTitle').textContent = 'Checkout';
-    $('#checkoutSub').textContent = hasPhysical
-      ? 'We\'ll ship physical items from Lagos within 2 business days.'
-      : 'Digital items land in your inbox the moment payment clears.';
-
-    // Summary: one row per cart line, then shipping (if any), then total.
-    var sub = cartSubtotal();
-    var shipping = hasPhysical ? shippingFlat() : 0;
-    var rows = cart.map(function(l){
-      return '<div class="row"><span>' + escapeHtml(l.name) + ' × ' + l.qty + '</span><span>' + fmt(l.price_usd * l.qty) + '</span></div>';
-    }).join('');
-    if (shipping > 0) rows += '<div class="row"><span>Shipping</span><span>' + fmt(shipping) + '</span></div>';
-    rows += '<div class="row total"><span>Total</span><b>' + fmt(sub + shipping) + '</b></div>';
-    $('#coSummary').innerHTML = rows;
-
-    $('#shipBlock').hidden = !hasPhysical;
-    $('#coShip').required = hasPhysical;
-    var buy = $('#coBuy'); buy.disabled = false; buy.innerHTML = '<i class="fa-solid fa-lock"></i> Pay ' + fmt(sub + shipping);
-
-    // Open (use BOTH the attribute toggle AND the class toggle so we're
-    // bulletproof against the [hidden]/display:flex specificity gotcha)
-    modalEl.removeAttribute('hidden');
-    modalEl.setAttribute('aria-hidden', 'false');
-    requestAnimationFrame(function(){ modalEl.classList.add('is-open'); });
-    document.body.style.overflow = 'hidden';
-    setTimeout(function(){ $('#coName').focus(); }, 160);
-  }
-
-  function closeCheckout() {
-    modalEl.classList.remove('is-open');
-    modalEl.setAttribute('aria-hidden', 'true');
-    document.body.style.overflow = '';
-    // Wait for the transition before re-applying the hidden attribute,
-    // otherwise the fade-out cuts hard.
-    setTimeout(function(){ modalEl.setAttribute('hidden', ''); }, 220);
-    if (lastFocus && lastFocus.focus) try { lastFocus.focus(); } catch(e){}
-  }
-
-  $('#coClose').addEventListener('click', closeCheckout);
-  $('#coCancel').addEventListener('click', closeCheckout);
-  $('#coDone').addEventListener('click', closeCheckout);
-  // click outside the .modal closes
-  modalEl.addEventListener('click', function(e){ if (e.target === modalEl) closeCheckout(); });
-  // Escape closes (only when open)
-  document.addEventListener('keydown', function(e){
-    if (e.key === 'Escape' && modalEl.classList.contains('is-open')) closeCheckout();
-  });
-
-  // ── Submit (CSRF-protected via window.MAM_API) ─────────────
-  $('#checkoutForm').addEventListener('submit', function(e){
-    e.preventDefault();
-    var btn = $('#coBuy'); var err = $('#coErr'); err.classList.remove('show');
-    if (!cart.length) { err.textContent = 'Your cart is empty.'; err.classList.add('show'); return; }
-    var payload = {
-      items: cart.map(function(l){ return { sku: l.sku, qty: l.qty }; }),
-      name:  $('#coName').value.trim(),
-      email: $('#coEmail').value.trim(),
-      phone: $('#coPhone').value.trim(),
-      shipping_address: $('#coShip').value.trim()
-    };
-    if (!payload.name || !payload.email) {
-      err.textContent = 'Please add your name and email.'; err.classList.add('show'); return;
-    }
-    if (cartHasPhysical() && !payload.shipping_address) {
-      err.textContent = 'A shipping address is required for physical items.'; err.classList.add('show'); return;
-    }
-
-    btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Creating order…';
-
-    if (!window.MAM_API) {
-      err.textContent = 'API unavailable — please refresh and try again.'; err.classList.add('show');
-      btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-lock"></i> Secure payment'; return;
-    }
-
-    window.MAM_API.storeCheckout(payload)
-      .then(function(order){
-        return window.MAM_API.initializePayment({ reference: order.reference, provider: 'paystack', purpose: 'store' })
-          .then(function(init){ return openPaystack(init, order.reference); }); // return so a script-load failure reaches the outer .catch (button was left spinning forever)
-      })
-      .catch(function(e){
-        btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-lock"></i> Secure payment';
-        err.textContent = (e && e.body && (e.body.message || e.body.error)) || 'Could not start payment. Please try again.';
-        err.classList.add('show');
-      });
-  });
-
-  // ── Paystack inline checkout ───────────────────────────────
-  function loadScript(src){
-    return new Promise(function(res, rej){
-      if (document.querySelector('script[src="'+src+'"]')) return res();
-      var s = document.createElement('script'); s.src = src; s.async = true;
-      s.onload = res; s.onerror = function(){ rej(new Error('script')); };
-      document.head.appendChild(s);
-    });
-  }
-  function openPaystack(init, orderRef){
-    return loadScript('https://js.paystack.co/v1/inline.js').then(function(){
-      var btn = $('#coBuy'); btn.innerHTML = '<i class="fa-solid fa-lock"></i> Secure payment'; btn.disabled = false;
-      var handler = window.PaystackPop.setup({
-        key: init.public_key,
-        email: $('#coEmail').value.trim(),
-        amount: init.amount_ngn * 100,
-        currency: 'NGN',
-        ref: init.reference,
-        metadata: { reference: init.reference, purpose: 'store' },
-        callback: function(response){
-          $('#coBuy').innerHTML = '<span class="spinner-sm"></span> Verifying…';
-          $('#coBuy').disabled = true;
-          window.MAM_API.verifyPayment({ provider: 'paystack', reference: response.reference || init.reference })
-            .then(function(){ showSuccess(orderRef); })
-            .catch(function(){
-              $('#coErr').textContent = 'Payment received but verification is still pending — please check your email in a minute.';
-              $('#coErr').classList.add('show');
-              $('#coBuy').innerHTML = '<i class="fa-solid fa-lock"></i> Secure payment';
-              $('#coBuy').disabled = false;
-            });
-        },
-        onClose: function(){}
-      });
-      handler.openIframe();
-    });
-  }
-
-  function showSuccess(ref) {
-    var wasDigitalOnly = !cartHasPhysical();
-    clearCart();
-    $('#checkoutForm').style.display = 'none';
-    $('#coSuccess').classList.add('show');
-    $('#coSuccessRef').textContent = 'Order ' + ref;
-    $('#coSuccessMsg').textContent = wasDigitalOnly
-      ? 'Your download links are on the way — check your inbox in the next minute.'
-      : 'Check your email for your receipt. We\'ll ship your items from Lagos within 2 business days.';
-  }
 
   load();
 })();

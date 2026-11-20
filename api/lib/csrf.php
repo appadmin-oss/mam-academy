@@ -115,15 +115,6 @@ function mam_csrf_token(): string {
     return $payload . '.' . $sig;
 }
 
-/**
- * Hidden CSRF input for server-rendered POST forms (the admin dashboard).
- * Pairs with mam_csrf_verify($_POST['csrf_token']). Returns '' if no APP_KEY
- * is configured (mam_csrf_token() already degrades to '').
- */
-function mam_csrf_field(): string {
-    return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(mam_csrf_token(), ENT_QUOTES) . '">';
-}
-
 function mam_csrf_verify(?string $token, int $maxAgeSec = 7200): bool {
     if (!$token) return false;
     $key = mam_app_key();

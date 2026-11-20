@@ -37,7 +37,6 @@
   function freqToMidi(f) { return 69 + 12 * Math.log2(f / 440); }
   function diatonicStep(m) { return Math.floor(m / 12) * 7 + PC_STEP[m % 12]; }
   function noteName(m) { return NOTE_NAMES[m % 12] + (Math.floor(m / 12) - 1); }
-  function durClass(b) { return b >= 4 ? 'whole' : b >= 2 ? 'half' : b >= 1 ? 'quarter' : 'eighth'; }
 
   /* ── Audio → notation capture (milestone 2) ────────────────────────────────
      A self-contained monophonic pitch detector (autocorrelation + parabolic

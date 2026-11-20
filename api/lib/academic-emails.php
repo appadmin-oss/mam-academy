@@ -19,10 +19,6 @@ declare(strict_types=1);
 function mam_acadmail_enabled(): bool {
     return (int) mam_setting_num('academic_emails_enabled', 0) === 1;
 }
-function mam_acadmail_appurl(): string {
-    return rtrim((string) mam_env('APP_URL', ''), '/');
-}
-
 /** Has this exact email (type keyed to a session) already gone to this user? */
 function mam_acadmail_sent(string $type, int $userId): bool {
     try { return (bool) mam_db_row('SELECT 1 FROM events WHERE type = ? AND entity_id = ? LIMIT 1', [$type, $userId]); }

@@ -88,7 +88,6 @@ tr:last-child td{border-bottom:none}
   function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
   function fmtDate(s) { if (!s) return '—'; var d = new Date(s.replace(' ', 'T')); return isNaN(d) ? s : d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }); }
   function fmtDateTime(s) { if (!s) return '—'; var d = new Date(s.replace(' ', 'T')); return isNaN(d) ? s : d.toLocaleString('en-GB', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }); }
-  function fmtScore(score, max) { if (score === null || score === undefined) return '—'; return (max ? Math.round(score / max * 100) + '%' : score); }
   function initials(name) { return (name || '?').split(' ').slice(0,2).map(function(w){return w[0];}).join('').toUpperCase(); }
 
   function renderReport(data) {

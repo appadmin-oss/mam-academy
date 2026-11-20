@@ -95,6 +95,6 @@
   </div>
 </main>
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/notation.js?v=20260709a" defer></script>
+<script src="assets/js/notation.js?v=20261120a" defer></script>
 </body>
 </html>

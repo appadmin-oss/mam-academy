@@ -73,12 +73,6 @@ function mam_ach_evaluate(int $studentId): array {
     return mam_ach_list($studentId);
 }
 
-/** Attach the icon for a badge code (for the UI). */
-function mam_ach_icon(string $code): string {
-    $d = mam_ach_defs();
-    return $d[$code][1] ?? 'award';
-}
-
 /**
  * §3.5 — the guardian "wins" feed: a gentle, reverse-chronological stream of a
  * child's positive moments, assembled from existing engines. Never negative.

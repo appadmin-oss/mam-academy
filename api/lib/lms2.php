@@ -524,9 +524,6 @@ function mam_lms2_room_create(string $name, ?int $capacity = null, ?string $loca
     if (trim($name) === '') throw new InvalidArgumentException('name_required');
     return mam_db_insert('rooms', ['name' => $name, 'capacity' => $capacity, 'location' => $location]);
 }
-function mam_lms2_rooms(bool $activeOnly = true): array {
-    return mam_db_all('SELECT * FROM rooms' . ($activeOnly ? ' WHERE active = 1' : '') . ' ORDER BY name');
-}
 function mam_lms2_session_set_room(int $sessionId, ?int $roomId): void {
     mam_db_update('class_sessions', ['room_id' => $roomId], ['id' => $sessionId]);
 }

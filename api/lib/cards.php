@@ -247,11 +247,6 @@ function mam_card_for_user(int $userId): ?array {
     return mam_db_row('SELECT * FROM id_cards WHERE user_id = ? AND status = ? ORDER BY id DESC LIMIT 1', [$userId, 'active']) ?: null;
 }
 
-/** Get the active card for a summer application, or null if none exists. */
-function mam_card_for_summer_app(int $summerAppId): ?array {
-    return mam_db_row('SELECT * FROM id_cards WHERE summer_app_id = ? AND status = ? ORDER BY id DESC LIMIT 1', [$summerAppId, 'active']) ?: null;
-}
-
 /** Revoke a card (marks status='revoked', records reason and timestamp). */
 function mam_card_revoke(int $cardId, string $reason, ?int $revokedBy = null): void {
     $now = date('Y-m-d H:i:s');
