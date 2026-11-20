@@ -81,7 +81,9 @@ function mam_console_try(string $where, callable $fn, $fallback = null) {
    ───────────────────────────────────────────────────────────────────────── */
 
 function mam_console_usd(int $cents): string {
-    return '$' . number_format($cents / 100, 2);
+    // The sign goes BEFORE the currency symbol: "$-20.00" reads as a typo on the
+    // one screen (instructor earnings) where a negative is a deliberate correction.
+    return ($cents < 0 ? '−' : '') . '$' . number_format(abs($cents) / 100, 2);
 }
 
 /** Compact money for a KPI tile: $14.6k / $1.2m. Never rounds a total to zero. */
@@ -234,6 +236,7 @@ function mam_console_nav(): array {
             ['key' => 'charges',    'label' => 'Charges & exceptions', 'cap' => 'enrollments'],
             ['key' => 'store',      'label' => 'Store & orders',       'cap' => null],
             ['key' => 'deductions', 'label' => 'Instructor deductions','cap' => null],
+            ['key' => 'earnings',   'label' => 'Instructor earnings', 'cap' => 'users'],
         ]],
         ['key' => 'people', 'label' => 'People', 'icon' => 'fa-user-gear', 'sections' => [
             ['key' => 'access',  'label' => 'People & access', 'cap' => 'users'],
@@ -1643,6 +1646,35 @@ function mam_console_deductions(): array {
         'gate' => (int) mam_console_try('de.gate', fn() => (int) mam_setting_num('late_charge_instructor_enabled', 0), 0),
         'flagged_cents' => mam_console_int('de.val',
             "SELECT COALESCE(SUM(amount_usd_cents),0) FROM instructor_fines WHERE status = 'pending'")];
+}
+
+/**
+ * Instructor earnings — the statement each instructor reads on their portal's
+ * Earnings tab (wallet.php: the wallet now tracks INSTRUCTOR EARNINGS). Recorded
+ * here, paid off the platform. The balance is the ledger's own running total
+ * (`balance_after_cents` of the latest row), never re-summed: the ledger is the
+ * authority and a second sum is a second answer.
+ */
+function mam_console_earnings(): array {
+    $people = mam_console_rows('ea.people',
+        "SELECT u.id, u.name, u.email,
+                (SELECT w.balance_after_cents FROM wallet_ledger w WHERE w.user_id = u.id ORDER BY w.id DESC LIMIT 1) balance,
+                (SELECT MAX(w.created_at) FROM wallet_ledger w WHERE w.user_id = u.id) last_at
+           FROM users u
+          WHERE (u.role = 'instructor' OR EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = u.id AND r.role = 'instructor'))
+            AND u.status = 'active'
+          ORDER BY LOWER(u.name), u.id");
+    $recent = mam_console_rows('ea.recent',
+        "SELECT w.id, w.amount_cents, w.reason, w.note, w.balance_after_cents, w.created_at,
+                u.name instructor, b.name recorded_by
+           FROM wallet_ledger w
+           JOIN users u ON u.id = w.user_id
+           LEFT JOIN users b ON b.id = w.created_by
+          WHERE w.reason IN ('earnings','earnings_adjust')
+          ORDER BY w.id DESC LIMIT 40");
+    $owed = 0;
+    foreach ($people as $pp) $owed += max(0, (int) ($pp['balance'] ?? 0));
+    return ['people' => $people, 'recent' => $recent, 'owed_cents' => $owed];
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

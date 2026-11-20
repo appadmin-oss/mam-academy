@@ -69,7 +69,7 @@ function mam_wallet_post(int $userId, int $amountCents, string $reason, ?int $by
         throw $e;
     }
     mam_audit('wallet_' . ($amountCents >= 0 ? 'credit' : 'debit'), 'user', $userId, [
-        'amount_cents' => $amountCents, 'reason' => $reason, 'ref' => $ref, 'balance_after' => $after,
+        'amount_cents' => $amountCents, 'reason' => $reason, 'ref' => $ref, 'note' => $note, 'balance_after' => $after,
     ]);
     return $after;
 }

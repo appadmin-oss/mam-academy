@@ -110,6 +110,7 @@ $providers = [
     'charges'        => fn() => mam_console_charges(),
     'store'          => fn() => mam_console_store(),
     'deductions'     => fn() => mam_console_deductions(),
+    'earnings'       => fn() => mam_console_earnings(),
     'access'         => fn() => mam_console_access(),
     'governance'     => fn() => mam_console_governance(),
     'reports'        => fn() => mam_console_reports(),

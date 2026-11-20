@@ -647,7 +647,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($action === 'wallet_credit') {
         $uid       = (int)($_POST['user_id'] ?? 0);
         $amountUsd = (float)($_POST['amount_usd'] ?? 0);
+        // The console sends a positive amount and a direction, so nobody has to type a
+        // minus sign to correct an overpayment (or omit one by accident and double it).
+        if (($_POST['direction'] ?? '') === 'subtract') $amountUsd = -abs($amountUsd);
         $note      = substr(trim((string)($_POST['note'] ?? '')), 0, 255) ?: null;
+        // A subtraction is a CORRECTION of earnings recorded in error, never a fine:
+        // a fine against pay needs a labour officer's written consent (Labour Act s.5;
+        // Instructor deductions). The reason is the only record of which it was.
+        if ($amountUsd < 0 && mb_strlen((string) $note) < 5) { header('Location: ?v=users&err=' . urlencode('Say what the correction is for — a subtraction corrects earnings recorded in error, never a fine.')); exit; }
         $me        = mam_current_user();
         if ($uid <= 0 || !is_finite($amountUsd) || $amountUsd == 0.0) { header('Location: ?v=users&err=' . urlencode('Enter a non-zero dollar amount.')); exit; }
         if (abs($amountUsd) > 100000) { header('Location: ?v=users&err=' . urlencode('That amount is too large.')); exit; }
@@ -661,7 +668,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $msg = $e->getMessage() === 'insufficient_credit' ? 'That deduction would take earnings below $0.' : 'Could not record those earnings.';
             header('Location: ?v=users&err=' . urlencode($msg)); exit;
         }
-        header('Location: ?v=users&ok=1'); exit;
+        header('Location: ?v=users&ok=' . urlencode($cents >= 0 ? 'Earnings recorded. The instructor sees them on their statement.' : 'Correction recorded.')); exit;
     }
 
     // ── Scholarship / student-type toggle ────────────────────────────────

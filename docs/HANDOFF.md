@@ -2164,3 +2164,24 @@ only to admins holding `settings` — the capability those handlers demand.
   dropped: in the narrow status column the opened form was squeezed to a sliver.)
 - Still without a button (§4y): instructor earnings (`wallet_credit`), `referral_reward`,
   and the rest of the list.
+
+## 4z8. 2026-11-20 — instructor earnings back in the console
+
+Console → Finance → **Instructor earnings** (`?v=earnings`, `users` capability — the one
+`wallet_credit` demands). Its own screen rather than a card on Instructor deductions:
+deductions are flags that move no money (Labour Act s.5), earnings are what an
+instructor is owed, and putting the two side by side invites reading one as the other.
+- Posts to the EXISTING `wallet_credit` handler. The screen shows the balance from the
+  ledger's own running total (`balance_after_cents`), never a second sum, so it is the
+  figure the instructor's Earnings tab shows. The picker and the "Owed now" list carry
+  the email beside the name: two instructors can share a name.
+- The handler gained two rules. A correction is a **direction** (`direction=subtract`),
+  never a typed minus sign somebody can forget and so double the mistake. And a
+  correction must say what it corrects (5+ characters): it fixes earnings recorded in
+  error and is never a fine, and the note is the only record of which it was. The note
+  now travels into the wallet's own audit row; the message says what happened.
+- `mam_console_usd()` puts the sign before the symbol (`−$20.00`, was `$-20.00`).
+- `test_console_earnings.php` (11 checks); removing the direction line fails it. Driven in
+  a browser: earnings recorded, a correction with no reason refused, one with a reason
+  recorded; no horizontal overflow at 1280 or 390.
+- Still without a button (§4y): `referral_reward` and the rest of the list.
