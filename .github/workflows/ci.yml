@@ -86,17 +86,26 @@ jobs:
       # errors and everything after them still applies. WITHOUT --force the
       # first error stops the import and you get 18 tables instead of ~130 —
       # and the suite then fails in a way that looks like a code regression.
+      #
+      # The client runs INSIDE the service container. The runner image stopped
+      # shipping a `mariadb`/`mysql` client (2026-11: "mariadb: command not
+      # found", exit 127, before a single test ran); the server image always
+      # carries its own, at the server's own version.
       - name: Apply the MySQL schema
+        env:
+          MDB: docker exec -i ${{ job.services.mariadb.id }} mariadb -u root -pci
         run: |
-          mariadb -h 127.0.0.1 -P 3306 -u root -pci             -e "DROP DATABASE IF EXISTS mam_suite; CREATE DATABASE mam_suite CHARACTER SET utf8mb4;"
-          mariadb -h 127.0.0.1 -P 3306 -u root -pci --force mam_suite < db/schema-mysql.sql
+          $MDB -e "DROP DATABASE IF EXISTS mam_suite; CREATE DATABASE mam_suite CHARACTER SET utf8mb4;"
+          $MDB --force mam_suite < db/schema-mysql.sql
 
       # The import above cannot fail the build (--force swallows errors), so
       # the table count is what proves it actually landed. A stopped import
       # leaves 18; a good one leaves ~130.
       - name: Verify the schema actually imported
+        env:
+          MDB: docker exec -i ${{ job.services.mariadb.id }} mariadb -u root -pci
         run: |
-          COUNT=$(mariadb -h 127.0.0.1 -P 3306 -u root -pci -N -B             -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='mam_suite';")
+          COUNT=$($MDB -N -B -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='mam_suite';")
           echo "tables: $COUNT"
           if [ "$COUNT" -lt 100 ]; then
             echo "::error::Only $COUNT tables — the schema import stopped early (is --force still on?)"
