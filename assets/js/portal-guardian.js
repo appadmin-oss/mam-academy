@@ -996,7 +996,30 @@
       + 'you would put the child at greater risk — which is the only reason we would not.</p>'
       + '<p class="p-caption p-gap-t">Anything about safeguarding reaches you on every channel we can use, '
       + 'whatever your notification settings say.</p></section>'
+      + '<div id="collectorsCard"></div>'
       + '</div>');
+    loadCollectors();
+  }
+
+  /* Who may collect the selected child (safeguarding.php, v104). Read-only on
+     purpose: a family asks the office to change it, so a lost or borrowed phone
+     cannot add a stranger to the list. Billing-only access does not see it. */
+  function loadCollectors() {
+    var c = selectedChild(), slot = document.getElementById('collectorsCard');
+    if (!c || !slot || !allows(c, 'attendance')) return;
+    API.request('parent/collectors?student_id=' + encodeURIComponent(c.student_id), { method: 'GET' }).then(function (d) {
+      var list = d.collectors || [];
+      slot.innerHTML = '<section class="p-card"><h2 class="p-title">Who may collect ' + esc(c.student_name) + '</h2>'
+        + (list.length
+          ? list.map(function (p) {
+              return '<p class="p-body p-gap-t"><strong>' + esc(p.name) + '</strong>' + (p.relation ? ' · ' + esc(p.relation) : '') + (p.phone ? ' · ' + esc(p.phone) : '') + '</p>';
+            }).join('')
+          : '<p class="p-body p-gap-t">Nobody is on the list yet. Until somebody is, the teacher records who collects '
+            + esc(c.student_name) + ' but has nothing to check them against.</p>')
+        + '<p class="p-caption p-gap-t">Only these people may take ' + esc(c.student_name) + ' home from an in-person class. '
+        + 'If anybody else collects them, the teacher must check with you first and the safeguarding officer is told. '
+        + 'To change the list, message the academy office.</p></section>';
+    }).catch(function () { slot.innerHTML = ''; });
   }
 
   function renderComplaints() {

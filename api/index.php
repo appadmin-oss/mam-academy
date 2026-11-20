@@ -113,6 +113,9 @@ $r->post('/growth', $f('growth.php'), [mw_csrf(), mw_user(), mw_rate_limit('grow
 // Incidents (v103, safeguarding.php) — teachers record; a safeguarding one goes to the officer.
 $r->get ('/incidents', $f('incidents.php'), [mw_user(), mw_rate_limit('inc_read', 120, 600)]);
 $r->post('/incidents', $f('incidents.php'), [mw_csrf(), mw_user(), mw_rate_limit('inc_write', 30, 600)]);
+// Authorised collectors and sign-out (v104, safeguarding.php) — staff of the child only.
+$r->get ('/collectors', $f('collectors.php'), [mw_user(), mw_rate_limit('coll_read', 300, 600)]);
+$r->post('/collectors', $f('collectors.php'), [mw_csrf(), mw_user(), mw_rate_limit('coll_write', 120, 600)]);
 // Class spaces (v99, api/lib/spaces.php) — every signed-in role; the library decides who sees what.
 $r->get ('/spaces',       $f('spaces.php'), [mw_user(), mw_rate_limit('spaces_read', 600, 600)]);
 $r->post('/spaces',       $f('spaces.php'), [mw_csrf(), mw_user(), mw_rate_limit('spaces_write', 120, 600)]);
@@ -292,6 +295,7 @@ $r->group('/student', function (MamRouter $r) use ($f) {
 $r->group('/parent', function (MamRouter $r) use ($f) {
     $r->get('/children', $f('parent/children.php'), [mw_role('parent')]);
     $r->get('/child',    $f('parent/child.php'),    [mw_role('parent')]);
+    $r->get('/collectors', $f('parent/collectors.php'), [mw_role('parent')]);   // v104, read-only
     $r->post('/consent', $f('parent/consent.php'),  [mw_csrf(), mw_role('parent', 'admin')]);
     // Ratified termly reports (guardian redesign §3.3). The design writes these
     // as /api/guardian/*; they live here because /parent is this repo's guardian

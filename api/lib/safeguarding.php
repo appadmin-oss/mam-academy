@@ -72,7 +72,7 @@ function mam_sg_raise(?int $by, array $in, string $source = 'person'): int {
     $body = trim((string) ($in['body'] ?? ''));
     if ($source === 'person' && mb_strlen($body) < 10) throw new InvalidArgumentException('Say a little about what happened, so the officer knows where to start.');
     $urg = ($in['urgency'] ?? '') === 'urgent' ? 'urgent' : 'normal';
-    $ref = in_array($in['ref_type'] ?? '', ['post', 'comment', 'session', 'thread', 'lesson', 'user', 'incident', 'ticket'], true) ? (string) $in['ref_type'] : null;
+    $ref = in_array($in['ref_type'] ?? '', ['post', 'comment', 'session', 'thread', 'lesson', 'user', 'incident', 'ticket', 'collection'], true) ? (string) $in['ref_type'] : null;
     $about = (int) ($in['about_id'] ?? 0);
     if ($about > 0 && !mam_db_row('SELECT 1 FROM users WHERE id = ?', [$about])) $about = 0;
     $id = (int) mam_db_insert('safeguarding_concerns', [
@@ -333,4 +333,129 @@ function mam_incident_close(array $user, int $id, string $outcome): void {
     mam_db_update('incidents', ['status' => 'closed', 'outcome' => mb_substr(trim($outcome), 0, 1000), 'closed_by' => (int) $user['id'],
         'closed_at' => gmdate('Y-m-d H:i:s')], ['id' => $id]);
     mam_audit('incident_closed', 'user', (int) $i['student_id'], ['incident' => $id]);
+}
+
+/* ─── Authorised collectors (ported from NGG's member_collectors, v104) ─────
+ *
+ * Who may take a child home, and a record of who did. NGG kept the list but
+ * never looked at it when a child left; here the register asks.
+ *
+ *   · At most MAM_COLLECTORS_MAX people per child, each with a name and,
+ *     ideally, a phone the desk can ring. Edited by staff (an admin or a
+ *     teacher of the child); a family SEES the list and asks the academy to
+ *     change it — a list a family member could edit from a phone is a list
+ *     anyone holding that phone could edit.
+ *   · Every sign-out is a row in `collections`, with one of four verdicts:
+ *       authorised  — somebody on the list;
+ *       not_listed  — the child HAS a list and this person is not on it. A
+ *                     reason is required, and the officer is told at once;
+ *       no_list     — the child has no list yet. Recorded, never alarmed: on
+ *                     the day this ships every child is in this state, and a
+ *                     control that opens forty concerns on its first afternoon
+ *                     is a control somebody switches off. The register says
+ *                     "no collectors on file" instead, until one is added;
+ *       adult       — the student is 18 or over. Nothing to check.
+ *   · Unknown age counts as a minor, as everywhere else here
+ *     (`safeguarding_unknown_age_is_minor`).
+ *   · Phone numbers of people who are not our users are personal data: they
+ *     are shown to staff and to the child's own guardians, never exported,
+ *     never printed on a card.
+ */
+const MAM_COLLECTORS_MAX = 8;
+
+/** Is this student treated as a child for collection? Unknown age counts as a minor by default. */
+function mam_collect_is_minor(int $studentId): bool {
+    $m = function_exists('mam_vetting_student_is_minor') ? mam_vetting_student_is_minor($studentId) : null;
+    if ($m !== null) return $m;
+    return (int) mam_setting_num('safeguarding_unknown_age_is_minor', 1) === 1;
+}
+
+/** The list, in the order it was written. */
+function mam_collectors_list(int $studentId): array {
+    return mam_db_all('SELECT id, name, relation, phone FROM authorised_collectors WHERE student_id = ? ORDER BY id', [$studentId]);
+}
+
+/**
+ * Replace the list. $list: [{name, relation?, phone?}, …]. Blank names are
+ * skipped; the whole list is validated before anything is written, so a bad
+ * phone on row six does not leave rows one to five half-saved.
+ * Rows are matched by name so an unchanged person keeps their id — the
+ * sign-out history points at it.
+ */
+function mam_collectors_save(array $user, int $studentId, array $list): array {
+    if ($studentId <= 0 || !mam_incident_can($user, $studentId)) throw new RuntimeException('forbidden');
+    $clean = [];
+    foreach ($list as $c) {
+        $name = trim((string) preg_replace('/\s+/', ' ', (string) ($c['name'] ?? '')));
+        if ($name === '') continue;
+        $phone = trim((string) ($c['phone'] ?? ''));
+        if ($phone !== '' && !preg_match('/^[+0-9 ()-]{7,24}$/', $phone)) throw new InvalidArgumentException('Check the phone number for ' . $name . '.');
+        $key = mb_strtolower($name);
+        if (isset($clean[$key])) throw new InvalidArgumentException($name . ' is on the list twice.');
+        $clean[$key] = ['name' => mb_substr($name, 0, 160), 'relation' => mb_substr(trim((string) ($c['relation'] ?? '')), 0, 60) ?: null, 'phone' => $phone ?: null];
+    }
+    if (count($clean) > MAM_COLLECTORS_MAX) throw new InvalidArgumentException('At most ' . MAM_COLLECTORS_MAX . ' people can be on the list.');
+    $have = [];
+    foreach (mam_collectors_list($studentId) as $r) $have[mb_strtolower((string) $r['name'])] = (int) $r['id'];
+    $now = gmdate('Y-m-d H:i:s');
+    foreach ($clean as $key => $c) {
+        if (isset($have[$key])) { mam_db_update('authorised_collectors', ['relation' => $c['relation'], 'phone' => $c['phone']], ['id' => $have[$key]]); unset($have[$key]); }
+        else mam_db_insert('authorised_collectors', $c + ['student_id' => $studentId, 'added_by' => (int) $user['id'], 'created_at' => $now]);
+    }
+    foreach ($have as $id) mam_db()->prepare('DELETE FROM authorised_collectors WHERE id = ?')->execute([$id]);
+    mam_audit('collectors_saved', 'user', $studentId, ['count' => count($clean)]);
+    return mam_collectors_list($studentId);
+}
+
+/**
+ * Record who collected a child. Either $collectorId (somebody on the list) or
+ * $otherName — and with a list on file, $reason, which goes to the officer.
+ * Returns the stored row plus `concern_id` when the officer was told.
+ */
+function mam_collection_record(array $user, int $studentId, ?int $sessionId, ?int $collectorId, string $otherName = '', string $reason = ''): array {
+    if ($studentId <= 0 || !mam_incident_can($user, $studentId)) throw new RuntimeException('forbidden');
+    $list = mam_collectors_list($studentId);
+    $name = ''; $verdict = '';
+    if ($collectorId) {
+        foreach ($list as $c) if ((int) $c['id'] === $collectorId) $name = (string) $c['name'];
+        if ($name === '') throw new InvalidArgumentException('That person is not on this child\'s list.');
+        $verdict = 'authorised';
+    } else {
+        $name = trim((string) preg_replace('/\s+/', ' ', $otherName));
+        if (mb_strlen($name) < 2) throw new InvalidArgumentException('Say who collected them.');
+        $verdict = !mam_collect_is_minor($studentId) ? 'adult' : ($list ? 'not_listed' : 'no_list');
+        $reason = trim($reason);
+        if ($verdict === 'not_listed' && mb_strlen($reason) < 5) {
+            throw new InvalidArgumentException($name . ' is not on the list. Say how you checked it was all right — for example, which guardian you phoned.');
+        }
+    }
+    if ($sessionId !== null && $sessionId > 0 && !mam_db_row('SELECT id FROM class_sessions WHERE id = ?', [$sessionId])) $sessionId = null;
+    $id = (int) mam_db_insert('collections', ['student_id' => $studentId, 'session_id' => $sessionId ?: null,
+        'collector_id' => $verdict === 'authorised' ? $collectorId : null, 'collector_name' => mb_substr($name, 0, 160),
+        'verdict' => $verdict, 'reason' => $reason !== '' ? mb_substr($reason, 0, 500) : null,
+        'recorded_by' => (int) $user['id'], 'collected_at' => gmdate('Y-m-d H:i:s')]);
+    $cid = null;
+    if ($verdict === 'not_listed') {
+        $stu = mam_db_row('SELECT name FROM users WHERE id = ?', [$studentId]);
+        $cid = mam_sg_raise((int) $user['id'], ['category' => 'wellbeing', 'urgency' => 'urgent', 'about_id' => $studentId,
+            'ref_type' => 'collection', 'ref_id' => $id,
+            'body' => (string) ($stu['name'] ?? 'A child') . ' was collected by ' . $name . ', who is not on their list of authorised collectors. '
+                    . 'Recorded by the teacher with this reason: ' . $reason]);
+        mam_db_update('collections', ['concern_id' => $cid], ['id' => $id]);
+    }
+    mam_audit('child_collected', 'user', $studentId, ['collection' => $id, 'verdict' => $verdict, 'session' => $sessionId]);
+    return ['id' => $id, 'verdict' => $verdict, 'collector_name' => $name, 'concern_id' => $cid];
+}
+
+/** The latest collection per student for one session: student_id => row. */
+function mam_collections_for_session(int $sessionId): array {
+    $out = [];
+    foreach (mam_db_all('SELECT * FROM collections WHERE session_id = ? ORDER BY id', [$sessionId]) as $r) $out[(int) $r['student_id']] = $r;
+    return $out;
+}
+
+/** One child's recent sign-outs, newest first. */
+function mam_collections_recent(int $studentId, int $limit = 10): array {
+    return mam_db_all('SELECT c.*, u.name AS recorded_by_name FROM collections c LEFT JOIN users u ON u.id = c.recorded_by
+                        WHERE c.student_id = ? ORDER BY c.collected_at DESC, c.id DESC LIMIT ' . max(1, min(50, $limit)), [$studentId]);
 }

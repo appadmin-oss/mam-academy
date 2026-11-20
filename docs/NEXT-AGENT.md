@@ -6,7 +6,7 @@ is the to-do list; HANDOFF is the history.
 
 Branch: `afv/mam-audit` (never a `claude/` branch — owner's rule). Suite:
 `php api/tests/run.php` must stay green. Schema target: see `MAM_SCHEMA_TARGET` in
-`api/lib/db.php` (102 at the time of writing).
+`api/lib/db.php` (104 at the time of writing).
 
 ---
 
@@ -30,7 +30,7 @@ Branch: `afv/mam-audit` (never a `claude/` branch — owner's rule). Suite:
 5. **Live classes: admit from the lobby on the instructor portal** and show who is waiting; today the teacher uses JaaS's own lobby UI.
 6. **Growth: a guardian monthly email** built from `mam_growth_summary()` (the sentences are already written for a family).
 7. **Adaptive: expose per-question difficulty stats to authors** (`check_calibration`: answered, correct, learnt b) on the lesson editor, so a question everybody gets wrong is visible.
-8. **Run the MySQL/MariaDB parity suite** for v99–v102 (`DB_DSN=… php api/tests/run.php` on a fresh DB with `mysql --force`). Not yet run for these four migrations.
+8. **Run the MySQL/MariaDB parity suite** for v99–v104 (`DB_DSN=… php api/tests/run.php` on a fresh DB with `mysql --force`). Not yet run for these four migrations.
 9. **HawkScan / DAST** — the post-commit hook asks for it but `HAWK_API_KEY` is not set here.
 
 ## 3. Things I would reconsider (suggestions, not bugs)
@@ -75,10 +75,13 @@ Done (v103, `api/lib/safeguarding.php`, `test_spaces.php`):
   instructor portal → a student → Incidents.
 - [x] **Support tickets and lesson/helper holds** now reach the officer's queue.
 
+- [x] **Authorised collectors** (v104, HANDOFF §4z5) — max 8, staff-edited, the
+  family sees them read-only, and the register asks who collected each child; somebody
+  not on an existing list needs a reason and the officer is told at once.
+
 Still to port (in order of value):
-1. **Authorised collectors** — who may collect a child (max 8, staff-edited,
-   family sees read-only), checked at sign-out on the register. NGG has the list but
-   never checks it at the gate either; do both.
+1. **A console screen for collectors** — admins can edit a list only from the
+   instructor portal's student page today.
 2. **Medical/allergy notes visible to the adult on duty** — today nothing puts them
    in front of the teacher taking the register. Show on the register and the live
    class page for staff only; never exported; never on an ID card.

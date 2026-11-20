@@ -1050,6 +1050,11 @@
 [data-portal="v2"] .i-auth button[aria-pressed="true"] { background: var(--inset); color: var(--text); font-weight: 800; }
 [data-portal="v2"] .i-roster-row { padding: 14px 18px; border-top: 1px solid var(--rule); }
 [data-portal="v2"] .i-roster-row:first-child { border-top: 0; }
+/* Sign-out (v104): who took the child home, under their marks. */
+[data-portal="v2"] .i-collect { margin: 10px 0 0; }
+[data-portal="v2"] .i-collector { width: 100%; justify-content: flex-start; text-align: left; }
+[data-portal="v2"] .i-col-row { border: 0; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; }
+[data-portal="v2"] .i-col-edit > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
 [data-portal="v2"] .i-roster-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 
 /* ── Grade entry ──────────────────────────────────────────────────────────── */

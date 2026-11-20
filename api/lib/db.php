@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 103;
+const MAM_SCHEMA_TARGET = 104;
 
 /**
  * Open (and cache) the PDO connection.
@@ -4177,6 +4177,35 @@ function mam_db_migrate(PDO $db): void {
               CHECK(status IN ('open','closed'))
             );
             CREATE INDEX IF NOT EXISTS idx_incidents_student ON incidents(student_id, status);
+        ",
+        // v104 — authorised collectors and the sign-out record (safeguarding.php,
+        // ported from NGG's member_collectors — and CHECKED at sign-out, which NGG never did).
+        104 => "
+            CREATE TABLE IF NOT EXISTS authorised_collectors (
+              id          INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              name        TEXT NOT NULL,
+              relation    TEXT,
+              phone       TEXT,
+              added_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              created_at  TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_collectors_student ON authorised_collectors(student_id);
+            CREATE TABLE IF NOT EXISTS collections (
+              id             INTEGER PRIMARY KEY AUTOINCREMENT,
+              student_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              session_id     INTEGER REFERENCES class_sessions(id) ON DELETE SET NULL,
+              collector_id   INTEGER REFERENCES authorised_collectors(id) ON DELETE SET NULL,
+              collector_name TEXT NOT NULL,
+              verdict        TEXT NOT NULL,
+              reason         TEXT,
+              concern_id     INTEGER REFERENCES safeguarding_concerns(id) ON DELETE SET NULL,
+              recorded_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              collected_at   TEXT NOT NULL,
+              CHECK(verdict IN ('authorised','not_listed','no_list','adult'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_collections_student ON collections(student_id, collected_at);
+            CREATE INDEX IF NOT EXISTS idx_collections_session ON collections(session_id);
         ",
     ];
 

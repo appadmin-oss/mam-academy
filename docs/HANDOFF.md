@@ -2082,3 +2082,35 @@ tickets and lesson/helper holds now reach the queue. What is still to port is li
 `docs/NEXT-AGENT.md` §4. A test-suite note: `test_mailer.php` now retries up to 5000
 failed rows, because safeguarding alerts (emailed to every super admin while no officer
 is named) fill the shared test database's outbox ahead of its own row.
+
+## 4z5. 2026-11-20 — authorised collectors, checked at sign-out (v104)
+
+NEXT-AGENT §4 item 1. NGG keeps a `member_collectors` list and never looks at it when a
+child leaves; MAM now asks at the register.
+
+- **Schema v104**: `authorised_collectors` (≤ `MAM_COLLECTORS_MAX` = 8 per child: name,
+  relation, phone) and `collections` (one row per sign-out). Lib functions live in
+  `safeguarding.php` beside the incident log, so no new lib had to be registered twice.
+- **Who edits**: an admin or a teacher of the child (`mam_incident_can`). A guardian SEES
+  the list (guardian portal → Safeguarding, Standard/Full scope via the `attendance`
+  grant, never Billing-only) and asks the office to change it — a list editable from a
+  phone is editable by whoever holds the phone. Saves are validated whole before any
+  write, names are matched so an unchanged person keeps their id (past sign-outs point at it).
+- **Four verdicts** on every sign-out: `authorised` (on the list); `not_listed` (the child
+  HAS a list and this person is not on it — a reason is required and an URGENT concern is
+  raised to the officer at once, `ref_type='collection'`); `no_list` (recorded, never
+  alarmed — on the day this ships every child is in this state, and forty concerns on the
+  first afternoon is how a control gets switched off; the register says "No collectors on
+  file" instead); `adult` (18+; unknown age counts as a minor, the house rule).
+- **The register** (`mam_iportal_register`) adds `collect` to each row of an in-person class
+  for a child marked present/late (null otherwise, and for online classes): the latest
+  sign-out, or "Record who collected …". The instructor portal's `collect` screen
+  (`#collect/<student>.<session>`) records it; from a student's page
+  (`#collect/<student>`) it is the list editor.
+- Routes: `GET/POST /api/collectors` (staff; CSRF on POST), `GET /api/parent/collectors` (read-only).
+- Tests: `test_collectors.php` (33 checks; it deletes its fixture course again because
+  later files count the catalogue). Mutation: with the officer alert disabled, four
+  checks fail. Verified in a browser at 390px: list → sign-out → register line;
+  no-list child; guardian card.
+- Not done: a console screen for the list (admins edit it from the instructor portal's
+  student page today), and MySQL parity for v104 (as for v99–v103, still not run).

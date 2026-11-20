@@ -3808,3 +3808,38 @@ CREATE TABLE IF NOT EXISTS incidents (
   CONSTRAINT chk_inc_status CHECK (status IN ('open','closed'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 INSERT INTO schema_version (version) VALUES (103) ON DUPLICATE KEY UPDATE version = version;
+
+-- v104 — authorised collectors and the sign-out record (safeguarding.php).
+CREATE TABLE IF NOT EXISTS authorised_collectors (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  student_id  INT NOT NULL,
+  name        VARCHAR(160) NOT NULL,
+  relation    VARCHAR(60) NULL,
+  phone       VARCHAR(24) NULL,
+  added_by    INT NULL,
+  created_at  DATETIME NOT NULL,
+  KEY idx_collectors_student (student_id),
+  CONSTRAINT fk_coll_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_coll_by FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS collections (
+  id             INT AUTO_INCREMENT PRIMARY KEY,
+  student_id     INT NOT NULL,
+  session_id     INT NULL,
+  collector_id   INT NULL,
+  collector_name VARCHAR(160) NOT NULL,
+  verdict        VARCHAR(12) NOT NULL,
+  reason         VARCHAR(500) NULL,
+  concern_id     INT NULL,
+  recorded_by    INT NULL,
+  collected_at   DATETIME NOT NULL,
+  KEY idx_collections_student (student_id, collected_at),
+  KEY idx_collections_session (session_id),
+  CONSTRAINT fk_col_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_col_session FOREIGN KEY (session_id) REFERENCES class_sessions(id) ON DELETE SET NULL,
+  CONSTRAINT fk_col_collector FOREIGN KEY (collector_id) REFERENCES authorised_collectors(id) ON DELETE SET NULL,
+  CONSTRAINT fk_col_concern FOREIGN KEY (concern_id) REFERENCES safeguarding_concerns(id) ON DELETE SET NULL,
+  CONSTRAINT fk_col_by FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT chk_col_verdict CHECK (verdict IN ('authorised','not_listed','no_list','adult'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO schema_version (version) VALUES (104) ON DUPLICATE KEY UPDATE version = version;

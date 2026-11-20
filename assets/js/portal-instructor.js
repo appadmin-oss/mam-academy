@@ -321,6 +321,7 @@
           + '<button type="button" data-auth="unauthorised" data-student="' + esc(r.student_id) + '" aria-pressed="' + (st === 'unauthorised' ? 'true' : 'false') + '">Unauthorised</button>'
           + '</div>'
         : '')
+      + collectLine(r)
       + '</div>';
   }
 
@@ -675,7 +676,8 @@
     API.request('instructor/lessons?student=' + encodeURIComponent(studentId || ''), { method: 'GET' }).then(function (d) {
       var html = backTo('students', 'Students') + h1((d.student && d.student.name) || 'Student', 'Lessons on the courses you teach them')
         + '<div class="p-actions p-gap-t"><button type="button" class="p-outline" data-screen="growth" data-student="' + esc(studentId) + '"><i class="fa-solid fa-arrow-trend-up" aria-hidden="true"></i> Growth, practice and goals</button>'
-        + '<button type="button" class="p-outline" data-screen="incidents" data-student="' + esc(studentId) + '"><i class="fa-solid fa-kit-medical" aria-hidden="true"></i> Incidents</button></div>';
+        + '<button type="button" class="p-outline" data-screen="incidents" data-student="' + esc(studentId) + '"><i class="fa-solid fa-kit-medical" aria-hidden="true"></i> Incidents</button>'
+        + '<button type="button" class="p-outline" data-screen="collect" data-student="' + esc(studentId) + '"><i class="fa-solid fa-person-walking-arrow-right" aria-hidden="true"></i> Who may collect them</button></div>';
       var cs = d.courses || [];
       if (!cs.length) { paint(html + empty('book-open', 'No published lessons on the courses you teach them yet.')); return; }
       var lv = d.levels || [];
@@ -806,12 +808,89 @@
       + '</section></div>');
   }
 
+  /* Who took this child home (safeguarding.php, v104). Asked only of a child who
+     was in the room for an in-person class; the server sends `collect: null`
+     where there is nothing to ask. A collection by somebody NOT on the child's
+     list is written in the warning colour — the officer has already been told. */
+  function collectLine(r) {
+    var c = r.collect;
+    if (!c) return '';
+    if (c.done) {
+      var words = { authorised: '', not_listed: ' — not on the list; the safeguarding officer was told', no_list: ' — no list on file', adult: '' };
+      return '<p class="p-caption i-collect' + (c.done.verdict === 'not_listed' ? ' p-bad' : '') + '">Collected by ' + esc(c.done.name)
+        + ' at ' + esc(fmtTime(c.done.at)) + esc(words[c.done.verdict] || '') + '</p>';
+    }
+    return '<p class="p-caption i-collect">' + (c.on_file ? '' : 'No collectors on file. ')
+      + '<button type="button" class="p-link" data-screen="collect" data-student="' + esc(r.student_id) + '.' + esc(S.sessionId) + '">'
+      + 'Record who collected ' + esc((r.name || '').split(' ')[0]) + '</button></p>';
+  }
+
+  /* One child's collectors, and — reached from the register — the sign-out
+     itself. arg is "studentId" or "studentId.sessionId". */
+  function renderCollect(arg) {
+    var bits = String(arg || '').split('.'), sid = Number(bits[0]), sess = Number(bits[1] || 0);
+    S.collect = { student: sid, session: sess };
+    paint(loading('Loading…'));
+    API.request('collectors?student=' + encodeURIComponent(sid) + (sess ? '&session=' + encodeURIComponent(sess) : ''), { method: 'GET' }).then(function (d) {
+      var name = (d.student && d.student.name) || 'This student', first = name.split(' ')[0];
+      var back = sess
+        ? '<button type="button" class="p-back" data-screen="register" data-session="' + esc(sess) + '"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i> Register</button>'
+        : '<button type="button" class="p-back" data-screen="lessons" data-student="' + esc(sid) + '"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i> Back</button>';
+      var list = d.collectors || [];
+      var html = back + h1(name, sess ? 'Who is taking ' + first + ' home?' : 'Who may collect ' + first) + '<div class="p-stack">';
+      if (sess && d.collected) {
+        html += '<section class="p-card"><p class="p-body">Already recorded: collected by <b>' + esc(d.collected.collector_name)
+          + '</b> at ' + esc(fmtTime(d.collected.collected_at)) + '.</p></section>';
+      } else if (sess) {
+        html += '<section class="p-card"><h2 class="p-title">On the list</h2>'
+          + (list.length
+            ? '<div class="p-stack">' + list.map(function (c) {
+                return '<button type="button" class="p-outline i-collector" data-collect-by="' + esc(c.id) + '">' + esc(c.name)
+                  + (c.relation ? ' · ' + esc(c.relation) : '') + (c.phone ? ' · ' + esc(c.phone) : '') + '</button>';
+              }).join('') + '</div>'
+            : '<p class="p-body">Nobody is on ' + esc(first) + '\'s list yet. Record who collected them below, then add the family\'s collectors so the register can check next time.</p>')
+          + '</section>'
+          + '<section class="p-card"><h2 class="p-title">Somebody else</h2>'
+          + '<div class="p-field"><label for="colName">Their name</label><input id="colName" maxlength="160" autocomplete="off"></div>'
+          + (list.length
+            ? '<div class="p-field"><label for="colWhy">How you checked it was all right</label><input id="colWhy" maxlength="500" placeholder="I phoned the mother on her number on file"></div>'
+              + '<p class="p-caption">They are not on the list, so the safeguarding officer is told as soon as you record this.</p>'
+            : '')
+          + '<button type="button" class="p-primary" data-collect-other="1">Record it</button></section>';
+      }
+      /* From the register the job is the sign-out, so the list editor folds away;
+         from the student's page it is the job, so it is open. */
+      html += (sess ? '<details class="p-card i-col-edit"><summary class="p-title">Change who may collect ' + esc(first) + '</summary>'
+                    : '<section class="p-card"><h2 class="p-title">Who may collect ' + esc(first) + ' (up to ' + esc(d.max) + ')</h2>')
+        + '<p class="p-caption">The family sees this list in their portal and asks the academy to change it. Phone numbers stay with staff and the family.</p>'
+        + '<div class="p-stack">';
+      var rows = list.slice();
+      var upto = Math.min(d.max || 8, rows.length + 2);
+      while (rows.length < upto) rows.push({});
+      rows.forEach(function (c, i) {
+        html += '<fieldset class="p-field i-col-row"><legend class="p-caption">Person ' + (i + 1) + '</legend>'
+          + '<label for="cn' + i + '">Name</label><input id="cn' + i + '" data-col-name value="' + esc(c.name || '') + '" maxlength="160">'
+          + '<label for="cr' + i + '">Relationship</label><input id="cr' + i + '" data-col-rel value="' + esc(c.relation || '') + '" maxlength="60">'
+          + '<label for="cp' + i + '">Phone</label><input id="cp' + i + '" data-col-phone type="tel" value="' + esc(c.phone || '') + '" maxlength="24"></fieldset>';
+      });
+      html += '</div><p class="p-caption">To take somebody off, clear their name.</p>'
+        + '<button type="button" class="p-outline" data-collect-save="1">Save the list</button>' + (sess ? '</details>' : '</section>');
+      if ((d.recent || []).length) {
+        html += '<section class="p-card"><h2 class="p-title">Recent sign-outs</h2>' + d.recent.map(function (c) {
+          return '<p class="p-caption' + (c.verdict === 'not_listed' ? ' p-bad' : '') + '">' + esc(fmtTime(c.collected_at)) + ' · ' + esc(c.collector_name)
+            + (c.verdict === 'not_listed' ? ' (not on the list)' : '') + (c.recorded_by_name ? ' · recorded by ' + esc(c.recorded_by_name) : '') + '</p>';
+        }).join('') + '</section>';
+      }
+      paint(html + '</div>');
+    }).catch(function (err) { paint(h1('Collection') + empty('triangle-exclamation', errOf(err, 'Could not load the collectors.'))); });
+  }
+
   /* ── Routing ────────────────────────────────────────────────────────────── */
 
   var SCREENS = {
     home: renderHome, register: renderRegister, marking: renderMarking,
     teachbacks: renderTeachbacks, report: renderReport, students: renderStudents, lessons: renderStudentLessons,
-    earnings: renderEarnings, a11y: renderA11y, space: renderSpace, concern: renderConcern, growth: renderGrowth, incidents: renderIncidents
+    earnings: renderEarnings, a11y: renderA11y, space: renderSpace, concern: renderConcern, growth: renderGrowth, incidents: renderIncidents, collect: renderCollect
   };
   /* Incidents for one student (safeguarding.php). A safeguarding one goes to the
      officer, who alone decides who is told; its details come back restricted. */
@@ -907,6 +986,28 @@
       write(tk, API.request('instructor/lessons', { method: 'POST', body: { action: 'tick', lesson_id: Number(tk.dataset.lsnTick),
         student_id: Number(sid), done: tk.dataset.done === '1' } }),
         function () { renderStudentLessons(sid); }, tk.dataset.done === '1' ? 'Ticked done.' : 'Tick taken back.');
+      return;
+    }
+    var col = e.target && e.target.closest && e.target.closest('[data-collect-by],[data-collect-other],[data-collect-save]');
+    if (col && S.collect) {
+      var C = S.collect;
+      var again = function () { renderCollect(C.student + (C.session ? '.' + C.session : '')); };
+      if (col.dataset.collectSave) {
+        var people = $$('.i-col-row').map(function (f) {
+          return { name: (f.querySelector('[data-col-name]') || {}).value || '', relation: (f.querySelector('[data-col-rel]') || {}).value || '',
+                   phone: (f.querySelector('[data-col-phone]') || {}).value || '' };
+        });
+        write(col, API.request('collectors', { method: 'POST', body: { action: 'save', student_id: C.student, collectors: people } }), again, 'List saved.');
+      } else {
+        var cb = { action: 'collect', student_id: C.student, session_id: C.session || null };
+        if (col.dataset.collectBy) cb.collector_id = Number(col.dataset.collectBy);
+        else { cb.other_name = ($('#colName') || {}).value || ''; cb.reason = ($('#colWhy') || {}).value || ''; }
+        write(col, API.request('collectors', { method: 'POST', body: cb }), function (r) {
+          if (r && r.verdict === 'not_listed') toast('Recorded. The safeguarding officer has been told.', 'bad');
+          else toast('Recorded.', 'good');
+          if (C.session) go('register', C.session); else again();
+        }, null);
+      }
       return;
     }
     var inc = e.target && e.target.closest && e.target.closest('[data-inc-save],[data-inc-tell],[data-inc-close]');

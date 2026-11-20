@@ -228,6 +228,28 @@ function mam_iportal_register(int $instructorId, int $sessionId): array {
     }
     unset($r);
 
+    // Sign-out (safeguarding.php, v104). Asked of an in-person class only — an
+    // online student goes home from their own kitchen — and only of a child who
+    // was there. `collect` is null where there is nothing to ask.
+    if (function_exists('mam_collections_for_session') && ($session['mode'] ?? 'onsite') !== 'online') {
+        $done = mam_collections_for_session((int) $session['id']);
+        $ids = array_map(static fn ($r) => (int) $r['student_id'], $rows);
+        $lists = [];
+        if ($ids) {
+            $ph = implode(',', array_fill(0, count($ids), '?'));
+            foreach (mam_db_all("SELECT student_id, COUNT(*) AS n FROM authorised_collectors WHERE student_id IN ($ph) GROUP BY student_id", $ids) as $l) $lists[(int) $l['student_id']] = (int) $l['n'];
+        }
+        foreach ($rows as &$r) {
+            $here = in_array($r['status'], ['present', 'late'], true);
+            $c = $done[(int) $r['student_id']] ?? null;
+            $r['collect'] = ($here || $c) ? [
+                'done'      => $c ? ['name' => (string) $c['collector_name'], 'verdict' => (string) $c['verdict'], 'at' => (string) $c['collected_at']] : null,
+                'on_file'   => $lists[(int) $r['student_id']] ?? 0,
+            ] : null;
+        }
+        unset($r);
+    }
+
     return [
         'session' => $session,
         'roster'  => $rows,
