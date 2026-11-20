@@ -2185,3 +2185,21 @@ instructor is owed, and putting the two side by side invites reading one as the 
   a browser: earnings recorded, a correction with no reason refused, one with a reason
   recorded; no horizontal overflow at 1280 or 390.
 - Still without a button (§4y): `referral_reward` and the rest of the list.
+
+## 4z9. 2026-11-20 — CI: the MariaDB job runs again, and what it found
+
+- **The job had been dead for days without reaching a test.** The runner image stopped
+  shipping a `mariadb`/`mysql` client, so "Apply the MySQL schema" exited 127. The client
+  now runs inside the service container (`docker exec … mariadb`), which carries its own
+  at the server's version.
+- **What it then found: one collation for every table (schema v105).** 85 tables declared
+  `utf8mb4_unicode_ci`, 81 declared nothing (one, `idempotency_cache`, not even an engine)
+  and took the server default. Comparing text across the two halves is error 1267; the
+  console's invoice read caught it and drew the online-payments panel EMPTY, so on MySQL
+  the office never saw a refund it owed. Every CREATE now names the collation, and v105
+  CONVERTs the 86 tables that existed without one (FK checks off for the run; CONVERT is
+  idempotent). Verified both ways on MariaDB 10.11: a fresh install and a v104 database
+  upgraded through the app's own migrator both end with one collation on all 166 tables.
+- `test_schema_collation.php` reads the schema file on every engine and the live
+  `information_schema` on MySQL; stripping one table's collation fails it.
+- MariaDB suite: 5,607 passed, 0 failed (14 SQLite-only files skip, as before).

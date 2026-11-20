@@ -55,7 +55,7 @@ DB: **SQLite by default** (auto-migrates at `api/storage/mam.db`), MySQL in prod
 # Full test suite (zero-dependency runner; CI runs this). MUST stay green.
 php api/tests/run.php            # → "✅ PASS: N passed, 0 failed"
 
-# The same suite against MySQL — seven defects have existed only there. See
+# The same suite against MySQL — eight defects have existed only there. See
 # "Running the site against MySQL" below for the --force and fresh-DB caveats.
 DB_DSN='mysql:host=127.0.0.1;dbname=mam_suite;charset=utf8mb4' \
   DB_USERNAME=… DB_PASSWORD=… php api/tests/run.php
@@ -2109,7 +2109,7 @@ files that introspect `sqlite_master` or `PRAGMA`:
 
 ✅ **CI runs this now** — the `mysql` job in `.github/workflows/ci.yml`, against
 **MariaDB 10.11**. Being able to run it by hand was not the same as running it:
-every one of the seven defects below passed a green SQLite build, so the
+every one of the eight defects below passed a green SQLite build, so the
 production engine was unexercised before a deploy. The job also asserts the
 **table count is ≥100** after the import, because `--force` swallows errors and
 a stopped import leaves exactly **18** tables while the build stays green — the
@@ -2131,7 +2131,7 @@ expected and everything after them still applies. Without `--force` you get 18
 tables instead of 129. Use a **fresh database** each run — the suite leaves its
 fixtures behind, so a second run fails on a duplicate email.
 
-Seven defects existed **only** on MySQL, and each was invisible to a green
+Eight defects existed **only** on MySQL, and each was invisible to a green
 SQLite suite:
 
 1. **`users.role` / `user_roles.role` were `ENUM` without `'parent'`.** Under
@@ -2153,6 +2153,14 @@ SQLite suite:
 6. **MySQL DDL causes an implicit COMMIT**, so a test that DROPs a table inside
    a transaction cannot roll it back — it leaves the table gone for every later
    test. Rename it aside and back instead.
+8. **Half the tables had no collation**, so they took the server's default
+   (`utf8mb4_general_ci` on MariaDB, `utf8mb4_0900_ai_ci` on MySQL 8) while
+   the rest said `utf8mb4_unicode_ci`. Comparing text across the two is error
+   1267, and a console read catches it and draws an EMPTY panel — the
+   invoice's online payments and the refund owed on one showed nothing on
+   every MySQL install. Every `CREATE TABLE` must end
+   `COLLATE=utf8mb4_unicode_ci` (`test_schema_collation.php` fails otherwise);
+   v105 converts the tables that already exist.
 7. **MySQL's `INT` coerces a fractional value; SQLite's INTEGER is an
    AFFINITY** and stores it verbatim. Two `test_reports.php` assertions state
    both engines: the CHECK refuses on one, the column coerces on the other, and

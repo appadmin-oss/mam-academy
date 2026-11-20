@@ -427,7 +427,7 @@ CREATE TABLE IF NOT EXISTS settings (
   skey        VARCHAR(120) PRIMARY KEY,
   svalue      TEXT,
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO settings (skey, svalue) VALUES
   ('price_certified_musician','230'),
@@ -467,7 +467,7 @@ CREATE TABLE IF NOT EXISTS announcements (
   body        TEXT NOT NULL,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_announcements_class (class_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS practice_logs (
   id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -478,7 +478,7 @@ CREATE TABLE IF NOT EXISTS practice_logs (
   logged_on   DATE NULL,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_practice_student (student_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (14) ON DUPLICATE KEY UPDATE version = version;
 
@@ -500,7 +500,7 @@ CREATE TABLE IF NOT EXISTS assignments (
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_assignments_student (student_id),
   KEY idx_assignments_author (author_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (15) ON DUPLICATE KEY UPDATE version = version;
 
@@ -517,7 +517,7 @@ CREATE TABLE IF NOT EXISTS user_roles (
 
   PRIMARY KEY (user_id, role),
   CONSTRAINT fk_user_roles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT IGNORE INTO user_roles (user_id, role) SELECT id, role FROM users;
 
 CREATE TABLE IF NOT EXISTS programs (
@@ -531,7 +531,7 @@ CREATE TABLE IF NOT EXISTS programs (
   certification VARCHAR(32),
   sort_order    INT DEFAULT 0,
   active        TINYINT(1) NOT NULL DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO programs (code,name,weeks,revision_week,exam_week,requires_core,certification,sort_order) VALUES
   ('ktams','KTAMS Young Musicians',12,11,12,0,'participation',0),
   ('crash','Crash Program',6,NULL,6,0,'participation',1),
@@ -546,7 +546,7 @@ CREATE TABLE IF NOT EXISTS levels (
   name           VARCHAR(80) NOT NULL,
   trinity_grades VARCHAR(40),
   sort_order     INT NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO levels (code,name,trinity_grades,sort_order) VALUES
   ('precert','Pre-Certification','Grade 1-2',1),
   ('cert','Certificate','Grade 3-4',2),
@@ -562,7 +562,7 @@ CREATE TABLE IF NOT EXISTS courses (
   description TEXT,
   sort_order  INT DEFAULT 0,
   active      TINYINT(1) NOT NULL DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO courses (code,name,kind,sort_order) VALUES
   ('rhythm_pitch','Rhythm & Pitch Intelligence','core',1),
   ('performance_etiquette','Performance Etiquette','core',2),
@@ -586,7 +586,7 @@ CREATE TABLE IF NOT EXISTS program_courses (
   PRIMARY KEY (program_id, course_id),
   CONSTRAINT fk_pc_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE,
   CONSTRAINT fk_pc_course  FOREIGN KEY (course_id)  REFERENCES courses(id)  ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT IGNORE INTO program_courses (program_id, course_id, level_code, sort_order)
   SELECT p.id, c.id, 'precert', c.sort_order
   FROM programs p JOIN courses c ON c.code IN ('drums','guitar','piano')
@@ -608,7 +608,7 @@ CREATE TABLE IF NOT EXISTS modules (
   KEY idx_modules_course (course_id, level_id),
   CONSTRAINT fk_modules_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
   CONSTRAINT fk_modules_level  FOREIGN KEY (level_id)  REFERENCES levels(id)  ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS instructor_assignments (
   id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -620,7 +620,7 @@ CREATE TABLE IF NOT EXISTS instructor_assignments (
   CONSTRAINT fk_ia_instr  FOREIGN KEY (instructor_id) REFERENCES users(id)   ON DELETE CASCADE,
   CONSTRAINT fk_ia_course FOREIGN KEY (course_id)     REFERENCES courses(id) ON DELETE CASCADE,
   CONSTRAINT fk_ia_level  FOREIGN KEY (level_id)      REFERENCES levels(id)  ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS course_enrollments (
   id                      INT AUTO_INCREMENT PRIMARY KEY,
@@ -643,7 +643,7 @@ CREATE TABLE IF NOT EXISTS course_enrollments (
   CONSTRAINT fk_ce_level   FOREIGN KEY (level_id)   REFERENCES levels(id)   ON DELETE SET NULL,
   CONSTRAINT fk_ce_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE SET NULL,
   CONSTRAINT fk_ce_instr   FOREIGN KEY (instructor_id) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS assessment_types (
   id         INT AUTO_INCREMENT PRIMARY KEY,
@@ -652,7 +652,7 @@ CREATE TABLE IF NOT EXISTS assessment_types (
   weight     INT NOT NULL DEFAULT 0,
   sort_order INT DEFAULT 0,
   active     TINYINT(1) NOT NULL DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO assessment_types (code,name,weight,sort_order) VALUES
   ('attendance','Attendance',10,1),
   ('assignment','Assignment',20,2),
@@ -675,7 +675,7 @@ CREATE TABLE IF NOT EXISTS assessments (
   CONSTRAINT fk_as_enroll FOREIGN KEY (enrollment_id) REFERENCES course_enrollments(id) ON DELETE CASCADE,
   CONSTRAINT fk_as_type   FOREIGN KEY (type_id)       REFERENCES assessment_types(id)   ON DELETE SET NULL,
   CONSTRAINT fk_as_instr  FOREIGN KEY (instructor_id) REFERENCES users(id)              ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS results (
   id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -692,7 +692,7 @@ CREATE TABLE IF NOT EXISTS results (
   -- CREATE TABLE fail with error 1826 — so a fresh MySQL install had no `results`
   -- table at all, while SQLite (which scopes them per table) was fine.
   CONSTRAINT fk_result_user FOREIGN KEY (finalized_by)  REFERENCES users(id)          ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS certificates (
   id         INT AUTO_INCREMENT PRIMARY KEY,
@@ -709,7 +709,7 @@ CREATE TABLE IF NOT EXISTS certificates (
   CONSTRAINT fk_cert_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE SET NULL,
   CONSTRAINT fk_cert_level   FOREIGN KEY (level_id)   REFERENCES levels(id)   ON DELETE SET NULL,
   CONSTRAINT fk_cert_issuer  FOREIGN KEY (issued_by)  REFERENCES users(id)    ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- v17 — Outbound email outbox. Every transactional send becomes a durable,
 -- queryable row so failures are visible + recoverable (admin "Retry failed" +
@@ -732,7 +732,7 @@ CREATE TABLE IF NOT EXISTS mail_log (
   sent_at    DATETIME NULL,
   KEY idx_mail_log_status (status),
   KEY idx_mail_log_created (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (16) ON DUPLICATE KEY UPDATE version = version;
 INSERT INTO schema_version (version) VALUES (17) ON DUPLICATE KEY UPDATE version = version;
@@ -755,7 +755,7 @@ CREATE TABLE IF NOT EXISTS enrolment_events (
   KEY idx_enrolment_events_enrollment (enrollment_id, id),
   CONSTRAINT fk_ee_enroll FOREIGN KEY (enrollment_id) REFERENCES course_enrollments(id) ON DELETE CASCADE,
   CONSTRAINT fk_ee_actor  FOREIGN KEY (actor_id)      REFERENCES users(id)              ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (18) ON DUPLICATE KEY UPDATE version = version;
 
@@ -789,7 +789,7 @@ CREATE TABLE IF NOT EXISTS cohorts (
   CONSTRAINT fk_cohort_level   FOREIGN KEY (level_id)      REFERENCES levels(id)   ON DELETE SET NULL,
   CONSTRAINT fk_cohort_program FOREIGN KEY (program_id)    REFERENCES programs(id) ON DELETE SET NULL,
   CONSTRAINT fk_cohort_instr   FOREIGN KEY (instructor_id) REFERENCES users(id)    ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE course_enrollments ADD COLUMN cohort_id INT NULL;
 ALTER TABLE course_enrollments ADD KEY idx_cenroll_cohort (cohort_id);
@@ -816,7 +816,7 @@ CREATE TABLE IF NOT EXISTS ai_runs (
   created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_ai_runs_usecase (use_case, id),
   CONSTRAINT fk_airuns_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (20) ON DUPLICATE KEY UPDATE version = version;
 
@@ -837,7 +837,7 @@ CREATE TABLE IF NOT EXISTS class_sessions (
   KEY idx_class_sessions_cohort (cohort_id, scheduled_at),
   CONSTRAINT fk_cs_cohort  FOREIGN KEY (cohort_id)  REFERENCES cohorts(id) ON DELETE CASCADE,
   CONSTRAINT fk_cs_creator FOREIGN KEY (created_by) REFERENCES users(id)   ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (21) ON DUPLICATE KEY UPDATE version = version;
 
@@ -857,7 +857,7 @@ CREATE TABLE IF NOT EXISTS session_attendance (
   CONSTRAINT fk_sa_session FOREIGN KEY (session_id) REFERENCES class_sessions(id) ON DELETE CASCADE,
   CONSTRAINT fk_sa_student FOREIGN KEY (student_id) REFERENCES users(id)          ON DELETE CASCADE,
   CONSTRAINT fk_sa_marker  FOREIGN KEY (marked_by)  REFERENCES users(id)          ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (22) ON DUPLICATE KEY UPDATE version = version;
 
@@ -878,7 +878,7 @@ CREATE TABLE IF NOT EXISTS submissions (
   KEY idx_submissions_student (student_id, id),
   CONSTRAINT fk_sub_assignment FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE,
   CONSTRAINT fk_sub_student    FOREIGN KEY (student_id)    REFERENCES users(id)       ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS feedback (
   id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -891,7 +891,7 @@ CREATE TABLE IF NOT EXISTS feedback (
   updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_fb_submission FOREIGN KEY (submission_id) REFERENCES submissions(id) ON DELETE CASCADE,
   CONSTRAINT fk_fb_instructor FOREIGN KEY (instructor_id) REFERENCES users(id)       ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (23) ON DUPLICATE KEY UPDATE version = version;
 
@@ -906,7 +906,7 @@ CREATE TABLE IF NOT EXISTS application_drafts (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_app_drafts_email (email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (24) ON DUPLICATE KEY UPDATE version = version;
 
@@ -919,7 +919,7 @@ CREATE TABLE IF NOT EXISTS events (
   payload    TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_events_type (type, id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS jobs (
   id         INT AUTO_INCREMENT PRIMARY KEY,
@@ -932,7 +932,7 @@ CREATE TABLE IF NOT EXISTS jobs (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_jobs_due (status, run_after)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (25) ON DUPLICATE KEY UPDATE version = version;
 
@@ -957,7 +957,7 @@ CREATE TABLE IF NOT EXISTS application_events (
   KEY idx_app_events_app (application_id, id),
   CONSTRAINT fk_ae_app   FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
   CONSTRAINT fk_ae_actor FOREIGN KEY (actor_id)       REFERENCES users(id)        ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS application_notes (
   id             INT AUTO_INCREMENT PRIMARY KEY,
   application_id INT NOT NULL,
@@ -967,7 +967,7 @@ CREATE TABLE IF NOT EXISTS application_notes (
   KEY idx_app_notes_app (application_id, id),
   CONSTRAINT fk_an_app    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
   CONSTRAINT fk_an_author FOREIGN KEY (author_id)      REFERENCES users(id)        ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (27) ON DUPLICATE KEY UPDATE version = version;
 
@@ -984,7 +984,7 @@ CREATE TABLE IF NOT EXISTS funnel_events (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_funnel_event (event, created_at),
   KEY idx_funnel_sid (sid)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (28) ON DUPLICATE KEY UPDATE version = version;
 
@@ -1002,7 +1002,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_notif_user (user_id, read_at, id),
   CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (29) ON DUPLICATE KEY UPDATE version = version;
 
@@ -1019,7 +1019,7 @@ CREATE TABLE IF NOT EXISTS tool_scores (
   UNIQUE KEY idx_tool_scores_user_tool (user_id, tool),
   KEY idx_tool_scores_board (tool, best_score),
   CONSTRAINT fk_tool_scores_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (30) ON DUPLICATE KEY UPDATE version = version;
 
@@ -1045,7 +1045,7 @@ CREATE TABLE IF NOT EXISTS wallet_ledger (
   created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_wallet_user (user_id, id),
   CONSTRAINT fk_wallet_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (32) ON DUPLICATE KEY UPDATE version = version;
 
@@ -1077,7 +1077,7 @@ CREATE TABLE IF NOT EXISTS scholarship_applications (
   created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_scholarship_email (email),
   KEY idx_scholarship_status (status, id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (34) ON DUPLICATE KEY UPDATE version = version;
 
 -- v35 — instructor curriculum proposals (admin-approved authoring)
@@ -1097,7 +1097,7 @@ CREATE TABLE IF NOT EXISTS module_proposals (
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_modprop_status (status, id),
   KEY idx_modprop_by (proposed_by, id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (35) ON DUPLICATE KEY UPDATE version = version;
 
 -- v36 — instructor (faculty) applications (details + headshot form)
@@ -1117,7 +1117,7 @@ CREATE TABLE IF NOT EXISTS instructor_applications (
   created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_instrapp_email (email),
   KEY idx_instrapp_status (status, id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (36) ON DUPLICATE KEY UPDATE version = version;
 
 -- v37 — stateful faculty invites (approval-gated, single-use, 7-day expiry)
@@ -1135,7 +1135,7 @@ CREATE TABLE IF NOT EXISTS faculty_invites (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_facinv_email (email),
   KEY idx_facinv_status (status, id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (37) ON DUPLICATE KEY UPDATE version = version;
 
 -- v38 — lifecycle automations: admin-toggleable enable flag per rule
@@ -1147,7 +1147,7 @@ CREATE TABLE IF NOT EXISTS automations (
   last_run_at DATETIME NULL,
   run_count   INT NOT NULL DEFAULT 0,
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (38) ON DUPLICATE KEY UPDATE version = version;
 
 -- v39 — announcement convergence (P2): an announcement may target a COHORT as
@@ -1215,7 +1215,7 @@ CREATE TABLE IF NOT EXISTS student_feedback (
   CONSTRAINT fk_sfeedback_student  FOREIGN KEY (student_id)           REFERENCES users(id)              ON DELETE CASCADE,
   CONSTRAINT fk_sfeedback_enroll   FOREIGN KEY (enrollment_id)        REFERENCES enrollments(id)        ON DELETE SET NULL,
   CONSTRAINT fk_sfeedback_cenroll  FOREIGN KEY (course_enrollment_id) REFERENCES course_enrollments(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS surveys (
   id             INT AUTO_INCREMENT PRIMARY KEY,
@@ -1228,7 +1228,7 @@ CREATE TABLE IF NOT EXISTS surveys (
   closes_at      DATETIME,
   created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_surveys_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS survey_responses (
   id           INT AUTO_INCREMENT PRIMARY KEY,
@@ -1239,7 +1239,7 @@ CREATE TABLE IF NOT EXISTS survey_responses (
   UNIQUE KEY uq_survey_response (survey_id, student_id),
   CONSTRAINT fk_sresp_survey  FOREIGN KEY (survey_id)  REFERENCES surveys(id) ON DELETE CASCADE,
   CONSTRAINT fk_sresp_student FOREIGN KEY (student_id) REFERENCES users(id)   ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS support_tickets (
   id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -1258,7 +1258,7 @@ CREATE TABLE IF NOT EXISTS support_tickets (
   KEY idx_tickets_status  (status),
   CONSTRAINT fk_tickets_student  FOREIGN KEY (student_id)  REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_tickets_assignee FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS ticket_messages (
   id          INT AUTO_INCREMENT PRIMARY KEY,
@@ -1270,7 +1270,7 @@ CREATE TABLE IF NOT EXISTS ticket_messages (
   KEY idx_ticket_msgs_ticket (ticket_id),
   CONSTRAINT fk_tmsg_ticket FOREIGN KEY (ticket_id) REFERENCES support_tickets(id) ON DELETE CASCADE,
   CONSTRAINT fk_tmsg_author FOREIGN KEY (author_id)  REFERENCES users(id)           ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (42) ON DUPLICATE KEY UPDATE version = version;
 
@@ -1293,7 +1293,7 @@ CREATE TABLE IF NOT EXISTS progress_report_tokens (
   KEY idx_prt_student (student_id),
   CONSTRAINT fk_prt_student    FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_prt_created_by FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (43) ON DUPLICATE KEY UPDATE version = version;
 
@@ -1320,7 +1320,7 @@ CREATE TABLE IF NOT EXISTS class_waitlist (
   KEY idx_waitlist_student (student_id),
   CONSTRAINT fk_wl_student FOREIGN KEY (student_id) REFERENCES users(id)   ON DELETE CASCADE,
   CONSTRAINT fk_wl_cohort  FOREIGN KEY (cohort_id)  REFERENCES cohorts(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS session_history (
   id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -1334,7 +1334,7 @@ CREATE TABLE IF NOT EXISTS session_history (
   KEY idx_sh_session (session_id),
   CONSTRAINT fk_sh_session    FOREIGN KEY (session_id) REFERENCES class_sessions(id) ON DELETE CASCADE,
   CONSTRAINT fk_sh_changed_by FOREIGN KEY (changed_by) REFERENCES users(id)          ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE class_sessions
   ADD COLUMN substitute_id      INT          NULL AFTER created_by,
@@ -1382,7 +1382,7 @@ CREATE TABLE IF NOT EXISTS progress_reports (
   CONSTRAINT fk_pr_student    FOREIGN KEY (student_id)    REFERENCES users(id)          ON DELETE CASCADE,
   CONSTRAINT fk_pr_instructor FOREIGN KEY (instructor_id) REFERENCES users(id)          ON DELETE CASCADE,
   CONSTRAINT fk_pr_form       FOREIGN KEY (form_id)       REFERENCES surveys(id)        ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS instructor_fines (
   id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -1398,7 +1398,7 @@ CREATE TABLE IF NOT EXISTS instructor_fines (
   CONSTRAINT fk_fine_instructor FOREIGN KEY (instructor_id) REFERENCES users(id)          ON DELETE CASCADE,
   CONSTRAINT fk_fine_session    FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE SET NULL,
   CONSTRAINT fk_fine_resolved   FOREIGN KEY (resolved_by)   REFERENCES users(id)          ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO schema_version (version) VALUES (46) ON DUPLICATE KEY UPDATE version = version;
 
@@ -1484,7 +1484,7 @@ CREATE TABLE IF NOT EXISTS idempotency_cache (
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (idem_key, scope),
   KEY idx_idem_created (created_at)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (51) ON DUPLICATE KEY UPDATE version = version;
 
 -- v52: summer_applications — separate table for the Summer Programme.
@@ -3127,7 +3127,7 @@ CREATE TABLE IF NOT EXISTS instructor_application_subjects (
   CONSTRAINT fk_iasubj_app    FOREIGN KEY (application_id) REFERENCES instructor_applications(id) ON DELETE CASCADE,
   CONSTRAINT fk_iasubj_course FOREIGN KEY (course_id)      REFERENCES courses(id)                 ON DELETE CASCADE,
   CONSTRAINT fk_iasubj_level  FOREIGN KEY (level_id)       REFERENCES levels(id)                  ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS instructor_application_referees (
   id             INT AUTO_INCREMENT PRIMARY KEY,
@@ -3140,7 +3140,7 @@ CREATE TABLE IF NOT EXISTS instructor_application_referees (
   created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_iaref_app (application_id),
   CONSTRAINT fk_iaref_app FOREIGN KEY (application_id) REFERENCES instructor_applications(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (90) ON DUPLICATE KEY UPDATE version = version;
 
 -- v91 — money the office receives against a fee invoice (fees.php mam_fee_payment_record).
@@ -3165,7 +3165,7 @@ CREATE TABLE IF NOT EXISTS fee_payments (
   CONSTRAINT chk_feepay_method CHECK (method IN ('transfer','cash','pos','card','other')),
   CONSTRAINT chk_feepay_status CHECK (status IN ('recorded','void')),
   CONSTRAINT chk_feepay_void   CHECK (status <> 'void' OR void_reason IS NOT NULL)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (91) ON DUPLICATE KEY UPDATE version = version;
 
 -- v92 — a guardian pays a fee invoice online: the gateway charge says which
@@ -3210,7 +3210,7 @@ CREATE TABLE IF NOT EXISTS fee_transfer_claims (
   CONSTRAINT chk_feeclaim_amount CHECK (amount_minor > 0),
   CONSTRAINT chk_feeclaim_status CHECK (status IN ('pending','verified','rejected')),
   CONSTRAINT chk_feeclaim_reject CHECK (status <> 'rejected' OR reject_reason IS NOT NULL)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS fee_online_unapplied (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   reference   VARCHAR(64) NOT NULL,
@@ -3229,7 +3229,7 @@ CREATE TABLE IF NOT EXISTS fee_online_unapplied (
   CONSTRAINT fk_feeunap_by      FOREIGN KEY (resolved_by)        REFERENCES users(id)        ON DELETE SET NULL,
   CONSTRAINT chk_feeunap_amount CHECK (over_minor > 0),
   CONSTRAINT chk_feeunap_status CHECK (status IN ('open','refunded','applied','dismissed'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (93) ON DUPLICATE KEY UPDATE version = version;
 
 -- v94 — member status history (with reasons) and staff notes on a person (members.php).
@@ -3244,7 +3244,7 @@ CREATE TABLE IF NOT EXISTS member_status_log (
   KEY idx_mstatus_user (user_id, id),
   CONSTRAINT fk_mstatus_user FOREIGN KEY (user_id)    REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_mstatus_by   FOREIGN KEY (changed_by) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS member_notes (
   id         INT AUTO_INCREMENT PRIMARY KEY,
   user_id    INT NOT NULL,
@@ -3255,7 +3255,7 @@ CREATE TABLE IF NOT EXISTS member_notes (
   CONSTRAINT fk_mnotes_user   FOREIGN KEY (user_id)   REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_mnotes_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT chk_mnotes_body  CHECK (CHAR_LENGTH(body) > 0)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (94) ON DUPLICATE KEY UPDATE version = version;
 
 -- v95 — one row per members-roster bulk run, with its per-row verdicts (members.php).
@@ -3270,7 +3270,7 @@ CREATE TABLE IF NOT EXISTS member_bulk_runs (
   results_json MEDIUMTEXT NOT NULL,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_mbulk_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (95) ON DUPLICATE KEY UPDATE version = version;
 
 -- v96 — the guardian's email on a year-round application, so the guardian can be given their own account.
@@ -3305,7 +3305,7 @@ CREATE TABLE IF NOT EXISTS module_checks (
   CONSTRAINT chk_mchecks_kind   CHECK (kind IN ('mcq','order','short','task','reflection','evidence')),
   CONSTRAINT chk_mchecks_points CHECK (points BETWEEN 0 AND 100),
   CONSTRAINT chk_mchecks_prompt CHECK (CHAR_LENGTH(prompt) > 0)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS module_materials (
   id         INT AUTO_INCREMENT PRIMARY KEY,
   module_id  INT NOT NULL,
@@ -3319,7 +3319,7 @@ CREATE TABLE IF NOT EXISTS module_materials (
   KEY idx_mmat_module (module_id, position),
   CONSTRAINT fk_mmat_module FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE,
   CONSTRAINT chk_mmat_status CHECK (status IN ('approved','pending','rejected'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS module_progress (
   id             INT AUTO_INCREMENT PRIMARY KEY,
   module_id      INT NOT NULL,
@@ -3349,7 +3349,7 @@ CREATE TABLE IF NOT EXISTS module_progress (
   CONSTRAINT fk_mprog_confirm FOREIGN KEY (confirmed_by) REFERENCES users(id)   ON DELETE SET NULL,
   CONSTRAINT chk_mprog_status  CHECK (status IN ('started','attempted','submitted','completed')),
   CONSTRAINT chk_mprog_pending CHECK (pending IN (0,1))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (97) ON DUPLICATE KEY UPDATE version = version;
 
 -- v98 — lessons phase 2: notes, feedback, placement, exams, the deadline log; material review columns.
@@ -3371,7 +3371,7 @@ CREATE TABLE IF NOT EXISTS lesson_notes (
   CONSTRAINT fk_lnotes_module  FOREIGN KEY (module_id)  REFERENCES modules(id) ON DELETE CASCADE,
   CONSTRAINT fk_lnotes_student FOREIGN KEY (student_id) REFERENCES users(id)   ON DELETE CASCADE,
   CONSTRAINT chk_lnotes_saved CHECK (saved IN (0,1))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS lesson_feedback (
   id         INT AUTO_INCREMENT PRIMARY KEY,
   module_id  INT NOT NULL,
@@ -3384,7 +3384,7 @@ CREATE TABLE IF NOT EXISTS lesson_feedback (
   CONSTRAINT fk_lfb_module  FOREIGN KEY (module_id)  REFERENCES modules(id) ON DELETE CASCADE,
   CONSTRAINT fk_lfb_student FOREIGN KEY (student_id) REFERENCES users(id)   ON DELETE CASCADE,
   CONSTRAINT chk_lfb_feel CHECK (feel IN ('got','mostly','lost'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS lesson_placements (
   id         INT AUTO_INCREMENT PRIMARY KEY,
   student_id INT NOT NULL,
@@ -3398,7 +3398,7 @@ CREATE TABLE IF NOT EXISTS lesson_placements (
   CONSTRAINT fk_lplace_course  FOREIGN KEY (course_id)  REFERENCES courses(id) ON DELETE CASCADE,
   CONSTRAINT fk_lplace_level   FOREIGN KEY (level_id)   REFERENCES levels(id)  ON DELETE CASCADE,
   CONSTRAINT fk_lplace_by      FOREIGN KEY (placed_by)  REFERENCES users(id)   ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS lesson_sittings (
   id             INT AUTO_INCREMENT PRIMARY KEY,
   student_id     INT NOT NULL,
@@ -3435,7 +3435,7 @@ CREATE TABLE IF NOT EXISTS lesson_sittings (
   CONSTRAINT chk_sit_kind    CHECK (kind IN ('session','trial')),
   CONSTRAINT chk_sit_status  CHECK (status IN ('open','submitted','marked')),
   CONSTRAINT chk_sit_pending CHECK (pending IN (0,1))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS lesson_deadline_log (
   id         INT AUTO_INCREMENT PRIMARY KEY,
   module_id  INT NOT NULL,
@@ -3448,7 +3448,7 @@ CREATE TABLE IF NOT EXISTS lesson_deadline_log (
   CONSTRAINT fk_ldl_module  FOREIGN KEY (module_id)  REFERENCES modules(id) ON DELETE CASCADE,
   CONSTRAINT fk_ldl_student FOREIGN KEY (student_id) REFERENCES users(id)   ON DELETE CASCADE,
   CONSTRAINT chk_ldl_kind CHECK (kind IN ('reminder','fine'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 -- A lesson saved without a kind was stored as '' (fixed in lessons.php): it is a module.
 UPDATE modules SET kind = 'module' WHERE kind = '' OR kind IS NULL;
 INSERT INTO schema_version (version) VALUES (98) ON DUPLICATE KEY UPDATE version = version;
@@ -3478,7 +3478,7 @@ CREATE TABLE IF NOT EXISTS media_objects (
   CONSTRAINT chk_media_provider CHECK (provider IN ('bucket','local')),
   CONSTRAINT chk_media_status CHECK (status IN ('pending','uploaded','deleted')),
   CONSTRAINT chk_media_kind CHECK (kind IN ('video','audio','image','pdf','doc'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS class_spaces (
   id           INT AUTO_INCREMENT PRIMARY KEY,
   cohort_id    INT NULL,
@@ -3498,7 +3498,7 @@ CREATE TABLE IF NOT EXISTS class_spaces (
   CONSTRAINT chk_space_rev CHECK (review_media IN (0,1)),
   CONSTRAINT chk_space_com CHECK (students_comment IN (0,1)),
   CONSTRAINT chk_space_status CHECK (status IN ('open','archived'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS space_members (
   id         INT AUTO_INCREMENT PRIMARY KEY,
   space_id   INT NOT NULL,
@@ -3514,7 +3514,7 @@ CREATE TABLE IF NOT EXISTS space_members (
   CONSTRAINT fk_spm_by FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT chk_spm_role CHECK (role IN ('student','teacher')),
   CONSTRAINT chk_spm_status CHECK (status IN ('active','removed'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS space_tasks (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   space_id    INT NOT NULL,
@@ -3533,7 +3533,7 @@ CREATE TABLE IF NOT EXISTS space_tasks (
   CONSTRAINT chk_stask_share CHECK (share IN ('class','teacher')),
   CONSTRAINT chk_stask_points CHECK (points BETWEEN 1 AND 100),
   CONSTRAINT chk_stask_status CHECK (status IN ('open','closed'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS space_posts (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   space_id    INT NOT NULL,
@@ -3562,7 +3562,7 @@ CREATE TABLE IF NOT EXISTS space_posts (
   CONSTRAINT chk_sp_kind CHECK (kind IN ('post','submission','notice')),
   CONSTRAINT chk_sp_aud CHECK (audience IN ('class','teacher')),
   CONSTRAINT chk_sp_status CHECK (status IN ('visible','held','removed'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS space_comments (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   post_id     INT NOT NULL,
@@ -3576,7 +3576,7 @@ CREATE TABLE IF NOT EXISTS space_comments (
   CONSTRAINT fk_sc_post FOREIGN KEY (post_id) REFERENCES space_posts(id) ON DELETE CASCADE,
   CONSTRAINT fk_sc_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT chk_sc_status CHECK (status IN ('visible','held','removed'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS space_reactions (
   post_id    INT NOT NULL,
   user_id    INT NOT NULL,
@@ -3586,7 +3586,7 @@ CREATE TABLE IF NOT EXISTS space_reactions (
   CONSTRAINT fk_sr_post FOREIGN KEY (post_id) REFERENCES space_posts(id) ON DELETE CASCADE,
   CONSTRAINT fk_sr_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT chk_sr_kind CHECK (kind IN ('clap','heart','star'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS space_reports (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   post_id     INT NULL,
@@ -3605,7 +3605,7 @@ CREATE TABLE IF NOT EXISTS space_reports (
   CONSTRAINT fk_srep_handled FOREIGN KEY (handled_by) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT chk_srep_reason CHECK (reason IN ('unkind','unsafe','private_info','spam','other')),
   CONSTRAINT chk_srep_status CHECK (status IN ('open','closed'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS safeguarding_concerns (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   raised_by   INT NULL,
@@ -3630,7 +3630,7 @@ CREATE TABLE IF NOT EXISTS safeguarding_concerns (
   CONSTRAINT chk_sgc_cat CHECK (category IN ('wellbeing','conduct','contact','content','online_class','other')),
   CONSTRAINT chk_sgc_urg CHECK (urgency IN ('normal','urgent')),
   CONSTRAINT chk_sgc_status CHECK (status IN ('open','assessing','referred','closed'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS safeguarding_notes (
   id         INT AUTO_INCREMENT PRIMARY KEY,
   concern_id INT NOT NULL,
@@ -3639,7 +3639,7 @@ CREATE TABLE IF NOT EXISTS safeguarding_notes (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_sgn_concern FOREIGN KEY (concern_id) REFERENCES safeguarding_concerns(id) ON DELETE CASCADE,
   CONSTRAINT fk_sgn_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (99) ON DUPLICATE KEY UPDATE version = version;
 
 -- v100 — invoice review, family queries, discount codes (api/lib/fee-review.php).
@@ -3669,7 +3669,7 @@ CREATE TABLE IF NOT EXISTS fee_invoice_queries (
   CONSTRAINT fk_fiq_decided FOREIGN KEY (decided_by) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT chk_fiq_kind CHECK (kind IN ('question','amount','plan')),
   CONSTRAINT chk_fiq_status CHECK (status IN ('open','answered','accepted','countered','declined','withdrawn'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS fee_discount_codes (
   id              INT AUTO_INCREMENT PRIMARY KEY,
   code            VARCHAR(24) NOT NULL,
@@ -3690,7 +3690,7 @@ CREATE TABLE IF NOT EXISTS fee_discount_codes (
   CONSTRAINT chk_fdc_one CHECK ((pct IS NULL) <> (amount_minor IS NULL)),
   CONSTRAINT chk_fdc_active CHECK (active IN (0,1)),
   CONSTRAINT chk_fdc_once CHECK (once_per_family IN (0,1))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS fee_discount_redemptions (
   id           INT AUTO_INCREMENT PRIMARY KEY,
   code_id      INT NOT NULL,
@@ -3702,7 +3702,7 @@ CREATE TABLE IF NOT EXISTS fee_discount_redemptions (
   CONSTRAINT fk_fdr_code FOREIGN KEY (code_id) REFERENCES fee_discount_codes(id) ON DELETE CASCADE,
   CONSTRAINT fk_fdr_invoice FOREIGN KEY (invoice_id) REFERENCES fee_invoices(id) ON DELETE CASCADE,
   CONSTRAINT fk_fdr_by FOREIGN KEY (applied_by) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (100) ON DUPLICATE KEY UPDATE version = version;
 
 -- v101 — live online classes: join/leave/heartbeat events (api/lib/live-classes.php).
@@ -3721,7 +3721,7 @@ CREATE TABLE IF NOT EXISTS live_events (
   CONSTRAINT fk_live_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT chk_live_kind CHECK (kind IN ('opened','joined','left','beat')),
   CONSTRAINT chk_live_source CHECK (source IN ('page','beat','webhook'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (101) ON DUPLICATE KEY UPDATE version = version;
 
 -- v102 — adaptive assessment, weekly mastery snapshots, goals (adaptive.php, growth.php).
@@ -3732,7 +3732,7 @@ CREATE TABLE IF NOT EXISTS check_calibration (
   answered INT NOT NULL DEFAULT 0,
   correct  INT NOT NULL DEFAULT 0,
   CONSTRAINT fk_cal_check FOREIGN KEY (check_id) REFERENCES module_checks(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS student_ability (
   id         INT AUTO_INCREMENT PRIMARY KEY,
   student_id INT NOT NULL,
@@ -3743,7 +3743,7 @@ CREATE TABLE IF NOT EXISTS student_ability (
   UNIQUE KEY uq_ability (student_id, course_id),
   CONSTRAINT fk_ability_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_ability_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS mastery_snapshots (
   id           INT AUTO_INCREMENT PRIMARY KEY,
   student_id   INT NOT NULL,
@@ -3756,7 +3756,7 @@ CREATE TABLE IF NOT EXISTS mastery_snapshots (
   taken_at     DATETIME NOT NULL,
   UNIQUE KEY uq_snap (student_id, week_of),
   CONSTRAINT fk_snap_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS student_goals (
   id          INT AUTO_INCREMENT PRIMARY KEY,
   student_id  INT NOT NULL,
@@ -3774,7 +3774,7 @@ CREATE TABLE IF NOT EXISTS student_goals (
   CONSTRAINT fk_goal_by FOREIGN KEY (set_by) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT chk_goal_kind CHECK (kind IN ('practice_week','lessons','handins','custom')),
   CONSTRAINT chk_goal_status CHECK (status IN ('active','achieved','dropped'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (102) ON DUPLICATE KEY UPDATE version = version;
 
 -- v103 — safeguarding escalation stamp, and the incident log (safeguarding.php).
@@ -3806,7 +3806,7 @@ CREATE TABLE IF NOT EXISTS incidents (
   CONSTRAINT fk_inc_closed FOREIGN KEY (closed_by) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT chk_inc_kind CHECK (kind IN ('first_aid','health','behaviour','collection','lost_item','safeguarding','other')),
   CONSTRAINT chk_inc_status CHECK (status IN ('open','closed'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (103) ON DUPLICATE KEY UPDATE version = version;
 
 -- v104 — authorised collectors and the sign-out record (safeguarding.php).
@@ -3821,7 +3821,7 @@ CREATE TABLE IF NOT EXISTS authorised_collectors (
   KEY idx_collectors_student (student_id),
   CONSTRAINT fk_coll_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_coll_by FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS collections (
   id             INT AUTO_INCREMENT PRIMARY KEY,
   student_id     INT NOT NULL,
@@ -3841,5 +3841,107 @@ CREATE TABLE IF NOT EXISTS collections (
   CONSTRAINT fk_col_concern FOREIGN KEY (concern_id) REFERENCES safeguarding_concerns(id) ON DELETE SET NULL,
   CONSTRAINT fk_col_by FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT chk_col_verdict CHECK (verdict IN ('authorised','not_listed','no_list','adult'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (104) ON DUPLICATE KEY UPDATE version = version;
+
+-- v105 — ONE collation for every table.
+-- Half the tables above declared utf8mb4_unicode_ci and half declared nothing,
+-- so they took the server's default: utf8mb4_general_ci on MariaDB,
+-- utf8mb4_0900_ai_ci on MySQL 8. Comparing a text column across the two halves
+-- is then error 1267 ("Illegal mix of collations"), which a console read
+-- catches and draws as an EMPTY panel — the invoice's online payments, and the
+-- refund the office owes on one, read as nothing on every MySQL install while
+-- SQLite (no collations) stayed green. The CREATEs now name the collation; this
+-- converts the tables that already exist, because a corrected definition fixes
+-- only a fresh database. CONVERT is idempotent: a table already in the right
+-- collation is left as it is. FK checks are off for the run because a foreign
+-- key between two text columns cannot match until both ends are converted.
+SET FOREIGN_KEY_CHECKS = 0;
+ALTER TABLE `settings` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `announcements` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `practice_logs` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `assignments` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `user_roles` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `programs` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `levels` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `courses` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `program_courses` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `modules` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `instructor_assignments` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `course_enrollments` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `assessment_types` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `assessments` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `results` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `certificates` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `mail_log` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `enrolment_events` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `cohorts` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `ai_runs` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `class_sessions` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `session_attendance` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `submissions` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `feedback` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `application_drafts` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `events` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `jobs` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `application_events` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `application_notes` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `funnel_events` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `notifications` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `tool_scores` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `wallet_ledger` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `scholarship_applications` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `module_proposals` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `instructor_applications` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `faculty_invites` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `automations` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `student_feedback` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `surveys` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `survey_responses` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `support_tickets` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `ticket_messages` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `progress_report_tokens` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `class_waitlist` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `session_history` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `progress_reports` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `instructor_fines` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `idempotency_cache` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `instructor_application_subjects` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `instructor_application_referees` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `fee_payments` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `fee_transfer_claims` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `fee_online_unapplied` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `member_status_log` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `member_notes` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `member_bulk_runs` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `module_checks` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `module_materials` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `module_progress` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `lesson_notes` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `lesson_feedback` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `lesson_placements` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `lesson_sittings` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `lesson_deadline_log` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `media_objects` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `class_spaces` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `space_members` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `space_tasks` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `space_posts` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `space_comments` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `space_reactions` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `space_reports` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `safeguarding_concerns` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `safeguarding_notes` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `fee_invoice_queries` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `fee_discount_codes` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `fee_discount_redemptions` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `live_events` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `check_calibration` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `student_ability` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `mastery_snapshots` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `student_goals` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `incidents` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `authorised_collectors` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE `collections` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+SET FOREIGN_KEY_CHECKS = 1;
+INSERT INTO schema_version (version) VALUES (105) ON DUPLICATE KEY UPDATE version = version;
