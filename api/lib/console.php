@@ -334,7 +334,9 @@ function mam_console_badges(): array {
         "SELECT COUNT(*) FROM users u WHERE u.role = 'student' AND u.status = 'active'
            AND NOT EXISTS (SELECT 1 FROM parent_links pl WHERE pl.student_id = u.id)");
     $v = mam_console_try('badge.vetting', fn() => mam_vetting_summary(), []);
-    $b['vetting'] = (int) (($v['gaps'] ?? 0) + ($v['expiring'] ?? 0));
+    /* The summary's own keys. This read `gaps`/`expiring`, which it has never
+       returned, so the rail never flagged an instructor missing every check. */
+    $b['vetting'] = (int) (($v['needs_action'] ?? 0) + ($v['expiring_soon'] ?? 0));
     $b['safeguarding'] = mam_console_int('badge.safeguarding', "SELECT COUNT(*) FROM safeguarding_concerns WHERE status = 'open'");
     $b['bursaries'] = mam_console_int('badge.bursaries',
         "SELECT COUNT(*) FROM bursary_applications WHERE status IN ('submitted','assessing')");
@@ -446,22 +448,31 @@ function mam_console_decisions(): array {
 
     $vet = mam_console_try('dec.vetting', fn() => mam_vetting_attention(50), []) ?: [];
     foreach (array_slice($vet, 0, 3) as $v) {
-        $q[] = ['screen' => 'vetting', 'blocking' => (($v['state'] ?? '') === 'gap'),
-            'age' => isset($v['days']) ? (int) $v['days'] . 'd' : '—',
-            'title' => trim((string) ($v['name'] ?? 'An instructor')) . ' — ' . (($v['state'] ?? '') === 'gap' ? 'clearance incomplete' : 'clearance lapsing'),
-            'why' => (string) ($v['detail'] ?? 'Assignments to this instructor are refused once the gate is enforced.')];
+        /* mam_vetting_attention() returns ok / missing / expired / expiring. This
+           read `state`, `days` and `detail`, which it has never returned, so an
+           instructor with NOTHING on file was called "clearance lapsing", was
+           never blocking, and every row carried the same generic sentence. */
+        $notCleared = empty($v['ok']);
+        $what = !$notCleared ? 'clearance lapsing'
+              : (!empty($v['expired']) ? 'clearance expired'
+              : (count((array) ($v['missing'] ?? [])) >= count(defined('MAM_VETTING_REQUIRED') ? MAM_VETTING_REQUIRED : [1]) ? 'no checks on file' : 'clearance incomplete'));
+        $q[] = ['screen' => 'vetting', 'blocking' => $notCleared, 'age' => '',
+            'title' => trim((string) ($v['name'] ?? 'An instructor')) . ' — ' . $what,
+            'why' => $notCleared
+                ? 'Not cleared to teach a child. ' . count((array) ($v['missing'] ?? [])) . ' of ' . count(defined('MAM_VETTING_REQUIRED') ? MAM_VETTING_REQUIRED : []) . ' required checks are not on file; assignments are refused once the gate is enforced.'
+                : 'A check expires soon. Renew it before it lapses, or assignments are refused once the gate is enforced.'];
     }
 
     $waivers = mam_console_int('dec.waivers',
         "SELECT COUNT(*) FROM accountability_charges WHERE status = 'waiver_requested'");
-    if ($waivers > 0) $q[] = ['screen' => 'charges', 'blocking' => false, 'age' => '—',
+    if ($waivers > 0) $q[] = ['screen' => 'charges', 'blocking' => false, 'age' => '',
         'title' => $waivers . ' waiver request' . ($waivers === 1 ? '' : 's') . ' awaiting a decision',
         'why' => 'A charge nobody explains is worse than no charge. Both outcomes need a note.'];
 
     $noGuardian = mam_console_int('dec.guardian',
         "SELECT COUNT(*) FROM users u WHERE u.role = 'student' AND u.status = 'active'
            AND NOT EXISTS (SELECT 1 FROM parent_links pl WHERE pl.student_id = u.id)");
-    if ($noGuardian > 0) $q[] = ['screen' => 'guardians', 'blocking' => false, 'age' => '—',
+    if ($noGuardian > 0) $q[] = ['screen' => 'guardians', 'blocking' => false, 'age' => '',
         'title' => $noGuardian . ' learner' . ($noGuardian === 1 ? '' : 's') . ' with no guardian on file',
         'why' => 'They can attend — a data gap must not remove a child from class — but no report can be released.'];
 

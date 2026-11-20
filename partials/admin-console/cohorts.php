@@ -5,6 +5,19 @@ declare(strict_types=1);
 $rows = $d['rows'] ?? [];
 $full = array_values(array_filter($rows, fn($r) => !empty($r['is_full'])));
 $teacherless = array_values(array_filter($rows, fn($r) => !empty($r['no_instructor']) && (string) $r['status'] === 'active'));
+/* Filters, allow-listed with a fallback, so a stale bookmark shows the board
+   rather than an error. Every cohort used to draw at once — 105 cards was
+   6,600px on a desktop and 22,000px on a phone — and the classes that need
+   somebody (no teacher, full, people waiting) were somewhere in the middle. */
+$filters = [
+    'all'       => ['All',            fn($r) => true],
+    'teacher'   => ['No instructor',  fn($r) => !empty($r['no_instructor']) && (string) $r['status'] === 'active'],
+    'full'      => ['Full',           fn($r) => !empty($r['is_full'])],
+    'waiting'   => ['People waiting', fn($r) => (int) ($r['waiting'] ?? 0) > 0],
+];
+$f = (string) ($_GET['f'] ?? 'all');
+if (!isset($filters[$f])) $f = 'all';
+$shown = array_values(array_filter($rows, $filters[$f][1]));
 ?>
 <?php ac_head('Cohorts & enrolments',
     'Seats count distinct students, never rows · ' . count($rows) . ' cohort' . (count($rows) === 1 ? '' : 's'),
@@ -24,19 +37,27 @@ $teacherless = array_values(array_filter($rows, fn($r) => !empty($r['no_instruct
     . 'Every read in this console spans both; a purely-legacy class must be course-mapped before it can be converged.'); ?>
 <?php endif; ?>
 
+<div class="ac-tabs">
+  <?php foreach ($filters as $k => [$label, $test]): ?>
+    <a class="ac-tab" href="<?= ac_h(ac_url('cohorts', ['f' => $k === 'all' ? null : $k])) ?>" <?= $f === $k ? 'aria-current="true"' : '' ?>>
+      <?= ac_h($label) ?><span class="ac-tabn"><?= count(array_filter($rows, $test)) ?></span>
+    </a>
+  <?php endforeach; ?>
+</div>
+
 <div class="ac-kpis">
-  <?php foreach ($rows as $r):
+  <?php foreach ($shown as $r):
     $cap = $r['capacity'] === null ? null : (int) $r['capacity'];
     $tone = !empty($r['is_full']) ? 'bad' : ((string) $r['status'] === 'active' ? 'accent' : ''); ?>
     <div class="ac-card">
       <div class="ac-cardhead">
         <div class="ac-grow">
           <div class="ac-cardtitle"><?= ac_h((string) $r['title']) ?></div>
-          <div class="ac-sub"><?= ac_h(trim(implode(' · ', array_filter([
+          <div class="ac-sub"><?= ac_h(ac_join([
               (string) ($r['course_code'] ?? ''), (string) ($r['level_code'] ?? ''),
               (string) ($r['term'] ?? ''), (string) ($r['mode'] ?? ''),
               (string) ($r['schedule_days'] ?? '') . ' ' . (string) ($r['schedule_time'] ?? ''),
-              (string) ($r['instructor'] ?? '') ?: 'unassigned'])))) ?></div>
+              (string) ($r['instructor'] ?? '') ?: 'unassigned'])) ?></div>
         </div>
         <?= !empty($r['is_full']) ? ac_pill('Full', 'bad')
             : ($r['uncapped'] ? ac_pill('Uncapped') : ac_status((string) $r['status'])) ?>
@@ -66,12 +87,17 @@ $teacherless = array_values(array_filter($rows, fn($r) => !empty($r['no_instruct
           <?php if ((int) ($r['legacy_count'] ?? 0) > 0): ?>
             <?php ac_action_btn('cohort_converge', 'cohorts', ['cohort_id' => (int) $r['id']],
                 'Converge', 'ac-btn ac-btn--sm',
-                'Enrol this cohort\'s legacy roster into course_enrollments so they become gradable? Additive and idempotent.'); ?>
+                'Bring this class\'s older roster into the cohort so its students can be marked? Nobody is removed, and pressing it twice changes nothing.'); ?>
           <?php endif; ?>
         </div>
       </div>
     </div>
   <?php endforeach; ?>
+  <?php if ($rows && !$shown): ?>
+    <div class="ac-card"><div class="ac-cardbody">
+      <?php ac_empty('None here', 'No cohort matches this filter.', '<a class="ac-btn" href="' . ac_h(ac_url('cohorts')) . '">Show all</a>'); ?>
+    </div></div>
+  <?php endif; ?>
   <?php if (!$rows): ?>
     <div class="ac-card"><div class="ac-cardbody">
       <?php ac_empty('No cohorts yet', 'A cohort is created from Enrol & staffing, or resolved automatically when a payment settles.',

@@ -24,7 +24,11 @@ $w = $d['window'] ?? null;
 
 <?php if ($w): ?>
   <?php ac_banner('flat', 'fa-clock',
-    ac_h((string) ($w['notice'] ?? 'Check-in opens before the session starts.'))
+    /* The window's `message` is a sentence to ONE student about ONE class;
+       this banner states the rule, from the same two numbers the gate uses.
+       It read `notice`, which the window has never returned. */
+    ac_h('Check-in opens ' . (int) ($w['open_before_min'] ?? 30) . ' minutes before a session, and a student is expected ready '
+        . (int) ($w['ready_before_min'] ?? 15) . ' minutes before it starts.')
     . ' <span class="ac-subi">Both boundaries come from one function; nothing restates '
     . 'them in the browser, so changing the setting changes the gate and the sentence together.</span>'); ?>
 <?php endif; ?>
@@ -44,8 +48,8 @@ $w = $d['window'] ?? null;
             <td class="ac-num ac-mono"><?= ac_h(date('H:i', $ts)) ?></td>
             <td><div class="ac-strong"><?= ac_h((string) ($s['title'] ?: $s['cohort'] ?: 'Session')) ?>
                 <?php if ((string) ($s['mode'] ?? '') === 'online'): ?><?= ac_tag('online') ?><?php endif; ?></div>
-                <div class="ac-sub"><?= ac_h(trim(implode(' · ', array_filter([
-                    (string) ($s['cohort'] ?? ''), (string) ($s['room'] ?? '')])))) ?></div></td>
+                <div class="ac-sub"><?= ac_h(ac_join([
+                    (string) ($s['cohort'] ?? ''), (string) ($s['room'] ?? '')])) ?></div></td>
             <td><?= ac_h((string) ($s['instructor'] ?: '—')) ?></td>
             <td class="ac-num"><?= $marks > 0 ? (int) $s['present'] . ' / ' . (int) $s['enrolled'] : '<span class="ac-sub">—</span>' ?></td>
             <td>

@@ -43,12 +43,12 @@ foreach ($d['awards'] ?? [] as $a) {
             <tr>
               <td>
                 <div class="ac-strong"><?= ac_h((string) ($r['student'] ?? 'Applicant')) ?></div>
-                <div class="ac-sub"><?= ac_h(trim(implode(' · ', array_filter([
+                <div class="ac-sub"><?= ac_h(ac_join([
                     (string) ($r['term_label'] ?? ''),
                     $r['guardian'] ? 'guardian ' . (string) $r['guardian'] : '',
                     $r['household_size'] ? 'household ' . (int) $r['household_size'] : '',
                     (int) ($r['dependants_in_academy'] ?? 0) > 1 ? (int) $r['dependants_in_academy'] . ' in the academy' : '',
-                ])))) ?></div>
+                ])) ?></div>
               </td>
               <td><?= ac_pill('Band ' . strtoupper((string) ($r['income_band'] ?? '?'))) ?></td>
               <td class="ac-num"><?= $r['awarded_pct'] !== null ? (int) $r['awarded_pct'] . '%' : '—' ?></td>

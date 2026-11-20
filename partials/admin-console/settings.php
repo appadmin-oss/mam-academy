@@ -97,9 +97,9 @@ $t = $d['tenant'] ?? [];
         <?php else: foreach ($d['automations'] as $key => $rule):
           $on = (int) (($d['automation_state'][$key]['enabled'] ?? 0)) === 1; ?>
           <tr>
-            <td><div class="ac-strong"><?= ac_h((string) ($rule['label'] ?? $key)) ?></div>
+            <td><div class="ac-strong"><?= ac_h((string) ($rule['action'] ?? $key)) ?></div>
                 <div class="ac-sub ac-mono"><?= ac_h((string) $key) ?></div></td>
-            <td class="ac-sub"><?= ac_h((string) ($rule['when'] ?? $rule['description'] ?? '')) ?></td>
+            <td class="ac-sub"><?= ac_h((string) ($rule['trigger'] ?? '')) ?></td>
             <td><?= $on ? ac_pill('On', 'good') : ac_pill('Off') ?></td>
           </tr>
         <?php endforeach; endif; ?>

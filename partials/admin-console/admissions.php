@@ -48,7 +48,7 @@ $type   = (string) ($d['type'] ?? '');
       <?= ac_h($label) ?><span class="ac-tabn"><?= $n ?></span>
     </a>
   <?php endforeach; ?>
-  <span class="ac-tabnote">Summer lives in its own table in this schema — the count is shown, the rows are on the legacy screen.</span>
+  <span class="ac-tabnote">Summer applications are kept in their own table, so this board counts them but does not list them yet.</span>
 </div>
 
 <div class="ac-cols ac-cols--main">
@@ -68,9 +68,9 @@ $type   = (string) ($d['type'] ?? '');
             <tr class="<?= $sel ? 'is-selected' : '' ?>">
               <td>
                 <div class="ac-strong"><?= ac_h($name) ?></div>
-                <div class="ac-sub"><?= ac_h(trim(implode(' · ', array_filter([
+                <div class="ac-sub"><?= ac_h(ac_join([
                     (string) ($r['program'] ?? ''), (string) ($r['discipline'] ?? ''),
-                    $r['level'] ? 'Level ' . (string) $r['level'] : '', (string) ($r['reference'] ?? '')])))) ?></div>
+                    $r['level'] ? 'Level ' . (string) $r['level'] : '', (string) ($r['reference'] ?? '')])) ?></div>
               </td>
               <td><?= ac_tag((string) (($r['pathway'] ?? '') === 'scholarship' ? 'scholarship' : 'programme')) ?></td>
               <td><?= ac_status((string) $r['status']) ?></td>
@@ -107,9 +107,9 @@ $type   = (string) ($d['type'] ?? '');
         <div class="ac-cardbody">
           <div class="ac-defs">
             <?php
-              ac_def('Requested', ac_h(trim(implode(' · ', array_filter([
+              ac_def('Requested', ac_h(ac_join([
                   (string) ($detail['program'] ?? ''), (string) ($detail['discipline'] ?? ''),
-                  $detail['level'] ? 'Level ' . (string) $detail['level'] : ''])))) ?: '—');
+                  $detail['level'] ? 'Level ' . (string) $detail['level'] : ''])) ?: '—');
               ac_def('Mode', ac_h((string) ($detail['mode'] ?? '—')));
               ac_def('Contact', ac_h((string) ($detail['email'] ?? '—')));
               ac_def('Guardian', ac_h((string) ($detail['parent_name'] ?? '') ?: 'Not named'));

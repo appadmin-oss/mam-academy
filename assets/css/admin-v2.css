@@ -336,6 +336,12 @@
 [data-admin="v2"] .ac-kpi-v.is-bad { color: var(--ac-bad); }
 [data-admin="v2"] .ac-kpi-v.is-warn { color: var(--ac-warn); }
 [data-admin="v2"] .ac-kpi-v.is-good { color: var(--ac-good); }
+/* A grid of CARDS that reuses .ac-kpis (the cohort board): every card in a row
+   is the row's height and its foot sits on the bottom, so the buttons line up
+   instead of floating at three different heights over white space. */
+[data-admin="v2"] .ac-kpis > .ac-card { display: flex; flex-direction: column; }
+[data-admin="v2"] .ac-kpis > .ac-card > .ac-cardbody { flex: 1 1 auto; }
+[data-admin="v2"] .ac-kpis > .ac-card > .ac-cardfoot { margin-top: auto; }
 
 /* ── Cards ────────────────────────────────────────────────────────────────── */
 [data-admin="v2"] .ac-card {
@@ -349,6 +355,9 @@
 [data-admin="v2"] .ac-cardtitle { font-size: 13px; font-weight: 700; }
 [data-admin="v2"] .ac-cardmeta { font-size: 11.5px; color: var(--ac-ink-4); font-variant-numeric: tabular-nums; }
 [data-admin="v2"] .ac-cardbody { padding: 14px 16px; }
+/* An id or an address with no spaces must wrap inside its card rather than
+   run out of it (a 20-character space id overflowed a cohort card). */
+[data-admin="v2"] .ac-card .ac-sub { overflow-wrap: anywhere; }
 [data-admin="v2"] .ac-cardfoot {
   padding: 11px 16px; background: var(--ac-sunken); border-top: 1px solid var(--ac-line);
   font-size: 12px; color: var(--ac-ink-4); line-height: 1.65;
@@ -664,6 +673,10 @@
 }
 
 /* ── Week grid (timetable) ───────────────────────────────────────────────── */
+/* The week is a GRID, not a table, so it must not share .ac-tablewrap: on a
+   phone that wrapper stops scrolling (tables stack into cards there), and the
+   900px week was clipped by its card — Wednesday to Sunday unreachable. */
+[data-admin="v2"] .ac-weekwrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 [data-admin="v2"] .ac-week { min-width: 900px; display: grid; grid-template-columns: 62px repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--ac-line); }
 [data-admin="v2"] .ac-week > * { background: var(--ac-surface); min-height: 46px; padding: 6px; font-size: 11.5px; }
 [data-admin="v2"] .ac-week .ac-wk-h { background: var(--ac-sunken); font-size: 10px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ac-ink-4); text-align: center; min-height: 30px; padding: 8px 4px; }
@@ -844,6 +857,12 @@
   display: flex; gap: 20px; overflow-x: auto; scrollbar-width: none;
 }
 [data-admin="v2"] .ac-strip-tabs::-webkit-scrollbar { display: none; }
+/* The edge with more sections beyond it fades (admin-console.js sets the
+   classes). The scrollbar is hidden, so without this nothing says the strip
+   scrolls at all. */
+[data-admin="v2"] .ac-strip-tabs.has-more-right { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+[data-admin="v2"] .ac-strip-tabs.has-more-left { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent); }
+[data-admin="v2"] .ac-strip-tabs.has-more-left.has-more-right { -webkit-mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent); }
 
 [data-admin="v2"] .ac-strip-tab {
   flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px;
@@ -872,6 +891,17 @@
 }
 
 @media (max-width: 720px) {
+  /* Figures two to a row, not one: four stacked tiles cost ~470px of a phone
+     screen before the first thing anybody came to act on. Tiles only — a
+     card grid that reuses .ac-kpis stays one per row. */
+  [data-admin="v2"] .ac-kpis--tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  [data-admin="v2"] .ac-kpis--tiles .ac-kpi { padding: 12px 13px; }
+  [data-admin="v2"] .ac-kpis--tiles .ac-kpi-v { font-size: 24px; margin-top: 6px; }
+  /* A card head's count and note wrap UNDER the title rather than squeezing it
+     into a third of the width ("Needs a | 2 | Deduped —" in three columns). */
+  [data-admin="v2"] .ac-cardhead { flex-wrap: wrap; row-gap: 4px; }
+  [data-admin="v2"] .ac-cardhead > .ac-cardmeta,
+  [data-admin="v2"] .ac-cardhead > .ac-sub { flex: 1 1 100%; order: 3; }
   [data-admin="v2"] .ac-strip { margin: -16px -14px 16px; padding: 12px 14px 0; }
   [data-admin="v2"] .ac-strip-tabs { gap: 16px; }
 }

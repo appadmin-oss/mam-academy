@@ -4,6 +4,7 @@ declare(strict_types=1);
 /** @var array $d */
 $by = $d['by_status'] ?? [];
 $gate = (int) ($d['gate'] ?? 0) === 1;
+$mayAct = isset($adminUser) ? (!$adminUser || mam_admin_can($adminUser, 'enrollments')) : false;
 ?>
 <?php ac_head('Instructor deductions',
     'Flags against instructor pay · ' . (int) ($by['pending'] ?? 0) . ' pending, none applied',
@@ -49,8 +50,19 @@ $gate = (int) ($d['gate'] ?? 0) === 1;
                 ? ac_h(mam_console_usd((int) $r['amount_usd_cents'])) : '<span class="ac-sub">Flag only</span>' ?></td>
             <td><?= ac_status((string) $r['status']) ?></td>
             <td class="ac-num">
-              <?php if ((string) $r['status'] === 'pending'): ?>
-                
+              <?php if ((string) $r['status'] === 'pending' && $mayAct): ?>
+                <details class="ac-disclose"><summary class="ac-btn ac-btn--sm">Close…</summary>
+                  <?php ac_form('fine_resolve', 'deductions', ['fine_id' => (int) $r['id']], 'class="ac-mt"'); ?>
+                    <label class="ac-field"><span class="ac-label">What was decided, and why</span>
+                      <input class="ac-input" name="note" required minlength="3" autocomplete="off"></label>
+                    <div class="ac-row ac-mt">
+                      <button type="submit" name="outcome" value="resolved" class="ac-btn ac-btn--sm ac-btn--primary">Resolve</button>
+                      <button type="submit" name="outcome" value="waived" class="ac-btn ac-btn--sm">Waive</button>
+                    </div>
+                  <?php ac_form_end(); ?>
+                </details>
+              <?php elseif ((string) $r['status'] === 'pending'): ?>
+                <span class="ac-sub">Open</span>
               <?php else: ?><span class="ac-sub"><?= ac_h(mam_console_date((string) $r['resolved_at'])) ?></span><?php endif; ?>
             </td>
           </tr>
@@ -58,4 +70,4 @@ $gate = (int) ($d['gate'] ?? 0) === 1;
       </tbody>
     </table>
   </div>
-<?php ac_card_close('Resolving and waiving are JSON endpoints, so they are done from the legacy fines screen for now — both write a resolution note, and neither moves money.'); ?>
+<?php ac_card_close('Resolving and waiving both need a note, and neither moves money: a deduction from pay needs a labour officer\'s written consent, so a flag here is a conversation, not a charge.'); ?>

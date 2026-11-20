@@ -601,7 +601,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'save_google_meet' => 'settings', 'meet_sync' => 'settings',
         'acct_exception' => 'enrollments',
         'set_student_type' => 'users',
-        'acct_resolve' => 'enrollments', 'guardian_link' => 'enrollments', 'guardian_unlink' => 'enrollments',
+        'acct_resolve' => 'enrollments', 'fine_resolve' => 'enrollments', 'guardian_link' => 'enrollments', 'guardian_unlink' => 'enrollments',
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
         'datarights_erase' => 'users',
         'save_settings' => 'settings',
@@ -688,6 +688,28 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 
     // ── Accountability ledger: resolve a charge (waive / paid / reversed) ──
+    /* Resolve or waive an instructor flag. The fines screen this lived on was
+       retired with the legacy dashboard, which left the Deductions screen saying
+       "done from the legacy fines screen" about a screen that no longer exists —
+       so no flag could be closed at all. One implementation, mam_fine_resolve(),
+       which the JSON route (api/routes/admin/fines.php) also calls, under the
+       same `enrollments` capability. A note is required: neither outcome moves
+       money, so the note is the whole of the record of why. */
+    if ($action === 'fine_resolve') {
+        $fid  = (int)($_POST['fine_id'] ?? 0);
+        $to   = ($_POST['outcome'] ?? '') === 'waived' ? 'waived' : 'resolved';
+        $note = trim((string)($_POST['note'] ?? ''));
+        if ($fid <= 0 || mb_strlen($note) < 3) { header('Location: ?v=deductions&err=' . urlencode('Say why — the note is the only record of the outcome.')); exit; }
+        $actorId = (int)($adminUser['id'] ?? 0);
+        if ($actorId <= 0 && function_exists('mam_admin_actor')) { $ba = mam_admin_actor(); $actorId = (int)($ba['id'] ?? 0); }
+        try {
+            mam_fine_resolve($fid, $actorId, $to, $note);
+            header('Location: ?v=deductions&ok=' . urlencode($to === 'waived' ? 'Flag waived.' : 'Flag resolved.')); exit;
+        } catch (Throwable $e) {
+            header('Location: ?v=deductions&err=' . urlencode('Could not close that flag: ' . $e->getMessage())); exit;
+        }
+    }
+
     if ($action === 'acct_resolve') {
         $cid  = (int)($_POST['charge_id'] ?? 0);
         $st   = in_array(($_POST['resolution'] ?? ''), ['waived', 'paid', 'reversed', 'disputed'], true) ? (string)$_POST['resolution'] : '';

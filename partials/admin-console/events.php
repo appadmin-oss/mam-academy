@@ -86,9 +86,9 @@ $clock = 0;
           <div class="ac-banner ac-banner--flat ac-mb-sm">
             <div class="ac-grow">
               <div class="ac-bannertitle"><?= ac_h((string) $i['title']) ?></div>
-              <div class="ac-sub"><?= ac_h(trim(implode(' · ', array_filter([
+              <div class="ac-sub"><?= ac_h(ac_join([
                   (string) ($i['performer'] ?? ''), (int) ($i['duration_min'] ?? 0) . ' min',
-                  (string) ($i['composer'] ?? '')])))) ?></div>
+                  (string) ($i['composer'] ?? '')])) ?></div>
             </div>
             <?php ac_action_btn('recital_decide', 'events',
                 ['item_id' => (int) $i['id'], 'decision' => 'accept'], 'Accept', 'ac-btn ac-btn--sm ac-btn--primary'); ?>

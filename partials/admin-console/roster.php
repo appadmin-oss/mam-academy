@@ -17,9 +17,9 @@ $mode = (string) ($d['vetting_mode'] ?? 'warn');
            href="<?= ac_h(ac_url('roster', ['cohort' => (int) $r['id']])) ?>">
           <div>
             <div class="ac-qtitle"><?= ac_h((string) $r['title']) ?></div>
-            <div class="ac-qwhy"><?= ac_h(trim(implode(' · ', array_filter([
+            <div class="ac-qwhy"><?= ac_h(ac_join([
                 (string) ($r['course_code'] ?? ''), (string) ($r['schedule_days'] ?? ''),
-                (string) ($r['schedule_time'] ?? ''), (string) ($r['instructor'] ?? '') ?: 'unassigned'])))) ?></div>
+                (string) ($r['schedule_time'] ?? ''), (string) ($r['instructor'] ?? '') ?: 'unassigned'])) ?></div>
           </div>
           <span class="ac-qage">
             <?= (int) $r['fill'] ?><?= $r['capacity'] === null ? '' : ' / ' . (int) $r['capacity'] ?>

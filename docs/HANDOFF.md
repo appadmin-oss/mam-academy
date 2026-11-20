@@ -2230,3 +2230,62 @@ was already there), offered to admins holding `settings`, the capability they de
   restoring the overwrite fails three. Driven in a browser: author, overlap refused,
   edit, closure add/remove, refund reset, session seed; no overflow at 1280 or 390.
 - Still without a button (§4y): settings, programmes and courses, and the rest.
+
+## 4z11. 2026-11-20 — the consoles' layout and content, swept
+
+Every console screen and phone panel was rendered at 1280 and 390 on the test
+suite's own fixture data (371 users, 105 cohorts, 24 invoices — an empty dev
+database hides most of what follows), and measured: overflow, spilled elements,
+failed reads, PHP warnings, JS errors, broken values. No HTTP errors, no JS
+errors, no failed reads, no page wider than the screen. What was wrong:
+
+**Content that was false, from reading keys the data has never had.** `$row['x'] ?? 0`
+shows a plausible default instead of failing, so each looked fine:
+- **Staff & vetting, Governance and the rail badge** read `gaps`/`expiring`; the
+  summary returns `needs_action`/`expiring_soon`. They said **0 need action** with
+  61 instructors holding no check at all, the rail never flagged it, and the hint
+  beside the Enforce switch said switching would refuse **0** instructors.
+- **Dashboard** read `state`/`days`/`detail` from `mam_vetting_attention()`, which
+  returns `ok`/`missing`/`expired`/`expiring`. An instructor with NOTHING on file
+  was "clearance lapsing", never blocking, with a generic sentence. Now "no checks
+  on file", blocking, "7 of 7 required checks are not on file".
+- **Attendance** read the window's `notice` (it has `message`, a sentence to one
+  student about one class); the banner now states the rule from
+  `open_before_min`/`ready_before_min`.
+- **Data protection** titled every breach "Breach" (`summary` → `reference` +
+  `nature`) and typed its own 72h (`breach_hours` → `breach_ndpc_hours`).
+- **System and Settings** showed each automation's internal key with an empty
+  "fires when" (`label`/`when` → `action`/`trigger`).
+- Found by comparing every key a partial reads against the keys its provider
+  returns, per bound variable; `test_console_content.php` pins each.
+
+**A function with no way in.** Instructor deductions said resolving and waiving
+are "done from the legacy fines screen" — retired yesterday — so no flag could be
+closed. `fine_resolve` is a form handler over the one implementation,
+`mam_fine_resolve()` (the JSON route's), under the same `enrollments` capability;
+a note is required. Admissions' "the rows are on the legacy screen" is rewritten.
+
+**Layout.**
+- Phone: figure tiles two to a row (`ac-kpis--tiles`; ~470px → ~230px before any
+  content), and a card head's count and note wrap under the title.
+- Phone: the section strip scrolls the CURRENT section into view and fades the
+  edge with more beyond it (`admin-console.js`); Instructor earnings, seventh of
+  seven, was off-screen with nothing to say more sections existed.
+- Phone: the Timetable's 900px week sat in `.ac-tablewrap`, which stops scrolling
+  below 720px (tables stack there), so **Wednesday–Sunday were unreachable**. It
+  has its own `.ac-weekwrap` now; every other `.ac-tablewrap` was checked to hold
+  a table.
+- Card grids (the cohort board): equal heights, foot on the bottom.
+- `ac_join()` for meta lines: the hand-rolled `trim(implode(' · ', array_filter(…)))`
+  kept a lone space and printed "conducting · · unassigned" on every cohort with
+  no schedule; eight sites rewritten, and the test forbids the pattern.
+- Cohorts filter: All / No instructor / Full / People waiting (105 cards were
+  6,600px on a desktop; the classes that need somebody were in the middle).
+- Smaller: an oversold store line reads "0 · oversold by 1", not "-1"; Access
+  leaves the session count empty for people who do not teach; long ids wrap
+  inside a card; a confirm no longer names the `course_enrollments` table.
+
+Verified in a browser after the change: the figures above, waiving a flag, the
+filters, the week scrolling at 390, the current tab in view. `test_console_content.php`
+(30 checks); reverting the vetting key, the Dashboard derivation or the week
+wrapper each fails it.

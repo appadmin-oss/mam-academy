@@ -169,10 +169,10 @@ $open = array_values(array_filter($d['requests'] ?? [], fn($r) => empty($r['clos
           <div class="ac-banner ac-banner--bad ac-mb-sm">
             <i class="fa-solid fa-triangle-exclamation"></i>
             <div>
-              <div class="ac-bannertitle"><?= ac_h((string) ($b['summary'] ?? 'Breach')) ?></div>
+              <div class="ac-bannertitle"><?= ac_h(ac_join([$b['reference'] ?? '', mb_strimwidth((string) ($b['nature'] ?? ''), 0, 90, '…')]) ?: 'Breach') ?></div>
               <div class="ac-sub">Discovered <?= ac_h(mam_console_date((string) $b['discovered_at'], 'j M H:i')) ?>
                 <?php if (isset($c['hours_left'])): ?> · <?= (int) $c['hours_left'] ?>h of
-                  <?= (int) ($dl['breach_hours'] ?? 72) ?> left<?php endif; ?></div>
+                  <?= (int) ($dl['breach_ndpc_hours'] ?? 72) ?> left<?php endif; ?></div>
             </div>
           </div>
         <?php endforeach; endif; ?>

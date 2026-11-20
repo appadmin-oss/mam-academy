@@ -20,6 +20,22 @@ function ac_url(string $screen, array $params = []): string {
     return '?' . http_build_query(array_filter($q, fn($v) => $v !== null && $v !== ''));
 }
 
+/**
+ * Join the parts of a meta line ("piano · Level 2 · Tue 16:00 · Ann") with the
+ * empty ones left out. Each part is TRIMMED before it is judged empty: the old
+ * inline `array_filter()` kept a part built as `days . ' ' . time`, which is a
+ * single space when both are missing, so the line read "conducting · · Ann" on
+ * every cohort with no schedule. Returns plain text — escape it where it lands.
+ */
+function ac_join(array $parts, string $sep = ' · '): string {
+    $keep = [];
+    foreach ($parts as $p) {
+        $p = trim((string) $p);
+        if ($p !== '') $keep[] = $p;
+    }
+    return implode($sep, $keep);
+}
+
 /** A screen header: serif title, subtitle, and the actions on the right. */
 function ac_head(string $title, string $sub, string $actions = ''): void { ?>
   <div class="ac-head">
@@ -36,7 +52,7 @@ function ac_head(string $title, string $sub, string $actions = ''): void { ?>
  * with no way through to the rows behind it is a number nobody trusts.
  */
 function ac_kpis(array $kpis): void { ?>
-  <div class="ac-kpis">
+  <div class="ac-kpis ac-kpis--tiles">
     <?php foreach ($kpis as $k):
       $tone = (string) ($k['tone'] ?? '');
       $tag  = !empty($k['screen']) ? 'a' : 'div';

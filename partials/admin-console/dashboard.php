@@ -30,7 +30,7 @@ $h = $d['health'] ?? [];
               <div class="ac-qtitle"><?= ac_h($q['title']) ?></div>
               <div class="ac-qwhy"><?= ac_h($q['why']) ?></div>
             </div>
-            <span class="ac-qage"><?= ac_h($q['age']) ?></span>
+            <?php if ((string) ($q['age'] ?? '') !== '' && $q['age'] !== '—'): ?><span class="ac-qage"><?= ac_h($q['age']) ?></span><?php endif; ?>
           </a>
         <?php endforeach; endif; ?>
       </div>
@@ -87,7 +87,7 @@ $h = $d['health'] ?? [];
                     <td class="ac-num ac-col-time"><?= ac_h(mam_console_date((string) $s['scheduled_at'], 'H:i')) ?></td>
                     <td>
                       <div class="ac-strong"><?= ac_h($s['title'] ?: ($s['cohort'] ?: 'Session')) ?></div>
-                      <div class="ac-sub"><?= ac_h(trim((string) ($s['cohort'] ?? '') . ' · ' . (string) ($s['room'] ?: ($s['mode'] ?: '')), ' ·')) ?></div>
+                      <div class="ac-sub"><?= ac_h(ac_join([$s['cohort'] ?? '', $s['room'] ?: ($s['mode'] ?? '')])) ?></div>
                     </td>
                     <td class="ac-num"><?= ac_status((string) $s['status']) ?></td>
                   </tr>

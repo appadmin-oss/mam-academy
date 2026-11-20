@@ -12,10 +12,10 @@ $required = (array) ($d['required'] ?? []);
 <?php ac_kpis([
     ['label' => 'Instructors', 'value' => (string) count($d['instructors'] ?? []), 'note' => 'on the books'],
     ['label' => 'Cleared for minors', 'value' => (string) (int) ($s['cleared'] ?? 0), 'note' => 'full record held'],
-    ['label' => 'Need action', 'value' => (string) (int) ($s['gaps'] ?? 0),
-     'tone' => (int) ($s['gaps'] ?? 0) > 0 ? 'bad' : '', 'note' => 'missing a required check'],
-    ['label' => 'Lapsing soon', 'value' => (string) (int) ($s['expiring'] ?? 0),
-     'tone' => (int) ($s['expiring'] ?? 0) > 0 ? 'warn' : '', 'note' => 'validity is derived from the date'],
+    ['label' => 'Need action', 'value' => (string) (int) ($s['needs_action'] ?? 0),
+     'tone' => (int) ($s['needs_action'] ?? 0) > 0 ? 'bad' : '', 'note' => 'missing a required check'],
+    ['label' => 'Lapsing soon', 'value' => (string) (int) ($s['expiring_soon'] ?? 0),
+     'tone' => (int) ($s['expiring_soon'] ?? 0) > 0 ? 'warn' : '', 'note' => 'validity is derived from the date'],
 ]); ?>
 
 <?php ac_card_open('The gate', '', ac_pill(strtoupper($mode), $mode === 'enforce' ? 'good' : ($mode === 'off' ? 'bad' : 'warn'))); ?>
@@ -33,8 +33,8 @@ $required = (array) ($d['required'] ?? []);
             <?php endforeach; ?>
           </select></label>
         <button type="submit" class="ac-btn ac-btn--primary">Save the mode</button>
-        <?php if ((int) ($s['gaps'] ?? 0) > 0): ?>
-          <span class="ac-hint">Switching to Enforce with <?= (int) $s['gaps'] ?> gap<?= (int) $s['gaps'] === 1 ? '' : 's' ?>
+        <?php if ((int) ($s['needs_action'] ?? 0) > 0): ?>
+          <span class="ac-hint">Switching to Enforce with <?= (int) ($s['needs_action'] ?? 0) ?> gap<?= (int) ($s['needs_action'] ?? 0) === 1 ? '' : 's' ?>
           open would refuse those instructors on any class containing a child.</span>
         <?php endif; ?>
       </div>

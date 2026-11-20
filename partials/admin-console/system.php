@@ -133,9 +133,9 @@ $behind = ($d['schema']['target'] ?? null) !== null
           $st = $d['state'][$key] ?? null;
           $on = (int) ($st['enabled'] ?? 0) === 1; ?>
           <tr>
-            <td><div class="ac-strong"><?= ac_h((string) ($rule['label'] ?? $key)) ?></div>
+            <td><div class="ac-strong"><?= ac_h((string) ($rule['action'] ?? $key)) ?></div>
                 <div class="ac-sub ac-mono"><?= ac_h((string) $key) ?></div></td>
-            <td class="ac-sub"><?= ac_h((string) ($rule['when'] ?? $rule['description'] ?? '')) ?></td>
+            <td class="ac-sub"><?= ac_h((string) ($rule['trigger'] ?? '')) ?></td>
             <td class="ac-num"><?= (int) ($st['run_count'] ?? 0) ?></td>
             <td class="ac-num"><?= $st && !empty($st['last_run_at'])
                 ? ac_h(mam_console_age((string) $st['last_run_at'])) : '<span class="ac-sub">never</span>' ?></td>

@@ -33,7 +33,7 @@ declare(strict_types=1);
               <?php elseif (!empty($g['ok'])): ?><?= ac_pill('Cleared', 'good') ?>
               <?php else: ?><?= ac_pill('Not cleared', 'bad') ?><?php endif; ?>
             </td>
-            <td class="ac-num"><?= (int) ($r['sessions'] ?? 0) ?></td>
+            <td class="ac-num"><?= (string) $r['role'] === 'instructor' || (int) ($r['sessions'] ?? 0) > 0 ? (int) ($r['sessions'] ?? 0) : '' ?></td>
             <td><?= ac_status((string) $r['status']) ?>
                 <?php if (!empty($r['last_login'])): ?>
                   <div class="ac-sub">last in <?= ac_h(mam_console_age((string) $r['last_login'])) ?> ago</div>

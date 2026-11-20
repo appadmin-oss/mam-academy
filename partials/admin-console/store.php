@@ -88,7 +88,8 @@ declare(strict_types=1);
                   <div class="ac-sub ac-mono"><?= ac_h((string) ($i['sku'] ?? '')) ?></div></td>
               <td class="ac-num"><?= ac_h((string) ($i['currency'] ?: 'USD')) ?>
                   <?= ac_h(number_format((float) ($i['price_usd'] ?? 0), 2)) ?></td>
-              <td class="ac-num"><?= $i['stock'] === null ? '<span class="ac-sub">∞</span>' : (int) $i['stock'] ?></td>
+              <td class="ac-num"><?= $i['stock'] === null ? '<span class="ac-sub">∞</span>'
+                  : ((int) $i['stock'] < 0 ? '0<div class="ac-sub ac-bad-text">oversold by ' . abs((int) $i['stock']) . '</div>' : (int) $i['stock']) ?></td>
               <td><?= (int) ($i['active'] ?? 0) === 1
                   ? ((($i['stock'] !== null && (int) $i['stock'] <= 0)) ? ac_pill('Orderable, empty', 'bad') : ac_pill('Live', 'good'))
                   : ac_pill('Hidden') ?></td>

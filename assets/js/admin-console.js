@@ -21,6 +21,27 @@
       '; path=/; max-age=31536000; samesite=lax' + (location.protocol === 'https:' ? '; secure' : '');
   }
 
+  /* ── Section strip. On a phone the strip scrolls sideways, and its
+        scrollbar is hidden, so the CURRENT section could sit off-screen
+        (Instructor earnings is seventh of seven in Finance) with nothing to
+        say more sections exist. Bring the current one into view, and mark
+        the edge that has more beyond it so the CSS can fade it. ─────────── */
+  var stripTabs = document.querySelector('.ac-strip-tabs');
+  if (stripTabs) {
+    var cur = stripTabs.querySelector('[aria-current="page"]');
+    if (cur && stripTabs.scrollWidth > stripTabs.clientWidth) {
+      stripTabs.scrollLeft = Math.max(0, cur.offsetLeft - stripTabs.offsetLeft - 24);
+    }
+    var edges = function () {
+      var max = stripTabs.scrollWidth - stripTabs.clientWidth;
+      stripTabs.classList.toggle('has-more-right', stripTabs.scrollLeft < max - 2);
+      stripTabs.classList.toggle('has-more-left', stripTabs.scrollLeft > 2);
+    };
+    stripTabs.addEventListener('scroll', edges, { passive: true });
+    window.addEventListener('resize', edges);
+    edges();
+  }
+
   /* ── Rail ─────────────────────────────────────────────────────────────── */
   var rail = document.getElementById('ac-rail');
   var stick = document.getElementById('ac-railstick');

@@ -38,7 +38,7 @@ ksort($slots);
         'Sessions are created per cohort. An empty week is either a closure or a gap in the schedule.',
         ''); ?></div>
   <?php else: ?>
-    <div class="ac-tablewrap">
+    <div class="ac-weekwrap">
       <div class="ac-week">
         <div class="ac-wk-h"></div>
         <?php foreach ($days as $day): ?>
@@ -51,11 +51,11 @@ ksort($slots);
               <?php foreach ($byDay[$day] ?? [] as $s): ?>
                 <a class="ac-wk-ev<?= !empty($s['clash']) ? ' is-clash' : '' ?>" href="<?= ac_h(ac_url('attendance', ['d' => $day])) ?>">
                   <strong><?= ac_h(mb_strimwidth((string) ($s['title'] ?: $s['cohort'] ?: 'Session'), 0, 22, '…')) ?></strong>
-                  <span><?= ac_h(trim(implode(' · ', array_filter([
+                  <span><?= ac_h(ac_join([
                       (string) ($s['room_name'] ?: $s['room'] ?: ($s['mode'] ?: '')),
                       (int) $s['enrolled'] > 0 ? (int) $s['enrolled'] . '' : '',
                       !empty($s['clash']) ? 'clash' : '',
-                  ])))) ?></span>
+                  ])) ?></span>
                 </a>
               <?php endforeach; ?>
             </div>

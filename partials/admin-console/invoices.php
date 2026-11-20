@@ -27,7 +27,7 @@ $a = $d['aging'] ?? [];
 <?php endif; ?>
 
 <?php if ($det): $editable = !empty($det['editable']); $cur = (string) $det['currency']; ?>
-  <?php ac_card_open('Invoice ' . (string) $det['ref'], (string) $det['student_name'] . ' · ' . (string) $det['term_label'],
+  <?php ac_card_open('Invoice ' . (string) $det['ref'], ac_join([$det['student_name'] ?? '', $det['term_label'] ?? '']),
       ac_status((string) $det['status']) . ' <a class="ac-btn ac-btn--sm" href="' . ac_h(ac_url('invoices')) . '">Close</a>'); ?>
     <div class="ac-cardbody">
       <?php if (!$det['has_guardian']): ?>
@@ -142,7 +142,7 @@ $a = $d['aging'] ?? [];
               <tbody>
                 <?php foreach ($det['online'] as $o): ?>
                   <tr>
-                    <td><?= ac_h(substr((string) $o['verified_at'], 0, 10)) ?><div class="ac-sub"><?= ac_h($o['reference'] . ' · ' . ucfirst((string) $o['provider'])) ?></div></td>
+                    <td><?= ac_h(substr((string) $o['verified_at'], 0, 10)) ?><div class="ac-sub"><?= ac_h(ac_join([$o['reference'] ?? '', ucfirst((string) ($o['provider'] ?? ''))])) ?></div></td>
                     <td class="ac-num"><?= ac_h(mam_fee_display((int) $o['fee_minor'], $cur)) ?><div class="ac-sub">₦<?= ac_h(number_format((int) $o['amount_minor'] / 100, 2)) ?> charged</div></td>
                     <td class="ac-num"><?= ac_h(mam_fee_display((int) $o['credited'], $cur)) ?></td>
                     <td><?php $un = $o['unapplied'] ?? null; ?>

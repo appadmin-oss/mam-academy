@@ -13,8 +13,8 @@ $tier = $d['tier'] ?? [];
      'note' => 'head at ' . number_format((int) ($d['head'] ?? 0))],
     ['label' => 'Open subject requests', 'value' => (string) count($d['dp_open'] ?? []),
      'tone' => count($d['dp_open'] ?? []) > 0 ? 'warn' : '', 'note' => 'thirty days is the academy\'s own commitment'],
-    ['label' => 'Safeguarding gaps', 'value' => (string) ((int) ($vet['gaps'] ?? 0) + (int) ($vet['expiring'] ?? 0)),
-     'tone' => ((int) ($vet['gaps'] ?? 0)) > 0 ? 'bad' : '',
+    ['label' => 'Safeguarding gaps', 'value' => (string) ((int) ($vet['needs_action'] ?? 0) + (int) ($vet['expiring_soon'] ?? 0)),
+     'tone' => ((int) ($vet['needs_action'] ?? 0)) > 0 ? 'bad' : '',
      'note' => 'gate in ' . ac_h((string) ($vet['mode'] ?? 'warn')) . ' mode'],
     ['label' => 'Data subjects measured', 'value' => (string) (int) ($tier['count'] ?? 0),
      'note' => (string) ($tier['tier']['label'] ?? 'below the threshold')],
@@ -63,8 +63,8 @@ $tier = $d['tier'] ?? [];
               ($vet['mode'] ?? '') === 'enforce' ? 'good' : 'warn'));
           ac_def('Instructors', (string) (int) ($vet['instructors'] ?? 0));
           ac_def('Cleared for minors', (string) (int) ($vet['cleared'] ?? 0));
-          ac_def('Missing a check', (string) (int) ($vet['gaps'] ?? 0));
-          ac_def('Lapsing soon', (string) (int) ($vet['expiring'] ?? 0));
+          ac_def('Missing a check', (string) (int) ($vet['needs_action'] ?? 0));
+          ac_def('Lapsing soon', (string) (int) ($vet['expiring_soon'] ?? 0));
         ?>
       </div>
     </div>
@@ -77,7 +77,7 @@ $tier = $d['tier'] ?? [];
       <?php else: ?>
         <div class="ac-defs">
           <?php foreach ($d['dp_open'] as $r): ?>
-            <?php ac_def(ucfirst((string) $r['kind']) . ' · ' . (string) ($r['subject_email'] ?? ''),
+            <?php ac_def(ac_join([ucfirst((string) $r['kind']), $r['subject_email'] ?? '']),
                 ac_h(mam_console_date((string) $r['received_at'], 'j M'))); ?>
           <?php endforeach; ?>
         </div>
