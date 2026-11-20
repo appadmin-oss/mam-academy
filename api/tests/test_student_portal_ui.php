@@ -448,3 +448,17 @@ foreach (['instructor', 'student', 'guardian'] as $TB_p) {
     t_ok((bool) preg_match('/main\.innerHTML = html;\s*\n\s*if \(P && P\.topTitle\) P\.topTitle\(main\);/', $src), "the $TB_p portal names each screen in the bar as it paints");
     t_ok(!str_contains($src, "\$('#whoName').textContent"), "the $TB_p portal sets the person through the kit, not by writing the bar itself");
 }
+
+t_group('portal navigation — each screen is listed once (2026-11-20)');
+
+/* On a desktop the More sheet renders inline in the rail beside the tab bar,
+   so a screen in both was listed twice under two names: the instructor's
+   "Marking" and "Grade entry", the student's "Learn" and "Where I stand", the
+   guardian's "Reports" and "Reports & results". The top bar's icon buttons
+   (clearance, fees, messages) are shortcuts, not entries, and are not counted. */
+foreach (['instructor', 'student', 'parent'] as $NV_p) {
+    $html = (string) file_get_contents(dirname(__DIR__, 2) . "/portal/$NV_p/index.html");
+    preg_match_all('/<button\b(?![^>]*class="p-icon)[^>]*\bdata-screen="([a-z0-9-]+)"/', $html, $m);
+    $dupes = array_keys(array_filter(array_count_values($m[1]), static fn($n) => $n > 1));
+    t_eq($dupes, [], "the $NV_p portal lists no screen twice");
+}

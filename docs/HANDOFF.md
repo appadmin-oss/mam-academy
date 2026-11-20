@@ -2310,3 +2310,30 @@ The lock in the owner's screenshot is the safeguarding gate working: under
 `enforce`, an instructor whose checks are incomplete cannot open a register for
 a class with a child (HANDOFF §4z6). Under `warn`, the shipping default, the
 register opens.
+
+## 4z13. 2026-11-20 — navigation structure, consoles and portals
+
+**Console.** The rail's own decision 4 says six is the widest strip; the test
+checked eight, and Finance and Governance had drifted to seven each.
+- **Finance** (5): invoices, ledger, price books, charges, store. Instructor
+  earnings and deductions moved to **People** (staff pay sits with staff).
+- **Governance** (5): audit trail, safeguarding, data protection, system health,
+  settings. Communications and Support moved to **Students & families** (the
+  area's new name: what goes out to families and what comes in from them).
+- No access changed: `cap` is per section and moved with it. A manager without
+  `users` now lands on Instructor deductions when opening People.
+- **Labels are titles**: Applications, Bursaries & awards, Cohorts, Academic
+  calendar, Lessons, Audit trail — six screens were titled differently from the
+  entry that opened them.
+- **Every console screen now has its h1** (`ac_head()`); the title was an h2
+  with no h1 on the page.
+- `test_console.php` holds six and the label = title rule;
+  `test_console_content.php` holds the h1.
+
+**Portals.** The More sheet renders inline in the desktop rail, so a screen in
+both the bar and the sheet was listed twice under two names: the instructor's
+Marking / "Grade entry", the student's Learn / "Where I stand", the guardian's
+Reports / "Reports & results". The sheet copies are gone (and the instructor's
+dead `#sheetMarkBadge` write with them). "Reports & comments" now reads
+"Termly reports"; the guardian's "My Children" is "Children", as on the bar.
+`test_student_portal_ui.php` fails on a screen listed twice.

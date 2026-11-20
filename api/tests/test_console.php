@@ -40,10 +40,18 @@ t_eq(count($CN_flat), count($CN_screens), 'mam_console_screens() flattens every 
 foreach ($CN_areas as $a) {
     t_ok(isset($a['key'], $a['label'], $a['icon']) && !empty($a['sections']),
         'area ' . (string) ($a['key'] ?? '?') . ' carries a key, a label, an icon and at least one section');
-    // Past about eight a strip needs its own overflow, and at that point the
-    // handoff says the AREA should split instead.
-    t_ok(count($a['sections']) <= 8,
-        'area ' . (string) ($a['key'] ?? '?') . ' has at most eight sections (' . count($a['sections']) . ')');
+    // Decision 4: six is the widest strip. This test used to check EIGHT, so
+    // Finance and Governance drifted to seven each with nothing failing.
+    t_ok(count($a['sections']) <= 6,
+        'area ' . (string) ($a['key'] ?? '?') . ' has at most six sections (' . count($a['sections']) . ')');
+}
+// Decision 5: a section's label is its page's title. Six screens were titled
+// differently from the entry that opened them, so an admin clicked one name and
+// landed on another. Read from each renderer's first ac_head().
+foreach ($CN_flat as $it) {
+    $src = (string) @file_get_contents(dirname(__DIR__, 2) . '/partials/admin-console/' . $it['key'] . '.php');
+    if (!preg_match("/ac_head\(\s*'((?:[^'\\\\]|\\\\.)*)'/", $src, $m)) continue;
+    t_eq(stripslashes($m[1]), $it['label'], "the {$it['key']} screen is titled what its entry calls it");
 }
 foreach ($CN_flat as $it) {
     t_ok(isset($it['key'], $it['label']) && array_key_exists('cap', $it),
@@ -72,8 +80,8 @@ t_eq(mam_console_area_home($CN_people, fn($c) => true), 'access', 'People opens 
 // People now carries "My account", which needs no capability, so a manager
 // without `users` still has a home there — their own account — rather than
 // losing the area. The barred case is proven with a gate that admits nothing.
-t_eq(mam_console_area_home($CN_people, fn($c) => $c !== 'users'), 'account',
-    'a manager without `users` lands on their own account, not on a screen that refuses them');
+t_eq(mam_console_area_home($CN_people, fn($c) => $c !== 'users'), 'deductions',
+    'a manager without `users` lands on the first People section they may open, not on a screen that refuses them');
 t_eq(mam_console_area_home($CN_people, fn($c) => false), null,
     'an area whose every section is barred returns no home, so the rail omits it rather than offering a dead end');
 

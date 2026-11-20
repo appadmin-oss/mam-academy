@@ -265,7 +265,7 @@
 
   function renderChildren() {
     if (!S.children.length) {
-      paint(h1('My Children') + empty('children',
+      paint(h1('Children') + empty('children',
         'No children are linked to your account yet. The academy office links a child to you '
         + 'once their place is confirmed.'));
       return;
@@ -307,7 +307,7 @@
         + 'Fees for ' + esc(c.student_name) + '</button>'
         + '</section>';
     });
-    paint(h1('My Children') + '<div class="p-stack">' + cards.join('') + '</div>');
+    paint(h1('Children') + '<div class="p-stack">' + cards.join('') + '</div>');
   }
 
   /* ── 3 · Reports ───────────────────────────────────────────────────────── */
@@ -315,28 +315,28 @@
   function renderReports() {
     var c = selectedChild();
     if (!c) { paint(h1('Termly report') + empty('file-lines', 'No children are linked to your account yet.')); return; }
-    paint(backTo('children', 'My Children') + loading('Loading the report…'));
+    paint(backTo('children', 'Children') + loading('Loading the report…'));
 
     API.request('parent/reports?student_id=' + encodeURIComponent(c.student_id), { method: 'GET' })
       .then(function (r) {
         if (r.scope_denied) {
-          paint(backTo('children', 'My Children') + h1('Termly report')
+          paint(backTo('children', 'Children') + h1('Termly report')
             + empty('lock', 'Your access for ' + esc(c.student_name) + ' is set to <strong>billing only</strong>, '
               + 'which covers invoices and receipts. The academy office can widen it.'));
           return;
         }
         if (!r.reports.length) {
-          paint(backTo('children', 'My Children') + h1('Termly report')
+          paint(backTo('children', 'Children') + h1('Termly report')
             + empty('hourglass-half', 'No report has been published for ' + esc(c.student_name) + ' yet. '
               + 'A report appears here <strong>only after the examinations panel has ratified it</strong> — '
               + 'a provisional mark you could see and then have changed would be worse than one that '
               + 'arrives a week later.'));
           return;
         }
-        paint(backTo('children', 'My Children') + r.reports.map(reportCard).join('<div class="p-gap-t"></div>'));
+        paint(backTo('children', 'Children') + r.reports.map(reportCard).join('<div class="p-gap-t"></div>'));
       })
       .catch(function (err) {
-        paint(backTo('children', 'My Children')
+        paint(backTo('children', 'Children')
           + empty('triangle-exclamation', esc(P.errText ? P.errText(err, 'Could not load the report.') : 'Could not load the report.')));
       });
   }
@@ -456,7 +456,7 @@
   function renderFinance() {
     var c = selectedChild();
     if (!c) { paint(h1('Finance') + empty('credit-card', 'No children are linked to your account yet.')); return; }
-    paint(backTo('children', 'My Children') + h1('Finance', 'Statement of account')
+    paint(backTo('children', 'Children') + h1('Finance', 'Statement of account')
       + loading('Loading the statement…'));
 
     API.request('parent/fees?student_id=' + encodeURIComponent(c.student_id), { method: 'GET' })
@@ -511,7 +511,7 @@
             + esc(r.dunning.next_step) + ' — never a hold on your child’s lessons.</p>');
         }
 
-        paint(backTo('children', 'My Children')
+        paint(backTo('children', 'Children')
           + h1('Finance', 'Statement of account for ' + esc(c.student_name))
           + '<div class="p-stack">' + out.join('') + '</div>');
       })
@@ -1108,7 +1108,7 @@
   function renderSpace() { MAM_SPACES.mount(main, { toast: toast, paint: paint }); }
   function renderConcern() { MAM_SPACES.concernForm(main, { toast: toast, paint: paint, back: function () { go('safeguarding'); } }); }
   var TITLES = {
-    dashboard: 'Home', children: 'My Children', reports: 'Reports', finance: 'Finance',
+    dashboard: 'Home', children: 'Children', reports: 'Reports', finance: 'Finance',
     consents: 'Consents', messages: 'Messages', makeup: 'Make-up lessons',
     bursary: 'Bursary', timetable: 'Timetable', safeguarding: 'Safeguarding',
     complaints: 'Complaints', a11y: 'Display & access', space: 'Class', concern: 'Tell the safeguarding officer', growth: 'Growth'

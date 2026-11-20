@@ -88,3 +88,15 @@ t_ok(str_contains($CT_tt, '<div class="ac-weekwrap">') && !preg_match('/ac-table
     'the week grid scrolls in its own wrapper — inside .ac-tablewrap a phone clipped Wednesday to Sunday');
 t_ok(str_contains($CT_p('assets/js/admin-console.js'), "querySelector('[aria-current=\"page\"]')"),
     'the section strip brings the current section into view on a phone');
+
+t_group('console structure — each screen has its one page heading');
+
+/* The console's page title was an <h2> and nothing on the page was an <h1>,
+   so a screen reader's list of headings began one level down on every one of
+   the console's screens. The phone subset had it right. */
+ob_start(); ac_head('Probe', ''); $CT_h = (string) ob_get_clean();
+t_ok(str_contains($CT_h, '<h1>Probe</h1>'), 'ac_head() renders the page title as the h1');
+$CT_multi = [];
+foreach (glob(dirname(__DIR__, 2) . '/partials/admin-console/*.php') as $f)
+    if (substr_count((string) file_get_contents($f), 'ac_head(') > 1) $CT_multi[] = basename($f);
+t_eq($CT_multi, [], 'no screen draws two page titles');

@@ -1956,7 +1956,13 @@ Reports is its OWN area (daily work, not quarterly); no area overview pages (a
 rail click lands on the area's first *visible* section); the rail highlight
 follows the AREA not the screen (`mam_console_area_of`, so Attendance keeps
 Teaching lit); and the three navigation levels keep three different shapes —
-do not unify the rail, the strip and in-screen pill filters.
+do not unify the rail, the strip and in-screen pill filters. Two more, held by
+`test_console.php` since 2026-11-20: **six is the widest strip** (the test
+checked eight, so Finance and Governance drifted to seven each — staff pay
+moved to People, Communications and Support to Students & families), and **a
+section's label is its page's title** (six screens were titled differently
+from the entry that opened them). Moving a section between areas changes no
+access: `cap` is per section and travels with it.
 ⚠️ The strip is a `<nav>`, deliberately **not** `role="tablist"` — it navigates
 between separate screens rather than toggling panels, so tab semantics would
 promise arrow-key movement that does not exist. **The legacy dashboard is RETIRED** (2026-11-19): `admin/index.php` serves no

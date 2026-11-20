@@ -19,7 +19,7 @@ $f = (string) ($_GET['f'] ?? 'all');
 if (!isset($filters[$f])) $f = 'all';
 $shown = array_values(array_filter($rows, $filters[$f][1]));
 ?>
-<?php ac_head('Cohorts & enrolments',
+<?php ac_head('Cohorts',
     'Seats count distinct students, never rows · ' . count($rows) . ' cohort' . (count($rows) === 1 ? '' : 's'),
     '<a class="ac-btn ac-btn--primary" href="' . ac_h(ac_url('roster')) . '">Enrol & staffing</a>'); ?>
 

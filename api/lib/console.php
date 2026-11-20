@@ -196,6 +196,13 @@ function mam_console_pct(int $part, int $whole): int {
  *     screen must never orphan the rail.
  *  4. Six is the widest strip. Past about eight a strip needs its own
  *     overflow, and at that point the area should split instead.
+ *     (2026-11-20: Finance and Governance had drifted to seven each, which
+ *     the test — checking eight — let through. Staff pay moved to People and
+ *     the family-facing desks to Students & families; the test holds six.)
+ *  5. A section's label IS its page's title. Six screens were titled
+ *     differently from the entry that opened them ("Applications" opened
+ *     "Admissions", "Lessons" opened "Curriculum"), so an admin clicked one
+ *     name and landed on another. test_console.php compares them.
  *
  * `cap` is the admin capability a section needs; a manager lacking it never
  * sees the entry. The capability table in admin/index.php is still the
@@ -210,19 +217,25 @@ function mam_console_nav(): array {
             ['key' => 'admissions', 'label' => 'Applications',         'cap' => 'admissions'],
             ['key' => 'auditions',  'label' => 'Auditions',            'cap' => 'admissions'],
             ['key' => 'funnel',     'label' => 'Intake funnel',        'cap' => null],
-            ['key' => 'bursaries',  'label' => 'Bursary applications', 'cap' => null],
+            ['key' => 'bursaries',  'label' => 'Bursaries & awards',   'cap' => null],
         ]],
-        ['key' => 'students', 'label' => 'Students', 'icon' => 'fa-user-group', 'sections' => [
+        /* Students & families: the people the academy serves, and the two
+           desks that talk to them — what goes out (Communications) and what
+           comes in (Support). Those two sat in Governance, which is quarterly
+           oversight, and made it seven sections wide. */
+        ['key' => 'students', 'label' => 'Students & families', 'icon' => 'fa-user-group', 'sections' => [
             ['key' => 'students',  'label' => 'Students',            'cap' => null],
             ['key' => 'guardians', 'label' => 'Guardians & consent',  'cap' => 'enrollments'],
             ['key' => 'files',     'label' => 'Files & ID cards',     'cap' => 'media'],
+            ['key' => 'comms',     'label' => 'Communications',       'cap' => null],
+            ['key' => 'support',   'label' => 'Support',              'cap' => 'support'],
         ]],
         ['key' => 'teaching', 'label' => 'Teaching', 'icon' => 'fa-chalkboard-user', 'sections' => [
             ['key' => 'cohorts',    'label' => 'Cohorts',            'cap' => null],
             ['key' => 'roster',     'label' => 'Enrol & staffing',   'cap' => 'enrollments'],
             ['key' => 'timetable',  'label' => 'Timetable & rooms',  'cap' => null],
             ['key' => 'attendance', 'label' => 'Attendance',         'cap' => null],
-            ['key' => 'calendar',   'label' => 'Calendar',           'cap' => null],
+            ['key' => 'calendar',   'label' => 'Academic calendar',  'cap' => null],
             ['key' => 'events',     'label' => 'Recitals & events',  'cap' => null],
         ]],
         ['key' => 'curriculum', 'label' => 'Curriculum', 'icon' => 'fa-book-open', 'sections' => [
@@ -235,12 +248,15 @@ function mam_console_nav(): array {
             ['key' => 'pricebooks', 'label' => 'Price books',          'cap' => null],
             ['key' => 'charges',    'label' => 'Charges & exceptions', 'cap' => 'enrollments'],
             ['key' => 'store',      'label' => 'Store & orders',       'cap' => null],
-            ['key' => 'deductions', 'label' => 'Instructor deductions','cap' => null],
-            ['key' => 'earnings',   'label' => 'Instructor earnings', 'cap' => 'users'],
         ]],
         ['key' => 'people', 'label' => 'People', 'icon' => 'fa-user-gear', 'sections' => [
             ['key' => 'access',  'label' => 'People & access', 'cap' => 'users'],
             ['key' => 'vetting', 'label' => 'Staff & vetting',  'cap' => 'users'],
+            /* Staff pay sits with staff: what an instructor is owed, and the
+               flags raised against them. They were Finance's sixth and seventh
+               sections — family money and staff money in one strip. */
+            ['key' => 'earnings',   'label' => 'Instructor earnings',   'cap' => 'users'],
+            ['key' => 'deductions', 'label' => 'Instructor deductions', 'cap' => null],
             /* Everybody's own: name, phone, password, signed-in devices. It
                used to be the legacy dashboard's ?v=account, retired with it —
                and the console's temporary-password gate sends people here, so
@@ -254,8 +270,6 @@ function mam_console_nav(): array {
             ['key' => 'governance',     'label' => 'Audit trail',            'cap' => null],
             ['key' => 'safeguarding',   'label' => 'Safeguarding',           'cap' => 'safeguarding'],
             ['key' => 'dataprotection', 'label' => 'Data protection',        'cap' => 'users'],
-            ['key' => 'comms',          'label' => 'Communications',         'cap' => null],
-            ['key' => 'support',        'label' => 'Support',                'cap' => 'support'],
             ['key' => 'system',         'label' => 'System health',          'cap' => 'settings'],
             ['key' => 'settings',       'label' => 'Settings & vocabulary',  'cap' => 'settings'],
         ]],

@@ -146,7 +146,7 @@ foreach ($nav as $g) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=Cormorant+Garamond:wght@600;700&amp;family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="/assets/css/admin-v2.css?v=2026.11.20a">
+<link rel="stylesheet" href="/assets/css/admin-v2.css?v=2026.11.20b">
 </head>
 <body>
 <a class="ac-skip" href="#ac-main">Skip to the screen</a>

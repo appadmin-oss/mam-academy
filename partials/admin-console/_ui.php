@@ -40,7 +40,7 @@ function ac_join(array $parts, string $sep = ' · '): string {
 function ac_head(string $title, string $sub, string $actions = ''): void { ?>
   <div class="ac-head">
     <div>
-      <h2><?= ac_h($title) ?></h2>
+      <h1><?= ac_h($title) ?></h1>
       <?php if ($sub !== ''): ?><p><?= $sub /* trusted: caller-composed, values escaped */ ?></p><?php endif; ?>
     </div>
     <?php if ($actions !== ''): ?><div class="ac-headactions"><?= $actions ?></div><?php endif; ?>

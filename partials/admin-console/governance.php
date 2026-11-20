@@ -5,7 +5,7 @@ declare(strict_types=1);
 $vet = $d['vetting'] ?? [];
 $tier = $d['tier'] ?? [];
 ?>
-<?php ac_head('Governance & audit',
+<?php ac_head('Audit trail',
     'What the academy can prove, and what it owes people'); ?>
 
 <?php ac_kpis([

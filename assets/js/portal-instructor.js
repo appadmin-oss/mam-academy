@@ -1297,7 +1297,6 @@
         if (counts.marking) {
           var nb = $('#markBadge'); nb.hidden = false;
           nb.setAttribute('aria-label', counts.marking + ' waiting to be marked');
-          var sb = $('#sheetMarkBadge'); sb.hidden = false; sb.textContent = String(counts.marking);
         }
         if (counts.teachbacks) {
           var tb = $('#sheetTbBadge'); tb.hidden = false; tb.textContent = String(counts.teachbacks);

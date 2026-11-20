@@ -7,7 +7,7 @@ if (($d['editing'] ?? null) !== null) { require __DIR__ . '/_lesson-editor.php';
 $uncovered = array_values(array_filter($d['coverage'] ?? [], fn($c) => empty($c['evidenced'])));
 $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovered));
 ?>
-<?php ac_head('Curriculum',
+<?php ac_head('Lessons',
     'Programme → course at a level → lessons · curriculum is not the schedule and not mastery',
     (int) ($d['course'] ?? 0) > 0 ? '<a class="ac-btn ac-btn--primary" href="' . ac_h(ac_url('curriculum', ['program' => (int) ($d['program'] ?? 0), 'course' => (int) $d['course'], 'lesson' => 'new'])) . '">New lesson</a>' : ''); ?>
 

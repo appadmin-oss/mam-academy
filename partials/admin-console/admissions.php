@@ -6,7 +6,7 @@ $detail = $d['detail'] ?? null;
 $stage  = (string) ($d['stage'] ?? '');
 $type   = (string) ($d['type'] ?? '');
 ?>
-<?php ac_head('Admissions',
+<?php ac_head('Applications',
     'One board, four intake types · ' . (int) ($d['types']['all'] ?? 0) . ' applications',
     '<a class="ac-btn" href="' . ac_h(ac_url('admissions', ['stage' => 'submitted'])) . '">Needs a first look</a>'
     . '<a class="ac-btn" href="' . ac_h(ac_url('funnel')) . '">Where they stop</a>'); ?>
