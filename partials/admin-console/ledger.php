@@ -15,7 +15,53 @@ declare(strict_types=1);
     . 'USD column exists to prevent.'); ?>
 <?php endif; ?>
 
+<?php
+/* Money decisions made off the platform, recorded here (HANDOFF §4y — these two
+   buttons went with the retired dashboard). Both post to the existing handlers,
+   which ask mam_payment_admin_refusal(); the forms only offer what it allows.
+   The handlers are gated by the `settings` capability, so the forms are too. */
+$mayMoney = isset($adminUser) ? (!$adminUser || mam_admin_can($adminUser, 'settings')) : false;
+?>
+
+<?php if ($d['awaiting'] ?? []): ?>
+  <?php ac_card_open('Bank transfers waiting', count($d['awaiting']) . ' oldest first',
+      '<span class="ac-cardmeta">Confirm only what you have seen arrive</span>'); ?>
+    <div class="ac-tablewrap">
+      <table class="ac-table">
+        <thead><tr><th>Reference</th><th>Who</th><th>Expected</th><th class="ac-num">Waiting since</th><th>Confirm</th></tr></thead>
+        <tbody>
+          <?php foreach ($d['awaiting'] as $w):
+            $who = trim((string) ($w['first_name'] ?? '') . ' ' . (string) ($w['last_name'] ?? '')); ?>
+            <tr>
+              <td class="ac-mono"><?= ac_h((string) ($w['reference'] ?: '#' . (int) $w['id'])) ?>
+                <div class="ac-sub"><?= ac_h(str_replace('_', ' ', (string) ($w['purpose'] ?: 'tuition'))) ?></div></td>
+              <td><?= ac_h($who !== '' ? $who : '—') ?>
+                <?php if (!empty($w['app_ref'])): ?><div class="ac-sub"><?= ac_h((string) $w['app_ref']) ?></div><?php endif; ?></td>
+              <td class="ac-num"><?= ac_h((string) ($w['currency'] ?? '')) ?> <?= ac_h(number_format((float) ($w['amount'] ?? 0), 2)) ?></td>
+              <td class="ac-num"><?= ac_h(mam_console_date((string) $w['created_at'], 'j M y')) ?></td>
+              <td>
+                <?php if ($mayMoney): ?>
+                  <?php ac_form('payment_confirm_bank', 'ledger', ['payment_id' => (int) $w['id']]); ?>
+                    <label class="ac-field"><span class="ac-label">Reference on the bank statement</span>
+                      <input class="ac-input" name="note" required minlength="3" autocomplete="off"></label>
+                    <label class="ac-tick ac-mt"><input type="checkbox" name="checked" value="1" required>
+                      <span>I have seen this money arrive in the academy's account.</span></label>
+                    <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary ac-btn--sm">Confirm received</button></div>
+                  <?php ac_form_end(); ?>
+                <?php else: ?>
+                  <span class="ac-sub">Finance confirms these</span>
+                <?php endif; ?>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  <?php ac_card_close('Confirming settles what the transfer paid for exactly as an automatic payment would: an application is provisioned and enrolled, a store order released.'); ?>
+<?php endif; ?>
+
 <div class="ac-cols ac-cols--main">
+  <div class="ac-stack">
   <?php ac_card_open('Payments', count($d['rows'] ?? []) . ' most recent',
       '<span class="ac-cardmeta">Rate frozen per row</span>'); ?>
     <div class="ac-tablewrap">
@@ -32,7 +78,7 @@ declare(strict_types=1);
                 <?php if (!empty($p['provider'])): ?><div class="ac-sub"><?= ac_h((string) $p['provider']) ?></div><?php endif; ?></td>
               <td><?= ac_h($who !== '' ? $who : '—') ?>
                 <?php if (!empty($p['app_ref'])): ?><div class="ac-sub"><?= ac_h((string) $p['app_ref']) ?></div>
-                <?php elseif ((string) $p['status'] === 'success'): ?><div class="ac-sub">unmatched</div><?php endif; ?></td>
+                <?php elseif ((string) $p['status'] === 'succeeded'): ?><div class="ac-sub">unmatched</div><?php endif; ?></td>
               <td class="ac-num"><?= ac_h((string) ($p['currency'] ?? '')) ?>
                   <?= ac_h(number_format((float) ($p['amount'] ?? 0), 2)) ?></td>
               <td class="ac-num"><?= $p['amount_usd_cents'] !== null
@@ -47,6 +93,38 @@ declare(strict_types=1);
       </table>
     </div>
   <?php ac_card_close('A correction is a new row, never an edit — a row that can be changed after the fact is not a ledger. The rate stays with the payment so a figure taken in May still reconciles next year.'); ?>
+
+  <?php
+  /* Recording a refund: its own card rather than a control in each row. In the
+     table's narrow status column an opened form was squeezed to a sliver at
+     1280; here it has the width it needs, and only money that was taken is
+     offered (mam_payment_admin_refusal() refuses anything else anyway). */
+  $refundable = array_values(array_filter($d['rows'] ?? [], static fn ($p) => (string) $p['status'] === 'succeeded'));
+  if ($mayMoney && $refundable): ?>
+    <?php ac_card_open('Record a refund', 'Money already sent back through the bank or gateway'); ?>
+      <div class="ac-cardbody">
+        <?php ac_form('payment_refund', 'ledger'); ?>
+          <div class="ac-grid ac-grid--2">
+            <label class="ac-field"><span class="ac-label">Payment</span>
+              <select class="ac-input" name="payment_id" required>
+                <option value="">Choose a payment…</option>
+                <?php foreach ($refundable as $p):
+                  $who = trim((string) ($p['first_name'] ?? '') . ' ' . (string) ($p['last_name'] ?? '')); ?>
+                  <option value="<?= (int) $p['id'] ?>"><?= ac_h((string) ($p['reference'] ?: '#' . (int) $p['id'])
+                    . ' · ' . (string) ($p['currency'] ?? '') . ' ' . number_format((float) ($p['amount'] ?? 0), 2)
+                    . ($who !== '' ? ' · ' . $who : '')) ?></option>
+                <?php endforeach; ?>
+              </select></label>
+            <label class="ac-field"><span class="ac-label">Why, and how the money went back</span>
+              <input class="ac-input" name="note" required minlength="3" autocomplete="off"></label>
+          </div>
+          <p class="ac-sub ac-mt">This records a refund already made; it does not send money. What the payment bought is reversed — an application goes back to review, a booking fee is unpaid, a store order is refunded.</p>
+          <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--danger">Mark refunded</button></div>
+        <?php ac_form_end(); ?>
+      </div>
+    <?php ac_card_close(); ?>
+  <?php endif; ?>
+  </div>
 
   <div class="ac-stack">
     <?php ac_card_open('Positions', 'USD'); ?>

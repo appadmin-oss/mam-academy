@@ -27,6 +27,40 @@ declare(strict_types=1);
  * This helper decodes the existing value, wraps any legacy plain-text in a
  * JSON envelope (_raw key), merges in the $marker array, and returns valid JSON.
  */
+/**
+ * May an admin mark this payment refunded / confirm this bank transfer? Returns
+ * null when yes, else the sentence the console shows. One decision for both
+ * admin actions (admin/index.php), so the console form and the handler cannot
+ * disagree about what is allowed.
+ *
+ *   · A REFUND is only of money that was taken (`succeeded`). Marking a pending
+ *     or failed charge "refunded" records money going back that never came in.
+ *   · A CONFIRMATION is only of a transfer still waiting (`pending_bank_transfer`).
+ *     The handler used to flip ANY unconfirmed row to succeeded — a refunded or
+ *     failed one included — which re-credited money already returned.
+ *   · Both need a reason, because each is a money decision a person made off the
+ *     platform and the audit row is the only record of why; a confirmation also
+ *     needs the tick that the money was seen in the account.
+ */
+function mam_payment_admin_refusal(array $p, string $action, string $note, bool $checked = false): ?string {
+    $status = (string) ($p['status'] ?? '');
+    if (mb_strlen(trim($note)) < 3) {
+        return $action === 'payment_refund' ? 'Say why it was refunded and how the money went back.' : 'Give the reference from the bank statement.';
+    }
+    if ($action === 'payment_refund') {
+        if ($status === 'refunded') return 'That payment is already marked refunded.';
+        if ($status !== 'succeeded') return 'Only money that was taken can be refunded — this payment is ' . str_replace('_', ' ', $status) . '.';
+        return null;
+    }
+    if ($action === 'payment_confirm_bank') {
+        if ($status === 'succeeded') return 'That transfer is already confirmed.';
+        if ($status !== 'pending_bank_transfer') return 'Only a bank transfer that is still waiting can be confirmed — this payment is ' . str_replace('_', ' ', $status) . '.';
+        if (!$checked) return 'Tick that you have seen the money arrive in the academy\'s account.';
+        return null;
+    }
+    return 'Unknown action.';
+}
+
 function mam_payment_response_merge(?string $existing, array $marker): string {
     $obj = [];
     if ($existing !== null && $existing !== '') {

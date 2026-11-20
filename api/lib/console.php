@@ -849,8 +849,20 @@ function mam_console_ledger(): array {
     $unpriced = mam_console_int('led.unpriced',
         "SELECT COUNT(*) FROM payments WHERE " . MAM_CONSOLE_PAID . " AND amount_usd_cents IS NULL");
 
+    // Bank transfers still waiting — ALL of them, oldest first, because the 60
+    // most recent rows above hide exactly the transfer that has waited longest.
+    $awaiting = mam_console_rows('led.await',
+        "SELECT p.id, p.reference, p.purpose, p.amount, p.currency, p.amount_usd_cents, p.created_at,
+                a.reference app_ref, c.first_name, c.last_name
+           FROM payments p
+           LEFT JOIN applications a ON a.id = p.application_id
+           LEFT JOIN customers c ON c.id = a.customer_id
+          WHERE p.status = 'pending_bank_transfer'
+          ORDER BY p.created_at ASC, p.id ASC LIMIT 200");
+
     return [
         'rows' => $rows,
+        'awaiting' => $awaiting,
         'accounts' => [
             ['label' => 'Tuition & fees received', 'cents' => mam_console_int('led.tuition',
                 "SELECT COALESCE(SUM(amount_usd_cents),0) FROM payments WHERE " . MAM_CONSOLE_PAID . " AND (purpose IS NULL OR purpose <> 'store')")],

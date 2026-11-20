@@ -2138,3 +2138,29 @@ or allergy information anywhere (no column, no form). Showing it first means dec
 COLLECT health data — sensitive personal data under the NDPA, needing a lawful basis, an
 entry in the data-protection register and a place on the (frozen) admissions form. Left
 for the owner.
+
+## 4z7. 2026-11-20 — refunds and bank-transfer confirmation back in the console
+
+The first two of the 83 actions that lost their button with the legacy dashboard (§4y),
+highest value first. Console → Finance → **Ledger & FX**, posting to the EXISTING
+`payment_confirm_bank` / `payment_refund` handlers (no second implementation), offered
+only to admins holding `settings` — the capability those handlers demand.
+- **Bank transfers waiting** — every `pending_bank_transfer` payment, oldest first (not
+  just the latest 60 rows, which hide the transfer that has waited longest). Confirming
+  needs the reference typed from the bank statement and the tick "I have seen this money
+  arrive", copying the fee-transfer confirm.
+- **Record a refund** — its own card with a picker of payments that were taken; a reason
+  is required. It RECORDS a refund made with the bank or gateway; it does not send money.
+- **One decision, `mam_payment_admin_refusal()` (payments.php)**, asked by both handlers.
+  It closed two holes: confirm used to flip ANY unconfirmed row to succeeded — a refunded
+  or failed one included, re-crediting money already returned — and refund would mark a
+  charge that never went through as refunded. Both now need a reason (the audit row is
+  the only record of why). The handlers' messages say what happened instead of `ok=1`.
+- The ledger's "unmatched" hint compared the status with `success`, which nothing writes;
+  it reads `succeeded` now (the trap CLAUDE.md names).
+- `test_console_money.php` (14 checks); restoring the old confirm-anything rule fails two.
+  Driven in a browser: confirm and refund each land back on the Ledger with their message;
+  no horizontal overflow at 1280 or 390. (A per-row refund control was tried first and
+  dropped: in the narrow status column the opened form was squeezed to a sliver.)
+- Still without a button (§4y): instructor earnings (`wallet_credit`), `referral_reward`,
+  and the rest of the list.

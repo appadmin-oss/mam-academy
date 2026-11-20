@@ -2848,6 +2848,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!$pid) { header('Location: ?v=payments&err=' . urlencode('Missing payment_id')); exit; }
         $p = mam_db_row('SELECT * FROM payments WHERE id = ?', [$pid]);
         if (!$p) { header('Location: ?v=payments&err=' . urlencode('Payment not found')); exit; }
+        if (($why = mam_payment_admin_refusal($p, 'payment_refund', $note)) !== null) { header('Location: ?v=payments&err=' . urlencode($why)); exit; }
         // provider_response is a JSON column on MySQL/MariaDB — appending plain
         // text produces invalid JSON and the write is rejected (error 4025). Merge
         // the admin marker into a valid JSON object instead.
@@ -2868,7 +2869,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             mam_db_update('applications', ['status' => 'in_review'], ['id' => (int)$p['application_id']]);
         }
         mam_audit('payment_refund', 'payment', $pid, ['note' => $note, 'purpose' => $purpose]);
-        header('Location: ?v=payments&ok=1'); exit;
+        header('Location: ?v=payments&ok=' . urlencode('Marked refunded. What it paid for has been reversed.')); exit;
     }
 
     // ─── Confirm bank transfer ───────────────────────────────────────
@@ -2883,7 +2884,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!$pid) { header('Location: ?v=payments&err=' . urlencode('Missing payment_id')); exit; }
         $p = mam_db_row('SELECT * FROM payments WHERE id = ?', [$pid]);
         if (!$p) { header('Location: ?v=payments&err=' . urlencode('Payment not found')); exit; }
-        if ($p['status'] === 'succeeded') { header('Location: ?v=payments&ok=1'); exit; }
+        if (($why = mam_payment_admin_refusal($p, 'payment_confirm_bank', $note, !empty($_POST['checked']))) !== null) { header('Location: ?v=payments&err=' . urlencode($why)); exit; }
 
         mam_db_update('payments', [
             'status'            => 'succeeded',
@@ -2915,7 +2916,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             mam_log('info', 'bank_confirm_settle', ['payment_id' => $pid, 'app_id' => $p['application_id'], 'result' => $settleTag]);
         }
         mam_audit('payment_confirm_bank', 'payment', $pid, ['note' => $note, 'purpose' => $purpose]);
-        header('Location: ?v=payments&ok=1'); exit;
+        header('Location: ?v=payments&ok=' . urlencode('Transfer confirmed. What it paid for has been settled.')); exit;
     }
 
     // ─── Resend application confirmation + invoice ───────────────────
