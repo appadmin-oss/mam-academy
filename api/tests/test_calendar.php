@@ -244,10 +244,20 @@ t_ok($first['add_drop_deadline'] <= $first['withdrawal_deadline'], 'add/drop pre
 t_ok($first['withdrawal_deadline'] <= $first['ends_on'], 'withdrawal falls inside the term');
 t_ok(strpos((string) $first['notes'], 'edit the dates') !== false,
     'the seeded row says it is a starting point to edit, not a policy');
-// Re-seeding the same year must not duplicate.
+/* Re-seeding the same year must neither duplicate NOR overwrite. It used to
+   re-save every term with the computed dates and status 'planned' — this test
+   asserted exactly that ("edits the same rows") — so pressing "Author the
+   session" again silently undid the dates the office had corrected against the
+   published calendar, and reopened a closed term. */
+mam_db_update('academic_terms', ['withdrawal_deadline' => $first['add_drop_deadline'], 'status' => 'closed'],
+              ['id' => (int) $first['id']]);
 $again3 = mam_calendar_seed_year(2097, $CL_admin);
-t_eq(count(array_filter($again3, static fn($x) => $x['id'] !== null)), count($again3),
-    're-seeding edits the same rows rather than clashing with itself');
+t_eq(count(array_filter($again3, static fn($x) => !empty($x['existing']))), count($again3),
+    're-seeding finds every term already there and reports it as existing');
+t_eq(array_column($again3, 'id'), array_column($seeded, 'id'), 'the same rows, nothing duplicated');
+$kept = mam_calendar_term((int) $first['id']);
+t_eq($kept['withdrawal_deadline'], $first['add_drop_deadline'], 'a deadline the office corrected survives a second seed');
+t_eq($kept['status'], 'closed', 'and a closed term is not reopened');
 
 t_group('calendar — the summary an admin sees');
 

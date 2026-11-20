@@ -1502,7 +1502,7 @@ function mam_console_guardians(): array {
    15. Academic calendar
    ───────────────────────────────────────────────────────────────────────── */
 
-function mam_console_calendar(): array {
+function mam_console_calendar(array $q = []): array {
     $terms = mam_console_try('cal.terms', fn() => mam_calendar_terms(24), []) ?: [];
     foreach ($terms as &$t) {
         $t = mam_console_try('cal.dec', fn() => mam_calendar_decorate($t), $t) ?: $t;
@@ -1513,7 +1513,13 @@ function mam_console_calendar(): array {
         $t['census'] = mam_console_try('cal.cen', fn() => mam_calendar_census((int) $t['id']), null);
     }
     unset($t);
-    return ['terms' => $terms, 'current' => mam_console_term(),
+    /* The term being edited: the one named in the URL (a handler returns with
+       `t=` after saving it), else none — a blank form authors a new term. */
+    $sel = (int) ($q['t'] ?? 0);
+    $selected = null;
+    foreach ($terms as $t) if ((int) $t['id'] === $sel) { $selected = $t; break; }
+    return ['terms' => $terms, 'selected' => $selected, 'current' => mam_console_term(),
+        'statuses' => defined('MAM_CALENDAR_TERM_STATUSES') ? MAM_CALENDAR_TERM_STATUSES : ['planned', 'active', 'closed'],
         'tz' => defined('MAM_CALENDAR_TZ') ? MAM_CALENDAR_TZ : 'Africa/Lagos',
         'today' => mam_console_try('cal.today', fn() => mam_calendar_today(), date('Y-m-d'))];
 }

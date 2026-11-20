@@ -2203,3 +2203,30 @@ instructor is owed, and putting the two side by side invites reading one as the 
 - `test_schema_collation.php` reads the schema file on every engine and the live
   `information_schema` on MySQL; stripping one table's collation fails it.
 - MariaDB suite: 5,607 passed, 0 failed (14 SQLite-only files skip, as before).
+
+## 4z10. 2026-11-20 — the academic calendar's writes back in the console
+
+Console → Teaching → **Calendar**, posting to the EXISTING handlers (`term_save`,
+`term_seed_year`, `term_refund_reseed`, `closure_add`, `closure_delete`; `term_census`
+was already there), offered to admins holding `settings`, the capability they demand.
+- **Author or edit a term** (Edit on a row opens it; session and code are read-only
+  when editing, because they are what identifies the term — changing them would author
+  a second one). **Add a closure** to the term being edited; date fields are limited to
+  the term so an out-of-term closure cannot be sent. **Remove** a closure.
+  **Author a whole session.** **Reset** a term's refund table, with a confirm saying
+  families who enrolled under the current table are entitled to it.
+- The console redirect hook now keeps `t=`, so a saved term comes back open.
+- **Two display faults on the existing screen:** the refund card read `refund_pct` /
+  `until_on` and the census column `headcount` / `taken_at` — keys that do not exist —
+  so every published refund read **0%** with no date and every census taken read 0.
+  It now shows bands by teaching week ("Week 2 · 80% refunded", "Week 8 and after"),
+  one term at a time (the one being edited, else the current one).
+- **A real bug in `mam_calendar_seed_year()`:** seeding a session again re-saved every
+  term with the computed dates and status `planned`, silently undoing deadlines the
+  office had corrected and reopening a closed term. `test_calendar.php` asserted the
+  overwrite ("re-seeding edits the same rows"). A term that already exists is now left
+  alone and reported; the message says how many were new, kept, or refused for overlap.
+- `test_console_calendar.php` (17 checks) and three new checks in `test_calendar.php`;
+  restoring the overwrite fails three. Driven in a browser: author, overlap refused,
+  edit, closure add/remove, refund reset, session seed; no overflow at 1280 or 390.
+- Still without a button (§4y): settings, programmes and courses, and the rest.

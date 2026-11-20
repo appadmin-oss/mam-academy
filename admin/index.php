@@ -113,7 +113,7 @@ function mam_admin_console_return(string $screen): void {
         /* A handler may name WHICH record to come back to — the lesson just
            saved, the course it sits in. Only these names, and only short plain
            values: anything else in the handler's query is still dropped. */
-        foreach (['lesson', 'course', 'program', 'concern'] as $k) {
+        foreach (['lesson', 'course', 'program', 'concern', 't'] as $k) {
             if (isset($q[$k]) && is_string($q[$k]) && preg_match('/^[a-z0-9_-]{1,20}$/i', $q[$k])) $keep[$k] = $q[$k];
         }
         header_remove('Location');
@@ -1179,8 +1179,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $yr = (int)($_POST['year'] ?? date('Y'));
         try {
             $made = mam_calendar_seed_year($yr, (int)($adminUser['id'] ?? 0) ?: null);
-            $okN  = count(array_filter($made, static fn($x) => $x['id'] !== null));
-            header('Location: ?v=calendar&ok=' . urlencode($okN . ' of ' . count($made) . ' terms authored for ' . $yr . '. Check the dates against your published calendar and edit them.')); exit;
+            $newN  = count(array_filter($made, static fn($x) => $x['id'] !== null && empty($x['existing'])));
+            $keptN = count(array_filter($made, static fn($x) => !empty($x['existing'])));
+            $failN = count(array_filter($made, static fn($x) => $x['id'] === null));
+            $msg = $newN . ' of ' . count($made) . ' terms authored for ' . $yr . '.'
+                 . ($keptN ? ' ' . $keptN . ' already existed and were left as they are.' : '')
+                 . ($failN ? ' ' . $failN . ' overlap an authored term and were not added.' : '')
+                 . ($newN ? ' Check the new dates against your published calendar and edit them.' : '');
+            header('Location: ?v=calendar&ok=' . urlencode($msg)); exit;
         } catch (Throwable $e) {
             header('Location: ?v=calendar&err=' . urlencode('Could not seed: ' . $e->getMessage())); exit;
         }

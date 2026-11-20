@@ -475,6 +475,17 @@ function mam_calendar_seed_year(int $year, ?int $actorId = null): array
         if ($census > $ends) $census = $ends;
         if ($withdraw < $addDrop) $withdraw = $addDrop;
 
+        /* A term already authored for this session is LEFT AS IT IS. Seeding
+           again used to re-save it with the computed dates and status 'planned',
+           silently undoing the dates the office had corrected against the
+           published calendar — and reopening a closed term. Its refund table
+           was safe; its deadlines were not. */
+        $have = mam_db_row('SELECT id FROM academic_terms WHERE year_label = ? AND code = ?',
+                           [(string) $year, strtolower((string) $w['code'])]);
+        if ($have) {
+            $made[] = ['id' => (int) $have['id'], 'code' => $w['code'], 'label' => $w['label'], 'existing' => true];
+            continue;
+        }
         try {
             $id = mam_calendar_term_save([
                 'year_label'          => (string) $year,
