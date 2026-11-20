@@ -51,7 +51,7 @@ t_eq(openssl_verify($GM_parts[0] . '.' . $GM_parts[1], $GM_sig, $GM_pub, OPENSSL
 // Tampering must break it, or the signature proves nothing.
 $GM_bad = json_decode($unb64($GM_parts[1]), true);
 $GM_bad['sub'] = 'attacker@example.com';
-$GM_tampered = mam_google_b64((string) json_encode($GM_bad));
+$GM_tampered = mam_b64url_encode((string) json_encode($GM_bad));
 t_ok(openssl_verify($GM_parts[0] . '.' . $GM_tampered, $GM_sig, $GM_pub, OPENSSL_ALGO_SHA256) !== 1,
      'altering the impersonated subject invalidates the signature');
 

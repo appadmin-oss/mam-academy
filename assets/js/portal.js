@@ -153,7 +153,76 @@
     if (t.bar) t.bar.classList.add('is-screen');
   }
 
+  /* Display & access — the screen and its controls, ONCE.
+     All three portals carried the same 30-line screen and the same handler,
+     under the same storage key (deliberately shared: it is one person's
+     preference about their own eyes, not a per-portal setting). Three copies of
+     an accessibility control are three chances for one portal to behave
+     differently from the others. */
+  var A11Y_KEY = 'mam-guardian-a11y';
+  function a11yHtml() {
+    var r = document.documentElement;
+    var cur = {
+      text: r.getAttribute('data-text') || 'md',
+      ease: r.getAttribute('data-ease') === '1',
+      lowdata: r.getAttribute('data-lowdata') === '1',
+      theme: r.getAttribute('data-theme') || 'system'
+    };
+
+    return '<h1 class="p-h1">Display &amp; access</h1>'
+      + '<p class="p-body p-lead">These settings are kept on this device.</p>'
+      + '<div class="p-stack">'
+      + '<section class="p-card"><h2 class="p-title" id="tsLabel">Text size</h2>'
+      + '<div class="p-seg p-gap-t" role="group" aria-labelledby="tsLabel">'
+      + [['md', 'Normal'], ['lg', 'Larger'], ['xl', 'Largest']].map(function (o) {
+          return '<button type="button" data-text-size="' + o[0] + '" aria-selected="'
+            + (cur.text === o[0] ? 'true' : 'false') + '">' + o[1] + '</button>';
+        }).join('') + '</div></section>'
+      + '<section class="p-card"><h2 class="p-title" id="thLabel">Appearance</h2>'
+      + '<div class="p-seg p-gap-t" role="group" aria-labelledby="thLabel">'
+      + [['system', 'Match my device'], ['light', 'Light'], ['dark', 'Dark']].map(function (o) {
+          return '<button type="button" data-theme-set="' + o[0] + '" aria-selected="'
+            + (cur.theme === o[0] ? 'true' : 'false') + '">' + o[1] + '</button>';
+        }).join('') + '</div></section>'
+      + '<section class="p-card">'
+      + '<button type="button" class="p-switch" role="switch" aria-checked="' + (cur.ease ? 'true' : 'false')
+      + '" data-toggle="ease"><span>Easier to read</span><span class="p-track" aria-hidden="true"></span></button>'
+      + '<p class="p-caption">Wider spacing, more line height, and a face with clearer letter shapes.</p>'
+      + '<button type="button" class="p-switch" role="switch" aria-checked="' + (cur.lowdata ? 'true' : 'false')
+      + '" data-toggle="lowdata"><span>Use less data</span><span class="p-track" aria-hidden="true"></span></button>'
+      + '<p class="p-caption">Skips the web fonts and the photographs. On a metered connection the fonts '
+      + 'are the largest thing this page downloads.</p>'
+      + '</section></div>';
+  }
+  /* Handles a click on one of the controls above; true when it did. */
+  function a11yHandle(t) {
+    if (!(t && t.hasAttribute && (t.hasAttribute('data-text-size') || t.hasAttribute('data-theme-set') || t.hasAttribute('data-toggle')))) return false;
+    var root = document.documentElement, prefs = {};
+    try { prefs = JSON.parse(localStorage.getItem(A11Y_KEY) || '{}'); } catch (er) { prefs = {}; }
+    if (t.hasAttribute('data-text-size')) {
+      var tv = t.getAttribute('data-text-size');
+      prefs.text = tv === 'md' ? null : tv;
+      if (prefs.text) root.setAttribute('data-text', prefs.text); else root.removeAttribute('data-text');
+    }
+    if (t.hasAttribute('data-theme-set')) {
+      var th = t.getAttribute('data-theme-set');
+      prefs.theme = th === 'system' ? null : th;
+      if (prefs.theme) root.setAttribute('data-theme', prefs.theme);
+      else if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) root.setAttribute('data-theme', 'dark');
+      else root.removeAttribute('data-theme');
+    }
+    if (t.hasAttribute('data-toggle')) {
+      var tk = t.getAttribute('data-toggle');
+      prefs[tk] = !prefs[tk];
+      var attr = tk === 'ease' ? 'data-ease' : 'data-lowdata';
+      if (prefs[tk]) root.setAttribute(attr, '1'); else root.removeAttribute(attr);
+    }
+    try { localStorage.setItem(A11Y_KEY, JSON.stringify(prefs)); } catch (er) {}
+    return true;
+  }
+
   window.MAM_PORTAL = {
+    a11yHtml: a11yHtml, a11yHandle: a11yHandle,
     identity: identity, topTitle: topTitle,
     fmtDate: fmtDate, fmtDateTime: fmtDateTime, fmtMoney: fmtMoney, fmtUsd: fmtUsd, today: today,
     initials: initials, escapeHtml: escapeHtml, safeUrl: safeUrl,

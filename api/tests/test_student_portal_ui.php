@@ -130,10 +130,13 @@ t_ok(strpos($classic, '/portal/student/') !== false, 'and it links back');
 
 // The same storage key as the guardian and instructor portals, read pre-paint
 // so a reload never shows one frame of the other theme.
-t_ok(substr_count($html, 'mam-guardian-a11y') >= 1 && substr_count($js, 'mam-guardian-a11y') >= 1,
+// Since 2026-11-20 the screen and its handler live ONCE, in the shared kit
+// (portal.js), so "one key" holds by construction rather than by three copies.
+$kitJs = (string) @file_get_contents($ROOT . '/assets/js/portal.js');
+t_ok(substr_count($html, 'mam-guardian-a11y') >= 1 && str_contains($kitJs, "A11Y_KEY = 'mam-guardian-a11y'"),
     'the a11y preference shares one key across the three portals');
 $guardian = (string) @file_get_contents($ROOT . '/assets/js/portal-guardian.js');
-t_ok(strpos($guardian, 'mam-guardian-a11y') !== false, '…which is the key the guardian portal writes');
+t_ok(str_contains($guardian, 'P.a11yHandle(t)'), '…which the guardian portal writes through the same kit');
 
 /* ── The CSS is scoped, so it cannot leak onto the dark portals ──────────── */
 

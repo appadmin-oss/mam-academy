@@ -2383,3 +2383,37 @@ view); admissions `mam_admissions_pipeline` / `_notes` / `_events`;
 `mam_reschedule_mark_paid`; and the lms2 set (rooms, assignment groups,
 calendar tokens and .ics, resource versions, submission reviews). Re-run the
 scan to see the current list (the script is in this entry's commit message).
+
+## 4z15. 2026-11-20 — structure: one source for each rule that was written more than once
+
+A scan for function bodies identical after normalising whitespace (PHP and JS,
+excluding the design references under docs/) found 43 groups. Most are small
+UI helpers where a copy costs nothing. These five were rules, where two copies
+drifting apart is a bug:
+
+- **Two lists of libraries** — bootstrap.php (91) and the test harness (89 require
+  lines); CLAUDE.md gotcha #1 existed because adding a lib to one and not the other
+  kept happening. `api/lib/libs.php` is the one list; the harness skips only `log`
+  and `response`, which it stubs. A test fails on a file in api/lib not on the list.
+- **Cookie Decline did nothing.** apply.js and studio-core.js each checked
+  Do-Not-Track (removed from Chrome and Safari) and nothing read the banner's
+  `mam.cookie = 'decline'`, while the banner says "Essential cookies only" and the
+  privacy page promises analytics "only where you have not opted out".
+  `MAM_PRIVACY.mayMeasure()` (config.js) honours DNT, Global Privacy Control and
+  Decline. Measured on /apply: 2 beacons with no answer; 0 with Decline, GPC or DNT
+  (Decline and GPC sent 2 before).
+- **base64url for signed tokens**, four encoders and two decoders →
+  `mam_b64url_encode()/_decode()`. PHP's strict decoder accepts the missing padding
+  (2,000 random round-trips), so no token format changed.
+- **Display & access**, the same 30-line screen and 26-line handler in all three
+  portals → `MAM_PORTAL.a11yHtml()/a11yHandle()`. Verified in each portal: text
+  size, appearance and easier-to-read apply, save under the shared key and mark
+  the selected buttons.
+- **The exporters' checksum helpers** stay duplicated on purpose (export-web.php is
+  uploaded as a single file); `test_export.php` now requires the two copies to be
+  identical, and its comment no longer claims they are "duplicated nowhere".
+
+Left as copies, deliberately: the studio's WAV encoder and store
+(sequencer.js / studio-core.js are separate pages' bundles), the classic
+dashboards' helpers (retired surfaces), and small portal helpers (`h1`, `empty`,
+`loading`, `money`) whose duplication carries no rule.

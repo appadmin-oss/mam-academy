@@ -63,7 +63,6 @@ function mam_live_provider(array $sess): string {
 
 /* ─── Tokens (RS256) ─────────────────────────────────────────────────────── */
 
-function mam_live_b64(string $s): string { return rtrim(strtr(base64_encode($s), '+/', '-_'), '='); }
 
 /**
  * A JaaS token for one person in one room. Only staff are moderators, and
@@ -79,10 +78,10 @@ function mam_live_jwt(array $cfg, string $room, array $who, bool $moderator, int
                                       'avatar' => '', 'moderator' => $moderator ? 'true' : 'false'],
                            'features' => ['livestreaming' => 'false', 'recording' => $rec ? 'true' : 'false',
                                           'transcription' => 'false', 'outbound-call' => 'false', 'sip-outbound-call' => 'false']]];
-    $input = mam_live_b64(json_encode($head)) . '.' . mam_live_b64(json_encode($body, JSON_UNESCAPED_SLASHES));
+    $input = mam_b64url_encode(json_encode($head)) . '.' . mam_b64url_encode(json_encode($body, JSON_UNESCAPED_SLASHES));
     $key = openssl_pkey_get_private($cfg['private_key']);
     if ($key === false || !openssl_sign($input, $sig, $key, OPENSSL_ALGO_SHA256)) throw new RuntimeException('jaas_key_invalid');
-    return $input . '.' . mam_live_b64($sig);
+    return $input . '.' . mam_b64url_encode($sig);
 }
 
 /* ─── Who may join, and when ─────────────────────────────────────────────── */
@@ -190,7 +189,7 @@ function mam_live_webhook_ok(string $header, string $body, string $secret, ?int 
     if (abs(($now ?? time()) - $ts) > 600) return false;
     $mac = hash_hmac('sha256', $t[1] . '.' . $body, $secret, true);
     foreach ($v[1] as $sig) {
-        if (hash_equals(base64_encode($mac), $sig) || hash_equals(bin2hex($mac), strtolower($sig)) || hash_equals(mam_live_b64($mac), $sig)) return true;
+        if (hash_equals(base64_encode($mac), $sig) || hash_equals(bin2hex($mac), strtolower($sig)) || hash_equals(mam_b64url_encode($mac), $sig)) return true;
     }
     return false;
 }

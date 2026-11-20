@@ -1043,38 +1043,7 @@
       + '</div>');
   }
 
-  function renderA11y() {
-    var r = document.documentElement;
-    var cur = {
-      text: r.getAttribute('data-text') || 'md',
-      ease: r.getAttribute('data-ease') === '1',
-      lowdata: r.getAttribute('data-lowdata') === '1',
-      theme: r.getAttribute('data-theme') || 'system'
-    };
-    paint(h1('Display & access', 'These settings are kept on this device.')
-      + '<div class="p-stack">'
-      + '<section class="p-card"><h2 class="p-title" id="tsLabel">Text size</h2>'
-      + '<div class="p-seg p-gap-t" role="group" aria-labelledby="tsLabel">'
-      + [['md', 'Normal'], ['lg', 'Larger'], ['xl', 'Largest']].map(function (o) {
-          return '<button type="button" data-text-size="' + o[0] + '" aria-selected="'
-            + (cur.text === o[0] ? 'true' : 'false') + '">' + o[1] + '</button>';
-        }).join('') + '</div></section>'
-      + '<section class="p-card"><h2 class="p-title" id="thLabel">Appearance</h2>'
-      + '<div class="p-seg p-gap-t" role="group" aria-labelledby="thLabel">'
-      + [['system', 'Match my device'], ['light', 'Light'], ['dark', 'Dark']].map(function (o) {
-          return '<button type="button" data-theme-set="' + o[0] + '" aria-selected="'
-            + (cur.theme === o[0] ? 'true' : 'false') + '">' + o[1] + '</button>';
-        }).join('') + '</div></section>'
-      + '<section class="p-card">'
-      + '<button type="button" class="p-switch" role="switch" aria-checked="' + (cur.ease ? 'true' : 'false')
-      + '" data-toggle="ease"><span>Easier to read</span><span class="p-track" aria-hidden="true"></span></button>'
-      + '<p class="p-caption">Wider spacing, more line height, and a face with clearer letter shapes.</p>'
-      + '<button type="button" class="p-switch" role="switch" aria-checked="' + (cur.lowdata ? 'true' : 'false')
-      + '" data-toggle="lowdata"><span>Use less data</span><span class="p-track" aria-hidden="true"></span></button>'
-      + '<p class="p-caption">Skips the web fonts and the photographs. On a metered connection the fonts '
-      + 'are the largest thing this page downloads.</p>'
-      + '</section></div>');
-  }
+  function renderA11y() { paint(P.a11yHtml()); }   // the screen lives in the shared kit (portal.js)
 
   function allows(child, what) {
     var scope = child && child.scope ? child.scope : 'standard';
@@ -1349,32 +1318,7 @@
       return;
     }
 
-    if (t.hasAttribute('data-text-size') || t.hasAttribute('data-theme-set') || t.hasAttribute('data-toggle')) {
-      e.preventDefault();
-      var root = document.documentElement, prefs = {};
-      try { prefs = JSON.parse(localStorage.getItem('mam-guardian-a11y') || '{}'); } catch (er) { prefs = {}; }
-      if (t.hasAttribute('data-text-size')) {
-        var v = t.getAttribute('data-text-size');
-        prefs.text = v === 'md' ? null : v;
-        if (prefs.text) root.setAttribute('data-text', prefs.text); else root.removeAttribute('data-text');
-      }
-      if (t.hasAttribute('data-theme-set')) {
-        var th = t.getAttribute('data-theme-set');
-        prefs.theme = th === 'system' ? null : th;
-        if (prefs.theme) root.setAttribute('data-theme', prefs.theme);
-        else if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) root.setAttribute('data-theme', 'dark');
-        else root.removeAttribute('data-theme');
-      }
-      if (t.hasAttribute('data-toggle')) {
-        var k2 = t.getAttribute('data-toggle');
-        prefs[k2] = !prefs[k2];
-        var attr = k2 === 'ease' ? 'data-ease' : 'data-lowdata';
-        if (prefs[k2]) root.setAttribute(attr, '1'); else root.removeAttribute(attr);
-      }
-      try { localStorage.setItem('mam-guardian-a11y', JSON.stringify(prefs)); } catch (er) {}
-      renderA11y();
-      return;
-    }
+    if (P.a11yHandle && P.a11yHandle(t)) { e.preventDefault(); renderA11y(); return; }
   });
 
   function newThread(studentId, subject, kind) {

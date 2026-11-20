@@ -438,8 +438,7 @@ foreach (['dp_request_open', 'dp_request_close', 'dp_breach_record', 'dp_process
 t_ok(strpos($adminSrc, 'mam_admin_redirect') === false,
     'no invented redirect helper — this file has none (gotcha #9)');
 
-$bootSrc = file_get_contents(__DIR__ . '/../lib/bootstrap.php');
-t_ok(strpos($bootSrc, "'dataprotection'") !== false, 'the lib is in bootstrap\'s autoload list (gotcha #1)');
+t_ok(in_array('dataprotection', require __DIR__ . '/../lib/libs.php', true), 'the lib is in the one library list (gotcha #1)');
 $jobsSrc = file_get_contents(__DIR__ . '/../tools/run-jobs.php');
 t_ok(strpos($jobsSrc, 'mam_dp_retention_sweep') !== false, 'the retention sweep is wired into the cron');
 t_ok(strpos($jobsSrc, "mam_automation_on('data_retention')") !== false,

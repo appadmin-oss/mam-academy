@@ -762,7 +762,7 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20260807a"></script>
+<script src="assets/js/config.js?v=20261120a"></script>
 <script src="assets/js/main.js?v=20260920"></script>
 <!--
   Audio libraries are DEFERRED until the first user interaction with the
@@ -797,7 +797,7 @@
     else attach();
   })();
 </script>
-<script src="assets/js/studio-core.js?v=20260615a" defer></script>
+<script src="assets/js/studio-core.js?v=20261120a" defer></script>
 <script src="assets/js/tools.js?v=20260615b" defer></script>
 <script src="assets/js/sequencer.js?v=20260613a" defer></script>
 <script src="assets/js/pitch-game.js?v=20260615b" defer></script>

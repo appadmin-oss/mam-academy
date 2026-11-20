@@ -13,8 +13,11 @@
 declare(strict_types=1);
 
 // The tool is a CLI script that would execute on include; pull in just the pure
-// helpers it defines by evaluating the function bodies we need. They are
-// duplicated nowhere — this asserts against the real definitions.
+// helpers it defines by evaluating the function bodies we need. They ARE
+// duplicated, once and on purpose: export-web.php must be uploadable as a single
+// file to a host with no shell, so it cannot include them. The group below
+// requires the two copies to be identical, because a snapshot taken by one and
+// verified by the other must agree byte for byte.
 if (!function_exists('mam_export_row_hash')) {
     $src = file_get_contents(dirname(__DIR__) . '/tools/export.php');
     // Extract the two pure functions, so requiring the CLI's side effects is
@@ -193,3 +196,18 @@ $code = preg_replace('~/\*.*?\*/~s', '', $doc);
 t_ok(strpos($code, "__DIR__ . '/..'") === false || strpos($code, 'mam_export_api_root') !== false,
      'the api/ directory is discovered, not assumed from a fixed depth');
 t_ok(strpos($code, 'mam_export_api_root') !== false, 'a probe function does the discovery');
+
+t_group('ETL export — the browser export computes exactly what the CLI computes');
+
+$EX_body = static function (string $src, string $fn): ?string {
+    if (!preg_match('/\nfunction ' . preg_quote($fn, '/') . '\(.*?\n\}/s', $src, $m)) return null;
+    $code = preg_replace('#//[^\n]*|/\*.*?\*/#s', '', $m[0]);
+    return preg_replace('/\s+/', '', (string) $code);
+};
+$EX_cli = (string) file_get_contents(dirname(__DIR__) . '/tools/export.php');
+$EX_web = (string) file_get_contents(dirname(__DIR__) . '/tools/export-web.php');
+foreach (['mam_export_row_hash', 'mam_export_checksum', 'mam_export_quote_ident', 'mam_export_env'] as $EX_fn) {
+    $a = $EX_body($EX_cli, $EX_fn); $b = $EX_body($EX_web, $EX_fn);
+    t_ok($a !== null && $b !== null, "both exporters define $EX_fn");
+    t_eq($b, $a, "$EX_fn is the same code in export-web.php as in export.php — a snapshot from one must verify with the other");
+}

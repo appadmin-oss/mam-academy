@@ -39,19 +39,10 @@
   // Privacy-respecting: honours Do-Not-Track, sends an ANONYMOUS funnel-session
   // id (sessionStorage — never identity) and NO third-party pixel. Best-effort
   // and entirely silent — a beacon must never affect the form.
-  function mamDntOn() {
-    try {
-      var d = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
-      return d === '1' || d === 'yes';
-    } catch (e) { return false; }
-  }
-  function mamFunnelSid() {
-    try {
-      var k = 'mam.funnel.sid', v = sessionStorage.getItem(k);
-      if (!v) { v = 'fs-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10); sessionStorage.setItem(k, v); }
-      return v;
-    } catch (e) { return null; }
-  }
+  // The privacy check and the session id live in config.js (MAM_PRIVACY), the
+  // one answer every beacon on the site asks.
+  function mamDntOn() { return !(window.MAM_PRIVACY && MAM_PRIVACY.mayMeasure()); }
+  function mamFunnelSid() { return window.MAM_PRIVACY ? MAM_PRIVACY.funnelSid() : null; }
   function mamTrack(event, extra) {
     try {
       if (mamDntOn()) return;

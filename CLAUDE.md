@@ -120,6 +120,15 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
   bump `MAM_SCHEMA_TARGET`, AND add the equivalent to `db/schema-mysql.sql` (with its
   `INSERT INTO schema_version`). MySQL `TEXT` can't carry a `DEFAULT` — add nullable
   columns without one and treat NULL as the default in code (see `student_type`).
+- **One source each** (2026-11-20; each was written two to four times):
+  libraries load from `api/lib/libs.php`; signed tokens use
+  `mam_b64url_encode()`/`_decode()` (validation.php); "may we measure this
+  visitor" is `MAM_PRIVACY.mayMeasure()` (config.js — Do-Not-Track, Global
+  Privacy Control, or Decline on the cookie banner: any no is a no); the portals'
+  Display & access screen is `MAM_PORTAL.a11yHtml()`/`a11yHandle()`
+  (portal.js). The two exporters deliberately keep their own copies of the
+  checksum helpers (export-web.php must upload as one file) and
+  `test_export.php` requires the copies to match.
 - **Routes** are registered in `api/index.php` with method + handler + middleware
   (`mw_csrf`, `mw_role('student'|'instructor')`, `mw_admin_cap('users'|'rbac'|…)`,
   `mw_rate_limit(bucket,limit,window)`).
@@ -128,9 +137,13 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
 
 1. **The test harness does NOT load `bootstrap.php`.** `api/tests/run.php` stubs
    `mam_env`, `mam_client_ip`, `mam_fail`/`mam_ok` (these THROW in tests) and
-   `require`s lib files individually. So:
-   - A new lib must be added to **both** `bootstrap.php`'s `$mam_libs` autoload list
-     **and** `api/tests/run.php`'s require block.
+   loads the libraries itself. So:
+   - A new lib is added to **`api/lib/libs.php`** — the ONE list, read by both
+     `bootstrap.php` and the harness (which skips only `log` and `response`, the
+     two it stubs). Until 2026-11-20 it was two hand-kept lists, 91 and 89 long,
+     and a lib in only one worked in production and was undefined under test, or
+     the reverse. `test_code_structure.php` fails on a file in `api/lib/` that
+     the list does not name.
    - A shared helper used by a lib must live in a file the harness loads (e.g.
      `mam_ip_in_cidr` lives in `validation.php`, not `bootstrap.php`, so both prod
      and tests have it).
@@ -952,7 +965,7 @@ the notation showcase.**
   scheduled sweeps now"). The three scheduled sweeps
   (`mam_automation_session_reminder_sweep` / `_ktams_birthday_sweep` / `_week_drip_sweep`)
   are events-deduped, never throw, and are wired into `api/tools/run-jobs.php` (the cron).
-  A new lib → add to BOTH `bootstrap.php`'s `$mam_libs` AND `api/tests/run.php` (gotcha #1).
+  A new lib → add it to `api/lib/libs.php` (gotcha #1).
   Covered by `test_automations.php`.
 - ✅ **Curriculum clone across levels** — `mam_lms_clone_syllabus(courseCode, fromLevelCode,
   toLevelCode)` (`lms.php`): copies a course's authored weeks between levels, idempotent
@@ -981,8 +994,7 @@ the notation showcase.**
   fetchable via the stored view URL OR the gated proxy `GET /api/drive/file?rid=N`
   (visibility-checked per role). Off until `drive_webapp_url`+`drive_shared_secret` set
   (`DRIVE_TRANSPORT=mock` = in-process store for dev/tests). Deploy guide:
-  `docs/drive-apps-script.md`. New lib → in BOTH `bootstrap.php` `$mam_libs` AND
-  `run.php` (gotcha #1). Covered by `test_drive.php` (signing, guards, byte-for-byte
+  `docs/drive-apps-script.md`. New lib → in `api/lib/libs.php` (gotcha #1). Covered by `test_drive.php` (signing, guards, byte-for-byte
   upload→fetch round-trip).
 - ✅ **#14 Notation showcase** — `notation.php` + `assets/js/notation.js`. **M1:** renders one
   melody in THREE systems (Classical 5-line treble staff, Contemporary piano-roll, African

@@ -200,8 +200,8 @@ foreach (glob(dirname(dirname(__DIR__)) . '/partials/admin-phone/*.php') ?: [] a
    test harness's require block, or it works in one and is missing in the
    other. This file only runs at all because the harness loads it, so the
    assertion that matters is the bootstrap half. */
-t_ok(str_contains((string) file_get_contents(dirname(__DIR__) . '/lib/bootstrap.php'), "'console-phone'"),
-    'console-phone is in bootstrap\'s $mam_libs, not only in the test harness');
+t_ok(in_array('console-phone', require dirname(__DIR__) . '/lib/libs.php', true),
+    'console-phone is in the one library list (api/lib/libs.php), which the app and the harness both load');
 
 // The stylesheet block exists and is scoped like the rest of the console.
 $PH_css = (string) file_get_contents(dirname(dirname(__DIR__)) . '/assets/css/admin-v2.css');

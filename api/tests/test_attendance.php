@@ -23,7 +23,7 @@ $old = mam_attendance_token(42, '2020-01-01');
 t_ok(mam_attendance_verify_token($old) === null, 'a past-date token is expired');
 
 // A signature made with the wrong key must not verify (proves it is signed).
-$forged = mam_attendance_b64('42:2026-07-05:' . strtotime('2026-07-05 23:59:59') . '|' . hash_hmac('sha256', 'x', 'wrong-key'));
+$forged = mam_b64url_encode('42:2026-07-05:' . strtotime('2026-07-05 23:59:59') . '|' . hash_hmac('sha256', 'x', 'wrong-key'));
 t_ok(mam_attendance_verify_token($forged) === null, 'a wrong-key signature is rejected');
 
 // ── Self-check-in is enrolment-gated + idempotent ──

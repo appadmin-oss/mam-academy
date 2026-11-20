@@ -168,7 +168,11 @@ t_ok($guardLabels >= $guardInputs - 1,
     "each field carries a <label for> ($guardLabels labels for $guardInputs fields)");
 // A caption above a GROUP of buttons is not a label — the design says to use
 // role="group" + aria-labelledby, and the segmented controls do.
+// The two segmented controls of Display & access moved into the shared kit
+// (portal.js) on 2026-11-20, so they are counted there.
+$kitJs = (string) file_get_contents(dirname(__DIR__, 2) . '/assets/js/portal.js');
 t_eq(preg_match_all('/role="group" aria-labelledby="/', $guardJs)
+   + preg_match_all('/role="group" aria-labelledby="/', $kitJs)
    + preg_match_all('/role="group" aria-labelledby="/', $parent), 3,
     'and a group of controls is labelled with role="group" + aria-labelledby, not a floating caption');
 

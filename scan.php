@@ -126,7 +126,7 @@ declare(strict_types=1);
   </div>
  </div>
 </main>
-<script src="assets/js/config.js?v=20260807a"></script>
+<script src="assets/js/config.js?v=20261120a"></script>
 <script>
 (function () {
   'use strict';

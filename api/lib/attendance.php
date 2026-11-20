@@ -19,8 +19,6 @@
 declare(strict_types=1);
 
 /** base64url without padding. */
-function mam_attendance_b64(string $s): string { return rtrim(strtr(base64_encode($s), '+/', '-_'), '='); }
-function mam_attendance_unb64(string $s): string { return (string)base64_decode(strtr($s, '-_', '+/'), true); }
 
 /**
  * Mint a signed check-in token for a class + session date. Valid until the end
@@ -31,7 +29,7 @@ function mam_attendance_token(int $classId, ?string $date = null): string {
     $exp  = (int)strtotime($date . ' 23:59:59');
     $raw  = $classId . ':' . $date . ':' . $exp;
     $sig  = hash_hmac('sha256', $raw, mam_app_key());
-    return mam_attendance_b64($raw . '|' . $sig);
+    return mam_b64url_encode($raw . '|' . $sig);
 }
 
 /**
@@ -43,7 +41,7 @@ function mam_attendance_token(int $classId, ?string $date = null): string {
 function mam_attendance_verify_token(?string $token): ?array {
     $token = trim((string)$token);
     if ($token === '' || strlen($token) > 512) return null;
-    $decoded = mam_attendance_unb64($token);
+    $decoded = mam_b64url_decode($token);
     if ($decoded === '' || strpos($decoded, '|') === false) return null;
     [$raw, $sig] = explode('|', $decoded, 2);
     $expected = hash_hmac('sha256', $raw, mam_app_key());
@@ -118,7 +116,7 @@ function mam_attendance_session_token(int $sessionId, ?string $date = null): str
     $exp  = (int)strtotime($date . ' 23:59:59');
     $raw  = 'sess:' . $sessionId . ':' . $date . ':' . $exp;
     $sig  = hash_hmac('sha256', $raw, mam_app_key());
-    return mam_attendance_b64($raw . '|' . $sig);
+    return mam_b64url_encode($raw . '|' . $sig);
 }
 
 /**
@@ -130,7 +128,7 @@ function mam_attendance_session_token(int $sessionId, ?string $date = null): str
 function mam_attendance_verify_session_token(?string $token): ?array {
     $token = trim((string)$token);
     if ($token === '' || strlen($token) > 512) return null;
-    $decoded = mam_attendance_unb64($token);
+    $decoded = mam_b64url_decode($token);
     if ($decoded === '' || strpos($decoded, '|') === false) return null;
     [$raw, $sig] = explode('|', $decoded, 2);
     $expected = hash_hmac('sha256', $raw, mam_app_key());

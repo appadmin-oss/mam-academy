@@ -92,11 +92,8 @@ function trp_required_libs(string $file, string $apiRoot): array {
     }
     // A page that loads bootstrap.php gets everything bootstrap autoloads.
     if (isset($libs['bootstrap'])) {
-        $boot = (string)@file_get_contents($apiRoot . '/lib/bootstrap.php');
-        if (preg_match('/\$mam_libs\s*=\s*\[(.*?)\]/s', $boot, $bm)
-            && preg_match_all('/[\'"]([\w\-]+)[\'"]/', $bm[1], $lm)) {
-            foreach ($lm[1] as $name) $libs[$name] = true;
-        }
+        // bootstrap.php loads the one list in api/lib/libs.php.
+        foreach ((array) require $apiRoot . '/lib/libs.php' as $name) $libs[$name] = true;
     }
     $paths = [];
     foreach (array_keys($libs) as $name) {

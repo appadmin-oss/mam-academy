@@ -245,6 +245,38 @@ window.MAM_CONFIG = {
 };
 
 /* -------- API client helper -------- */
+/* ── May we measure this visitor? ONE answer, for every page ──────────────
+ * The funnel beacon (apply.js) and the studio's usage beacon (studio-core.js)
+ * each carried their own check, and both asked only Do-Not-Track — a signal
+ * Chrome and Safari have removed. Neither read the cookie banner, so a visitor
+ * who pressed Decline under "Essential cookies only" went on being counted.
+ * The rule is one sentence: if anything said no, the answer is no — Do-Not-
+ * Track, Global Privacy Control, or Decline on the banner (main.js stores it
+ * as mam.cookie = 'decline'). Not having answered the banner is not a no; the
+ * banner itself says only essential cookies are set, and this beacon sets
+ * none (a per-tab sessionStorage id, never a cookie).
+ */
+window.MAM_PRIVACY = (function () {
+  function said(no) { return no === '1' || no === 'yes' || no === true; }
+  function mayMeasure() {
+    try {
+      if (said(navigator.doNotTrack) || said(window.doNotTrack) || said(navigator.msDoNotTrack)) return false;
+      if (navigator.globalPrivacyControl === true) return false;
+      if (window.localStorage && localStorage.getItem('mam.cookie') === 'decline') return false;
+    } catch (e) { return false; }   // storage refused: assume the cautious answer
+    return true;
+  }
+  /* The per-tab funnel session id both beacons send — one key, one format. */
+  function funnelSid() {
+    try {
+      var k = 'mam.funnel.sid', v = sessionStorage.getItem(k);
+      if (!v) { v = 'fs-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10); sessionStorage.setItem(k, v); }
+      return v;
+    } catch (e) { return null; }
+  }
+  return { mayMeasure: mayMeasure, funnelSid: funnelSid };
+})();
+
 window.MAM_API = (function () {
   var cfg = window.MAM_CONFIG.api;
   var csrfToken = null, csrfFetchedAt = 0;

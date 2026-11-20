@@ -117,16 +117,9 @@
   // First-party, privacy-respecting beacon to /api/track (same endpoint + sid as
   // the apply funnel). Honours Do-Not-Track; the tool key rides in `pathway`.
   // Best-effort and silent — analytics must never affect a tool.
-  function dntOn() {
-    try { var d = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack; return d === '1' || d === 'yes'; } catch (e) { return false; }
-  }
-  function funnelSid() {
-    try {
-      var k = 'mam.funnel.sid', v = sessionStorage.getItem(k);
-      if (!v) { v = 'fs-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10); sessionStorage.setItem(k, v); }
-      return v;
-    } catch (e) { return null; }
-  }
+  // config.js (MAM_PRIVACY) is the one answer to "may we measure this visitor".
+  function dntOn() { return !(window.MAM_PRIVACY && MAM_PRIVACY.mayMeasure()); }
+  function funnelSid() { return window.MAM_PRIVACY ? MAM_PRIVACY.funnelSid() : null; }
   function track(event, tool, meta) {
     try {
       if (dntOn()) return;

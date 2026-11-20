@@ -20,8 +20,6 @@ declare(strict_types=1);
 
 const MAM_FACULTY_INVITE_DAYS = 7;
 
-function mam_faculty_b64(string $s): string { return rtrim(strtr(base64_encode($s), '+/', '-_'), '='); }
-function mam_faculty_unb64(string $s): string { return (string)base64_decode(strtr($s, '-_', '+/'), true); }
 
 /** Where a submitted candidate books their interview. */
 function mam_faculty_book_url(): string {
@@ -32,7 +30,7 @@ function mam_faculty_book_url(): string {
 function mam_faculty_apply_url(array $invite): string {
     $raw = (int)$invite['id'] . '|' . (string)$invite['nonce'];
     $sig = hash_hmac('sha256', $raw, mam_app_key());
-    $token = mam_faculty_b64($raw . '|' . $sig);
+    $token = mam_b64url_encode($raw . '|' . $sig);
     return rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/instructor-apply?token=' . urlencode($token);
 }
 
@@ -84,7 +82,7 @@ function mam_faculty_dismiss(int $inviteId, ?int $by = null): void {
  */
 function mam_faculty_verify_token(?string $token) {
     if (!$token) return 'invalid';
-    $parts = explode('|', mam_faculty_unb64($token));
+    $parts = explode('|', mam_b64url_decode($token));
     if (count($parts) !== 3) return 'invalid';
     [$id, $nonce, $sig] = $parts;
     if (!hash_equals(hash_hmac('sha256', $id . '|' . $nonce, mam_app_key()), $sig)) return 'invalid';

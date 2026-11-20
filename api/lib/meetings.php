@@ -188,7 +188,6 @@ function mam_meeting_google_service_account(): ?array {
 }
 
 /** base64url, no padding — the JWT alphabet. */
-function mam_google_b64(string $s): string { return rtrim(strtr(base64_encode($s), '+/', '-_'), '='); }
 
 /**
  * Build a signed RS256 assertion for the service account, impersonating
@@ -211,13 +210,13 @@ function mam_google_jwt_assertion(array $sa, string $scope, string $subject, ?in
     // has no Reports access at all.
     if ($subject !== '') $claims['sub'] = $subject;
 
-    $signingInput = mam_google_b64((string) json_encode($header)) . '.' . mam_google_b64((string) json_encode($claims));
+    $signingInput = mam_b64url_encode((string) json_encode($header)) . '.' . mam_b64url_encode((string) json_encode($claims));
     $key = openssl_pkey_get_private((string) $sa['private_key']);
     if ($key === false) throw new RuntimeException('bad_private_key');
     $sig = '';
     $ok  = openssl_sign($signingInput, $sig, $key, OPENSSL_ALGO_SHA256);
     if (!$ok) throw new RuntimeException('sign_failed');
-    return $signingInput . '.' . mam_google_b64($sig);
+    return $signingInput . '.' . mam_b64url_encode($sig);
 }
 
 /**
