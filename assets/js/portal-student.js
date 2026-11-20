@@ -171,6 +171,7 @@
   var pendingFocus = false;
   function paint(html) {
     main.innerHTML = html;
+    if (P && P.topTitle) P.topTitle(main);
     main.scrollTop = 0;
     clearTimeout(loadTimer);
     if (pendingFocus) { pendingFocus = false; focusHead(); }
@@ -1619,8 +1620,7 @@
 
   function applyIdentity(d) {
     var me = d.me || {};
-    $('#whoName').textContent = me.name || 'Student';
-    $('#whoMeta').textContent = 'Student';
+    P.identity(me.name || 'Student', 'Student');
     $('#railName').textContent = me.name || 'Student';
     $('#railInitials').textContent = initials(me.name);
     var en = (d.next && d.next.cohort_title) || '';

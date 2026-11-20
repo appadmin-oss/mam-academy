@@ -143,6 +143,7 @@
    */
   function paint(html) {
     main.innerHTML = html;
+    if (P && P.topTitle) P.topTitle(main);
     var head = main.querySelector('.p-h1') || main.querySelector('.p-back');
     if (head) head.setAttribute('tabindex', '-1');
   }
@@ -1430,11 +1431,10 @@
       S.children = d.children || [];
       if (S.children.length && !S.child) S.child = Number(S.children[0].student_id);
 
-      $('#whoName').textContent = d.guardian.name || 'Guardian';
       var scope = S.children.length ? (S.children[0].scope || 'standard') : null;
-      $('#whoMeta').textContent = 'Guardian'
+      P.identity(d.guardian.name || 'Guardian', 'Guardian'
         + (scope ? ' · ' + (scope === 'full' ? 'full access' : scope === 'billing' ? 'billing only' : 'standard access') : '')
-        + ' · ' + S.children.length + ' ' + plural(S.children.length, 'child', 'children');
+        + ' · ' + S.children.length + ' ' + plural(S.children.length, 'child', 'children'));
 
       var owed = (d.owed || []).length;
       var fb = $('#financeBadge');

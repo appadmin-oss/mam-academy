@@ -671,6 +671,15 @@
   border-bottom: 1px solid var(--rule);
 }
 [data-portal="v2"] .p-top-main { flex: 1; min-width: 0; }
+/* The bar naming the screen (portal.js topTitle): the screen's title takes the
+   page heading's face, a size down, and stays on one line; its subtitle is the
+   caption. The heading it replaced stays in the page for a screen reader. */
+[data-portal="v2"] .p-top.is-screen .p-title {
+  font: 700 21px/1.2 var(--font-serif); letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+[data-portal="v2"][data-ease="1"] .p-top.is-screen .p-title { font-family: 'Atkinson Hyperlegible', 'Verdana', var(--font-ui); }
+[data-portal="v2"] .p-top.is-screen .p-caption { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 [data-portal="v2"] .p-scroll { flex: 1; padding: 16px 16px var(--bar-reserve); }
 [data-portal="v2"] .p-skip {
   position: absolute; left: 16px; top: -80px; z-index: 30;

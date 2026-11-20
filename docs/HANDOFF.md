@@ -2289,3 +2289,24 @@ Verified in a browser after the change: the figures above, waiving a flag, the
 filters, the week scrolling at 390, the current tab in view. `test_console_content.php`
 (30 checks); reverting the vetting key, the Dashboard derivation or the week
 wrapper each fails it.
+
+## 4z12. 2026-11-20 — the portals' top bar names the screen
+
+The owner, on the instructor Register at phone width: the bar reading "Tola
+Teacher · Instructor · DOMI Term" above the screen's own "Register / Piano
+Saturday" was repetitive, and the register belonged where that bar was. All
+three portals had the same shape. `MAM_PORTAL.topTitle()` (portal.js) now puts
+the screen's heading, and its subtitle when that is short (≤ 80 characters), in
+the bar after every paint; the page heading stays in the document with `p-sr`,
+still the screen reader's heading and the focus target. A screen with no page
+heading of its own (the instructor's and student's Home, the guardian's
+dashboard) shows the person, set once through `MAM_PORTAL.identity()`; a
+loading state keeps the previous title rather than flashing the name between
+screens. Only a heading that is a direct child of the page counts — Home draws
+one inside a card. Kit and portal script versions bumped on all five pages that
+load the kit (a test requires one version). Test in `test_student_portal_ui.php`.
+
+The lock in the owner's screenshot is the safeguarding gate working: under
+`enforce`, an instructor whose checks are incomplete cannot open a register for
+a class with a child (HANDOFF §4z6). Under `warn`, the shipping default, the
+register opens.

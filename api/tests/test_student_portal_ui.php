@@ -431,3 +431,20 @@ foreach ($APPS as $PL_who => $PL_file) {
             . '(11px all-caps at 0.14em tracking — make it a .p-title)');
     }
 }
+
+t_group('portal top bar — names the screen, not the person (2026-11-20)');
+
+/* The bar used to read "Tola Teacher · Instructor · DOMI Term" on every
+   screen, with the screen's own title drawn again directly underneath — two
+   headers before the register. The bar now carries the screen's title through
+   ONE helper in the shared kit; the page heading stays in the document,
+   visually hidden, as the screen reader's heading and the focus target. */
+$TB_kit = (string) file_get_contents(dirname(__DIR__, 2) . '/assets/js/portal.js');
+t_ok(str_contains($TB_kit, 'identity: identity, topTitle: topTitle'), 'the shared kit exports the top-bar helper');
+t_ok(str_contains($TB_kit, "h.classList.add('p-sr')") && !preg_match('/h\.remove\(\)|removeChild\(h\)/', $TB_kit),
+    'the page heading is hidden visually, never removed — it is still the heading and the focus target');
+foreach (['instructor', 'student', 'guardian'] as $TB_p) {
+    $src = (string) file_get_contents(dirname(__DIR__, 2) . "/assets/js/portal-$TB_p.js");
+    t_ok((bool) preg_match('/main\.innerHTML = html;\s*\n\s*if \(P && P\.topTitle\) P\.topTitle\(main\);/', $src), "the $TB_p portal names each screen in the bar as it paints");
+    t_ok(!str_contains($src, "\$('#whoName').textContent"), "the $TB_p portal sets the person through the kit, not by writing the bar itself");
+}

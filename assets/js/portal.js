@@ -102,7 +102,59 @@
      including javascript: and data:, collapses to '#'. */
   function safeUrl(u) { u = String(u || ''); return /^(https?:\/\/|\/(?!\/))/i.test(u) ? u : '#'; }
 
+  /* The top bar names the SCREEN, not the person.
+     It used to say "Tola Teacher · Instructor · DOMI Term" on every screen,
+     with the screen's own title ("Register", "Piano Saturday") drawn again
+     directly underneath: two headers before anything to act on, and the
+     upper one the same everywhere. Now the bar carries the screen's title and
+     a short subtitle; the in-page heading stays in the document for a screen
+     reader and as the focus target when a screen opens (`p-sr`, never
+     removed). A screen with no page heading of its own (the instructor's Home)
+     shows the person, set once by `identity()`.
+     Only a heading that is a DIRECT child of the page counts — Home draws an
+     h1 inside a card ("Nothing scheduled"), which is not the screen's name.
+     A subtitle moves only when it is short; a sentence of explanation stays
+     on the page rather than being cut to one line. */
+  var topIdentity = null;
+  function topEls() {
+    return { bar: document.querySelector('.p-top'), name: document.getElementById('whoName'),
+             meta: document.getElementById('whoMeta') };
+  }
+  function topShowIdentity(t) {
+    if (!topIdentity || !t.name) return;
+    t.name.textContent = topIdentity.name; t.meta.textContent = topIdentity.meta;
+    if (t.bar) t.bar.classList.remove('is-screen');
+  }
+  function identity(name, meta) {
+    topIdentity = { name: String(name || ''), meta: String(meta || '') };
+    var t = topEls();
+    if (t.bar && !t.bar.classList.contains('is-screen')) topShowIdentity(t);
+  }
+  function topTitle(main) {
+    var t = topEls();
+    if (!main || !t.name || !t.meta) return;
+    var h = null;
+    for (var i = 0; i < main.children.length; i++) {
+      if (main.children[i].classList && main.children[i].classList.contains('p-h1')) { h = main.children[i]; break; }
+    }
+    if (!h) {
+      // A loading state keeps the title of the screen being opened's caller
+      // rather than flashing the person's name between two screens.
+      if (main.querySelector('.p-spin') && main.children.length <= 1) return;
+      topShowIdentity(t);
+      return;
+    }
+    var sub = h.nextElementSibling;
+    if (!(sub && sub.tagName === 'P' && sub.classList.contains('p-lead') && sub.textContent.length <= 80)) sub = null;
+    t.name.textContent = h.textContent;
+    t.meta.textContent = sub ? sub.textContent : '';
+    h.classList.add('p-sr');
+    if (sub) sub.classList.add('p-sr');
+    if (t.bar) t.bar.classList.add('is-screen');
+  }
+
   window.MAM_PORTAL = {
+    identity: identity, topTitle: topTitle,
     fmtDate: fmtDate, fmtDateTime: fmtDateTime, fmtMoney: fmtMoney, fmtUsd: fmtUsd, today: today,
     initials: initials, escapeHtml: escapeHtml, safeUrl: safeUrl,
     kpi: uiKpi, empty: uiEmpty, panel: uiPanel, skeleton: uiSkeleton, pagedTbody: pagedTbody,
