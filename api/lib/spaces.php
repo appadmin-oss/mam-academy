@@ -141,7 +141,10 @@ function mam_space_member_role(array $s, int $uid): ?string {
     if ($m) return (string) $m['role'];
     $cid = (int) ($s['cohort_id'] ?? 0);
     if ($cid <= 0) return null;
-    if (mam_space_teaches_cohort($cid, $uid)) return 'teacher';
+    if (mam_space_teaches_cohort($cid, $uid)) {
+        // An uncleared teacher of a class with children is not its teacher under `enforce` (vetting.php).
+        return (!function_exists('mam_vetting_may_see_cohort') || mam_vetting_may_see_cohort($uid, $cid)) ? 'teacher' : null;
+    }
     if ($s['visibility'] === 'class' && mam_db_row("SELECT 1 FROM course_enrollments WHERE cohort_id = ? AND student_id = ? AND status IN ('active','completed')", [$cid, $uid])) {
         return 'student';
     }

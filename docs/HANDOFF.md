@@ -2114,3 +2114,27 @@ child leaves; MAM now asks at the register.
   no-list child; guardian card.
 - Not done: a console screen for the list (admins edit it from the instructor portal's
   student page today), and MySQL parity for v104 (as for v99–v103, still not run).
+
+## 4z6. 2026-11-20 — only cleared adults see children's records (NGG port)
+
+NEXT-AGENT §4 item 3. The vetting gate ran only at ASSIGNMENT, so under `enforce` an
+instructor assigned earlier, or whose clearance lapsed since, still opened everything.
+`vetting.php` now has `mam_vetting_may_see_child()` and `mam_vetting_may_see_cohort()`,
+asked at each door: `mam_media_student_reader()` (the choke point for incidents,
+collectors, growth and media), the register (`mam_iportal_register` returns
+`refused` with a sentence — an empty roster would read as a class with nobody in it),
+a class space's teacher role, and `GET /api/instructor/student` (403 `clearance_required`).
+- **Only `enforce` refuses**; `warn` (the shipping default) and `off` change nothing.
+  An adult student or a class of adults is never gated; unknown age counts as a minor.
+  Admins are not gated (the check is on the instructor branch). Each refusal is audited
+  as `vetting_record_refused`.
+- The gate result is memoised per request (`mam_vetting_gate_cached`).
+- `test_vetting_records.php` (16 checks); removing the record-door check fails two.
+  Note the harness stubs `mam_audit()`, so the audit is pinned in the source.
+- Seen in a browser under `enforce`: the register's refusal reads in words.
+
+**Not built — medical/allergy notes on the register (§4 item 2):** MAM collects no medical
+or allergy information anywhere (no column, no form). Showing it first means deciding to
+COLLECT health data — sensitive personal data under the NDPA, needing a lawful basis, an
+entry in the data-protection register and a place on the (frozen) admissions form. Left
+for the owner.

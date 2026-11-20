@@ -397,6 +397,8 @@ function mam_media_student_reader(int $studentId, array $user): bool {
     $uid = (int) $user['id'];
     if ($uid === $studentId) return true;
     if (mam_user_has_role($user, 'instructor')) {
+        // Teaching a child is not enough while uncleared, once the academy enforces (vetting.php).
+        if (function_exists('mam_vetting_may_see_child') && !mam_user_has_role($user, 'admin') && !mam_vetting_may_see_child($uid, $studentId)) return false;
         if (mam_db_row('SELECT 1 FROM enrollments e JOIN classes c ON c.id = e.class_id WHERE e.student_id = ? AND c.instructor_id = ?', [$studentId, $uid])) return true;
         if (mam_db_row('SELECT 1 FROM course_enrollments ce LEFT JOIN cohorts co ON co.id = ce.cohort_id
                          WHERE ce.student_id = ? AND (co.instructor_id = ? OR ce.instructor_id = ?)', [$studentId, $uid, $uid])) return true;

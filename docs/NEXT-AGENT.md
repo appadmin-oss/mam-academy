@@ -82,13 +82,13 @@ Done (v103, `api/lib/safeguarding.php`, `test_spaces.php`):
 Still to port (in order of value):
 1. **A console screen for collectors** — admins can edit a list only from the
    instructor portal's student page today.
-2. **Medical/allergy notes visible to the adult on duty** — today nothing puts them
+2. **Medical/allergy notes visible to the adult on duty** — WAITS ON THE OWNER: MAM
+   collects no medical data at all yet, so this starts with a decision to collect it
+   (NDPA sensitive data, lawful basis, the frozen admissions form). Today nothing puts them
    in front of the teacher taking the register. Show on the register and the live
    class page for staff only; never exported; never on an ID card.
-3. **Only cleared adults see children's records** — NGG refuses an uncleared
-   mentor any child record. MAM's vetting gate (`vetting.php`) runs at assignment in
-   `warn` mode; extend it to class-space membership as a teacher and to the register
-   once the academy switches to `enforce`.
+3. ~~**Only cleared adults see children's records**~~ — done (HANDOFF §4z6): every
+   record door refuses an uncleared teacher of a child under `enforce`; `warn` unchanged.
 4. **Two adults / recorded for online classes with children** — MAM only REPORTS a
    lone adult after the call (`mam_live_reconcile`). An `enforce` option could keep
    the lobby closed until a second adult or recording consent is present.

@@ -442,3 +442,48 @@ function mam_vetting_summary(): array {
         'required'      => MAM_VETTING_REQUIRED,
     ];
 }
+
+/* ─── Only cleared adults see children's records (NGG port, NEXT-AGENT §4) ──
+ *
+ * The gate above runs at ASSIGNMENT. That leaves two holes once the academy
+ * switches to `enforce`: an instructor assigned before enforcement, and one
+ * whose clearance lapsed afterwards, still opens the register, the child's
+ * page, their incidents and collectors, their growth and their videos. NGG
+ * refuses an uncleared mentor any child record; so does this, at every door,
+ * through these two predicates.
+ *
+ *   · Only `enforce` refuses. In `warn` and `off` nothing changes — the gate
+ *     ships in warn for the reason the file header gives, and a door that
+ *     suddenly shut on a live academy would be switched off within the day.
+ *   · An adult student is never gated, and unknown age counts as a minor
+ *     (`safeguarding_unknown_age_is_minor`), as everywhere else here.
+ *   · Admins are not instructors here: the doors call this for the instructor
+ *     branch only.
+ *   · Each refusal is audited (`vetting_record_refused`), so the officer can
+ *     see who tried to open what while uncleared.
+ */
+function mam_vetting_gate_cached(int $instructorId): array {
+    static $memo = [];
+    if (!empty($GLOBALS['__mam_vetting_nomemo'])) $memo = [];
+    return $memo[$instructorId] ??= mam_vetting_may_teach_minors($instructorId);
+}
+
+/** May this instructor open this student's records? False only in `enforce`, for a minor, while uncleared. */
+function mam_vetting_may_see_child(int $instructorId, int $studentId): bool {
+    if ($instructorId <= 0 || mam_vetting_mode() !== 'enforce') return true;
+    $minor = mam_vetting_student_is_minor($studentId);
+    if ($minor === false) return true;
+    if ($minor === null && (int) mam_setting_num('safeguarding_unknown_age_is_minor', 1) !== 1) return true;
+    if (mam_vetting_gate_cached($instructorId)['ok']) return true;
+    mam_audit('vetting_record_refused', 'user', $instructorId, ['student' => $studentId]);
+    return false;
+}
+
+/** May this instructor open a class's register or space? False only in `enforce`, for a class with a minor, while uncleared. */
+function mam_vetting_may_see_cohort(int $instructorId, int $cohortId): bool {
+    if ($instructorId <= 0 || $cohortId <= 0 || mam_vetting_mode() !== 'enforce') return true;
+    if (!mam_vetting_cohort_has_minor($cohortId)) return true;
+    if (mam_vetting_gate_cached($instructorId)['ok']) return true;
+    mam_audit('vetting_record_refused', 'cohort', $cohortId, ['instructor' => $instructorId]);
+    return false;
+}

@@ -266,6 +266,10 @@
       .then(function (d) {
         if (!d.session) { paint(h1('Register') + empty('calendar-xmark', 'No class to take a register for just now.')); return; }
         S.sessionId = Number(d.session.id);
+        /* Under `enforce`, an uncleared teacher of a class with children gets no
+           roster (vetting.php). Said in words — an empty register reads as a class
+           nobody is enrolled in. */
+        if (d.refused) { paint(h1('Register', d.session.cohort_title || '') + empty('lock', esc(d.save_notice))); return; }
         var sub = [d.session.cohort_title, fmtTime(d.session.scheduled_at),
                    (d.total + ' ' + plural(d.total, 'student', 'students'))].filter(Boolean).join(' · ');
         /* ⚠️ "Saved N of M" was a `<button class="p-primary">` with NO handler

@@ -21,6 +21,10 @@ if (!$student) mam_fail('not_found', 404);
 
 // Instructors only see name + enrollment_ref — contact details are admin-only.
 if (!$isAdmin) unset($student['email'], $student['phone']);
+// A child's record is closed to an uncleared teacher once the academy enforces (vetting.php).
+if (!$isAdmin && function_exists('mam_vetting_may_see_child') && !mam_vetting_may_see_child((int) $u['id'], $sid)) {
+    mam_fail('clearance_required', 403, ['message' => 'Your safeguarding clearance is not complete, so this child\'s record is closed to you. The office can see what is missing.']);
+}
 $meId    = (int)$u['id'];
 $scope   = $isAdmin ? '' : ' AND c.instructor_id = ' . $meId;
 // A course the caller teaches: either assigned as the enrolment's instructor OR

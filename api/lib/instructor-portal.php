@@ -207,6 +207,13 @@ function mam_iportal_register(int $instructorId, int $sessionId): array {
           WHERE cs.id = ?", [$sessionId]);
     if (!$session) return [];
     if ((int) $session['instructor_id'] !== $instructorId && !mam_iportal_is_admin()) return [];
+    // A class with children: an uncleared teacher sees no roster under `enforce` (vetting.php),
+    // and is told why rather than handed an empty register that reads as nobody enrolled.
+    if (!mam_iportal_is_admin() && function_exists('mam_vetting_may_see_cohort')
+        && !mam_vetting_may_see_cohort($instructorId, (int) $session['cohort_id'])) {
+        return ['session' => $session, 'roster' => [], 'marked' => 0, 'total' => 0, 'refused' => true,
+                'save_notice' => 'Your safeguarding clearance is not complete, so this class\'s register is closed to you. The office can see what is missing.'];
+    }
 
     $rows = mam_db_all(
         "SELECT u.id AS student_id, u.name,
