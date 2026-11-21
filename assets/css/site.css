@@ -149,3 +149,44 @@ header,main{container-type:inline-size}
 @container (max-width: 1080px){
 header .navlinks{display:none!important}header .menubtn{display:inline-flex!important}header .mobileonly{display:flex!important}
 .stick{position:static!important}.bento{grid-template-columns:1fr!important}.bento>*{grid-column:auto!important}.tgrid{grid-template-columns:1fr!important}.tgrid>*{grid-column:auto!important;grid-row:auto!important}}
+/* ---- the homepage film panel (2026-11-21 hero restyle) ----
+   A rounded frame under the headline. A real loop (assets/video/hero.mp4, see
+   site_hero_media) plays in it on desktop; until one exists, and for anybody it is
+   not played to, the frame draws a studio in the late-morning sun: a window's light
+   falling across the room, leaf shadows swaying in it, haze and film grain. Light
+   only — nothing figurative, so nothing in it can look wrong. */
+.film{position:relative;overflow:hidden;isolation:isolate;border-radius:clamp(14px,1.6vw,22px);aspect-ratio:16/9;background:linear-gradient(160deg,#F3EEE6 0%,#E8DECF 52%,#CDB89C 100%)}
+@media (max-width: 720px){.film{aspect-ratio:4/5}}
+.film::after{content:"";position:absolute;inset:0;z-index:3;pointer-events:none;border-radius:inherit;box-shadow:inset 0 0 140px rgba(90,56,21,.28)}
+.film video,.film-poster{position:absolute;inset:0;z-index:1;width:100%;height:100%;object-fit:cover}
+.film video{opacity:0;transition:opacity 1.2s var(--soft)}
+.film.is-video video{opacity:1}
+.film-light{position:absolute;inset:0;z-index:2;pointer-events:none}
+.film-light span{position:absolute;display:block}
+/* the window: four panes of sun, thrown long across the room */
+.film-light span:nth-child(1){left:34%;top:-12%;width:44%;height:124%;transform:skewX(-20deg);filter:blur(9px);mix-blend-mode:screen;opacity:.95;
+  background:linear-gradient(90deg,rgba(252,248,243,.78) 0 47%,transparent 47% 53%,rgba(252,248,243,.78) 53% 100%);
+  -webkit-mask:linear-gradient(180deg,#000 0 46%,transparent 46% 51%,#000 51% 100%);mask:linear-gradient(180deg,#000 0 46%,transparent 46% 51%,#000 51% 100%);
+  animation:filmWindow 22s ease-in-out infinite alternate}
+/* the tree outside: soft shadows moving through the sunlight */
+.film-light span:nth-child(2){inset:-10%;filter:blur(16px);mix-blend-mode:multiply;
+  background:radial-gradient(9% 12% at 52% 30%,rgba(90,56,21,.22),transparent 70%),radial-gradient(7% 10% at 62% 52%,rgba(90,56,21,.18),transparent 70%),radial-gradient(11% 9% at 47% 66%,rgba(90,56,21,.2),transparent 70%),radial-gradient(6% 8% at 70% 24%,rgba(90,56,21,.16),transparent 70%),radial-gradient(8% 11% at 58% 80%,rgba(90,56,21,.14),transparent 70%);
+  animation:filmLeaves 7s ease-in-out infinite alternate}
+/* warm haze where the sun enters */
+.film-light span:nth-child(3){inset:0;mix-blend-mode:soft-light;
+  background:radial-gradient(38% 46% at 74% 22%,rgba(242,169,59,.55),transparent 70%),radial-gradient(60% 50% at 20% 100%,rgba(90,56,21,.35),transparent 70%);
+  animation:filmHaze 11s ease-in-out infinite alternate}
+.film-grain{position:absolute;inset:-50%;z-index:2;pointer-events:none;opacity:.2;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 .14 0 0 0 0 .08 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation:filmGrain .9s steps(6) infinite}
+.film.is-video .film-light,.film.is-video .film-grain,.film.has-poster .film-light{display:none}
+@keyframes filmWindow{0%{transform:skewX(-20deg) translateX(0);opacity:.9}50%{opacity:1}100%{transform:skewX(-17deg) translateX(5%);opacity:.82}}
+@keyframes filmLeaves{0%{transform:translate(0,0) rotate(0)}100%{transform:translate(1.8%,1.2%) rotate(1.5deg)}}
+@keyframes filmHaze{0%{opacity:.85}100%{opacity:1}}
+@keyframes filmGrain{0%{transform:translate(0,0)}20%{transform:translate(-3%,2%)}40%{transform:translate(2%,-3%)}60%{transform:translate(-2%,-1%)}80%{transform:translate(3%,3%)}100%{transform:translate(0,0)}}
+.film.is-paused *{animation-play-state:paused!important}
+.film-pause{position:absolute;right:16px;bottom:16px;z-index:4;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:999px;background:rgba(252,248,243,.86);color:#211A13;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.film-pause svg{fill:currentColor}
+.film-pause .i-play,.film.is-paused .film-pause .i-pause{display:none}
+.film.is-paused .film-pause .i-play{display:inline}
+@media (prefers-reduced-motion: reduce){.film *{animation:none!important}.film-pause{display:none}}

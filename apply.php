@@ -42,7 +42,7 @@ $apIntake = site_intake();
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/site.css?v=20261121b">
+<link rel="stylesheet" href="/assets/css/site.css?v=20261121c">
 <?= site_a11y_head() ?>
 <style>
 @media (max-width: 960px){.ap-aside{display:none!important}.ap-mob{display:flex!important}}
@@ -90,7 +90,7 @@ $apIntake = site_intake();
 <?php site_a11y_panel(false); ?>
 <script>window.MAM_SITE=<?= json_encode(['fees' => site_fees(), 'intake' => $apIntake], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 <script src="/assets/js/config.js?v=20261121"></script>
-<script src="/assets/js/site.js?v=20261121b" defer></script>
+<script src="/assets/js/site.js?v=20261121c" defer></script>
 <script src="/assets/js/apply-flow.js?v=20261121" defer></script>
 </body>
 </html>

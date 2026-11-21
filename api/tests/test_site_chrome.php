@@ -100,8 +100,8 @@ t_eq($unset, [], 'every page using the shared header sets up the shell before it
 /* What the 2026-09 chrome promised, held against the new one. */
 /* The owner removed Apply from the bar (21 Nov 2026): it lives in each page's own calls
    to action, the home intake strip and the footer, not in the navigation. */
-t_ok(!preg_match('/<a href="\/apply" class="btn/', $inner . (string)@file_get_contents($ROOT . '/partials/site/header-home.php')),
-    'the bar carries no Apply button, at any width, on either header');
+t_ok(!preg_match('/<a href="\/apply" class="btn/', $inner),
+    'the bar carries no Apply button, at any width (the homepage uses the same bar since the hero restyle)');
 t_ok(str_contains($inner, 'aria-controls="programmes-panel"') && str_contains($panel, 'id="programmes-panel" hidden'),
     'the menu is a disclosure: its trigger names the panel, and the panel starts closed');
 t_ok(str_contains($sjs, "e.key === 'Escape'") && str_contains($sjs, 'lastToggle.focus()'),

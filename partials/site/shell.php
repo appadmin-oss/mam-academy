@@ -53,6 +53,30 @@ function site_photos(string $html): string {
     }, $html);
 }
 
+/**
+ * The homepage film panel's sources. Files dropped into assets/video/ switch it on:
+ *   hero.mp4 (+ optional hero.webm)    — the desktop loop
+ *   hero-mobile.mp4                    — optional, a phone crop
+ *   hero-poster.webp|jpg               — the still shown first, and instead of the
+ *                                        video on phones without a crop, to
+ *                                        reduced-motion and data-saver visitors
+ * With none of them the panel draws its own moving light (site.css .film), so the
+ * page never shows an empty frame. site.js decides whether a video plays.
+ */
+function site_hero_media(): array {
+    $root = __DIR__ . '/../../';
+    $pick = static function (array $names) use ($root): string {
+        foreach ($names as $n) if (is_file($root . 'assets/video/' . $n)) return '/assets/video/' . $n . '?v=' . filemtime($root . 'assets/video/' . $n);
+        return '';
+    };
+    return [
+        'mp4'    => $pick(['hero.mp4']),
+        'webm'   => $pick(['hero.webm']),
+        'mobile' => $pick(['hero-mobile.mp4']),
+        'poster' => $pick(['hero-poster.webp', 'hero-poster.jpg']),
+    ];
+}
+
 /** The organisation node, read from the one place it is written (partials/header.html). */
 function site_org_jsonld(): string {
     $h = (string) @file_get_contents(__DIR__ . '/../header.html');
@@ -134,7 +158,7 @@ function site_head(array $p): void {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/site.css?v=20261121b">
+<link rel="stylesheet" href="/assets/css/site.css?v=20261121c">
 <?= site_a11y_head() ?>
 <?= site_org_jsonld() ?>
 <?= $p['jsonld'] ?? '' ?>
@@ -144,19 +168,16 @@ function site_head(array $p): void {
 }
 
 /**
- * The header. 'home' is the handoff's claude.com model (a minimal layer over the
- * hero, the full bar after 560px of scroll, the dismissible intake strip above);
- * 'inner' is the sticky bar that steps aside while reading. $current is the path
- * whose link is marked as the page you are on.
+ * The header. 'home' is the intake strip above the same sticky bar the inner pages
+ * use: since the 2026-11-21 hero restyle the homepage opens on ivory (headline first,
+ * the film panel under it), so there is no dark hero for a transparent layer to sit
+ * over. 'inner' is the sticky bar that steps aside while reading. $current is the
+ * path whose link is marked as the page you are on.
  */
 function site_header(string $variant, string $current = '', bool $skip = true): void {
     if ($skip) echo '<a href="#main" class="skip" style="position: absolute; left: 8px; top: -60px; z-index: 50; background: #FFFFFF; color: #211A13; padding: 12px 16px; border-radius: 6px">Skip to main content</a>' . "\n";
-    if ($variant === 'home') {
-        include __DIR__ . '/announce.php';
-        $html = (string) file_get_contents(__DIR__ . '/header-home.php');
-    } else {
-        $html = (string) file_get_contents(__DIR__ . '/header-inner.php');
-    }
+    if ($variant === 'home') include __DIR__ . '/announce.php';
+    $html = (string) file_get_contents(__DIR__ . '/header-inner.php');
     if ($current !== '') {
         $html = preg_replace(
             '#<a href="' . preg_quote($current, '#') . '" class="ul" style="([^"]*?)color: \#211A13#',
@@ -178,7 +199,7 @@ function site_footer_chrome(): void {
     include __DIR__ . '/footer.php';
     site_a11y_panel();
     echo "\n<script>window.MAM_SITE=" . json_encode(['fees' => site_fees(), 'intake' => site_intake()], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) . ";</script>\n";
-    echo '<script src="/assets/js/site.js?v=20261121b" defer></script>' . "\n";
+    echo '<script src="/assets/js/site.js?v=20261121c" defer></script>' . "\n";
 }
 
 /** The footer, and the end of the document. $scripts: page scripts beyond site.js. */

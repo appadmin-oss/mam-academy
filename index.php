@@ -11,23 +11,23 @@ ob_start();
 ?>
 <main id="main">
 
-    <div data-hero-wrap style="background: #120C07">
-    <section aria-labelledby="hero-h" data-hero style="position: relative; isolation: isolate; overflow: hidden; min-height: clamp(560px, 92svh, 760px); display: flex; align-items: flex-end; background: #3B2C1F; border-radius: clamp(14px, 1.6vw, 22px) clamp(14px, 1.6vw, 22px) 0 0; transition: border-radius .5s cubic-bezier(.19,1,.22,1)">
-      <div data-photo="MAM students performing on stage" aria-hidden="true" style="position: absolute; inset: 0; z-index: -2; background: linear-gradient(135deg, #4A3726 0%, #2E2118 100%); display: flex; align-items: flex-start; justify-content: flex-end; padding: 104px clamp(20px, 4vw, 40px) 24px; animation: kenburns 2.6s var(--out) both">
-      </div>
-      <div aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: linear-gradient(0deg, rgba(23,16,9,0.85) 0%, rgba(23,16,9,0.25) 55%, rgba(23,16,9,0) 100%)"></div>
-      <div class="hero-copy" style="max-width: 1360px; width: 100%; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px) 72px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px 48px">
-        <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 20px; color: #FCF8F3">
-          <h1 id="hero-h" aria-label="Where young musicians become complete artists" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(47px, 5.83vw, 84px); line-height: 1.02; letter-spacing: -0.01em; max-width: 860px"><span class="mask" aria-hidden="true"><span style="animation-delay: 0.200s" class="w">Where</span></span> <span class="mask" aria-hidden="true"><span style="animation-delay: 0.285s" class="w">young</span></span> <span class="mask" aria-hidden="true"><span style="animation-delay: 0.370s" class="w">musicians</span></span> <span class="mask" aria-hidden="true"><span style="animation-delay: 0.455s" class="w">become</span></span> <span class="mask" aria-hidden="true"><span style="animation-delay: 0.540s; font-style: italic; color: #F2A93B" class="w">complete</span></span> <span class="mask" aria-hidden="true"><span style="animation-delay: 0.625s" class="w">artists</span></span></h1>
-          <p class="fade-in" style="animation-delay: .7s; margin: 0; font-size: 19px; color: rgba(252,248,243,0.88); max-width: 560px">Graded music education from age 4 to diploma — online or in person at our studios.</p>
-        </div>
+    <section aria-labelledby="hero-h" data-hero style="max-width: 1360px; margin: 0 auto; padding: clamp(40px, 5vw, 72px) clamp(20px, 4vw, 40px) 0; box-sizing: border-box">
+      <h1 id="hero-h" aria-label="Where young musicians become complete artists" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(47px, 5.83vw, 84px); line-height: 1.02; letter-spacing: -0.01em; max-width: 980px; color: #211A13"><span class="mask" aria-hidden="true"><span style="animation-delay: 0.200s" class="w">Where</span></span> <span class="mask" aria-hidden="true"><span style="animation-delay: 0.285s" class="w">young</span></span> <span class="mask" aria-hidden="true"><span style="animation-delay: 0.370s" class="w">musicians</span></span> <span class="mask" aria-hidden="true"><span style="animation-delay: 0.455s" class="w">become</span></span> <span class="mask" aria-hidden="true"><span style="font-style: italic; color: #8A5208; animation-delay: 0.540s" class="w">complete</span></span> <span class="mask" aria-hidden="true"><span style="animation-delay: 0.625s" class="w">artists</span></span></h1>
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 48px; margin-top: clamp(20px, 2.4vw, 32px)">
+        <p class="fade-in" style="animation-delay: .7s; margin: 0; font-size: 19px; line-height: 1.6; color: #3E342B; max-width: 560px">Graded music education from age 4 to diploma — online or in person at our studios.</p>
         <div class="fade-in" style="animation-delay: .9s; display: flex; gap: 12px; flex-wrap: wrap">
           <a href="/apply" class="btn" style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 26px; border-radius: 999px; background: #F2A93B; color: #211A13; font-weight: 600; text-decoration: none">Apply now</a>
-          <a href="/auditer" style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 25px; border-radius: 999px; border: 1px solid rgba(252,248,243,0.6); color: #FCF8F3; font-weight: 600; text-decoration: none">Visit a class</a>
+          <a href="/auditer" style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 25px; border-radius: 999px; border: 1px solid #CFC3B3; color: #211A13; font-weight: 600; text-decoration: none">Visit a class</a>
         </div>
       </div>
+      <?php $heroMedia = site_hero_media(); ?>
+      <div class="film fade-in<?= $heroMedia['poster'] !== '' ? ' has-poster' : '' ?>" data-film data-src="<?= site_h($heroMedia['mp4']) ?>" data-webm="<?= site_h($heroMedia['webm']) ?>" data-mobile="<?= site_h($heroMedia['mobile']) ?>" style="animation-delay: .5s; margin-top: clamp(32px, 4vw, 56px)">
+        <?php if ($heroMedia['poster'] !== ''): ?><img class="film-poster" src="<?= site_h($heroMedia['poster']) ?>" alt="" decoding="async" fetchpriority="high"><?php endif; ?>
+        <div class="film-light" aria-hidden="true"><span></span><span></span><span></span></div>
+        <div class="film-grain" aria-hidden="true"></div>
+        <button type="button" class="film-pause" data-film-toggle aria-pressed="false" aria-label="Pause the moving background"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14"><rect class="i-pause" x="3" y="2" width="3" height="10" rx="1"/><rect class="i-pause" x="8" y="2" width="3" height="10" rx="1"/><path class="i-play" d="M4 2.5v9l7.5-4.5z"/></svg></button>
+      </div>
     </section>
-    </div>
 
     <section id="about" aria-labelledby="about-h" style="max-width: 900px; margin: 0 auto; padding: clamp(64px, 8.3vw, 120px) clamp(20px, 4vw, 40px) clamp(56px, 7.8vw, 112px); display: flex; flex-direction: column; align-items: center; gap: 24px; text-align: center">
       <h2 aria-label="More than music lessons" id="about-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.08; letter-spacing: -0.005em"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">More</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">than</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">music</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">lessons</span></span></h2>

@@ -2582,3 +2582,21 @@ main.css, not hidden).
   driving end to end after a port, not just a screenshot.
 - **Owner decisions outstanding:** "Lagos" remains in one FAQ answer and the office address
   (facts, but the handoff asks for no location wording); remaining photos and §9 facts.
+
+### 4z18 (21 Nov 2026) — homepage hero restyled; no Apply in the bar; cookie sheet on phones
+
+- **Hero:** the dark full-bleed photo with white type over it is gone (owner's call, after
+  Anthropic's homepage). The headline is dark on ivory, then the lede and the two buttons, then
+  a rounded **film panel** (`.film` in site.css, `site_hero_media()` in shell.php, the
+  controller in site.js). Files in `assets/video/` switch on a real loop — see the README
+  there. Until then the panel draws a studio in the sun (window light, leaf shadows, haze,
+  grain), light only. The video never plays under reduced motion or Save-Data, plays a phone
+  crop only if one exists, pauses off screen, and one button pauses everything moving (2.2.2).
+- **Home header:** `header-home.php` (the transparent layer over the old dark hero) is deleted
+  and `site_header('home')` is now the intake strip + the inner bar. The JS that swapped the two
+  layers went with it.
+- **Apply is not in the bar** on any page (owner). It stays in page CTAs, the strip, the footer.
+- **Cookie notice on phones** is a full-width bottom sheet; the accessibility launcher rides
+  above it (`--ck-h`, `html.ck-on`) and drops back once it is answered.
+- **Prompts for the hero video** (two concepts, both light-only so nothing figurative can look
+  generated) were given to the owner in conversation; the brief is the README's file list.
