@@ -67,7 +67,7 @@ foreach ([
     ['assets/css/main.css', '.cta-desc',        'the closing CTA'],
     ['assets/css/main.css', '.next-step-desc',  'the next-step card'],
     ['assets/css/main.css', '.faq-answer-inner','a FAQ answer'],
-    ['terms.php',           '.legal p',         'legal prose'],
+    ['assets/css/site.css', '.doc p',          'legal prose (the redesign\'s doc column)'],
     ['how-it-works.php',    '.hiw-card p',      'a journey step'],
     ['scholarship.php',     '.sch-note',        'the scholarship note'],
 ] as [$DS_file, $DS_sel, $DS_what]) {

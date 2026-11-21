@@ -131,7 +131,9 @@ nav[aria-label="On this page"] a.on{color:#8A5208!important;background-size:100%
 @media print{body.site>header,body.site>footer,body.site [role=region],main>section:not(#checklist),#checklist [data-act=print]{display:none!important}#checklist{background:none!important}.chk-group{break-inside:avoid;border-color:#999}}
 .chk-item a{display:inline-block;padding:3px 0;color:#211A13;font-weight:600}
 /* ---- added: text pages (Safeguarding, Accessibility) ---- */
-.doc p{margin:0}
+.site{--measure:68ch}
+.doc p{margin:0;max-width:var(--measure)}
+.doc ul,.doc ol{max-width:var(--measure)}
 .doc ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:8px}
 .doc a{color:#211A13;font-weight:600}
 .doc strong{color:#211A13}

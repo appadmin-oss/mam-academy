@@ -24,7 +24,7 @@ $SR_design = $SR_src(glob($SR_root . '/docs/design/2026-11-site/source/pages/*.d
 
 t_group('site redesign — the pages are the ones the design describes');
 
-t_eq(array_map('basename', $SR_pages), ['404.php', 'about.php', 'accessibility.php', 'apply.php', 'auditer.php', 'contact.php', 'faculty.php', 'faq.php', 'index.php', 'life.php', 'programmes.php', 'safeguarding.php', 'thank-you.php'],
+t_eq(array_map('basename', $SR_pages), ['404.php', 'about.php', 'accessibility.php', 'apply.php', 'auditer.php', 'contact.php', 'faculty.php', 'faq.php', 'index.php', 'life.php', 'policies.php', 'privacy.php', 'programmes.php', 'safeguarding.php', 'terms.php', 'thank-you.php'],
     'the redesigned pages are the ones on the shell and not on the legacy header');
 t_ok(strlen($SR_design) > 100000, 'the design sources are committed beside the build, so the check can be repeated');
 
