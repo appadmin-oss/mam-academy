@@ -17,8 +17,12 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../api/lib/bootstrap.php';
 // bootstrap serves the JSON API: it sets a JSON content type and, at shutdown,
 // appends {"error":"no_response"} unless told this request answered with HTML.
-header_remove('Content-Type');
-header('Content-Type: text/html; charset=utf-8');
+// (A page still on the previous design includes this from its header partial,
+// after output has begun; it has set its own headers already.)
+if (!headers_sent()) {
+    header_remove('Content-Type');
+    header('Content-Type: text/html; charset=utf-8');
+}
 if (!defined('MAM_HTML_RESPONSE')) define('MAM_HTML_RESPONSE', true);
 
 function site_h(string $s): string { return htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); }
@@ -99,8 +103,8 @@ function site_head(array $p): void {
  * 'inner' is the sticky bar that steps aside while reading. $current is the path
  * whose link is marked as the page you are on.
  */
-function site_header(string $variant, string $current = ''): void {
-    echo '<a href="#main" class="skip" style="position: absolute; left: 8px; top: -60px; z-index: 50; background: #FFFFFF; color: #211A13; padding: 12px 16px; border-radius: 6px">Skip to main content</a>' . "\n";
+function site_header(string $variant, string $current = '', bool $skip = true): void {
+    if ($skip) echo '<a href="#main" class="skip" style="position: absolute; left: 8px; top: -60px; z-index: 50; background: #FFFFFF; color: #211A13; padding: 12px 16px; border-radius: 6px">Skip to main content</a>' . "\n";
     if ($variant === 'home') {
         include __DIR__ . '/announce.php';
         $html = (string) file_get_contents(__DIR__ . '/header-home.php');
@@ -123,11 +127,41 @@ function site_header(string $variant, string $current = ''): void {
     echo str_replace('</header>', $panel . "\n</header>", $html), "\n";
 }
 
-/** The footer, and the end of the document. $scripts: page scripts beyond site.js. */
-function site_footer(array $scripts = []): void {
+/** The footer and the scripts the shared chrome needs (the panel, the newsletter). */
+function site_footer_chrome(): void {
     include __DIR__ . '/footer.php';
     echo "\n<script>window.MAM_SITE=" . json_encode(['fees' => site_fees(), 'intake' => site_intake()], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) . ";</script>\n";
-    echo '<script src="/assets/js/site.js?v=20261120" defer></script>' . "\n";
+    echo '<script src="/assets/js/site.js?v=20261121" defer></script>' . "\n";
+}
+
+/** The footer, and the end of the document. $scripts: page scripts beyond site.js. */
+function site_footer(array $scripts = []): void {
+    site_footer_chrome();
     foreach ($scripts as $s) echo '<script src="/assets/js/' . site_h($s) . '?v=20261120" defer></script>' . "\n";
     echo "</body>\n</html>\n";
+}
+
+/**
+ * A text page in the redesign's language (the About page's breadcrumb, serif H1
+ * and hairline-ruled sections), for pages the handoff did not draw but its footer
+ * links to: Safeguarding, Accessibility.
+ */
+function site_doc_open(string $crumb, string $title, string $lead): void {
+    ?>
+    <section aria-labelledby="page-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(40px, 5vw, 72px) clamp(20px, 4vw, 40px) clamp(32px, 4vw, 56px); box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+      <nav aria-label="Breadcrumb" class="fade-in" style="font-size: 14px; color: #574B40; display: flex; gap: 8px"><a href="/" class="ul" style="color: #574B40; text-decoration: none">Home</a><span aria-hidden="true">/</span><span aria-current="page"><?= site_h($crumb) ?></span></nav>
+      <h1 id="page-h" class="fade-in" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(46px, 5.6vw, 84px); line-height: 1.02; letter-spacing: -.01em"><?= site_h($title) ?></h1>
+      <p class="fade-in" style="margin: 0; max-width: 760px; font-size: 19px; line-height: 1.7; color: #3E342B"><?= $lead ?></p>
+    </section>
+    <?php
+}
+
+/** One hairline-ruled section; $body is trusted HTML written in the page. */
+function site_doc_section(string $id, string $heading, string $body): void {
+    ?>
+    <section id="<?= site_h($id) ?>" aria-labelledby="<?= site_h($id) ?>-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(40px, 5vw, 72px) clamp(20px, 4vw, 40px); box-sizing: border-box; border-top: 1px solid #E6DED2; display: flex; flex-wrap: wrap; gap: 24px clamp(40px, 6vw, 96px)">
+      <h2 id="<?= site_h($id) ?>-h" style="flex: 1 1 280px; margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1"><?= site_h($heading) ?></h2>
+      <div class="doc" style="flex: 2 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 16px; font-size: 18px; line-height: 1.7; color: #3E342B"><?= $body ?></div>
+    </section>
+    <?php
 }

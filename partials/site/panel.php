@@ -23,6 +23,7 @@
               <a href="/life#powerplay" style="display: inline-flex; align-items: center; min-height: 40px; color: #211A13; text-decoration: none" data-act="menu-close">Power Play · free, monthly</a>
             </div>
             <a href="/programmes#levels" class="zoom" style="flex: 1.1 1 260px; position: relative; isolation: isolate; overflow: hidden; border-radius: 18px; min-height: 220px; background: #2A1E14; color: #FBF8F3; text-decoration: none; display: flex; flex-direction: column; justify-content: flex-end; padding: 24px" data-act="menu-close">
+              <img src="/assets/img/showcase/mam-sax.webp" alt="" loading="lazy" decoding="async" style="position: absolute; right: -16px; bottom: 0; height: 100%; z-index: -1">
               <span aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(42,30,20,.95) 0%, rgba(42,30,20,.2) 75%)"></span>
               <span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26px; font-weight: 600; line-height: 1.1">Not sure where<br>to start?</span>
               <span style="font-size: 13px; color: #E9E1D6; margin-top: 6px">Book a MAM Auditer assessment →</span>

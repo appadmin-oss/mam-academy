@@ -1,0 +1,41 @@
+/* The 2026-11 redesign's header, Programmes panel and footer, for the pages still
+   on the previous design (they keep main.css for their own content). Only what
+   the chrome needs from site.css, scoped to the chrome so none of it restyles the
+   page body — and the few main.css rules that would leak INTO the chrome, undone.
+   The redesigned pages load site.css instead and never this file. */
+:root{--out:cubic-bezier(.19,1,.22,1);--soft:cubic-bezier(.25,1,.5,1);--nav-h:72px}
+
+/* undo main.css inside the chrome */
+:is(header[data-smart],footer[data-chrome]){font-family:Inter,system-ui,sans-serif;font-size:16px;line-height:1.6;text-align:left}
+:is(header[data-smart],footer[data-chrome]) *{box-sizing:content-box}
+:is(header[data-smart],footer[data-chrome]) .btn{padding:0;gap:0;font-size:inherit;font-weight:inherit;letter-spacing:normal;border-radius:0;text-align:inherit;justify-content:normal;box-shadow:none}
+header[data-smart]{z-index:1000!important}
+footer[data-chrome]{padding:0;border:0}
+footer[data-chrome]::before{display:none}
+:is(header[data-smart],footer[data-chrome]) img{display:inline-block}
+
+/* the redesign's chrome rules (site.css), scoped */
+:is(header[data-smart],footer[data-chrome]) a{transition:color .5s var(--out),text-decoration-color .5s var(--out)}
+:is(header[data-smart],footer[data-chrome]) :is(a,button,input):focus-visible{outline:3px solid #2563EB;outline-offset:2px;border-radius:6px}
+:is(header[data-smart],footer[data-chrome]) .ul{background:linear-gradient(currentColor,currentColor) 0 calc(50% + .78em)/0 1px no-repeat;transition:background-size .6s var(--out),color .3s ease}
+:is(header[data-smart],footer[data-chrome]) .ul:hover,:is(header[data-smart],footer[data-chrome]) .ul[aria-expanded="true"]{background-size:100% 1px}
+:is(header[data-smart],footer[data-chrome]) .btn{transition:background-color .2s ease,color .2s ease,border-color .2s ease,transform .15s var(--soft)}
+:is(header[data-smart],footer[data-chrome]) .btn:active{transform:scale(.98)}
+:is(header[data-smart],footer[data-chrome]) .arrow span[aria-hidden]{display:inline-block;transition:transform .5s var(--out)}
+:is(header[data-smart],footer[data-chrome]) .arrow:hover span[aria-hidden]{transform:translateX(4px)}
+#programmes-panel .zoom img{transition:transform 1.2s var(--out)}
+#programmes-panel .zoom:hover img{transform:scale(1.04)}
+@keyframes panelIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@keyframes rise2{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:none}}
+@supports (animation-timeline: view()){footer[data-chrome] .wordmark{animation:rise2 linear both;animation-timeline:view();animation-range:entry 0% entry 100%}}
+[hidden]{display:none!important}
+.navlinks{display:flex}.menubtn{display:none!important}.mobileonly{display:none!important}
+.sr-xs{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+footer[data-chrome] nav[aria-label="Footer"] a{overflow-wrap:anywhere;min-width:0}
+@media (max-width:1080px){.navlinks{display:none!important}.menubtn{display:inline-flex!important}.mobileonly{display:flex!important}}
+@media (max-width:900px){footer[data-chrome] nav[aria-label="Footer"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media (max-width:720px){footer[data-chrome] [aria-label="Newsletter"]{flex-direction:column}footer[data-chrome] [aria-label="Newsletter"]>input{flex:none!important;width:100%}}
+@media (max-width:480px){header[data-smart] .wm{font-size:21px!important}header[data-smart] img{width:28px!important;height:28px!important}header[data-smart] .btn{padding-left:12px!important;padding-right:12px!important}.hide-xs{display:none}}
+[data-smart]{transition:transform .55s cubic-bezier(.19,1,.22,1),box-shadow .4s ease}
+.fx-hide [data-smart]{transform:translateY(-100%)}
+@media (prefers-reduced-motion: reduce){:is(header[data-smart],footer[data-chrome]) *{animation:none!important;transition:none!important}[data-smart]{transition:none}}

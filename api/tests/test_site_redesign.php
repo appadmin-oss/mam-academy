@@ -16,7 +16,7 @@ $SR_root = dirname(dirname(__DIR__));
 /* The redesigned pages are the ones built on the shell — derived, not listed, so a
    sixth page is covered the day it is written. */
 $SR_pages = array_values(array_filter(glob($SR_root . '/*.php') ?: [],
-    static fn($f) => str_contains((string) file_get_contents($f), "partials/site/shell.php")));
+    static fn($f) => str_contains((string) file_get_contents($f), "site_head(")));
 $SR_parts = glob($SR_root . '/partials/site/*.php') ?: [];
 $SR_all = array_merge($SR_pages, $SR_parts, [$SR_root . '/assets/css/site.css']);
 $SR_src = static fn(array $files) => implode("\n", array_map(static fn($f) => (string) file_get_contents($f), $files));
@@ -24,8 +24,8 @@ $SR_design = $SR_src(glob($SR_root . '/docs/design/2026-11-site/source/pages/*.d
 
 t_group('site redesign — the pages are the ones the design describes');
 
-t_eq(array_map('basename', $SR_pages), ['about.php', 'auditer.php', 'index.php', 'life.php', 'programmes.php'],
-    'five pages are built on the redesign shell');
+t_eq(array_map('basename', $SR_pages), ['about.php', 'accessibility.php', 'auditer.php', 'index.php', 'life.php', 'programmes.php', 'safeguarding.php'],
+    'the redesigned pages are the ones that draw themselves with site_head()');
 t_ok(strlen($SR_design) > 100000, 'the design sources are committed beside the build, so the check can be repeated');
 
 t_group('site redesign — no value the design does not have');
@@ -117,7 +117,7 @@ t_group('site redesign — nothing a visitor could reach is lost');
    the old and new pages found the rest; HANDOFF §4z16 lists what was dropped and
    why. Derived from the legacy file, so a link added there is owed here. */
 $SR_dest = static fn(string $h) => strtolower(trim(preg_replace('/[#?].*$/', '', preg_replace('#^https?://academy\.mamcentre\.org#', '', $h)), '/'));
-preg_match_all('/href="([^"]+)"/', (string) file_get_contents($SR_root . '/partials/footer.html'), $SR_o);
+preg_match_all('/href="([^"]+)"/', (string) file_get_contents(__DIR__ . '/fixtures/footer-before-2026-11.html'), $SR_o);
 preg_match_all("/(?:href=\"|\[[^\]]*?', ')((?:https?:|mailto:|tel:|\/)[^\"']*)/", $SR_src(array_merge($SR_pages, $SR_parts)), $SR_n);
 $SR_have = array_unique(array_map($SR_dest, $SR_n[1]));
 $SR_missing = array_values(array_filter(array_unique(array_map($SR_dest, $SR_o[1])),

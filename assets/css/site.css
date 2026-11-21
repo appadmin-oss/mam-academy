@@ -130,3 +130,8 @@ nav[aria-label="On this page"] a.on{color:#8A5208!important;background-size:100%
 .chk-item em{font-style:normal;font-size:12px;font-weight:600;color:#8A5208;white-space:nowrap}
 @media print{body.site>header,body.site>footer,body.site [role=region],main>section:not(#checklist),#checklist [data-act=print]{display:none!important}#checklist{background:none!important}.chk-group{break-inside:avoid;border-color:#999}}
 .chk-item a{display:inline-block;padding:3px 0;color:#211A13;font-weight:600}
+/* ---- added: text pages (Safeguarding, Accessibility) ---- */
+.doc p{margin:0}
+.doc ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:8px}
+.doc a{color:#211A13;font-weight:600}
+.doc strong{color:#211A13}

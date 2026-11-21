@@ -46,6 +46,7 @@ ob_start();
       <div class="bento" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 320px; gap: 20px">
         
           <article class="zoom reveal" style="grid-column: span 2; position: relative; isolation: isolate; overflow: hidden; border-radius: 24px; background: #2A1E14; color: #FCF8F3; padding: 32px; display: flex; flex-direction: column; gap: 10px; min-width: 0">
+            <img alt="" loading="lazy" decoding="async" style="position: absolute; right: 0; bottom: 0; height: 92%; z-index: -1" src="/assets/img/showcase/mam-strings.webp">
             
             <div aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(42,30,20,.95) 0%, rgba(42,30,20,.6) 55%, rgba(42,30,20,0) 100%)"></div>
             <span aria-hidden="true" style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 20px; font-style: italic; color: #F2A93B">i</span>
@@ -54,6 +55,7 @@ ob_start();
           </article>
         
           <article class="zoom reveal" style="grid-column: span 1; position: relative; isolation: isolate; overflow: hidden; border-radius: 24px; background: #2A1E14; color: #FCF8F3; padding: 32px; display: flex; flex-direction: column; gap: 10px; min-width: 0">
+            <img alt="" loading="lazy" decoding="async" style="position: absolute; right: 0; bottom: 0; height: 92%; z-index: -1" src="/assets/img/showcase/mam-voice.webp">
             
             <div aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(42,30,20,.95) 0%, rgba(42,30,20,.6) 55%, rgba(42,30,20,0) 100%)"></div>
             <span aria-hidden="true" style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 20px; font-style: italic; color: #F2A93B">ii</span>
@@ -62,6 +64,7 @@ ob_start();
           </article>
         
           <article class="zoom reveal" style="grid-column: span 1; position: relative; isolation: isolate; overflow: hidden; border-radius: 24px; background: #2A1E14; color: #FCF8F3; padding: 32px; display: flex; flex-direction: column; gap: 10px; min-width: 0">
+            <img alt="" loading="lazy" decoding="async" style="position: absolute; right: 0; bottom: 0; height: 92%; z-index: -1" src="/assets/img/showcase/mam-sax.webp">
             
             <div aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(42,30,20,.95) 0%, rgba(42,30,20,.6) 55%, rgba(42,30,20,0) 100%)"></div>
             <span aria-hidden="true" style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 20px; font-style: italic; color: #F2A93B">iii</span>
