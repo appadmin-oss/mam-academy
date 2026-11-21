@@ -1,243 +1,153 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="dark">
-<title>MAM Auditer — Entry Assessment System | MAM Academy</title>
-<meta name="description" content="MAM Auditer is our structured entry assessment for new students. Get placed accurately into the right pathway — not guessed.">
-<link rel="canonical" href="https://academy.mamcentre.org/auditer">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="MAM Academy">
-<meta property="og:title" content="MAM Auditer — Entry Assessment System | MAM Academy">
-<meta property="og:description" content="MAM Auditer is our structured entry assessment for new students. Get placed accurately into the right pathway — not guessed.">
-<meta property="og:url" content="https://academy.mamcentre.org/auditer">
-<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=Meet+the+MAM+Auditer&amp;s=Our+structured+entry+assessment+-+placed+accurately%2C+never+guessed.&amp;e=Entry+Assessment">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:type" content="image/png">
-<meta property="og:locale" content="en_US">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="MAM Auditer — Entry Assessment System | MAM Academy">
-<meta name="twitter:description" content="MAM Auditer is our structured entry assessment for new students. Get placed accurately into the right pathway — not guessed.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/api/og?t=Meet+the+MAM+Auditer&amp;s=Our+structured+entry+assessment+-+placed+accurately%2C+never+guessed.&amp;e=Entry+Assessment">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"MAM Auditer","item":"https://academy.mamcentre.org/auditer"}]}</script>
-<link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260920">
-<style>
-  /* Applicant checklist — grouped, tickable (saved locally), printable. */
-  .chk-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin-top:34px;text-align:left}
-  .chk-group{background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;padding:22px}
-  .chk-group h3{font-family:var(--font-serif);font-size:1.12rem;color:var(--text);margin:0 0 4px;display:flex;align-items:center;gap:10px}
-  .chk-group h3 i{color:var(--gold-bright);font-size:0.95rem}
-  .chk-group-sub{font-size:0.78rem;color:var(--text-muted);margin:0 0 14px}
-  .chk-item{display:flex;gap:12px;align-items:flex-start;padding:9px 10px;border-radius:10px;cursor:pointer;transition:background .2s}
-  .chk-item:hover{background:rgba(224,138,26,0.06)}
-  .chk-item input{width:17px;height:17px;margin-top:2px;accent-color:var(--gold,#E08A1A);flex-shrink:0;cursor:pointer}
-  .chk-item span{font-size:0.9rem;color:var(--text-soft);line-height:1.55}
-  .chk-item input:checked + span{color:var(--text-muted);text-decoration:line-through;text-decoration-color:var(--border-gold,rgba(224,138,26,.5))}
-  .chk-item .opt{display:inline-block;font-size:0.66rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--gold-bright);border:1px solid var(--border-gold,rgba(224,138,26,.4));border-radius:100px;padding:1px 8px;margin-left:6px;vertical-align:middle}
-  .chk-progress{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:26px}
-  .chk-progress strong{color:var(--gold-bright)}
-  .chk-fair{max-width:760px;margin:26px auto 0;display:flex;gap:12px;align-items:flex-start;background:rgba(224,138,26,0.06);border:1px dashed var(--border-gold,rgba(224,138,26,.4));border-radius:12px;padding:16px 18px;color:var(--text-soft);font-size:0.92rem;line-height:1.6;text-align:left}
-  .chk-fair i{color:var(--gold-bright);margin-top:3px;flex-shrink:0}
-  @media print{
-    header,footer,#preloader,.page-hero,.btn,#next-step,section:not(#checklist){display:none !important}
-    #checklist{padding:0 !important}
-    .chk-groups{grid-template-columns:1fr 1fr}
-    .chk-group{border:1px solid #999;break-inside:avoid}
-  }
-</style>
-</head>
-<body>
-<a href="#main" class="skip-link">Skip to main content</a>
-<div id="preloader"><div class="preloader-logo"><img src="mam-academy-logo.svg" alt="" onerror="this.style.display='none'"><div class="preloader-name">MAM ACADEMY</div><div class="preloader-tag">MAM Auditer — Entry Assessment</div></div><div class="waves"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
-
-<?php include __DIR__ . '/partials/header.html'; ?>
-
+<?php
+/**
+ * MAM Auditer — the entry assessment | MAM Academy — from the 2026-11 design handoff (Auditer.dc.html),
+ * ported through partials/site/ (see shell.php for how, and HANDOFF §4z16).
+ */
+declare(strict_types=1);
+require __DIR__ . '/partials/site/shell.php';
+site_head(['title' => 'MAM Auditer — the entry assessment | MAM Academy', 'description' => 'The MAM Auditer places every new student by listening first: ten dimensions, a short session, a written plan and an exact fee.', 'path' => '/auditer']);
+site_header('inner', '/auditer');
+ob_start();
+?>
 <main id="main">
-  <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1486078695445-0497c2f58cfb?w=1920&q=80')">
-    <div class="page-hero-inner">
-      <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>MAM Auditer</span></nav>
-      <div class="page-hero-eyebrow"><i class="fa-solid fa-clipboard-check"></i>Entry Assessment System</div>
-      <h1 class="page-hero-title">Meet <span class="highlight-gold">MAM Auditer</span></h1>
-      <p class="page-hero-lede">Students at MAM Academy are <strong>not randomly placed</strong> into classes. They are <strong>intelligently assessed first</strong> — and placed into the right learning pathway and certification level.</p>
-      <div class="page-hero-actions">
-        <a href="apply" class="btn btn-primary"><i class="fa-solid fa-music"></i>Apply &amp; Book Auditer</a>
-        <a href="#checklist" class="btn btn-secondary"><i class="fa-solid fa-list-check"></i>Applicant checklist</a>
-        <a href="https://auditer.mamcentre.org" target="_blank" rel="noopener" class="btn btn-secondary">auditer.mamcentre.org <i class="fa-solid fa-arrow-up-right-from-square"></i></a>
+    <div style="padding: 0 clamp(8px, 1vw, 14px)">
+    <section aria-labelledby="page-h" style="position: relative; isolation: isolate; overflow: hidden; min-height: clamp(520px, 78svh, 700px); display: flex; align-items: flex-end; border-radius: clamp(14px, 1.6vw, 22px); background: #3B2C1F">
+      <div data-photo="an assessor listening to a young violinist" aria-hidden="true" style="position: absolute; inset: 0; z-index: -2; background: linear-gradient(135deg, #4A3726 0%, #2E2118 100%); display: flex; align-items: flex-start; justify-content: flex-end; padding: 28px clamp(20px, 4vw, 40px); animation: kenburns 2.6s var(--out) both"></div>
+      <div aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: linear-gradient(0deg, rgba(23,16,9,.88) 0%, rgba(23,16,9,.3) 60%, rgba(23,16,9,0) 100%)"></div>
+      <div class="hero-copy" style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; width: 100%; padding-bottom: clamp(40px, 5vw, 72px); display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px 48px; color: #FCF8F3">
+        <div style="flex: 1 1 620px; min-width: 0; max-width: none; display: flex; flex-direction: column; gap: 18px">
+          <nav aria-label="Breadcrumb" class="fade-in" style="font-size: 14px; color: rgba(252,248,243,.75); display: flex; gap: 8px"><a href="/" class="ul" style="color: rgba(252,248,243,.85); text-decoration: none">Home</a><span aria-hidden="true">/</span><span aria-current="page">MAM Auditer</span></nav>
+          <h1 id="page-h" aria-label="Placed by listening, not guessing." style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(46px, 5.6vw, 84px); line-height: 1.02; letter-spacing: -.01em; max-width: 900px"><span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.15s;">Placed</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.22s;">by</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.29s;">listening,</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.36s; font-style: italic; color: #F2A93B;">not</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.43s; font-style: italic; color: #F2A93B;">guessing.</span></span></h1>
+          <p class="fade-in" style="animation-delay: .6s; margin: 0; font-size: 19px; color: rgba(252,248,243,.88); max-width: 580px">A short assessment before training begins. It shows where you are today — and the report becomes your term-by-term plan.</p>
+          
+        </div>
+        <div class="fade-in" style="animation-delay: .8s; display: flex; gap: 12px; flex-wrap: wrap"><a href="/apply" class="btn" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; background: #F2A93B; color: #211A13; font-weight: 600; text-decoration: none">Apply and book</a><a href="#try" class="btn" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; border: 1px solid rgba(252,248,243,.6); color: #FCF8F3; font-weight: 600; text-decoration: none">Try a question</a></div>
       </div>
+    </section>
     </div>
-  </header>
+    <nav aria-label="On this page" style="position: sticky; top: 72px; z-index: 30; background: rgba(250,248,244,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid #ECE5DA">
+      <div style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; display: flex; align-items: center; gap: 28px; overflow-x: auto; scrollbar-width: none">
+        <span class="hide-sm" style="flex: none; font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #8A5208">MAM Auditer</span>
+        <ul style="list-style: none; margin: 0; padding: 0; display: flex; gap: 20px; font-size: 15px"><li><a href="#measures" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: #211A13; text-decoration: none; white-space: nowrap">What it measures</a></li><li><a href="#try" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: #211A13; text-decoration: none; white-space: nowrap">Try it</a></li><li><a href="#process" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: #211A13; text-decoration: none; white-space: nowrap">How it works</a></li></ul>
+      </div>
+    </nav>
+    <section aria-label="Overview" style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(72px, 10vw, 144px); padding-bottom: clamp(72px, 10vw, 144px)">
+      <p class="read" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(30px, 3.4vw, 50px); line-height: 1.18; max-width: 1100px">Most schools guess your level from your age. <em style="color: #8A5208">We listen first.</em> Thirty minutes of playing, listening and rhythm tasks tell us exactly where to begin.</p>
+      
+    </section>
 
-  <section>
-    <div class="container">
-      <div class="auditer-grid">
-        <div class="auditer-visual">
-          <h3 style="font-family:var(--font-serif);font-size:1.4rem;font-weight:700;color:var(--text);margin-bottom:6px">Sample Assessment Profile</h3>
-          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:24px">Generated after a MAM Auditer entry session</p>
-          <div class="auditer-meters">
-            <div class="meter-item"><div class="meter-head"><span>Rhythm Intelligence</span><strong>82%</strong></div><div class="meter-bar"><div class="meter-fill" data-fill="82"></div></div></div>
-            <div class="meter-item"><div class="meter-head"><span>Ear Sensitivity</span><strong>74%</strong></div><div class="meter-bar"><div class="meter-fill" data-color="blue" data-fill="74"></div></div></div>
-            <div class="meter-item"><div class="meter-head"><span>Performance Confidence</span><strong>61%</strong></div><div class="meter-bar"><div class="meter-fill" data-color="red" data-fill="61"></div></div></div>
-            <div class="meter-item"><div class="meter-head"><span>Technical Knowledge</span><strong>68%</strong></div><div class="meter-bar"><div class="meter-fill" data-color="emerald" data-fill="68"></div></div></div>
-            <div class="meter-item"><div class="meter-head"><span>Tonal Recognition</span><strong>77%</strong></div><div class="meter-bar"><div class="meter-fill" data-fill="77"></div></div></div>
-            <div class="meter-item"><div class="meter-head"><span>Learning Capacity &amp; Discipline</span><strong>88%</strong></div><div class="meter-bar"><div class="meter-fill" data-color="emerald" data-fill="88"></div></div></div>
+    <section id="measures" aria-labelledby="meas-h" style="background: #F3EEE6">
+      <div style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(72px, 10vw, 144px); padding-bottom: clamp(72px, 10vw, 144px); display: flex; flex-direction: column; gap: 48px">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px 64px"><div style="display: flex; flex-direction: column; gap: 14px"><p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">What it measures</p><h2 id="meas-h" aria-label="Ten dimensions of readiness" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05;"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Ten</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">dimensions</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">of</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">readiness</span></span></h2></div><p class="read" style="margin: 0; font-size: 16px; color: #574B40; max-width: 420px">Not just how well you play — how you hear, move, perform and learn. Select a dimension to see what we look for.</p></div>
+        <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 5vw, 80px); align-items: center">
+          <figure class="reveal" style="flex: 1 1 420px; min-width: 0; margin: 0; display: flex; flex-direction: column; align-items: center; gap: 12px">
+            <svg viewBox="-70 -30 540 460" role="img" aria-label="Sample MAM Auditer profile across ten dimensions" style="width: 100%; max-width: 560px; height: auto; overflow: visible">
+              <polygon points="200.0,162.5 222.0,169.7 235.7,188.4 235.7,211.6 222.0,230.3 200.0,237.5 178.0,230.3 164.3,211.6 164.3,188.4 178.0,169.7" fill="none" stroke="#D9CCBA" stroke-width="1"></polygon><polygon points="200.0,125.0 244.1,139.3 271.3,176.8 271.3,223.2 244.1,260.7 200.0,275.0 155.9,260.7 128.7,223.2 128.7,176.8 155.9,139.3" fill="none" stroke="#D9CCBA" stroke-width="1"></polygon><polygon points="200.0,87.5 266.1,109.0 307.0,165.2 307.0,234.8 266.1,291.0 200.0,312.5 133.9,291.0 93.0,234.8 93.0,165.2 133.9,109.0" fill="none" stroke="#D9CCBA" stroke-width="1"></polygon><polygon points="200.0,50.0 288.2,78.6 342.7,153.6 342.7,246.4 288.2,321.4 200.0,350.0 111.8,321.4 57.3,246.4 57.3,153.6 111.8,78.6" fill="none" stroke="#D9CCBA" stroke-width="1"></polygon><line x1="200" y1="200" x2="200.0" y2="50.0" stroke-width="1" stroke="#D9CCBA"></line><line x1="200" y1="200" x2="288.2" y2="78.6" stroke-width="1" stroke="#D9CCBA"></line><line x1="200" y1="200" x2="342.7" y2="153.6" stroke-width="1" stroke="#211A13"></line><line x1="200" y1="200" x2="342.7" y2="246.4" stroke-width="1" stroke="#D9CCBA"></line><line x1="200" y1="200" x2="288.2" y2="321.4" stroke-width="1" stroke="#D9CCBA"></line><line x1="200" y1="200" x2="200.0" y2="350.0" stroke-width="1" stroke="#D9CCBA"></line><line x1="200" y1="200" x2="111.8" y2="321.4" stroke-width="1" stroke="#D9CCBA"></line><line x1="200" y1="200" x2="57.3" y2="246.4" stroke-width="1" stroke="#D9CCBA"></line><line x1="200" y1="200" x2="57.3" y2="153.6" stroke-width="1" stroke="#D9CCBA"></line><line x1="200" y1="200" x2="111.8" y2="78.6" stroke-width="1" stroke="#D9CCBA"></line><polygon points="200.0,95.0 260.0,117.5 317.0,162.0 305.6,234.3 267.9,293.4 200.0,291.5 130.3,295.9 108.7,229.7 74.5,159.2 125.1,96.9" fill="rgba(242,169,59,.28)" stroke="#C27A12" stroke-width="2" stroke-linejoin="round"></polygon><circle cx="200.0" cy="95.0" stroke="#FAF8F4" stroke-width="2" r="4" fill="#C27A12"></circle><text x="200.0" y="24.0" text-anchor="middle" dominant-baseline="middle" style="font-family: Inter, sans-serif; font-size: 13px; fill: #574B40; font-weight: 400">Level</text><circle cx="260.0" cy="117.5" stroke="#FAF8F4" stroke-width="2" r="4" fill="#C27A12"></circle><text x="303.5" y="57.6" text-anchor="start" dominant-baseline="middle" style="font-family: Inter, sans-serif; font-size: 13px; fill: #574B40; font-weight: 400">Technique</text><circle cx="317.0" cy="162.0" stroke="#FAF8F4" stroke-width="2" r="7" fill="#211A13"></circle><text x="367.4" y="145.6" text-anchor="start" dominant-baseline="middle" style="font-family: Inter, sans-serif; font-size: 13px; fill: #211A13; font-weight: 600">Rhythm</text><circle cx="305.6" cy="234.3" stroke="#FAF8F4" stroke-width="2" r="4" fill="#C27A12"></circle><text x="367.4" y="254.4" text-anchor="start" dominant-baseline="middle" style="font-family: Inter, sans-serif; font-size: 13px; fill: #574B40; font-weight: 400">Ear</text><circle cx="267.9" cy="293.4" stroke="#FAF8F4" stroke-width="2" r="4" fill="#C27A12"></circle><text x="303.5" y="342.4" text-anchor="start" dominant-baseline="middle" style="font-family: Inter, sans-serif; font-size: 13px; fill: #574B40; font-weight: 400">Tonal</text><circle cx="200.0" cy="291.5" stroke="#FAF8F4" stroke-width="2" r="4" fill="#C27A12"></circle><text x="200.0" y="376.0" text-anchor="middle" dominant-baseline="middle" style="font-family: Inter, sans-serif; font-size: 13px; fill: #574B40; font-weight: 400">Stage</text><circle cx="130.3" cy="295.9" stroke="#FAF8F4" stroke-width="2" r="4" fill="#C27A12"></circle><text x="96.5" y="342.4" text-anchor="end" dominant-baseline="middle" style="font-family: Inter, sans-serif; font-size: 13px; fill: #574B40; font-weight: 400">Artistry</text><circle cx="108.7" cy="229.7" stroke="#FAF8F4" stroke-width="2" r="4" fill="#C27A12"></circle><text x="32.6" y="254.4" text-anchor="end" dominant-baseline="middle" style="font-family: Inter, sans-serif; font-size: 13px; fill: #574B40; font-weight: 400">Readiness</text><circle cx="74.5" cy="159.2" stroke="#FAF8F4" stroke-width="2" r="4" fill="#C27A12"></circle><text x="32.6" y="145.6" text-anchor="end" dominant-baseline="middle" style="font-family: Inter, sans-serif; font-size: 13px; fill: #574B40; font-weight: 400">Discipline</text><circle cx="125.1" cy="96.9" stroke="#FAF8F4" stroke-width="2" r="4" fill="#C27A12"></circle><text x="96.5" y="57.6" text-anchor="end" dominant-baseline="middle" style="font-family: Inter, sans-serif; font-size: 13px; fill: #574B40; font-weight: 400">Learning</text>
+            </svg>
+            <figcaption style="font-size: 13px; color: #574B40">Sample profile. Every student gets their own.</figcaption>
+          </figure>
+          <div style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+            <div role="tablist" aria-label="Dimensions" style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" role="tab" aria-controls="dim-panel" class="btn" style="min-height: 40px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 14px; cursor: pointer; border: 1px solid #CFC3B3; background: transparent; color: #211A13" aria-selected="false" data-act="dim" data-i="0">Level</button><button type="button" role="tab" aria-controls="dim-panel" class="btn" style="min-height: 40px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 14px; cursor: pointer; border: 1px solid #CFC3B3; background: transparent; color: #211A13" aria-selected="false" data-act="dim" data-i="1">Technique</button><button type="button" role="tab" aria-controls="dim-panel" class="btn" style="min-height: 40px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 14px; cursor: pointer; border: 1px solid #211A13; background: #211A13; color: #FAF8F4" aria-selected="true" data-act="dim" data-i="2">Rhythm</button><button type="button" role="tab" aria-controls="dim-panel" class="btn" style="min-height: 40px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 14px; cursor: pointer; border: 1px solid #CFC3B3; background: transparent; color: #211A13" aria-selected="false" data-act="dim" data-i="3">Ear</button><button type="button" role="tab" aria-controls="dim-panel" class="btn" style="min-height: 40px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 14px; cursor: pointer; border: 1px solid #CFC3B3; background: transparent; color: #211A13" aria-selected="false" data-act="dim" data-i="4">Tonal</button><button type="button" role="tab" aria-controls="dim-panel" class="btn" style="min-height: 40px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 14px; cursor: pointer; border: 1px solid #CFC3B3; background: transparent; color: #211A13" aria-selected="false" data-act="dim" data-i="5">Stage</button><button type="button" role="tab" aria-controls="dim-panel" class="btn" style="min-height: 40px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 14px; cursor: pointer; border: 1px solid #CFC3B3; background: transparent; color: #211A13" aria-selected="false" data-act="dim" data-i="6">Artistry</button><button type="button" role="tab" aria-controls="dim-panel" class="btn" style="min-height: 40px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 14px; cursor: pointer; border: 1px solid #CFC3B3; background: transparent; color: #211A13" aria-selected="false" data-act="dim" data-i="7">Readiness</button><button type="button" role="tab" aria-controls="dim-panel" class="btn" style="min-height: 40px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 14px; cursor: pointer; border: 1px solid #CFC3B3; background: transparent; color: #211A13" aria-selected="false" data-act="dim" data-i="8">Discipline</button><button type="button" role="tab" aria-controls="dim-panel" class="btn" style="min-height: 40px; padding: 0 14px; border-radius: 999px; font: inherit; font-size: 14px; cursor: pointer; border: 1px solid #CFC3B3; background: transparent; color: #211A13" aria-selected="false" data-act="dim" data-i="9">Learning</button></div>
+            <div id="dim-panel" role="tabpanel" aria-live="polite" style="padding-top: 24px; border-top: 1px solid #D9CCBA; min-height: 190px">
+              <div class="pnl" style="animation-name: qIn2">
+                <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 16px"><h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.05">Rhythm intelligence</h3><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 44px; color: #8A5208">82%</span></div>
+                <p style="margin: 10px 0 0; font-size: 17px; color: #574B40">How quickly you read, feel and hold time.</p>
+              </div>
+            </div>
           </div>
         </div>
-        <div>
-          <div class="section-eyebrow"><span class="line"></span>What Auditer Measures</div>
-          <h2 class="section-title">10 Dimensions of <span class="highlight-gold">Musical Readiness</span></h2>
-          <ul class="school-courses" style="margin-top:18px">
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Musical level</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Technical strength</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Rhythm intelligence</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Ear sensitivity</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Tonal recognition</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Stage confidence</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Artistic potential</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Performance readiness</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Discipline level</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Learning capacity</li>
-          </ul>
-          <div style="margin-top:28px"><a href="apply" class="btn btn-primary"><i class="fa-solid fa-clipboard-check"></i>Book Your Auditer</a></div>
+      </div>
+    </section>
+
+    <section id="try" aria-labelledby="try-h" style="padding: 0 clamp(8px, 1vw, 14px); padding-top: clamp(12px, 1.4vw, 20px)">
+      <div style="border-radius: clamp(14px, 1.6vw, 22px); background: radial-gradient(80% 120% at 85% 0%, #5A3815 0%, #24160B 50%, #140D08 100%); color: #FCF8F3">
+        <div style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(64px, 8vw, 120px); padding-bottom: clamp(64px, 8vw, 120px); display: flex; flex-wrap: wrap; gap: 48px clamp(40px, 6vw, 112px); align-items: center">
+          <div style="flex: 1 1 380px; display: flex; flex-direction: column; gap: 16px"><p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #F2A93B">Try one question</p><h2 id="try-h" aria-label="Which note is higher?" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05;"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Which</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">note</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">is</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">higher?</span></span></h2><p class="read" style="margin: 0; font-size: 17px; color: #D8CEC1; max-width: 460px">One of the ear tasks from a real session. Turn your sound on, play the pair, then choose.</p></div>
+          <div style="flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 22px">
+            <button type="button" class="btn" style="display: inline-flex; align-items: center; gap: 14px; min-height: 64px; padding: 0 28px 0 12px; border-radius: 999px; border: 0; background: #F2A93B; color: #211A13; font: inherit; font-size: 17px; font-weight: 600; cursor: pointer" data-act="ear-play"><span aria-hidden="true" style="width: 44px; height: 44px; border-radius: 50%; background: #211A13; color: #F2A93B; display: flex; align-items: center; justify-content: center">▶</span>Play the two notes</button>
+            <div role="group" aria-label="Your answer" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; max-width: 440px">
+              <button type="button" style="min-height: 56px; border-radius: 14px; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; border: 1px solid rgba(252,248,243,.2); background: rgba(252,248,243,.03); color: rgba(252,248,243,.5)" aria-disabled="true" data-act="ear-yes">First note</button>
+              <button type="button" style="min-height: 56px; border-radius: 14px; font: inherit; font-size: 16px; font-weight: 600; cursor: pointer; border: 1px solid rgba(252,248,243,.2); background: rgba(252,248,243,.03); color: rgba(252,248,243,.5)" aria-disabled="true" data-act="ear-no">Second note</button>
+            </div>
+            <p role="status" style="margin: 0; min-height: 28px; font-size: 17px; color: #FCF8F3"></p>
+            <p style="margin: 0; font-size: 14px; color: #D8CEC1">Score <strong style="color: #F2A93B">0</strong> · a full session has dozens of short tasks like this.</p>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section style="background:var(--bg-surface)">
-    <div class="container">
-      <div style="text-align:center;max-width:760px;margin:0 auto 48px">
-        <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Why MAM Auditer<span class="line" style="transform:scaleX(-1)"></span></div>
-        <h2 class="section-title">Placement, <span class="highlight-gold">Not Guesswork</span></h2>
-        <p class="section-desc" style="margin:0 auto">Every applicant goes through MAM Auditer before training begins. We use the report to design your learning roadmap.</p>
-      </div>
-      <div class="schools-grid">
-        <article class="school-card"><span class="school-letter">1</span><div class="school-icon"><i class="fa-solid fa-route"></i></div><h3 class="school-name">Right Pathway Placement</h3><p class="school-desc">From Pre-Certification to Diploma, you're placed where your true level meets your real ambition.</p></article>
-        <article class="school-card"><span class="school-letter">2</span><div class="school-icon"><i class="fa-solid fa-map"></i></div><h3 class="school-name">Personalized Roadmap</h3><p class="school-desc">A clear, term-by-term plan tailored to your strengths, gaps and goals.</p></article>
-        <article class="school-card"><span class="school-letter">3</span><div class="school-icon"><i class="fa-solid fa-chart-line"></i></div><h3 class="school-name">Strengths &amp; Growth Report</h3><p class="school-desc">Clear measurements so progress is visible — not vague.</p></article>
-        <article class="school-card"><span class="school-letter">4</span><div class="school-icon"><i class="fa-solid fa-folder-open"></i></div><h3 class="school-name">Into Your Student File</h3><p class="school-desc">Your data feeds directly into your enrollment file and ongoing assessments.</p></article>
-      </div>
-    </div>
-  </section>
+    <section id="process" aria-labelledby="proc-h" style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(72px, 10vw, 144px); padding-bottom: clamp(72px, 10vw, 144px); display: flex; flex-direction: column; gap: 56px">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px 64px"><div style="display: flex; flex-direction: column; gap: 14px"><p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">How it works</p><h2 id="proc-h" aria-label="From session to plan" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05;"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">From</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">session</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">to</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">plan</span></span></h2></div></div>
+      <ol class="stagger" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+        <li style="position: relative; padding: 36px 28px 8px 0; border-top: 1px solid #CFC3B3; display: flex; flex-direction: column; gap: 10px"><span aria-hidden="true" style="position: absolute; top: -7px; left: 0; width: 13px; height: 13px; border-radius: 50%; background: #F2A93B; box-shadow: 0 0 0 5px #FAF8F4"></span><span style="font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #8A5208">When you apply</span><h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: 34px; line-height: 1.05">Book</h3><p style="margin: 0; font-size: 15px; color: #574B40; max-width: 280px">Choose a slot, online or in person.</p></li><li style="position: relative; padding: 36px 28px 8px 0; border-top: 1px solid #CFC3B3; display: flex; flex-direction: column; gap: 10px"><span aria-hidden="true" style="position: absolute; top: -7px; left: 0; width: 13px; height: 13px; border-radius: 50%; background: #F2A93B; box-shadow: 0 0 0 5px #FAF8F4"></span><span style="font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #8A5208">About 30 minutes</span><h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: 34px; line-height: 1.05">The session</h3><p style="margin: 0; font-size: 15px; color: #574B40; max-width: 280px">Playing, listening and rhythm tasks with an assessor.</p></li><li style="position: relative; padding: 36px 28px 8px 0; border-top: 1px solid #CFC3B3; display: flex; flex-direction: column; gap: 10px"><span aria-hidden="true" style="position: absolute; top: -7px; left: 0; width: 13px; height: 13px; border-radius: 50%; background: #F2A93B; box-shadow: 0 0 0 5px #FAF8F4"></span><span style="font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #8A5208">After the session</span><h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: 34px; line-height: 1.05">Your report</h3><p style="margin: 0; font-size: 15px; color: #574B40; max-width: 280px">Ten clear measurements — strengths and gaps.</p></li><li style="position: relative; padding: 36px 28px 8px 0; border-top: 1px solid #CFC3B3; display: flex; flex-direction: column; gap: 10px"><span aria-hidden="true" style="position: absolute; top: -7px; left: 0; width: 13px; height: 13px; border-radius: 50%; background: #F2A93B; box-shadow: 0 0 0 5px #FAF8F4"></span><span style="font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #8A5208">Before lessons start</span><h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: 34px; line-height: 1.05">Your plan</h3><p style="margin: 0; font-size: 15px; color: #574B40; max-width: 280px">Level, matched instructor and a term-by-term roadmap.</p></li>
+      </ol>
+      <p style="margin: 0; font-size: 15px; color: #574B40">Already applied? Book or manage your session at <a href="https://auditer.mamcentre.org" class="ul" style="display: inline-block; padding: 3px 0; color: #211A13; font-weight: 600; text-decoration: none">auditer.mamcentre.org</a>.</p>
+    </section>
 
-  <section id="checklist" style="background:var(--bg)">
-    <div class="container">
-      <div style="text-align:center;max-width:760px;margin:0 auto">
-        <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Applicant Checklist<span class="line" style="transform:scaleX(-1)"></span></div>
-        <h2 class="section-title">Come <span class="highlight-gold">Fully Prepared</span></h2>
-        <p class="section-desc" style="margin:0 auto">Your audition measures both your <strong>talent</strong> and your <strong>readiness</strong> for professional and ministry opportunities. Tick things off as you prepare — your progress is saved on this device.</p>
-      </div>
-
-      <div class="chk-groups">
-        <div class="chk-group">
-          <h3><i class="fa-solid fa-id-card"></i>Documents &amp; identity</h3>
-          <p class="chk-group-sub">Who you are, on paper.</p>
-          <label class="chk-item"><input type="checkbox" data-chk="reg"><span>Completed registration form — your application reference confirms this.</span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="id"><span>Valid means of identification, where applicable.</span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="passport"><span>A recent passport photograph.</span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="bio"><span>A short personal profile or biography.</span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="headshot"><span>A professional headshot.<em class="opt">optional · encouraged</em></span></label>
+    <?php
+    /* The applicant checklist (kept from the previous page: thank-you, status,
+       booking and the student portal all link to /auditer#checklist). Same items
+       and the same storage key, so progress ticked before the redesign survives. */
+    $chk = [
+        ['Documents and identity', 'Who you are, on paper.', [
+            ['reg', 'Completed registration form — your application reference confirms this.', ''],
+            ['id', 'Valid means of identification, where applicable.', ''],
+            ['passport', 'A recent passport photograph.', ''],
+            ['bio', 'A short personal profile or biography.', ''],
+            ['headshot', 'A professional headshot.', 'Optional, encouraged']]],
+        ['Your performance', 'What you will present to the panel.', [
+            ['piece', 'One prepared performance piece — song or instrumental — within the specified time limit.', ''],
+            ['contrast', 'One contrasting piece, ready if the panel requests it.', ''],
+            ['track', 'Backing track on a flash drive or phone (if using one), with no lead vocals.', ''],
+            ['instrument', 'Your own instrument, where applicable.', ''],
+            ['score', 'Printed or digital lead sheet or score, if requested.', '']]],
+        ['Professional materials', 'Expected for advanced categories; welcome from everyone.', [
+            ['cv', 'Curriculum vitae or music résumé.', 'Advanced'],
+            ['portfolio', 'Portfolio of previous work — recordings, compositions, performances or productions.', ''],
+            ['links', 'Links to your social media or streaming platforms.', 'Optional, recommended'],
+            ['certs', 'Evidence of previous training or certifications, if any.', ''],
+            ['purpose', 'A brief statement of purpose — why you are applying, and your goals.', '']]],
+        ['On the day', 'How you show up matters.', [
+            ['tests', 'Be ready for practical tests if required — sight-reading, ear training, improvisation or an interview.', ''],
+            ['attire', 'Appropriate, neat, professional attire.', ''],
+            ['early', 'Arrive 30–60 minutes before your scheduled time.', ''],
+            ['attitude', 'A positive attitude, openness to feedback, and commitment to the <a href="/terms">MAM Code of Conduct</a>.', '']]],
+    ];
+    $chkTotal = array_sum(array_map(static fn($g) => count($g[2]), $chk));
+    ?>
+    <section id="checklist" aria-labelledby="chk-h" style="background: #F3EEE6">
+      <div style="max-width: 1360px; margin: 0 auto; padding: clamp(72px, 10vw, 144px) clamp(20px, 4vw, 40px); box-sizing: border-box; display: flex; flex-direction: column; gap: 40px">
+        <div style="display: flex; flex-direction: column; gap: 14px; max-width: 760px">
+          <p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Applicant checklist</p>
+          <h2 id="chk-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05">Come fully prepared</h2>
+          <p style="margin: 0; font-size: 18px; color: #574B40">The assessment listens for your playing and for your readiness. Tick things off as you prepare; your progress is kept on this device only.</p>
         </div>
-
-        <div class="chk-group">
-          <h3><i class="fa-solid fa-music"></i>Your performance</h3>
-          <p class="chk-group-sub">What you'll present to the panel.</p>
-          <label class="chk-item"><input type="checkbox" data-chk="piece"><span>One prepared performance piece — song or instrumental — within the specified time limit.</span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="contrast"><span>One contrasting piece, ready if the panel requests it.</span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="track"><span>Backing track on a flash drive or phone (if using one) — with <strong>no lead vocals</strong>.</span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="instrument"><span>Your personal musical instrument, where applicable.</span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="score"><span>Printed or digital lead sheet / score, if requested.</span></label>
+        <div class="chk-groups">
+          <?php foreach ($chk as [$title, $sub, $items]): ?>
+          <fieldset class="chk-group">
+            <legend><?= site_h($title) ?></legend>
+            <p class="chk-sub"><?= site_h($sub) ?></p>
+            <?php foreach ($items as [$key, $text, $tag]): ?>
+            <label class="chk-item"><input type="checkbox" data-chk="<?= $key ?>"><span><?= $text ?><?php if ($tag): ?> <em><?= site_h($tag) ?></em><?php endif; ?></span></label>
+            <?php endforeach; ?>
+          </fieldset>
+          <?php endforeach; ?>
         </div>
-
-        <div class="chk-group">
-          <h3><i class="fa-solid fa-briefcase"></i>Professional materials</h3>
-          <p class="chk-group-sub">Expected for advanced categories; welcome from everyone.</p>
-          <label class="chk-item"><input type="checkbox" data-chk="cv"><span>Curriculum Vitae (CV) or music résumé.<em class="opt">advanced</em></span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="portfolio"><span>Portfolio of previous works — recordings, compositions, performances or productions.</span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="links"><span>Links to your social media or streaming platforms.<em class="opt">optional · recommended</em></span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="certs"><span>Evidence of previous training or certifications, if any.</span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="purpose"><span>A brief statement of purpose — why you're applying, and your career or ministry goals.</span></label>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px">
+          <p data-chk-count role="status" aria-live="polite" style="margin: 0; font-size: 16px"><strong>0</strong> of <?= $chkTotal ?> ready</p>
+          <button type="button" class="btn" data-act="print" style="min-height: 44px; padding: 0 18px; border-radius: 10px; border: 1px solid #CFC3B3; background: #FFFFFF; color: #211A13; font: inherit; font-size: 15px; cursor: pointer">Print the checklist</button>
         </div>
-
-        <div class="chk-group">
-          <h3><i class="fa-solid fa-calendar-check"></i>On the day</h3>
-          <p class="chk-group-sub">How you show up matters.</p>
-          <label class="chk-item"><input type="checkbox" data-chk="tests"><span>Be ready for practical tests if required — sight-reading, ear training, improvisation, or an interview.</span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="attire"><span>Appropriate, neat, professional attire.</span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="early"><span>Arrive <strong>30–60 minutes</strong> before your scheduled audition time.</span></label>
-          <label class="chk-item"><input type="checkbox" data-chk="attitude"><span>A positive attitude, openness to feedback, and commitment to the <a href="terms" style="color:var(--gold-bright)">MAM Code of Conduct</a>.</span></label>
-        </div>
+        <p style="margin: 0; max-width: 760px; font-size: 15px; color: #574B40">Why we ask for all this: every applicant is evaluated fairly — on musicianship, professionalism, character and preparation, not on performance alone.</p>
       </div>
+    </section>
+    <section aria-labelledby="cta-h" style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(72px, 10vw, 144px); padding-bottom: clamp(72px, 10vw, 144px); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 22px; border-top: 1px solid #ECE5DA">
+      <h2 id="cta-h" aria-label="Get heard. Get placed." style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(40px, 5.00vw, 72px); line-height: 1.05; text-align: center;"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Get</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">heard.</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">Get</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">placed.</span></span></h2>
+      <p class="read" style="margin: 0; font-size: 18px; color: #574B40; max-width: 520px">Book your assessment in the same flow as your application.</p>
+      <div class="reveal" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center"><a href="/apply" class="btn" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; background: #211A13; color: #FAF8F4; font-weight: 600; text-decoration: none">Apply and book <span aria-hidden="true">→</span></a><a href="/programmes" class="btn" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; border: 1px solid #CFC3B3; color: #211A13; font-weight: 600; text-decoration: none">Programmes &amp; fees</a></div>
+    </section>
 
-      <div class="chk-progress">
-        <span class="section-desc" style="margin:0" id="chkCount"><strong>0</strong> of 19 ready</span>
-        <button type="button" class="btn btn-secondary" onclick="window.print()" style="padding:9px 18px;font-size:0.85rem"><i class="fa-solid fa-print"></i>Print checklist</button>
-      </div>
+  </main>
 
-      <p class="chk-fair"><i class="fa-solid fa-scale-balanced"></i><span><strong>Why we ask for all this:</strong> it ensures every applicant is evaluated fairly — on musicianship, professionalism, character, and preparedness, not just performance ability.</span></p>
-    </div>
-  </section>
-
-  <section style="background:var(--bg-surface);padding:80px 24px;text-align:center">
-    <div class="container">
-      <h2 class="section-title" style="margin:0 auto 18px">Get audited. <span class="highlight-gold">Get placed accurately.</span></h2>
-      <p class="section-desc" style="margin:0 auto 30px">When you apply, you can book your Auditer session in the same flow.</p>
-      <a href="apply" class="btn btn-primary btn-large"><i class="fa-solid fa-clipboard-check"></i>Apply &amp; Book Auditer</a>
-    </div>
-  </section>
-
-  <section id="next-step" aria-label="Continue your journey">
-    <div class="next-step-wrap">
-      <a class="next-step-back" href="compare">
-        <i class="fa-solid fa-arrow-left"></i>
-        <div><div class="next-step-back-label">Previous · Step 5</div><strong>Compare programmes</strong></div>
-      </a>
-      <a class="next-step-card" href="apply" style="border-color:var(--gold-bright);background:linear-gradient(135deg,rgba(224,138,26,0.12),var(--bg-surface))">
-        <div class="next-step-eyebrow"><span class="num">07</span>Final step · You're ready</div>
-        <div class="next-step-title">Apply &amp; secure your seat <i class="fa-solid fa-arrow-right"></i></div>
-        <p class="next-step-desc">Five-step guided application with auto-save. Pay securely via Paystack, Flutterwave, Stripe or bank transfer. May 2026 intake — 7 seats left.</p>
-        <div class="next-step-meta">
-          <span><i class="fa-solid fa-shield-halved"></i>PCI-secure checkout</span>
-          <span><i class="fa-solid fa-clock"></i>~5 minutes</span>
-        </div>
-      </a>
-    </div>
-  </section>
-</main>
-
-<?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20261120a"></script>
-<script src="assets/js/main.js?v=20260920"></script>
-<script>
-// Applicant checklist: tick-off state persists per device (localStorage). No
-// account needed — it's a preparation aid, not a submission.
-(function () {
-  var KEY = 'mam.auditer.checklist.v1';
-  var boxes = Array.prototype.slice.call(document.querySelectorAll('[data-chk]'));
-  var counter = document.getElementById('chkCount');
-  if (!boxes.length) return;
-  var saved = {};
-  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) {}
-  function paint() {
-    var done = boxes.filter(function (b) { return b.checked; }).length;
-    if (counter) counter.innerHTML = '<strong>' + done + '</strong> of ' + boxes.length + ' ready' + (done === boxes.length ? ' — see you at the audition! 🎶' : '');
-  }
-  boxes.forEach(function (b) {
-    var id = b.getAttribute('data-chk');
-    if (saved[id]) b.checked = true;
-    b.addEventListener('change', function () {
-      saved[id] = b.checked;
-      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
-      paint();
-    });
-  });
-  paint();
-})();
-</script>
-</body>
-</html>
+<?php
+echo site_photos((string) ob_get_clean());
+site_footer(['site-auditer.js']);

@@ -1,174 +1,109 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="dark">
-<title>About MAM Academy — Mission, Vision &amp; The MAM Method</title>
-<meta name="description" content="MAM Academy is a transformational academy forming complete musicians, performers and creative thinkers. Discover our mission, vision and the MAM Method.">
-<link rel="canonical" href="https://academy.mamcentre.org/about">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="About MAM Academy — Mission, Vision &amp; The MAM Method">
-<meta name="twitter:description" content="MAM Academy is a transformational academy forming complete musicians, performers and creative thinkers. Discover our mission, vision and the MAM Method.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"About","item":"https://academy.mamcentre.org/about"}]}</script>
-<link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
-<meta property="og:title" content="About MAM Academy"><meta property="og:description" content="A Creative Intelligence and Performance Academy."><meta property="og:image" content="mam-academy-logo.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260920">
-</head>
-<body>
-<a href="#main" class="skip-link">Skip to main content</a>
-<div id="preloader" role="status"><div class="preloader-logo"><img src="mam-academy-logo.svg" alt="" onerror="this.style.display='none'"><div class="preloader-name">MAM ACADEMY</div><div class="preloader-tag">A Creative Intelligence &amp; Performance Academy</div></div><div class="waves"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
-
-<?php include __DIR__ . '/partials/header.html'; ?>
-
+<?php
+/**
+ * About MAM Academy — from the 2026-11 design handoff (About.dc.html),
+ * ported through partials/site/ (see shell.php for how, and HANDOFF §4z16).
+ */
+declare(strict_types=1);
+require __DIR__ . '/partials/site/shell.php';
+site_head(['title' => 'About MAM Academy', 'description' => 'A creative intelligence and performance academy forming complete musicians since 2008: four schools, a method of our own, working musicians as teachers.', 'path' => '/about']);
+site_header('inner', '/about');
+ob_start();
+?>
 <main id="main">
-  <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1465225314224-587cd83d322b?w=1920&q=80')">
-    <div class="page-hero-inner">
-      <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>About</span></nav>
-      <div class="page-hero-eyebrow"><i class="fa-solid fa-compass"></i>Our Repositioning</div>
-      <h1 class="page-hero-title">A Creative Intelligence<br>&amp; <span class="highlight-gold">Performance Academy</span></h1>
-      <p class="page-hero-lede">MAM Academy is not merely a music school. It is a transformational academy designed to develop musicians, performers, worship leaders, composers, conductors, actors, public performers, creative thinkers and cultural artists.</p>
-      <div class="page-hero-actions">
-        <a href="apply" class="btn btn-primary"><i class="fa-solid fa-music"></i>Apply Now</a>
-        <a href="#method" class="btn btn-secondary">The MAM Method <i class="fa-solid fa-arrow-down"></i></a>
-      </div>
-    </div>
-  </header>
+    <section aria-labelledby="page-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(40px, 5vw, 72px); display: flex; flex-direction: column; gap: 20px">
+      <nav aria-label="Breadcrumb" class="fade-in" style="font-size: 14px; color: #574B40; display: flex; gap: 8px"><a href="/" class="ul" style="color: #574B40; text-decoration: none">Home</a><span aria-hidden="true">/</span><span aria-current="page">About</span></nav>
+      <h1 id="page-h" aria-label="About MAM Academy" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(52px, 6.4vw, 96px); line-height: 1; letter-spacing: -.01em"><span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.15s;">About</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.22s;">MAM</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.29s; font-style: italic; color: #8A5208;">Academy</span></span></h1>
+    </section>
+    <div class="fade-in" style="animation-delay: .25s; max-width: 1440px; margin: clamp(28px, 3vw, 44px) auto 0; padding: 0 clamp(8px, 1vw, 14px)"><div data-photo="MAM students and faculty on stage" aria-hidden="true" style="height: clamp(260px, 42vw, 620px); border-radius: clamp(14px, 1.6vw, 22px); background: linear-gradient(135deg, #4A3726, #2E2118); display: flex; align-items: flex-end; padding: 24px; box-sizing: border-box; font-size: 13px; color: rgba(252,248,243,.75)"></div></div>
 
-  <section>
-    <div class="container">
-      <div class="about-grid">
-        <div class="about-visual fade-in-up">
-          <div class="about-badge"><span class="about-badge-num">2008</span>Commissioned</div>
-          <img class="about-img-main" src="https://images.unsplash.com/photo-1514119412350-e174d90d280e?w=900&q=80" alt="MAM Academy violinist" loading="lazy">
-          <img class="about-img-accent" src="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=700&q=80" alt="MAM ensemble" loading="lazy">
+    <section aria-labelledby="intro-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(64px, 8vw, 120px); padding-bottom: clamp(48px, 6vw, 88px)">
+      <div style="max-width: 820px; display: flex; flex-direction: column; gap: 20px">
+        <h2 id="intro-h" aria-label="A creative intelligence and performance academy" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(38px, 4vw, 58px); line-height: 1.08"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">A</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">creative</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 10% entry 70%">intelligence</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 15% entry 75%">and</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 20% entry 80%">performance</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 25% entry 85%">academy</span></span></h2>
+        <p class="read" style="margin: 0; font-size: 19px; line-height: 1.7; color: #3E342B">MAM Academy is not merely a music school. Since 2008, as the training arm of MAM Centre, it has formed musicians, performers, worship leaders, composers, conductors and creative thinkers — people who can play, perform, read, lead and think.</p>
+        <p class="read" style="margin: 0; font-size: 19px; line-height: 1.7; color: #3E342B">Students learn online or in person, through four levels equivalent to Trinity College London Grades 1–8, guided by a method of our own and taught by working musicians.</p>
+        <a href="#learn-more" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Our history</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">Learn more about the history of MAM Academy</span></a>
+      </div>
+    </section>
+    <section aria-labelledby="b0-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(48px, 6vw, 88px); padding-bottom: clamp(48px, 6vw, 88px); border-top: 1px solid #E6DED2">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center; flex-direction: row">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <h3 id="b0-h" aria-label="Excellence across four schools of learning" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Excellence</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">across</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 10% entry 70%">four</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 15% entry 75%">schools</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 20% entry 80%">of</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 25% entry 85%">learning</span></span></h3>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">Every programme draws on four schools: Instrumental, Performance, Rhythm, and MetaMusic &amp; Consciousness. Students grow as players, performers, readers and thinkers at the same time.</p>
+          <blockquote style="margin: 8px 0 0; padding: 4px 0 4px 24px; border-left: 3px solid #C27A12; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(22px, 1.9vw, 28px); line-height: 1.35; color: #211A13">Instrumental Intelligence · Performance Intelligence · Rhythm Intelligence · MetaMusic &amp; Consciousness</blockquote>
+          <a href="/programmes" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Learn more about our programmes</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">Programmes, levels and fees</span></a>
         </div>
-        <div class="about-content fade-in-up stagger-2">
-          <div class="section-eyebrow"><span class="line"></span>What Makes Us Different</div>
-          <h2 class="section-title">Not Just Instruments. <span class="highlight-gold">Complete Artistry.</span></h2>
-          <p class="section-desc">Unlike conventional academies that only teach instruments, MAM Academy develops <strong>artistic intelligence, rhythm cognition, performance mastery, stage confidence, creative consciousness</strong> and <strong>professional discipline</strong>.</p>
-          <p style="font-size:0.98rem;color:var(--text-soft);line-height:1.75;margin-top:18px">At MAM, students are not only taught how to play. They are taught how to <em>think, perform, interpret, communicate</em> and <em>lead creatively</em>.</p>
+        <div class="reveal" style="flex: 1 1 440px; min-width: 0"><div data-photo="students in a group lesson" aria-hidden="true" data-fx-img="" style="aspect-ratio: 3 / 2; border-radius: 14px; background: linear-gradient(135deg, #E8DECF, #CDB89C); display: flex; align-items: flex-end; padding: 16px; box-sizing: border-box; font-size: 13px; color: #574B40"></div></div>
+      </div>
+    </section>
+    <section aria-labelledby="b1-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(48px, 6vw, 88px); padding-bottom: clamp(48px, 6vw, 88px); border-top: 1px solid #E6DED2">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center; flex-direction: row-reverse">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <h3 id="b1-h" aria-label="Every student is heard first" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Every</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">student</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 10% entry 70%">is</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 15% entry 75%">heard</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 20% entry 80%">first</span></span></h3>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">Before training begins, each applicant takes a MAM Auditer assessment. We listen to how they play, hear, move and perform, and place them at the level where they will grow fastest.</p>
+          <blockquote style="margin: 8px 0 0; padding: 4px 0 4px 24px; border-left: 3px solid #C27A12; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(22px, 1.9vw, 28px); line-height: 1.35; color: #211A13">Ten dimensions of musical readiness, measured on entry and reported every term.</blockquote>
+          <a href="/auditer" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Learn more about the MAM Auditer</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">How the assessment works</span></a>
+        </div>
+        <div class="reveal" style="flex: 1 1 440px; min-width: 0"><div data-photo="an assessor listening to a student" aria-hidden="true" data-fx-img="" style="aspect-ratio: 3 / 2; border-radius: 14px; background: linear-gradient(135deg, #E8DECF, #CDB89C); display: flex; align-items: flex-end; padding: 16px; box-sizing: border-box; font-size: 13px; color: #574B40"></div></div>
+      </div>
+    </section>
+    <section id="method" aria-labelledby="b2-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(48px, 6vw, 88px); padding-bottom: clamp(48px, 6vw, 88px); border-top: 1px solid #E6DED2">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center; flex-direction: row">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <h3 id="b2-h" aria-label="A method of our own" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">A</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">method</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 10% entry 70%">of</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 15% entry 75%">our</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 20% entry 80%">own</span></span></h3>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">The MAM Method is a complete system, not just a curriculum. Five pillars shape every lesson at every level, from a four-year-old’s first notes to a diploma recital.</p>
+          <blockquote style="margin: 8px 0 0; padding: 4px 0 4px 24px; border-left: 3px solid #C27A12; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(22px, 1.9vw, 28px); line-height: 1.35; color: #211A13">Technique · Rhythm Intelligence · Performance Intelligence · Creative Consciousness · Artistic Discipline</blockquote>
+          <a href="/programmes#levels" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Learn more about the four levels</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">From Pre-Certificate to Diploma</span></a>
+        </div>
+        <div class="reveal" style="flex: 1 1 440px; min-width: 0"><div data-photo="a student practising at the piano" aria-hidden="true" data-fx-img="" style="aspect-ratio: 3 / 2; border-radius: 14px; background: linear-gradient(135deg, #E8DECF, #CDB89C); display: flex; align-items: flex-end; padding: 16px; box-sizing: border-box; font-size: 13px; color: #574B40"></div></div>
+      </div>
+    </section>
+    <section aria-labelledby="b3-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(48px, 6vw, 88px); padding-bottom: clamp(48px, 6vw, 88px); border-top: 1px solid #E6DED2">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center; flex-direction: row-reverse">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <h3 id="b3-h" aria-label="Taught by working musicians" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Taught</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">by</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 10% entry 70%">working</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 15% entry 75%">musicians</span></span></h3>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">Our faculty are performers, worship leaders and composers who are active in their craft. The academy is led by its founder, Van. BOJA, who also leads The MetaMusic Order and the monthly Power Play series.</p>
+          
+          <a href="#learn-more" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Meet our leadership and faculty</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">Founder, directors and lead faculty</span></a>
+        </div>
+        <div class="reveal" style="flex: 1 1 440px; min-width: 0"><div data-photo="faculty performing together" aria-hidden="true" data-fx-img="" style="aspect-ratio: 3 / 2; border-radius: 14px; background: linear-gradient(135deg, #E8DECF, #CDB89C); display: flex; align-items: flex-end; padding: 16px; box-sizing: border-box; font-size: 13px; color: #574B40"></div></div>
+      </div>
+    </section>
+    <section aria-labelledby="b4-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(48px, 6vw, 88px); padding-bottom: clamp(48px, 6vw, 88px); border-top: 1px solid #E6DED2">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center; flex-direction: row">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <h3 id="b4-h" aria-label="Support that makes a difference" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Support</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">that</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 10% entry 70%">makes</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 15% entry 75%">a</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 20% entry 80%">difference</span></span></h3>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">Cost should not decide who becomes a musician. The NGV Scholarship supports talented students for whom tuition is the only barrier.</p>
+          
+          <a href="/apply" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Ask about the scholarship when you apply</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">Admissions and support</span></a>
+        </div>
+        <div class="reveal" style="flex: 1 1 440px; min-width: 0"><div data-photo="a student smiling after a lesson" aria-hidden="true" data-fx-img="" style="aspect-ratio: 3 / 2; border-radius: 14px; background: linear-gradient(135deg, #E8DECF, #CDB89C); display: flex; align-items: flex-end; padding: 16px; box-sizing: border-box; font-size: 13px; color: #574B40"></div></div>
+      </div>
+    </section>
+    <section aria-labelledby="b5-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(48px, 6vw, 88px); padding-bottom: clamp(48px, 6vw, 88px); border-top: 1px solid #E6DED2">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center; flex-direction: row-reverse">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <h3 id="b5-h" aria-label="A community beyond lessons" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">A</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">community</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 10% entry 70%">beyond</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 15% entry 75%">lessons</span></span></h3>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">Every term ends in a showcase where every student performs. Each month, Power Play brings musicians, creatives and culture shapers together online — free and open to all.</p>
+          <blockquote style="margin: 8px 0 0; padding: 4px 0 4px 24px; border-left: 3px solid #C27A12; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(22px, 1.9vw, 28px); line-height: 1.35; color: #211A13">Music that builds people.</blockquote>
+          <a href="/life" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Learn more about life at MAM</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">Showcases, Power Play and intensives</span></a>
+        </div>
+        <div class="reveal" style="flex: 1 1 440px; min-width: 0"><div data-photo="the termly showcase" aria-hidden="true" data-fx-img="" style="aspect-ratio: 3 / 2; border-radius: 14px; background: linear-gradient(135deg, #E8DECF, #CDB89C); display: flex; align-items: flex-end; padding: 16px; box-sizing: border-box; font-size: 13px; color: #574B40"></div></div>
+      </div>
+    </section>
 
-          <div style="margin-top:22px;padding:20px 22px;background:rgba(224,138,26,0.06);border-left:3px solid var(--gold);border-radius:0 var(--radius-sm) var(--radius-sm) 0">
-            <div style="font-size:0.75rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:10px">A Short History</div>
-            <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 18px;font-size:0.92rem;color:var(--text-soft);line-height:1.65">
-              <strong style="color:var(--gold-bright);font-family:var(--font-display);letter-spacing:0.04em">Pre-2008</strong><span>Began unofficially among the <strong>KFolks</strong> — a circle of musicians, friends and creatives</span>
-              <strong style="color:var(--gold-bright);font-family:var(--font-display);letter-spacing:0.04em">5 May 2008</strong><span><strong>Officially commissioned</strong> as MAM Academy</span>
-              <strong style="color:var(--gold-bright);font-family:var(--font-display);letter-spacing:0.04em">2011</strong><span>Registered under <strong>The Just Folks Limited</strong></span>
-              <strong style="color:var(--gold-bright);font-family:var(--font-display);letter-spacing:0.04em">Today</strong><span>Repositioned as <strong>A Creative Intelligence &amp; Performance Academy</strong></span>
-            </div>
-          </div>
-          <blockquote class="about-quote">
-            <p>"We interpret the timeless using instruments and replay it in time."</p>
-            <cite>— The MAM Academy Vision</cite>
-          </blockquote>
-          <div class="about-pillars">
-            <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-music"></i></div><div><div class="pillar-title">Artistic Intelligence</div><div class="pillar-desc">Interpretation &amp; identity</div></div></div>
-            <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-drum"></i></div><div><div class="pillar-title">Rhythm Cognition</div><div class="pillar-desc">Sight reading &amp; timing</div></div></div>
-            <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-masks-theater"></i></div><div><div class="pillar-title">Performance Mastery</div><div class="pillar-desc">Stage &amp; presence</div></div></div>
-            <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-infinity"></i></div><div><div class="pillar-title">Creative Consciousness</div><div class="pillar-desc">Philosophy of sound</div></div></div>
-          </div>
+    <section id="learn-more" aria-labelledby="lm-h" style="background: #F3EEE6; margin-top: clamp(24px, 3vw, 48px)">
+      <div style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(64px, 8vw, 112px); padding-bottom: clamp(64px, 8vw, 112px); display: flex; flex-direction: column; gap: 28px">
+        <h2 id="lm-h" aria-label="Learn more" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(38px, 4vw, 58px); line-height: 1.08"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Learn</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">more</span></span></h2>
+        <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B; max-width: 760px">MAM Academy was commissioned in 2008 as the training arm of MAM Centre. Its vision: to interpret the timeless using instruments, and replay it in time.</p>
+        <div class="stagger" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px">
+          <a href="/faculty" class="lift" style="display: flex; flex-direction: column; gap: 8px; padding: 28px; border-radius: 16px; background: #FFFFFF; border: 1px solid #E6DED2; color: #211A13; text-decoration: none"><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 500">Leadership &amp; faculty</span><span style="font-size: 16px; color: #574B40">Meet the founder, directors and lead faculty who shape the academy.</span><span aria-hidden="true" style="margin-top: 8px; color: #8A5208; font-weight: 600">→</span></a>
+          <a href="/about#history" class="lift" style="display: flex; flex-direction: column; gap: 8px; padding: 28px; border-radius: 16px; background: #FFFFFF; border: 1px solid #E6DED2; color: #211A13; text-decoration: none"><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 500">Our history</span><span style="font-size: 16px; color: #574B40">From a training arm of MAM Centre in 2008 to an academy online and in person.</span><span aria-hidden="true" style="margin-top: 8px; color: #8A5208; font-weight: 600">→</span></a>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section id="method" style="background:var(--bg-surface)">
-    <div class="container">
-      <div class="method-head fade-in-up">
-        <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Our Framework<span class="line" style="transform:scaleX(-1)"></span></div>
-        <h2 class="section-title">The <span class="highlight-gold">MAM Method</span></h2>
-        <p class="section-desc" style="margin:0 auto">MAM Academy is gradually developing its own educational framework — a complete system, not just a curriculum. This positions MAM as a global creative intelligence and performance institution.</p>
-      </div>
-      <div class="method-grid" role="group" tabindex="0" aria-label="The MAM Method — five pillars">
-        <div class="method-step"><div class="method-num">1</div><h3 class="method-name">Technique</h3><p class="method-desc">Instrument mastery &amp; technical excellence.</p></div>
-        <div class="method-step"><div class="method-num">2</div><h3 class="method-name">Rhythm Intelligence</h3><p class="method-desc">Fast musical interpretation &amp; timing fluency.</p></div>
-        <div class="method-step"><div class="method-num">3</div><h3 class="method-name">Performance Intelligence</h3><p class="method-desc">Professional stage mastery &amp; presentation.</p></div>
-        <div class="method-step"><div class="method-num">4</div><h3 class="method-name">Creative Consciousness</h3><p class="method-desc">MetaMusic understanding &amp; artistic awareness.</p></div>
-        <div class="method-step"><div class="method-num">5</div><h3 class="method-name">Artistic Discipline</h3><p class="method-desc">Professional culture, ethics &amp; excellence.</p></div>
-      </div>
-    </div>
-  </section>
+  </main>
 
-  <section>
-    <div class="container">
-      <div style="text-align:center;max-width:760px;margin:0 auto 48px">
-        <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Who We Develop<span class="line" style="transform:scaleX(-1)"></span></div>
-        <h2 class="section-title">Beyond <span class="highlight-gold">Performers</span></h2>
-        <p class="section-desc" style="margin:0 auto">MAM Academy develops a complete spectrum of creative professionals.</p>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px">
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-music"></i></div><div class="pillar-title">Musicians</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-microphone"></i></div><div class="pillar-title">Performers</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-hands-praying"></i></div><div class="pillar-title">Worship Leaders</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-pen-nib"></i></div><div class="pillar-title">Composers</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-people-group"></i></div><div class="pillar-title">Conductors</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-masks-theater"></i></div><div class="pillar-title">Actors</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-podcast"></i></div><div class="pillar-title">Public Performers</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-lightbulb"></i></div><div class="pillar-title">Creative Thinkers</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-globe-africa"></i></div><div class="pillar-title">Cultural Artists</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-star"></i></div><div class="pillar-title">Performance Pros</div></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Life at MAM — brand photography. Images live at the paths below; until
-       they're added (see assets/img/README.md) a branded placeholder shows. -->
-  <style>
-    .mam-photos{display:grid;grid-template-columns:1.2fr 1fr;gap:22px;align-items:stretch}
-    @media (max-width:760px){.mam-photos{grid-template-columns:1fr}}
-    .mam-photo{position:relative;border-radius:16px;overflow:hidden;border:1px solid var(--border-gold,rgba(224,138,26,.35));background:linear-gradient(135deg,#241710,#120D08);min-height:300px;margin:0}
-    .mam-photo img{width:100%;height:100%;object-fit:cover;display:block;min-height:300px}
-    .mam-photo figcaption{position:absolute;left:0;right:0;bottom:0;padding:16px 18px;background:linear-gradient(transparent,rgba(10,7,4,.88));color:#fff;font-size:.92rem;font-weight:600}
-    .mam-photo.is-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px}
-    .mam-photo.is-empty::before{content:"\f001";font-family:"Font Awesome 6 Free";font-weight:900;font-size:2.6rem;color:rgba(252,198,71,.4)}
-    .mam-photo.is-empty figcaption{position:static;background:none;padding:0;color:var(--text-muted,#cbb89e)}
-  </style>
-  <section id="life" style="background:var(--bg-surface)">
-    <div class="container">
-      <div style="text-align:center;margin-bottom:34px">
-        <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Life at MAM<span class="line" style="transform:scaleX(-1)"></span></div>
-        <h2 class="section-title">Music that <span class="highlight-gold">builds people</span></h2>
-        <p class="section-desc" style="margin:0 auto">At MAM, we use music lessons to boost morale — discipline, confidence and joy, one session at a time.</p>
-      </div>
-      <div class="mam-photos">
-        <figure class="mam-photo">
-          <img src="assets/img/gallery/mam-drummer.jpg" alt="A MAM Academy student performing on drums" loading="lazy" decoding="async" onerror="var f=this.closest('.mam-photo');f.classList.add('is-empty');this.remove();">
-          <figcaption>On stage — rhythm intelligence in action.</figcaption>
-        </figure>
-        <figure class="mam-photo">
-          <img src="assets/img/values/mam-guitar-morale.jpg" alt="At MAM we use music lessons to boost morale" loading="lazy" decoding="async" onerror="var f=this.closest('.mam-photo');f.classList.add('is-empty');this.remove();">
-          <figcaption>Lessons that lift the spirit.</figcaption>
-        </figure>
-      </div>
-    </div>
-  </section>
-
-  <section id="next-step" aria-label="Continue your journey">
-    <div class="next-step-wrap">
-      <a class="next-step-back" href="/">
-        <i class="fa-solid fa-arrow-left"></i>
-        <div><div class="next-step-back-label">Step 1 of 6</div><strong>About MAM Academy</strong></div>
-      </a>
-      <a class="next-step-card" href="schools">
-        <div class="next-step-eyebrow"><span class="num">02</span>Up next · Continue your journey</div>
-        <div class="next-step-title">The Four Signature Schools <i class="fa-solid fa-arrow-right"></i></div>
-        <p class="next-step-desc">See where you'll actually train — Instrumental, Performance, Rhythm and MetaMusic. Each anchored to a specific intelligence.</p>
-        <div class="next-step-meta">
-          <span><i class="fa-solid fa-school"></i>4 schools</span>
-          <span><i class="fa-solid fa-music"></i>12+ disciplines</span>
-        </div>
-      </a>
-    </div>
-  </section>
-</main>
-
-<?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20261120a"></script>
-<script src="assets/js/main.js?v=20260920"></script>
-</body>
-</html>
+<?php
+echo site_photos((string) ob_get_clean());
+site_footer([]);

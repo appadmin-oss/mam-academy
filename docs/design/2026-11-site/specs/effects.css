@@ -1,0 +1,16 @@
+/* Shared effects layer: page transitions, image reveal, card spotlight, smart header, scroll-spy. */
+@view-transition{navigation:auto}
+::view-transition-old(root){animation:.3s ease both fxVtOut}
+::view-transition-new(root){animation:.6s cubic-bezier(.19,1,.22,1) both fxVtIn}
+@keyframes fxVtOut{to{opacity:0}}
+@keyframes fxVtIn{from{opacity:0;transform:translateY(14px)}}
+@supports (animation-timeline: view()){[data-fx-img]{animation:fxImg linear both;animation-timeline:view();animation-range:entry 0% entry 80%}}
+@keyframes fxImg{from{clip-path:inset(9% 7% 9% 7% round 26px);filter:saturate(.6) brightness(.96)}to{clip-path:inset(0 0 0 0 round 0);filter:none}}
+.spot::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;background:radial-gradient(380px circle at var(--mx,50%) var(--my,50%),var(--spot,rgba(242,169,59,.16)),transparent 62%);opacity:0;transition:opacity .5s ease}
+.spot:hover::after{opacity:1}
+nav[aria-label="On this page"]{transition:top .55s cubic-bezier(.19,1,.22,1)}
+nav[aria-label="On this page"] a.on{color:#8A5208!important;background-size:100% 1px!important}
+[data-smart]{transition:transform .55s cubic-bezier(.19,1,.22,1),box-shadow .4s ease}
+.fx-hide [data-smart]{transform:translateY(-100%)}
+.fx-hide nav[aria-label="On this page"]{top:0!important}
+@media (prefers-reduced-motion: reduce){::view-transition-old(root),::view-transition-new(root){animation:none}[data-fx-img]{animation:none!important}[data-smart]{transition:none}}

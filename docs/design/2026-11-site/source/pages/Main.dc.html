@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MAM Academy — Music education online and in person</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FAF8F4}
+html{scroll-behavior:smooth}
+:root{--out:cubic-bezier(.19,1,.22,1);--soft:cubic-bezier(.25,1,.5,1)}
+a{color:#8A5208;text-decoration-color:rgba(138,82,8,.35);transition:color .5s var(--out),text-decoration-color .5s var(--out)}
+a:hover{color:#211A13;text-decoration-color:currentColor}
+a:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid #2563EB;outline-offset:2px;border-radius:6px}
+.skip:focus{top:8px!important}
+/* links: underline draws in */
+.ul{background:linear-gradient(currentColor,currentColor) 0 calc(50% + .78em)/0 1px no-repeat;transition:background-size .6s var(--out),color .3s ease}
+.ul:hover,.ul[aria-expanded="true"]{background-size:100% 1px}
+/* buttons: quiet press, arrow nudge */
+.btn{transition:background-color .2s ease,color .2s ease,border-color .2s ease,transform .15s var(--soft)}
+.btn:active{transform:scale(.98)}
+.arrow span[aria-hidden]{display:inline-block;transition:transform .5s var(--out)}
+.arrow:hover span[aria-hidden]{transform:translateX(4px)}
+.lift{transition:transform .75s var(--out),box-shadow .75s var(--out)}
+.lift:hover{transform:translateY(-4px);box-shadow:0 30px 60px -36px rgba(33,26,19,.4)}
+.zoom img,.zoom .ph{transition:transform 1.2s var(--out)}
+.zoom:hover img,.zoom:hover .ph{transform:scale(1.04)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+@keyframes fadeUp2{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+@keyframes wordIn{from{opacity:0;transform:translateY(.45em);filter:blur(8px)}to{opacity:1;transform:none;filter:blur(0)}}
+@keyframes heroIn{from{opacity:0}to{opacity:1}}
+@keyframes kenburns{from{transform:scale(1.08)}to{transform:scale(1)}}
+@keyframes panelIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.fade-in{animation:fadeUp 1s var(--soft) both}
+@supports (animation-timeline: view()){
+  .reveal{animation:fadeUp linear both;animation-timeline:view();animation-range:entry 0% entry 90%}
+}
+@keyframes barGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes drift{from{transform:translateY(-4%)}to{transform:translateY(4%)}}
+@keyframes heroOut{to{opacity:0;transform:translateY(-40px)}}
+@keyframes rise2{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:none}}
+.bar{transform-origin:left;animation:barGrow 1.4s var(--out) both}
+@supports (animation-timeline: view()){
+  .bar{animation:barGrow linear both;animation-timeline:view();animation-range:entry 20% entry 100%}
+  .par{animation:drift linear both;animation-timeline:view();animation-range:cover 0% cover 100%}
+  .hero-copy{animation:heroOut linear both;animation-timeline:view();animation-range:exit 0% exit 70%}
+  .stagger>*:not(sc-for),.stagger>sc-for>*{animation:fadeUp linear both;animation-timeline:view();animation-range:entry 0% entry 80%}
+  .stagger>*:nth-child(2):not(sc-for),.stagger>sc-for>*:nth-child(2){animation-range:entry 10% entry 90%}
+  .stagger>*:nth-child(3):not(sc-for),.stagger>sc-for>*:nth-child(3){animation-range:entry 20% entry 100%}
+  .stagger>*:nth-child(4):not(sc-for),.stagger>sc-for>*:nth-child(4){animation-range:entry 25% entry 100%}
+  .wordmark{animation:rise2 linear both;animation-timeline:view();animation-range:entry 0% entry 100%}
+}
+
+
+/* ---- responsive layer ---- */
+footer nav[aria-label="Footer"] a{overflow-wrap:anywhere;min-width:0}
+img{max-width:100%}
+.sr-xs{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (max-width: 1080px){.stick{position:static!important}}
+@media (max-width: 900px){footer nav[aria-label="Footer"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media (max-width: 720px){
+  .hide-sm{display:none}
+  .top-apply{display:none!important}
+  .lvl{min-height:0!important}
+  .lvl h3{margin-top:6px!important}
+  [aria-label="Newsletter"]>input{flex:none!important;width:100%}
+  .hero-copy{padding-bottom:40px!important}
+  .tgrid,.bento{gap:12px!important}
+  [aria-label="Fee estimator"],[aria-label="Newsletter"]{flex-direction:column}
+  footer nav[aria-label="Footer"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media (max-width: 480px){
+  .wm{font-size:21px!important}
+  header img{width:28px!important;height:28px!important}
+  header .btn{padding-left:12px!important;padding-right:12px!important}
+  .hide-xs{display:none}
+  .bento{grid-auto-rows:minmax(280px,auto)!important}
+  section h1{letter-spacing:-.01em!important}
+}
+/* ---- text motion system ---- */
+@property --n{syntax:'<integer>';initial-value:0;inherits:false}
+@keyframes wordUp{from{transform:translateY(108%) rotate(2deg);opacity:0}to{transform:none;opacity:1}}
+@keyframes lineIn{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes readIn{from{opacity:.18;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes count{from{--n:0}to{--n:var(--to)}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.mask{display:inline-block;overflow:hidden;vertical-align:bottom;padding:0 .04em .1em;margin:0 -.04em -.1em}
+.w{display:inline-block;transform-origin:0 100%;animation:wordUp 1.1s var(--soft) both}
+.count{counter-reset:n var(--to)}
+.count::after{content:counter(n)}
+@supports (animation-timeline: view()){
+  .sw{display:inline-block;transform-origin:0 100%;animation:wordUp linear both;animation-timeline:view()}
+  .read{animation:readIn linear both;animation-timeline:view();animation-range:entry 0% entry 100%}
+  .count{counter-reset:n var(--n);animation:count linear both;animation-timeline:view();animation-range:entry 20% entry 100%}
+}
+.rail{scroll-snap-type:x mandatory;scrollbar-width:thin}
+.rail>*{scroll-snap-align:start}
+.navlinks{display:flex}.menubtn{display:none!important}.mobileonly{display:none!important}
+@media (max-width: 1080px){.navlinks{display:none!important}.menubtn{display:inline-flex!important}.mobileonly{display:flex!important}.bento{grid-template-columns:1fr!important}.bento>*{grid-column:auto!important}.tgrid{grid-template-columns:1fr!important}.tgrid>*{grid-column:auto!important;grid-row:auto!important}}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}html{scroll-behavior:auto}.count{counter-reset:n var(--to)!important}}
+</style>
+
+
+<style data-fx>
+@view-transition{navigation:auto}
+::view-transition-old(root){animation:.3s ease both fxVtOut}
+::view-transition-new(root){animation:.6s cubic-bezier(.19,1,.22,1) both fxVtIn}
+@keyframes fxVtOut{to{opacity:0}}
+@keyframes fxVtIn{from{opacity:0;transform:translateY(14px)}}
+@supports (animation-timeline: view()){[data-fx-img]{animation:fxImg linear both;animation-timeline:view();animation-range:entry 0% entry 80%}}
+@keyframes fxImg{from{clip-path:inset(9% 7% 9% 7% round 26px);filter:saturate(.6) brightness(.96)}to{clip-path:inset(0 0 0 0 round 0);filter:none}}
+.spot::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;background:radial-gradient(380px circle at var(--mx,50%) var(--my,50%),var(--spot,rgba(242,169,59,.16)),transparent 62%);opacity:0;transition:opacity .5s ease}
+.spot:hover::after{opacity:1}
+nav[aria-label="On this page"]{transition:top .55s cubic-bezier(.19,1,.22,1)}
+nav[aria-label="On this page"] a.on{color:#8A5208!important;background-size:100% 1px!important}
+[data-smart]{transition:transform .55s cubic-bezier(.19,1,.22,1),box-shadow .4s ease}
+.fx-hide [data-smart]{transform:translateY(-100%)}
+.fx-hide nav[aria-label="On this page"]{top:0!important}
+@media (prefers-reduced-motion: reduce){::view-transition-old(root),::view-transition-new(root){animation:none}[data-fx-img]{animation:none!important}[data-smart]{transition:none}}
+</style>
+</helmet>
+<div style="font-family: Inter, system-ui, sans-serif; color: #211A13; background: #FAF8F4; font-size: 16px; line-height: 1.6">
+
+  <a href="#main" class="skip" style="position: absolute; left: 8px; top: -60px; z-index: 50; background: #FFFFFF; color: #211A13; padding: 12px 16px; border-radius: 6px">Skip to main content</a>
+
+  <!-- ================= ANNOUNCEMENT: dark strip; the page below sits on it with curved top corners ================= -->
+  <sc-if value="{{ barOpen }}" hint-placeholder-val="{{ true }}">
+    <div role="region" aria-label="Announcement" style="background: #120C07; color: #FCF8F3">
+      <div style="max-width: 1360px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px); min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 12px; position: relative">
+        <p style="margin: 0; padding: 10px 40px; font-size: 14px; line-height: 1.45; text-align: center">[INTAKE] intake is open<span class="hide-sm"> — places are limited and applications are reviewed weekly</span>. <a href="Apply.dc.html" class="arrow" style="color: #FCF8F3; font-weight: 600; text-decoration: none; white-space: nowrap">Apply now <span aria-hidden="true">›</span></a></p>
+        <button type="button" aria-label="Dismiss announcement" onClick="{{ closeBar }}" class="btn" style="position: absolute; right: clamp(8px, 2vw, 24px); top: 50%; transform: translateY(-50%); width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; border-radius: 8px; color: #FCF8F3; cursor: pointer"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ================= NAV (claude.com model) =================
+       At the top: only the wordmark, a Menu button and Apply, so the hero breathes.
+       After the hero: a flat ivory bar slides down with the full navigation. -->
+  <header style="position: sticky; top: 0; z-index: 40; height: 0">
+    <!-- minimal layer over the hero -->
+    <div style="{{ minimalStyle }}">
+      <div style="max-width: 1360px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px); height: 88px; display: flex; align-items: center; justify-content: space-between; gap: 16px; color: #FCF8F3">
+        <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; min-height: 44px; text-decoration: none; color: inherit">
+          <img src="/_blob/00dfca51d0e87c346b5650eddf166e20" alt="" width="34" height="34" style="width: 34px; height: 34px">
+          <span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26px; font-weight: 600; line-height: 1; white-space: nowrap" class="wm">MAM Academy</span>
+        </a>
+        <div style="display: flex; align-items: center; gap: 8px">
+          <button type="button" class="btn" aria-expanded="{{ menuOpenAttr }}" aria-controls="programmes-panel" onClick="{{ toggleMenu }}" style="min-height: 44px; padding: 0 16px; border-radius: 10px; background: rgba(252,248,243,.12); border: 1px solid rgba(252,248,243,.25); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); color: #FCF8F3; font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 8px"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h16"></path></svg><span class="hide-xs">Menu</span><span class="sr-xs">Menu</span></button>
+          <a href="Apply.dc.html" class="btn arrow top-apply" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 10px; background: #FCF8F3; color: #211A13; font-size: 15px; font-weight: 600; text-decoration: none">Apply <span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+    </div>
+    <!-- full bar -->
+    <div style="{{ fullStyle }}">
+      <div style="max-width: 1360px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px); height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 24px">
+        <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; min-height: 44px; text-decoration: none; color: #211A13">
+          <img src="/_blob/00dfca51d0e87c346b5650eddf166e20" alt="" width="30" height="30" style="width: 30px; height: 30px">
+          <span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px; font-weight: 600; line-height: 1; white-space: nowrap" class="wm">MAM Academy</span>
+        </a>
+        <div style="display: flex; align-items: center; gap: 4px">
+          <nav aria-label="Main" class="navlinks" style="align-items: center; gap: 4px; margin-right: 36px">
+            <button type="button" class="ul" aria-expanded="{{ menuOpenAttr }}" aria-controls="programmes-panel" onClick="{{ toggleMenu }}" style="min-height: 44px; margin: 0 10px; padding: 0; border: 0; background-color: transparent; font: inherit; font-size: 15px; color: #211A13; cursor: pointer; display: inline-flex; align-items: center; gap: 6px">Programmes <svg aria-hidden="true" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" style="{{ chevStyle }}"><path d="M2.5 4.5L6 8l3.5-3.5"></path></svg></button>
+            <a href="Programmes.dc.html#fees" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; margin: 0 10px; font-size: 15px; color: #211A13; text-decoration: none">Admissions</a>
+            <a href="Life.dc.html" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; margin: 0 10px; font-size: 15px; color: #211A13; text-decoration: none">Life at MAM</a>
+            <a href="About.dc.html" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; margin: 0 10px; font-size: 15px; color: #211A13; text-decoration: none">About</a>
+            <a href="#signin" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; margin: 0 10px; font-size: 15px; color: #211A13; text-decoration: none">Sign in</a>
+          </nav>
+          <a href="Auditer.dc.html" class="btn navlinks" style="align-items: center; min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid #D6CCBE; color: #211A13; font-size: 15px; text-decoration: none">Visit a class</a>
+          <a href="Apply.dc.html" class="btn arrow" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 18px; border-radius: 10px; background: #211A13; color: #FAF8F4; font-size: 15px; font-weight: 500; text-decoration: none">Apply <span aria-hidden="true">→</span></a>
+          <button type="button" class="menubtn btn" aria-label="Menu" aria-expanded="{{ menuOpenAttr }}" aria-controls="programmes-panel" onClick="{{ toggleMenu }}" style="width: 44px; height: 44px; align-items: center; justify-content: center; background: none; border: 0; color: #211A13; cursor: pointer"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h16"></path></svg></button>
+        </div>
+      </div>
+      <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+        <div id="programmes-panel" onKeyDown="{{ panelKey }}" style="position: absolute; left: 0; right: 0; top: 72px; max-height: calc(100vh - 72px); overflow-y: auto; overscroll-behavior: contain; background: #FAF8F4; color: #211A13; border-top: 1px solid #ECE5DA; box-shadow: 0 40px 60px -40px rgba(23,16,9,.35); animation: panelIn .5s var(--out) both">
+          <div style="max-width: 1360px; margin: 0 auto; padding: 40px clamp(20px, 4vw, 40px) 48px; box-sizing: border-box; display: flex; flex-wrap: wrap; gap: 48px">
+            <nav aria-label="Explore" class="mobileonly" style="flex: 1 1 100%; flex-direction: column; gap: 4px">
+              <a href="Programmes.dc.html#fees" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 52px; border-bottom: 1px solid #E6DED2; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600; color: #211A13; text-decoration: none">Admissions</a>
+              <a href="Life.dc.html" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 52px; border-bottom: 1px solid #E6DED2; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600; color: #211A13; text-decoration: none">Life at MAM</a>
+              <a href="About.dc.html" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 52px; border-bottom: 1px solid #E6DED2; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600; color: #211A13; text-decoration: none">About</a>
+              <a href="#signin" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 52px; font-size: 16px; font-weight: 600; color: #8A5208; text-decoration: none">Sign in to your portal</a>
+            </nav>
+            <div style="flex: 1 1 220px; display: flex; flex-direction: column">
+              <p style="margin: 0 0 12px; font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #8A5208">Levels</p>
+              <sc-for list="{{levels}}" as="l" hint-placeholder-count="4"><a href="Programmes.dc.html" onClick="{{ closeMenu }}" style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 48px; padding: 8px 0; border-bottom: 1px solid #E6DED2; color: #211A13; text-decoration: none"><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 23px; font-weight: 600">{{ l.name }}</span><span style="font-size: 13px; color: #574B40">{{ l.grades }}</span></a></sc-for>
+            </div>
+            <div style="flex: 1 1 240px; display: flex; flex-direction: column">
+              <p style="margin: 0 0 12px; font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #8A5208">Instruments</p>
+              <ul style="list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 24px; font-size: 15px">
+                <sc-for list="{{instruments}}" as="i" hint-placeholder-count="8"><li><a href="Programmes.dc.html#instruments" onClick="{{ closeMenu }}" style="display: inline-flex; align-items: center; min-height: 40px; color: #211A13; text-decoration: none">{{ i }}</a></li></sc-for>
+              </ul>
+            </div>
+            <div style="flex: 1 1 220px; display: flex; flex-direction: column">
+              <p style="margin: 0 0 12px; font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #8A5208">Short courses</p>
+              <a href="Programmes.dc.html#intensives" onClick="{{ closeMenu }}" style="display: inline-flex; align-items: center; min-height: 40px; color: #211A13; text-decoration: none">Crash Programme · 6 weeks</a>
+              <a href="Life.dc.html" onClick="{{ closeMenu }}" style="display: inline-flex; align-items: center; min-height: 40px; color: #211A13; text-decoration: none">The MetaMusic Order · 12 weeks</a>
+              <a href="Life.dc.html#powerplay" onClick="{{ closeMenu }}" style="display: inline-flex; align-items: center; min-height: 40px; color: #211A13; text-decoration: none">Power Play · free, monthly</a>
+            </div>
+            <a href="Programmes.dc.html#levels" onClick="{{ closeMenu }}" class="zoom" style="flex: 1.1 1 260px; position: relative; isolation: isolate; overflow: hidden; border-radius: 18px; min-height: 220px; background: #2A1E14; color: #FBF8F3; text-decoration: none; display: flex; flex-direction: column; justify-content: flex-end; padding: 24px">
+              <img src="/_blob/3cf4f040bdf1a4ee31eed576f1ea28e0" alt="" style="position: absolute; right: -16px; bottom: 0; height: 100%; z-index: -1">
+              <span aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(42,30,20,.95) 0%, rgba(42,30,20,.2) 75%)"></span>
+              <span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26px; font-weight: 600; line-height: 1.1">Not sure where<br>to start?</span>
+              <span style="font-size: 13px; color: #E9E1D6; margin-top: 6px">Book a MAM Auditer assessment →</span>
+            </a>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </header>
+
+  <main id="main">
+
+    <!-- ================= HERO: full-width photograph, serif headline (Stanford model) ================= -->
+    <div style="{{ heroWrapStyle }}">
+    <section aria-labelledby="hero-h" style="position: relative; isolation: isolate; overflow: hidden; min-height: clamp(560px, 92svh, 760px); display: flex; align-items: flex-end; background: #3B2C1F; border-radius: {{ heroRadius }}; transition: border-radius .5s cubic-bezier(.19,1,.22,1)">
+      <div role="img" aria-label="Photo placeholder: MAM students performing on stage" style="position: absolute; inset: 0; z-index: -2; background: linear-gradient(135deg, #4A3726 0%, #2E2118 100%); display: flex; align-items: flex-start; justify-content: flex-end; padding: 104px clamp(20px, 4vw, 40px) 24px; animation: kenburns 2.6s var(--out) both">
+        <span style="font-size: 13px; color: rgba(252,248,243,0.75); border: 1px dashed rgba(252,248,243,0.4); padding: 6px 12px; border-radius: 6px">Hero photo — MAM students performing (upload)</span>
+      </div>
+      <div aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: linear-gradient(0deg, rgba(23,16,9,0.85) 0%, rgba(23,16,9,0.25) 55%, rgba(23,16,9,0) 100%)"></div>
+      <div class="hero-copy" style="max-width: 1360px; width: 100%; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px) 72px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px 48px">
+        <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 20px; color: #FCF8F3">
+          <h1 id="hero-h" aria-label="Where young musicians become complete artists" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(47px, 5.83vw, 84px); line-height: 1.02; letter-spacing: -0.01em; max-width: 860px"><sc-for list="{{heroWords}}" as="w" hint-placeholder-count="6"><span class="mask" aria-hidden="true"><span class="{{ w.cls }}" style="{{ w.style }}">{{ w.t }}</span></span>{{ w.sp }}</sc-for></h1>
+          <p class="fade-in" style="animation-delay: .7s; margin: 0; font-size: 19px; color: rgba(252,248,243,0.88); max-width: 560px">Graded music education from age 4 to diploma — online or in person at our studios.</p>
+        </div>
+        <div class="fade-in" style="animation-delay: .9s; display: flex; gap: 12px; flex-wrap: wrap">
+          <a href="Apply.dc.html" class="btn" style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 26px; border-radius: 999px; background: #F2A93B; color: #211A13; font-weight: 600; text-decoration: none">Apply now</a>
+          <a href="Auditer.dc.html" style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 25px; border-radius: 999px; border: 1px solid rgba(252,248,243,0.6); color: #FCF8F3; font-weight: 600; text-decoration: none">Visit a class</a>
+        </div>
+      </div>
+    </section>
+    </div>
+
+    <!-- ================= ABOUT: centred intro statement (Stanford model) ================= -->
+    <section id="about" aria-labelledby="about-h" style="max-width: 900px; margin: 0 auto; padding: clamp(64px, 8.3vw, 120px) clamp(20px, 4vw, 40px) clamp(56px, 7.8vw, 112px); display: flex; flex-direction: column; align-items: center; gap: 24px; text-align: center">
+      <h2 aria-label="More than music lessons" id="about-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.08; letter-spacing: -0.005em"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">More</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">than</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">music</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">lessons</span></span></h2>
+      <p class="read" style="margin: 0; font-size: 18px; color: #574B40; max-width: 680px">Since 2008, MAM Academy has formed musicians who can play, perform, read and think. Every student is heard first, placed at the right level, and taught by a working musician — then grows across four schools of learning.</p>
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px">
+        <a href="About.dc.html" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; border-radius: 999px; background: #2A1E14; color: #FCF8F3; font-size: 15px; font-weight: 600; text-decoration: none">About MAM</a>
+        <a href="#schools-h" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 19px; border-radius: 999px; border: 1px solid #CDBFAE; color: #211A13; font-size: 15px; font-weight: 600; text-decoration: none">The MAM Method</a>
+      </div>
+    </section>
+
+    <!-- ================= FOUR SCHOOLS: bento with hover reveals ================= -->
+    <section id="method" aria-labelledby="schools-h" style="max-width: 1360px; margin: 0 auto; padding: 48px clamp(20px, 4vw, 40px) clamp(72px, 10vw, 144px); display: flex; flex-direction: column; gap: 48px">
+      <div class="reveal" style="display: flex; flex-direction: column; gap: 14px; max-width: 760px">
+        <p style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">The MAM Method</p>
+        <h2 aria-label="Four schools inside every programme" id="schools-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Four</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">schools</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">inside</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">every</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 24% entry 84%">programme</span></span></h2>
+      </div>
+      <div class="bento" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 320px; gap: 20px">
+        <sc-for list="{{schools}}" as="s" hint-placeholder-count="4">
+          <article class="zoom reveal" style="{{ s.cardStyle }}">
+            <sc-if value="{{ s.hasImg }}" hint-placeholder-val="{{ false }}"><img src="{{ s.img }}" alt="" style="position: absolute; right: 0; bottom: 0; height: 92%; z-index: -1"></sc-if>
+            <sc-if value="{{ s.noImg }}" hint-placeholder-val="{{ true }}"><div class="ph" data-fx-img data-fx-img data-fx-img style="position: absolute; inset: 0; z-index: -1; display: flex; align-items: flex-start; justify-content: flex-end; padding: 20px; font-size: 12px; color: rgba(252,248,243,.7)">{{ s.photo }}</div></sc-if>
+            <div aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(42,30,20,.95) 0%, rgba(42,30,20,.6) 55%, rgba(42,30,20,0) 100%)"></div>
+            <span aria-hidden="true" style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 20px; font-style: italic; color: #F2A93B">{{ s.n }}</span>
+            <h3 style="margin: auto 0 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 34px; line-height: 1.05; max-width: 70%">{{ s.name }}</h3>
+            <p style="margin: 0; font-size: 15px; color: #E9E1D6; max-width: 60%">{{ s.desc }}</p>
+          </article>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- ================= LEARNING JOURNEY: four levels in one view + placement, then proof ================= -->
+    <section id="journey" aria-labelledby="journey-h" style="max-width: 1360px; margin: 0 auto; padding: clamp(72px, 10.0vw, 144px) clamp(20px, 4vw, 40px) clamp(64px, 8.9vw, 128px); display: flex; flex-direction: column; gap: 56px">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px 64px">
+        <div class="reveal" style="display: flex; flex-direction: column; gap: 14px">
+          <p style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">The learning journey</p>
+          <h2 id="journey-h" aria-label="Four levels, one continuous path" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Four</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">levels,</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">one</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">continuous</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 24% entry 84%">path</span></span></h2>
+        </div>
+        <p class="read" style="margin: 0; font-size: 16px; color: #574B40; max-width: 400px">Equivalent to Trinity College London Grades 1–8. You don't pick a starting point — your assessment does.</p>
+      </div>
+      <ol class="stagger" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; counter-reset: lvl">
+        <sc-for list="{{levels}}" as="l" hint-placeholder-count="4">
+          <li class="lift lvl" style="position: relative; background: #FFFFFF; border: 1px solid #ECE5DA; border-radius: 20px; padding: 28px; display: flex; flex-direction: column; gap: 12px; min-height: 340px; box-sizing: border-box; overflow: hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center">
+              <span style="font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #8A5208">Level {{ l.n }} of 4</span>
+              <span style="font-size: 12px; font-weight: 600; color: #574B40; padding: 5px 10px; border-radius: 999px; background: #F6F1E9">{{ l.grades }}</span>
+            </div>
+            <h3 style="margin: 18px 0 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 34px; line-height: 1.05">{{ l.name }}</h3>
+            <p style="margin: 0; font-size: 15px; color: #574B40">{{ l.desc }}</p>
+            <p style="margin: auto 0 0; padding-top: 18px; border-top: 1px solid #F1EADF; display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 14px; color: #574B40">Tuition from</span><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 600">{{ l.price }}<span style="font-family: Inter, sans-serif; font-size: 13px; font-weight: 400; color: #574B40"> /term</span></span></p>
+          </li>
+        </sc-for>
+      </ol>
+      <div class="reveal" style="display: flex; flex-wrap: wrap; gap: 24px 48px; align-items: center; justify-content: space-between; padding: 28px clamp(20px, 4vw, 32px); border-radius: 20px; background: #2A1E14; color: #FCF8F3">
+        <div style="flex: 1 1 360px; display: flex; flex-direction: column; gap: 6px">
+          <h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 30px">Placed by audition, not by guesswork</h3>
+          <p style="margin: 0; font-size: 15px; color: #E9E1D6">A 30-minute MAM Auditer session measures ten dimensions of musical readiness.</p>
+        </div>
+        <a href="Auditer.dc.html" class="btn arrow" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 22px; border-radius: 10px; background: #F2A93B; color: #211A13; font-weight: 600; text-decoration: none">Book an assessment <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+
+    <!-- ================= PROOF: what we measure and commit to (no testimonials needed) ================= -->
+    <section id="proof" aria-labelledby="proof-h" style="max-width: 1360px; margin: 0 auto; padding: clamp(64px, 8.9vw, 128px) clamp(20px, 4vw, 40px); display: flex; flex-direction: column; gap: 56px">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center">
+        <p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Progress you can see</p>
+        <h2 id="proof-h" aria-label="We measure what matters" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">We</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">measure</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">what</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">matters</span></span></h2>
+        <p class="read" style="margin: 0; font-size: 17px; color: #574B40; max-width: 600px">Every student is assessed on entry and reported on every term, so parents and students always know where they stand.</p>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 16px">
+        <figure class="reveal" style="flex: 1.15 1 520px; min-width: 0; margin: 0; background: #2A1E14; color: #FCF8F3; border-radius: 24px; padding: clamp(24px, 2.8vw, 40px); box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap">
+            <div style="display: flex; flex-direction: column; gap: 4px">
+              <h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 32px; line-height: 1.1">MAM Auditer profile</h3>
+              <p style="margin: 0; font-size: 14px; color: #D8CEC1">6 of the 10 dimensions measured at entry</p>
+            </div>
+            <span style="font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; padding: 6px 10px; border-radius: 999px; background: rgba(252,248,243,.12); color: #E9E1D6">Sample report</span>
+          </div>
+          <dl style="margin: 0; display: flex; flex-direction: column; gap: 18px">
+            <sc-for list="{{profile}}" as="d" hint-placeholder-count="6">
+              <div style="display: flex; flex-direction: column; gap: 8px">
+                <div style="display: flex; justify-content: space-between; gap: 12px; font-size: 15px"><dt>{{ d.label }}</dt><dd style="margin: 0; font-weight: 600; font-variant-numeric: tabular-nums"><span class="sr">{{ d.v }}%</span><span aria-hidden="true" class="count" style="{{ d.countStyle }}"></span><span aria-hidden="true">%</span></dd></div>
+                <div aria-hidden="true" style="height: 8px; border-radius: 8px; background: rgba(252,248,243,.12); overflow: hidden"><div class="bar" style="{{ d.barStyle }}"></div></div>
+              </div>
+            </sc-for>
+          </dl>
+          <figcaption style="font-size: 13px; color: #D8CEC1">Your report shapes your level, your instructor match and a term-by-term plan.</figcaption>
+        </figure>
+        <ul class="stagger" style="flex: 1 1 420px; min-width: 0; list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px">
+          <sc-for list="{{commitments}}" as="c" hint-placeholder-count="4">
+            <li class="lift" style="background: #FFFFFF; border: 1px solid #ECE5DA; border-radius: 20px; padding: 28px; display: flex; flex-direction: column; gap: 12px">
+              <span aria-hidden="true" style="width: 44px; height: 44px; border-radius: 12px; background: #F6F1E9; color: #8A5208; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{ c.icon }}"></path></svg></span>
+              <h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 26px; line-height: 1.1">{{ c.title }}</h3>
+              <p style="margin: 0; font-size: 15px; color: #574B40">{{ c.desc }}</p>
+            </li>
+          </sc-for>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ================= LIFE AT MAM: one feature, three supporting ================= -->
+    <section id="life" aria-labelledby="life-h" style="max-width: 1360px; margin: 0 auto; padding: clamp(64px, 8.9vw, 128px) clamp(20px, 4vw, 40px) clamp(72px, 10vw, 144px); display: flex; flex-direction: column; gap: 48px">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px 48px">
+        <div class="reveal" style="display: flex; flex-direction: column; gap: 14px">
+          <p style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Life at MAM</p>
+          <h2 id="life-h" aria-label="On stage, all year" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">On</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">stage,</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">all</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">year</span></span></h2>
+        </div>
+        <a href="Life.dc.html" class="arrow ul" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 600; color: #211A13; text-decoration: none">All events <span aria-hidden="true">→</span></a>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 16px">
+        <article class="zoom reveal" style="flex: 1.25 1 520px; min-width: 0; position: relative; isolation: isolate; overflow: hidden; border-radius: 24px; min-height: clamp(380px, 40vw, 520px); background: #2A1E14; color: #FCF8F3; display: flex; flex-direction: column; justify-content: flex-end; padding: clamp(24px, 2.8vw, 40px); box-sizing: border-box">
+          <div data-fx-img data-fx-img data-fx-img role="img" aria-label="Photo placeholder: student showcase" class="ph par" style="position: absolute; inset: -6% 0; z-index: -2; background: radial-gradient(80% 70% at 60% 30%, #5A4230, #2A1E14 75%); display: flex; align-items: flex-start; justify-content: flex-end; padding: 24px; font-size: 12px; color: rgba(252,248,243,.7)">Photo — end-of-term showcase (upload)</div>
+          <div aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: linear-gradient(0deg, rgba(23,16,9,.9) 0%, rgba(23,16,9,0) 60%)"></div>
+          <span style="align-self: flex-start; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; padding: 6px 12px; border-radius: 999px; background: rgba(252,248,243,.14); backdrop-filter: blur(8px)">Every term</span>
+          <h3 style="margin: 16px 0 8px; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: clamp(30px, 3.06vw, 44px); line-height: 1.05">Student Showcase</h3>
+          <p style="margin: 0; font-size: 16px; color: #E9E1D6; max-width: 460px">Every student performs at the end of term. Stage experience is part of the training — and families are warmly invited.</p>
+        </article>
+        <ul style="flex: 1 1 400px; min-width: 0; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px">
+          <sc-for list="{{events}}" as="e" hint-placeholder-count="3">
+            <li class="reveal lift" style="flex: 1; background: #FFFFFF; border: 1px solid #ECE5DA; border-radius: 20px; padding: 24px 28px; display: flex; gap: 20px; align-items: center">
+              <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+                <p style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #8A5208">{{ e.when }}</p>
+                <h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 28px; line-height: 1.1">{{ e.title }}</h3>
+                <p style="margin: 0; font-size: 14px; color: #574B40">{{ e.desc }}</p>
+              </div>
+              <span style="flex: none; font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 10px; background: #F6F1E9; color: #211A13">{{ e.badge }}</span>
+            </li>
+          </sc-for>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ================= ADMISSIONS: sticky heading + scrolling steps ================= -->
+    <section id="admissions" aria-labelledby="adm-h" style="background: #2A1E14; color: #FCF8F3">
+      <div style="max-width: 1360px; margin: 0 auto; padding: clamp(72px, 10.0vw, 144px) clamp(20px, 4vw, 32px); display: flex; flex-wrap: wrap; gap: 48px 96px; align-items: flex-start">
+        <div class="stick" style="flex: 1 1 380px; min-width: 0; position: sticky; top: 112px; display: flex; flex-direction: column; gap: 20px">
+          <p style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #F2A93B">Admissions</p>
+          <h2 aria-label="From first enquiry to first lesson in about a week" id="adm-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(36px, 4.44vw, 64px); line-height: 1.02"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">From</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">first</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">enquiry</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">to</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 24% entry 84%">first</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 30% entry 90%">lesson</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 36% entry 96%">in</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 42% entry 100%">about</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 48% entry 100%">a</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 54% entry 100%">week</span></span></h2>
+          <p style="margin: 0; font-size: 17px; color: #D8CEC1">[INTAKE] intake now open. Applications are reviewed weekly.</p>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px">
+            <a href="Apply.dc.html" class="arrow" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; background: #F2A93B; color: #211A13; font-weight: 600; text-decoration: none">Apply now <span aria-hidden="true">→</span></a>
+            <a href="Programmes.dc.html#fees" style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 23px; border-radius: 999px; border: 1px solid rgba(252,248,243,.45); color: #FCF8F3; font-weight: 600; text-decoration: none">Fee estimator</a>
+          </div>
+        </div>
+        <ol style="flex: 1.1 1 480px; min-width: 0; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px">
+          <sc-for list="{{steps}}" as="s" hint-placeholder-count="4">
+            <li class="reveal" style="background: #352719; border-radius: 20px; padding: 32px; display: flex; gap: 24px; align-items: flex-start">
+              <span aria-hidden="true" style="flex: none; width: 52px; height: 52px; border-radius: 50%; border: 1px solid rgba(242,169,59,.6); color: #F2A93B; display: flex; align-items: center; justify-content: center; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px">{{ s.n }}</span>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
+                <p style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #D8CEC1">{{ s.when }}</p>
+                <h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 30px; line-height: 1.1">{{ s.title }}</h3>
+                <p style="margin: 0; font-size: 15px; color: #E9E1D6">{{ s.desc }}</p>
+              </div>
+            </li>
+          </sc-for>
+          <li class="reveal" style="background: #352719; border-radius: 20px; padding: 32px; display: flex; flex-direction: column; gap: 18px">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px"><h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 30px">Tuition per term</h3><span style="font-size: 13px; color: #D8CEC1">Onsite · online adds 20%</span></div>
+            <dl style="margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px">
+              <div style="padding: 18px; border-radius: 14px; background: #2A1E14; display: flex; flex-direction: column; gap: 4px"><dt style="font-size: 14px; color: #E9E1D6">Standard</dt><dd style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 34px; font-weight: 600; line-height: 1">from $120</dd><dd style="margin: 0; font-size: 13px; color: #D8CEC1">One course</dd></div>
+              <div style="padding: 18px; border-radius: 14px; background: #2A1E14; box-shadow: inset 0 0 0 1px #F2A93B; display: flex; flex-direction: column; gap: 4px"><dt style="font-size: 14px; color: #F2A93B">Certified Musician</dt><dd style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 34px; font-weight: 600; line-height: 1">from $240</dd><dd style="margin: 0; font-size: 13px; color: #D8CEC1">Major + 4 core courses</dd></div>
+              <div style="padding: 18px; border-radius: 14px; background: #2A1E14; display: flex; flex-direction: column; gap: 4px"><dt style="font-size: 14px; color: #E9E1D6">Grand Musician</dt><dd style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 34px; font-weight: 600; line-height: 1">from $313</dd><dd style="margin: 0; font-size: 13px; color: #D8CEC1">All 3 expressions</dd></div>
+            </dl>
+          </li>
+          <li class="reveal" style="background: #F2A93B; color: #211A13; border-radius: 20px; padding: 32px; display: flex; flex-wrap: wrap; gap: 16px 32px; justify-content: space-between; align-items: center">
+            <div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 260px"><h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 30px">Fees in the way?</h3><p style="margin: 0; font-size: 15px">The NGV Scholarship supports talented students who can't afford tuition.</p></div>
+            <a href="Programmes.dc.html#scholarship" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; border-radius: 999px; background: #211A13; color: #FCF8F3; font-weight: 600; text-decoration: none">Apply for a scholarship</a>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ================= QUESTIONS: answer objections before the final ask ================= -->
+    <section id="questions" aria-labelledby="faq-h" style="max-width: 860px; margin: 0 auto; padding: clamp(72px, 10.0vw, 144px) clamp(20px, 4vw, 40px) 64px; display: flex; flex-direction: column; gap: 40px">
+      <h2 id="faq-h" style="margin: 0; text-align: center; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05">Questions</h2>
+      <div style="border-top: 1px solid #E3DACD">
+        <sc-for list="{{faqs}}" as="f" hint-placeholder-count="5">
+          <div style="border-bottom: 1px solid #E3DACD">
+            <h3 style="margin: 0">
+              <button type="button" id="{{ f.btnId }}" aria-controls="{{ f.panelId }}" aria-expanded="{{ f.expanded }}" onClick="{{ f.toggle }}" style="width: 100%; min-height: 68px; display: flex; justify-content: space-between; align-items: center; gap: 24px; background: none; border: 0; padding: 20px 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 25px; font-weight: 600; color: #211A13; text-align: left; cursor: pointer">
+                <span>{{ f.q }}</span><span aria-hidden="true" style="{{ f.iconStyle }}">+</span>
+              </button>
+            </h3>
+            <div id="{{ f.panelId }}" role="region" aria-labelledby="{{ f.btnId }}" style="{{ f.panelStyle }}"><div style="overflow: hidden"><p style="margin: 0; padding: 0 48px 24px 0; font-size: 16px; color: #574B40">{{ f.a }}</p></div></div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- ================= CURTAIN CALL ================= -->
+    <section id="apply" aria-labelledby="apply-h" style="position: relative; isolation: isolate; overflow: hidden; background: #FAF8F4; color: #211A13">
+      <div aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: radial-gradient(50% 80% at 50% 0%, rgba(242,169,59,.30), rgba(242,169,59,0) 70%)"></div>
+      <div class="reveal" style="max-width: 980px; margin: 0 auto; padding: clamp(80px, 11vw, 160px) clamp(20px, 4vw, 32px); display: flex; flex-direction: column; align-items: center; gap: 28px; text-align: center">
+        <h2 id="apply-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(54px, 6.67vw, 96px); line-height: .98; letter-spacing: -.015em">Your seat is <em style="color: #8A5208">waiting.</em></h2>
+        <p style="margin: 0; font-size: 18px; color: #574B40; max-width: 520px">Apply in about five minutes. Places each intake are limited.</p>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center">
+          <a href="Apply.dc.html" class="arrow" style="display: inline-flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 clamp(20px, 4vw, 32px); border-radius: 999px; background: #F2A93B; color: #211A13; font-size: 16px; font-weight: 600; text-decoration: none">Start your application <span aria-hidden="true">→</span></a>
+          <a href="#contact" style="display: inline-flex; align-items: center; min-height: 56px; padding: 0 31px; border-radius: 999px; border: 1px solid #211A13; color: #211A13; font-size: 16px; font-weight: 600; text-decoration: none">Talk to admissions</a>
+        </div>
+      </div>
+    </section>
+    <!-- ================= THE SHAPE OF SOUND: one abstract, playable visual (no text, no clutter) ================= -->
+    <section id="resonance" aria-label="The shape of sound — an interactive waveform" style="padding: 0 clamp(12px, 2vw, 24px) clamp(12px, 2vw, 24px)">
+      <div style="position: relative; isolation: isolate; overflow: hidden; border-radius: clamp(14px, 1.4vw, 20px); border: 1px solid rgba(252,248,243,.10); background: radial-gradient(75% 95% at 50% 100%, #6A3F17 0%, #3A2410 38%, #1C120A 70%, #130C07 100%); height: clamp(420px, 44vw, 620px); touch-action: pan-y">
+        <canvas aria-hidden="true" ref="{{ canvasRef }}" style="position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair"></canvas>
+        <div style="position: absolute; right: clamp(16px, 2vw, 28px); top: clamp(16px, 2vw, 28px); display: flex; gap: 8px; z-index: 2">
+          <button type="button" class="btn" aria-pressed="{{ micPressed }}" aria-label="{{ micAria }}" title="{{ micAria }}" onClick="{{ toggleMic }}" style="{{ ctrlMicStyle }}"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5 11a7 7 0 0 0 14 0M12 18v3"></path></svg></button>
+          <button type="button" class="btn" aria-pressed="{{ soundPressed }}" aria-label="{{ soundAria }}" onClick="{{ toggleSound }}" style="{{ ctrlSoundStyle }}"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H3v6h3l5 4z"></path><path d="{{ soundIconWaves }}"></path></svg></button>
+        </div>
+        <sc-if value="{{ micOn }}" hint-placeholder-val="{{ false }}">
+          <div aria-live="polite" style="position: absolute; left: 0; right: 0; top: 16%; display: flex; flex-direction: column; align-items: center; gap: 6px; color: #FCF8F3; pointer-events: none; text-align: center">
+            <p style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(64px, 8vw, 112px); line-height: 1; letter-spacing: -.01em">{{ pitchNote }}<sup style="font-size: .32em; vertical-align: super; color: #F2A93B; margin-left: .06em">{{ pitchOct }}</sup></p>
+            <p style="margin: 0; font-size: 14px; letter-spacing: .04em; color: #D8CEC1">{{ pitchDetail }}</p>
+          </div>
+        </sc-if>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================= FOOTER: grouped by intent, one action, contact + legal always reachable ================= -->
+  <footer style="background: #171009; color: #E9E1D6; font-size: 15px; overflow: hidden">
+    <div style="max-width: 1360px; margin: 0 auto; padding: clamp(56px, 6.1vw, 88px) clamp(20px, 4vw, 40px) 0; display: flex; flex-direction: column; gap: 64px">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px 80px; justify-content: space-between; align-items: flex-end; padding-bottom: 56px; border-bottom: 1px solid rgba(252,248,243,.12)">
+        <div style="flex: 1 1 420px; display: flex; flex-direction: column; gap: 16px">
+          <p style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(30px, 3.06vw, 44px); font-weight: 500; line-height: 1.1; color: #FCF8F3">Notes from the music room</p>
+          <p style="margin: 0; color: #D8CEC1; max-width: 440px">One email a month: intake dates, showcases and Power Play sessions. No spam — unsubscribe any time.</p>
+        </div>
+        <form aria-label="Newsletter" style="flex: 1 1 420px; display: flex; gap: 8px; flex-wrap: wrap">
+          <label for="news-email" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Email address</label>
+          <input id="news-email" type="email" autocomplete="email" placeholder="you@example.com" style="flex: 1 1 240px; min-width: 0; height: 52px; box-sizing: border-box; padding: 0 18px; border-radius: 10px; border: 1px solid rgba(252,248,243,.22); background: rgba(252,248,243,.06); color: #FCF8F3; font: inherit">
+          <button type="submit" class="btn" style="min-height: 52px; padding: 0 24px; border-radius: 10px; border: 0; background: #F2A93B; color: #211A13; font: inherit; font-weight: 600; cursor: pointer">Subscribe</button>
+        </form>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 48px 64px">
+        <div style="flex: 1.2 1 280px; display: flex; flex-direction: column; gap: 20px">
+          <a href="Main.dc.html" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: #FCF8F3"><img src="/_blob/00dfca51d0e87c346b5650eddf166e20" alt="" width="40" height="40" style="width: 40px; height: 40px"><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600">MAM Academy</span></a>
+          <p style="margin: 0; color: #D8CEC1; max-width: 320px">A creative intelligence and performance academy, forming complete musicians since 2008. Part of MAM Centre.</p>
+          <a href="Apply.dc.html" class="btn arrow" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 22px; border-radius: 10px; border: 1px solid rgba(252,248,243,.35); color: #FCF8F3; font-weight: 600; text-decoration: none">Apply for [INTAKE] <span aria-hidden="true">→</span></a>
+        </div>
+        <nav aria-label="Footer" style="flex: 2.4 1 600px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 32px">
+          <sc-for list="{{footerGroups}}" as="g" hint-placeholder-count="4">
+            <div style="display: flex; flex-direction: column; gap: 2px">
+              <h2 style="margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #F2A93B">{{ g.title }}</h2>
+              <ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+                <sc-for list="{{ g.links }}" as="lk" hint-placeholder-count="4"><li><a href="{{ lk.href }}" class="ul" style="display: inline-flex; align-items: center; min-height: 36px; color: #E9E1D6; text-decoration: none">{{ lk.t }}</a></li></sc-for>
+              </ul>
+            </div>
+          </sc-for>
+        </nav>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px 32px; justify-content: space-between; align-items: center; padding: 24px 0; border-top: 1px solid rgba(252,248,243,.12); font-size: 13px; color: #D8CEC1">
+        <ul aria-label="MAM Academy on social media" style="list-style: none; margin: 0; padding: 0; display: flex; gap: 4px">
+          <sc-for list="{{socials}}" as="so" hint-placeholder-count="4"><li><a href="{{ so.href }}" aria-label="{{ so.name }}" class="btn" style="width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; color: #E9E1D6"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="{{ so.icon }}"></path></svg></a></li></sc-for>
+        </ul>
+        <span>© 2026 MAM Academy</span>
+        <ul aria-label="Legal" style="list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 20px"><li><a href="#privacy" class="ul" style="color: #D8CEC1; text-decoration: none">Privacy</a></li><li><a href="#terms" class="ul" style="color: #D8CEC1; text-decoration: none">Terms</a></li><li><a href="#policies" class="ul" style="color: #D8CEC1; text-decoration: none">Class policies</a></li><li><a href="#accessibility" class="ul" style="color: #D8CEC1; text-decoration: none">Accessibility</a></li><li><a href="#cookies" class="ul" style="color: #D8CEC1; text-decoration: none">Cookie settings</a></li></ul>
+      </div>
+    </div>
+    <p aria-hidden="true" class="wordmark" style="margin: 0; text-align: center; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: 16vw; line-height: .82; letter-spacing: -.03em; color: transparent; -webkit-text-stroke: 1px rgba(242,169,59,.34); white-space: nowrap; user-select: none; padding-top: 2vw; margin-bottom: -2.2vw">MAMCENTRE</p>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":6400}}'>
+function mamFx() {
+  if (window.__mamFx) return; window.__mamFx = true;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Spotlight: a soft warm light follows the pointer across cards
+  document.addEventListener('pointermove', function (e) {
+    var t = e.target && e.target.closest ? e.target.closest('.lift, .zoom, .bento > *, [data-spot]') : null; if (!t) return;
+    if (!t.classList.contains('spot')) { if (getComputedStyle(t).position === 'static') t.style.position = 'relative'; var bg = getComputedStyle(t).backgroundColor, m = bg.match(/\d+/g); if (m && (+m[0] + +m[1] + +m[2]) < 200) t.style.setProperty('--spot', 'rgba(242,169,59,.22)'); t.classList.add('spot'); }
+    var r = t.getBoundingClientRect(); t.style.setProperty('--mx', (e.clientX - r.left) + 'px'); t.style.setProperty('--my', (e.clientY - r.top) + 'px');
+  }, { passive: true });
+  // Smart header: steps aside while you read down, returns the moment you scroll up
+  if (document.querySelector('[data-smart]') && !reduce) {
+    var last = window.scrollY || 0;
+    window.addEventListener('scroll', function () { var y = window.scrollY || 0; if (Math.abs(y - last) < 6) return; document.documentElement.classList.toggle('fx-hide', y > last && y > 520); last = y; }, { passive: true });
+  }
+  // Scroll-spy: the section you are reading is marked in the page's local navigation
+  var nav = document.querySelector('nav[aria-label="On this page"]');
+  if (nav && window.IntersectionObserver) {
+    var links = [].slice.call(nav.querySelectorAll('a[href^="#"]')), map = {};
+    links.forEach(function (a) { var el = document.getElementById(a.getAttribute('href').slice(1)); if (el) map[el.id] = a; });
+    var io = new IntersectionObserver(function (es) { es.forEach(function (en) { if (!en.isIntersecting) return; links.forEach(function (a) { a.classList.remove('on'); a.removeAttribute('aria-current'); }); var a = map[en.target.id]; if (a) { a.classList.add('on'); a.setAttribute('aria-current', 'location'); var ul = a.closest('div'); if (ul && ul.scrollWidth > ul.clientWidth) ul.scrollTo({ left: a.offsetLeft - 40, behavior: reduce ? 'auto' : 'smooth' }); } }); }, { rootMargin: '-40% 0px -55% 0px' });
+    Object.keys(map).forEach(function (id) { io.observe(document.getElementById(id)); });
+  }
+}
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { scrolled: false, menu: false, faq: 0, bar: true, sound: false, mic: false, pitch: null, micError: false }; this.onScroll = this.onScroll.bind(this); this.canvasRef = (el) => { if (el && el !== this.cv) this.setupField(el); }; }
+  componentDidMount() { mamFx(); window.addEventListener('scroll', this.onScroll, { passive: true }); this.onScroll(); }
+  componentWillUnmount() { window.removeEventListener('scroll', this.onScroll); this.teardownField(); }
+
+  /* ---------- The shape of sound: a breathing waveform you can play ---------- */
+  setupField(cv) {
+    this.teardownField();
+    this.cv = cv; this.ctx = cv.getContext('2d');
+    this.reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    this.noise = Array.from({ length: 400 }, () => rnd());
+    this.ripples = []; this.noteTimes = []; this.px = null; this.boost = []; this.lastBucket = -1;
+    this.size = () => { const r = cv.getBoundingClientRect(), d = Math.min(window.devicePixelRatio || 1, 2);
+      cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d); this.dpr = d; this.W = r.width; this.H = r.height;
+      this.N = Math.min(240, Math.max(60, Math.round(r.width / 6.5))); this.boost = new Array(this.N).fill(0); this.draw(0); };
+    this.ro = window.ResizeObserver ? new ResizeObserver(this.size) : null; if (this.ro) this.ro.observe(cv); this.size();
+    // pentatonic across the width: low on the left, high on the right
+    const scale = [0, 2, 4, 7, 9]; this.freqAt = (x) => { const deg = Math.round((x / this.W) * 14), midi = 50 + Math.floor(deg / 5) * 12 + scale[deg % 5]; return { freq: 440 * Math.pow(2, (midi - 69) / 12), lastSound: 0 }; };
+    this.voices = {};
+    this.onMove = (e) => { const r = cv.getBoundingClientRect(); this.px = e.clientX - r.left; this.lastMove = performance.now();
+      const bucket = Math.floor((this.px / this.W) * 15);
+      if (bucket !== this.lastBucket) { this.lastBucket = bucket; if (this.state.sound) { const v = this.voices[bucket] || (this.voices[bucket] = this.freqAt(this.px)); this.note(v, 0.5); } }
+      this.kick(); };
+    this.onLeave = () => { this.px = null; this.lastBucket = -1; };
+    this.onDown = (e) => { const r = cv.getBoundingClientRect(), x = e.clientX - r.left; this.ripple(x, 1);
+      if (this.state.sound) { const v = this.freqAt(x); this.note(v, 1); this.note({ freq: v.freq * 1.5, lastSound: 0 }, 0.6); } };
+    cv.addEventListener('pointermove', this.onMove); cv.addEventListener('pointerdown', this.onDown); cv.addEventListener('pointerleave', this.onLeave);
+    this.visible = true; this.t0 = performance.now(); this.last = this.t0;
+    this.io = window.IntersectionObserver ? new IntersectionObserver((en) => { this.visible = en[0].isIntersecting; if (this.visible) this.kick(); }) : null; if (this.io) this.io.observe(cv);
+    this.kick();
+  }
+  teardownField() {
+    if (this.raf) cancelAnimationFrame(this.raf); this.raf = 0; this.stopMic && this.stopMic();
+    if (this.ro) this.ro.disconnect(); if (this.io) this.io.disconnect();
+    if (this.cv && this.onMove) { this.cv.removeEventListener('pointermove', this.onMove); this.cv.removeEventListener('pointerdown', this.onDown); this.cv.removeEventListener('pointerleave', this.onLeave); }
+  }
+  async startMic() {
+    try {
+      if (!this.enableSound()) throw new Error('no audio');
+      this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      this.src = this.ac.createMediaStreamSource(this.stream);
+      this.analyser = this.ac.createAnalyser(); this.analyser.fftSize = 2048; this.analyser.smoothingTimeConstant = 0.6;
+      this.src.connect(this.analyser);                       // analysed only — never played back, recorded or sent
+      this.tbuf = new Float32Array(this.analyser.fftSize); this.fbuf = new Uint8Array(this.analyser.frequencyBinCount);
+      this.live = new Array(this.N || 200).fill(0); this.pitchHz = 0; this.lastPitchAt = 0; this.lastPitchUI = 0;
+      this.setState({ mic: true, micError: false, pitch: null }); this.kick();
+    } catch (e) { this.stopMic(); this.setState({ mic: false, micError: true }); }
+  }
+  stopMic() {
+    if (this.stream) this.stream.getTracks().forEach((t) => t.stop()); this.stream = null;
+    if (this.src) { try { this.src.disconnect(); } catch (e) {} } this.src = null; this.analyser = null;
+  }
+  detectPitch(buf, sr) {                                     // autocorrelation with parabolic refinement
+    let n = buf.length, rms = 0; for (let i = 0; i < n; i++) rms += buf[i] * buf[i]; rms = Math.sqrt(rms / n); if (rms < 0.012) return -1;
+    let r1 = 0, r2 = n - 1; const th = 0.2;
+    for (let i = 0; i < n / 2; i++) if (Math.abs(buf[i]) < th) { r1 = i; break; }
+    for (let i = 1; i < n / 2; i++) if (Math.abs(buf[n - i]) < th) { r2 = n - i; break; }
+    const b = buf.slice(r1, r2); n = b.length; const c = new Float32Array(n);
+    for (let i = 0; i < n; i++) { let sum = 0; for (let j = 0; j < n - i; j++) sum += b[j] * b[j + i]; c[i] = sum; }
+    let d = 0; while (d < n - 1 && c[d] > c[d + 1]) d++;
+    let maxv = -1, maxp = -1; for (let i = d; i < n; i++) if (c[i] > maxv) { maxv = c[i]; maxp = i; }
+    if (maxp <= 0 || maxp >= n - 1) return -1;
+    const x1 = c[maxp - 1], x2 = c[maxp], x3 = c[maxp + 1], a = (x1 + x3 - 2 * x2) / 2, bb = (x3 - x1) / 2;
+    const T0 = a ? maxp - bb / (2 * a) : maxp; const f = sr / T0;
+    return f > 60 && f < 1400 ? f : -1;
+  }
+  listen(now) {
+    const an = this.analyser; if (!an) return;
+    an.getFloatTimeDomainData(this.tbuf); an.getByteFrequencyData(this.fbuf);
+    const sr = this.ac.sampleRate, binHz = sr / an.fftSize, N = this.N;
+    if (!this.live || this.live.length !== N) this.live = new Array(N).fill(0);
+    for (let i = 0; i < N; i++) {                             // log-spaced: 70 Hz on the left → 1.6 kHz on the right
+      const f = 70 * Math.pow(1600 / 70, i / (N - 1)), v = (this.fbuf[Math.min(this.fbuf.length - 1, Math.round(f / binHz))] || 0) / 255;
+      this.live[i] += (Math.pow(v, 1.6) - this.live[i]) * 0.35;
+    }
+    const f = this.detectPitch(this.tbuf, sr);
+    if (f > 0) { this.pitchHz = this.pitchHz ? this.pitchHz * 0.7 + f * 0.3 : f; this.lastPitchAt = now; }
+    else if (now - this.lastPitchAt > 600) this.pitchHz = 0;
+    if (now - this.lastPitchUI > 140) { this.lastPitchUI = now;
+      if (this.pitchHz) { const names = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+        const m = 69 + 12 * Math.log2(this.pitchHz / 440), r = Math.round(m), cents = Math.round((m - r) * 100);
+        const p = { note: names[((r % 12) + 12) % 12], oct: String(Math.floor(r / 12) - 1), hz: Math.round(this.pitchHz), cents };
+        const cur = this.state.pitch; if (!cur || cur.note !== p.note || cur.oct !== p.oct || cur.cents !== p.cents) this.setState({ pitch: p });
+      } else if (this.state.pitch) this.setState({ pitch: null }); }
+  }
+  kick() { if (this.reduce && !this.state.mic) { this.draw(0); return; } if (!this.raf && this.cv) this.raf = requestAnimationFrame((ts) => this.frame(ts)); }
+  ripple(x, strength) { this.ripples.push({ x, t: performance.now(), a: strength }); if (this.ripples.length > 8) this.ripples.shift(); this.kick(); }
+  frame(ts) {
+    this.raf = 0; if (!this.visible || !this.cv) return;
+    const now = performance.now();
+    this.ripples = this.ripples.filter((r) => now - r.t < 2400);
+    if (this.state.mic) this.listen(now);
+    if (!this.state.mic && !this.px && now - (this.lastMove || 0) > 2500 && Math.random() < 0.006) this.ripple(this.W * (0.2 + Math.random() * 0.6), 0.45);   // the room breathes
+    this.draw((now - this.t0) / 1000);
+    this.raf = requestAnimationFrame((t) => this.frame(t));
+  }
+  draw(time) {
+    const c = this.ctx, d = this.dpr || 1; if (!c || !this.N) return;
+    const W = this.W, H = this.H, base = H, N = this.N, now = performance.now();
+    c.setTransform(d, 0, 0, d, 0, 0); c.clearRect(0, 0, W, H);
+    c.lineCap = 'round'; c.globalCompositeOperation = 'lighter';
+    const grow = this.reduce ? 1 : Math.min(1, time / 1.4), ease = 1 - Math.pow(1 - grow, 3);
+    for (let i = 0; i < N; i++) {
+      const t = (i + 0.5) / N, x = t * W;
+      // a song-like envelope that rises from the floor, tallest in the middle
+      let env = Math.pow(Math.sin(Math.PI * t), 1.6) * (0.5 + 0.5 * this.noise[(i * 3) % 400]) * (0.8 + 0.2 * Math.sin(t * 11 + 1.3));
+      if (this.state.mic && this.live) env = env * 0.18 + (this.live[i] || 0) * 1.05;
+      const breathe = this.reduce ? 1 : 0.84 + 0.16 * Math.sin(time * 1.7 + i * 0.21) * Math.sin(time * 0.6 + i * 0.05);
+      const pitchX = this.state.mic && this.pitchHz ? (Math.log(this.pitchHz / 70) / Math.log(1600 / 70)) * W : null;
+      const target = pitchX != null ? Math.exp(-Math.pow((x - pitchX) / 26, 2)) : (this.px == null ? 0 : Math.exp(-Math.pow((x - this.px) / 70, 2)));
+      this.boost[i] += (target - this.boost[i]) * 0.14;
+      let rip = 0;
+      for (const r of this.ripples) { const age = (now - r.t) / 1000, front = age * 560;
+        rip += r.a * Math.exp(-Math.pow((Math.abs(x - r.x) - front) / 46, 2)) * Math.exp(-age * 1.3); }
+      const energy = Math.min(1.4, this.boost[i] * 0.9 + rip);
+      const h = H * 0.8 * ease * (env * breathe + energy * 0.35);
+      if (h < 2) continue;
+      const a = Math.min(1, 0.2 + env * 0.35 + energy * 0.6);
+      const g = c.createLinearGradient(0, base, 0, base - h);
+      g.addColorStop(0, 'rgba(255,238,214,' + Math.min(1, a + 0.35).toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,214,160,' + (a * 0.75).toFixed(3) + ')');
+      c.strokeStyle = g; c.lineWidth = 1 + energy * 0.6;
+      c.beginPath(); c.moveTo(x, base); c.lineTo(x, base - h); c.stroke();
+      c.fillStyle = 'rgba(255,240,214,' + Math.min(1, a + 0.25).toFixed(3) + ')';
+      c.beginPath(); c.arc(x, base - h, 1.2 + energy * 1.4, 0, Math.PI * 2); c.fill();
+    }
+    // warm light where the sound comes from
+    const glow = c.createRadialGradient(W / 2, H, 0, W / 2, H, Math.max(W, H) * 0.45);
+    glow.addColorStop(0, 'rgba(255,230,190,0.45)'); glow.addColorStop(0.3, 'rgba(242,169,59,0.12)'); glow.addColorStop(1, 'rgba(242,169,59,0)');
+    c.fillStyle = glow; c.fillRect(0, 0, W, H);
+    c.globalCompositeOperation = 'source-over';
+  }
+  note(s, vol) {
+    const ac = this.ac; if (!ac) return; const now = performance.now();
+    if (now - s.lastSound < 90) return; this.noteTimes = this.noteTimes.filter((t) => now - t < 1000); if (this.noteTimes.length > 14) return;
+    s.lastSound = now; this.noteTimes.push(now); vol = vol || 1;
+    const t = ac.currentTime, g = ac.createGain(), f = ac.createBiquadFilter(), o1 = ac.createOscillator(), o2 = ac.createOscillator(), g2 = ac.createGain();
+    o1.type = 'triangle'; o1.frequency.value = s.freq; o2.type = 'sine'; o2.frequency.value = s.freq * 2.003; g2.gain.value = 0.22;
+    f.type = 'lowpass'; f.frequency.setValueAtTime(2800, t); f.frequency.exponentialRampToValueAtTime(700, t + 1.6);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.17 * vol, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.2);
+    o1.connect(f); o2.connect(g2); g2.connect(f); f.connect(g); g.connect(this.master);
+    o1.start(t); o2.start(t); o1.stop(t + 2.3); o2.stop(t + 2.3);
+  }
+  enableSound() {
+    if (!this.ac) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+      this.ac = new AC(); this.master = this.ac.createGain(); this.master.gain.value = 0.7;
+      const comp = this.ac.createDynamicsCompressor(); this.master.connect(comp); comp.connect(this.ac.destination); }
+    if (this.ac.state === 'suspended') this.ac.resume(); return true;
+  }
+  onScroll() { const s = (window.scrollY || 0) > 560; if (s !== this.state.scrolled) this.setState({ scrolled: s }); }
+  renderVals() {
+    const B = '/_blob/';
+    const solid = this.state.scrolled || this.state.menu;
+    const levels = [
+      { n: '1', fill: '25%', grades: 'Grades 1–2', name: 'Pre-Certificate', desc: 'Foundations: technique, posture, rhythm and first performances.', price: '$120' },
+      { n: '2', fill: '50%', grades: 'Grades 3–4', name: 'Certificate', desc: 'Fluent playing, sight reading and stage presentation.', price: '$130' },
+      { n: '3', fill: '75%', grades: 'Grades 5–6', name: 'Pre-Diploma', desc: 'Advanced repertoire, improvisation and ensemble leadership.', price: '$160' },
+      { n: '4', fill: '100%', grades: 'Grades 7–8', name: 'Diploma', desc: 'Professional mastery, conducting and artistic identity.', price: '$180' }
+    ];
+    const schools = [
+      { n: 'i', name: 'Instrumental Intelligence', desc: 'Mastery of keys, strings, wind, brass, drums and voice.', img: B + '8d319b6cd4e96bae14ab623a735a90d8', span: 2 },
+      { n: 'ii', name: 'Performance Intelligence', desc: 'Stagecraft, etiquette and performance psychology.', img: B + 'b827c85ad35e831b66ab35017b13186e', span: 1 },
+      { n: 'iii', name: 'Rhythm Intelligence', desc: 'The MAM Rapid Rhythm System: sight singing, ear and timing.', img: B + '3cf4f040bdf1a4ee31eed576f1ea28e0', span: 1 },
+      { n: 'iv', name: 'MetaMusic & Consciousness', desc: 'The philosophy, culture and purpose of sound.', photo: 'Photo — MetaMusic seminar (upload)', span: 2 }
+    ];
+    const steps = [
+      { n: '1', when: 'Today · 5 minutes', title: 'Apply online', desc: 'Tell us about the learner, choose an instrument and online or in person. Registration is $5.' },
+      { n: '2', when: 'Within a few days', title: 'MAM Auditer assessment', desc: 'A 30-minute session on playing, ear and rhythm places you at the right level.' },
+      { n: '3', when: 'Same week', title: 'Your plan and fee', desc: 'Your level, matched instructor, timetable and exact fee. Pay in USD, NGN or GBP.' },
+      { n: '4', when: 'Term start', title: 'First lesson', desc: 'Weekly lessons begin, with progress tracked in the student and parent portals.' }
+    ];
+    const events = [
+      { badge: 'Free', when: 'First Wednesday of every month', title: 'Power Play', desc: 'A global broadcast with Van. BOJA for musicians and creatives.' },
+      { badge: '$60', when: '12-week intensive', title: 'The MetaMusic Order', desc: 'From performer to architect: sound, culture and atmosphere.' },
+      { badge: '$70', when: '6 weeks · any discipline', title: 'Crash Programme', desc: 'A focused intensive, online or in person.' }
+    ];
+    const profile = [['Rhythm intelligence', 82], ['Ear sensitivity', 74], ['Tonal recognition', 77], ['Technical knowledge', 68], ['Performance confidence', 61], ['Learning capacity & discipline', 88]]
+      .map(([label, v]) => ({ label, v, countStyle: '--to: ' + v, barStyle: 'height: 100%; width: ' + v + '%; border-radius: 8px; background: linear-gradient(90deg, #C27A12, #F2A93B); transform-origin: left' }));
+    const commitments = [
+      { title: 'Trinity-equivalent standards', desc: 'Four levels mapped to Trinity College London Grades 1–8, so progress means something outside MAM too.', icon: 'M12 3l8 4v5c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V7l8-4z M9 12l2 2 4-4' },
+      { title: 'A written report every term', desc: 'Strengths, gaps and next steps from your instructor, shared in the student and parent portals.', icon: 'M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6' },
+      { title: 'Every student performs', desc: 'Each term ends in a showcase. Stage experience is built into the training, not an extra.', icon: 'M9 18V5l11-2v13 M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0z M20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z' },
+      { title: 'Flexible when life happens', desc: 'Pause for up to four weeks a term and we hold your seat. Your fee always follows your placed level.', icon: 'M12 7v5l3 2 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' }
+    ];
+    const footerGroups = [
+      { title: 'Study', links: [{ t: 'Programmes', href: 'Programmes.dc.html' }, { t: 'Admissions & fees', href: 'Programmes.dc.html#fees' }, { t: 'MAM Auditer', href: 'Auditer.dc.html' }, { t: 'Scholarships', href: 'Programmes.dc.html#scholarship' }] },
+      { title: 'Families', links: [{ t: 'Parents & guardians', href: '#parents' }, { t: 'Questions', href: '#questions' }, { t: 'Class policies', href: '#policies' }, { t: 'Safeguarding', href: '#safeguarding' }] },
+      { title: 'Community', links: [{ t: 'Events', href: 'Life.dc.html' }, { t: 'Power Play', href: 'Life.dc.html#powerplay' }, { t: 'Store', href: '#store' }, { t: 'Teach at MAM', href: '#teach' }] },
+      { title: 'Get in touch', links: [{ t: 'Contact admissions', href: '#contact' }, { t: 'academy@mamcentre.org', href: 'mailto:academy@mamcentre.org' }, { t: '+234 704 444 6517', href: 'tel:+2347044446517' }, { t: 'Sign in to the portal', href: '#signin' }] }
+    ];
+    const socials = [
+      { name: "Instagram", href: "https://instagram.com/mamacademy1", icon: "M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" },
+      { name: "X", href: "https://twitter.com/mamacademy1", icon: "M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" },
+      { name: "Facebook", href: "https://facebook.com/mamacademy1", icon: "M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" },
+      { name: "YouTube", href: "https://youtube.com/mamacademy1", icon: "M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" }
+    ];
+    return {
+      minimalStyle: 'position: absolute; left: 0; right: 0; top: 0; transition: opacity .5s var(--out), transform .75s var(--out); ' + (solid ? 'opacity: 0; transform: translateY(-12px); pointer-events: none; visibility: hidden' : 'opacity: 1; transform: none; animation: heroIn 1s .2s var(--soft) both'),
+      fullStyle: 'position: absolute; left: 0; right: 0; top: 0; background: #FAF8F4; transition: transform .75s var(--out), box-shadow .5s ease, visibility 0s ' + (solid ? '0s' : '.75s') + '; ' + (solid ? 'transform: translateY(0); visibility: visible; box-shadow: 0 1px 0 rgba(33,26,19,.08)' : 'transform: translateY(-110%); visibility: hidden; box-shadow: none'),
+      heroWords: 'Where young musicians become complete artists'.split(' ').map((t, i, arr) => ({ t, sp: i < arr.length - 1 ? ' ' : '', cls: 'w', style: 'animation-delay: ' + (0.2 + i * 0.085).toFixed(3) + 's' + (t === 'complete' ? '; font-style: italic; color: #F2A93B' : '') })),
+      canvasRef: this.canvasRef,
+      soundPressed: this.state.sound ? 'true' : 'false',
+      soundAria: this.state.sound ? 'Turn sound off' : 'Turn sound on',
+      soundIconWaves: this.state.sound ? 'M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13' : 'M16 9l5 6M21 9l-5 6',
+      soundBtnStyle: 'width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; box-shadow: 0 0 0 6px transparent; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); ' + (this.state.sound ? 'background: #F2A93B; color: #211A13; border: 1px solid #F2A93B' : 'background: rgba(252,248,243,.06); color: #FCF8F3; border: 1px solid rgba(252,248,243,.28)'),
+      ctrlSoundStyle: 'width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); ' + (this.state.sound ? 'background: #F2A93B; color: #211A13; border: 1px solid #F2A93B' : 'background: rgba(252,248,243,.06); color: #FCF8F3; border: 1px solid rgba(252,248,243,.28)'),
+      ctrlMicStyle: 'width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; cursor: pointer; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); ' + (this.state.mic ? 'background: #F2A93B; color: #211A13; border: 1px solid #F2A93B' : 'background: rgba(252,248,243,.06); color: #FCF8F3; border: 1px solid rgba(252,248,243,.28)'),
+      micOn: this.state.mic,
+      micPressed: this.state.mic ? 'true' : 'false',
+      micAria: this.state.mic ? 'Stop listening' : (this.state.micError ? 'Microphone unavailable — try again' : 'Sing to it: uses your microphone on this device only, nothing is recorded or sent'),
+      toggleMic: () => { if (this.state.mic) { this.stopMic(); this.setState({ mic: false, pitch: null }); } else this.startMic(); },
+      pitchNote: this.state.pitch ? this.state.pitch.note : 'Hum',
+      pitchOct: this.state.pitch ? this.state.pitch.oct : '',
+      pitchDetail: this.state.pitch ? (this.state.pitch.hz + ' Hz · ' + (Math.abs(this.state.pitch.cents) <= 5 ? 'in tune' : Math.abs(this.state.pitch.cents) + '¢ ' + (this.state.pitch.cents > 0 ? 'sharp' : 'flat'))) : 'or sing any note — we\u2019ll show you which one',
+      toggleSound: () => { const on = !this.state.sound; if (on && !this.enableSound()) return; this.setState({ sound: on });
+        if (on && this.W) { [0.2, 0.35, 0.5, 0.65, 0.8].forEach((f, n) => setTimeout(() => { this.ripple(this.W * f, 0.8); this.note(this.freqAt(this.W * f), 0.7); }, n * 160)); } },
+      barOpen: this.state.bar,
+      closeBar: () => this.setState({ bar: false }),
+      heroWrapStyle: this.state.bar ? 'background: #120C07' : 'background: transparent',
+      heroRadius: this.state.bar ? 'clamp(14px, 1.6vw, 22px) clamp(14px, 1.6vw, 22px) 0 0' : '0',
+      menuOpen: this.state.menu,
+      menuOpenAttr: this.state.menu ? 'true' : 'false',
+      chevStyle: 'transition: transform .3s; transform: rotate(' + (this.state.menu ? '180deg' : '0deg') + ')',
+      toggleMenu: () => this.setState({ menu: !this.state.menu }),
+      closeMenu: () => this.setState({ menu: false }),
+      panelKey: (e) => { if (e.key === 'Escape') this.setState({ menu: false }); },
+      levels,
+      faqs: [
+        { q: 'Do I need to know my level before applying?', a: 'No. Every applicant takes a short MAM Auditer assessment, which places you at the right level. Your fee follows that level.' },
+        { q: 'Can my child start as a complete beginner?', a: 'Yes. Students can start from age 4 with no experience. Instruments are provided during in-person classes for beginners.' },
+        { q: 'How do online lessons work?', a: 'Live, one-to-one video lessons with your instructor, plus performance reviews and virtual rehearsals. Online fees are 20% higher than in-person fees.' },
+        { q: 'How are the levels recognised?', a: 'The four levels are equivalent to Trinity College London Grades 1–8: Pre-Certificate (1–2), Certificate (3–4), Pre-Diploma (5–6) and Diploma (7–8).' },
+        { q: 'How do I pay?', a: 'Securely online with Paystack, Flutterwave or Stripe in USD, NGN or GBP, or by bank transfer.' }
+      ].map((f, i) => { const open = this.state.faq === i; return { ...f, expanded: open ? 'true' : 'false', btnId: 'q' + i, panelId: 'a' + i,
+        panelStyle: 'display: grid; transition: grid-template-rows .4s cubic-bezier(.165,.84,.44,1), opacity .4s cubic-bezier(.165,.84,.44,1); grid-template-rows: ' + (open ? '1fr; opacity: 1' : '0fr; opacity: 0'),
+        iconStyle: 'flex: none; font-family: Inter, sans-serif; font-size: 24px; font-weight: 300; color: #8A5208; transition: transform .5s cubic-bezier(.19,1,.22,1); transform: rotate(' + (open ? '45deg' : '0deg') + ')',
+        toggle: () => this.setState({ faq: open ? -1 : i }) }; }),
+      instruments: ['Piano & Keyboard', 'Voice & Choir', 'Violin & Strings', 'Guitar', 'Drums & Percussion', 'Wind & Brass', 'Music Theory & Ear', 'Performance'],
+      schools: schools.map((s) => ({ ...s, hasImg: !!s.img, noImg: !s.img,
+        cardStyle: 'grid-column: span ' + s.span + '; position: relative; isolation: isolate; overflow: hidden; border-radius: 24px; background: #2A1E14; color: #FCF8F3; padding: 32px; display: flex; flex-direction: column; gap: 10px; min-width: 0' })),
+      steps, events,
+      profile, commitments, footerGroups, socials,
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -2417,3 +2417,68 @@ Left as copies, deliberately: the studio's WAV encoder and store
 (sequencer.js / studio-core.js are separate pages' bundles), the classic
 dashboards' helpers (retired surfaces), and small portal helpers (`h1`, `empty`,
 `loading`, `money`) whose duplication carries no rule.
+
+## 4z16. 2026-11-21 — the public site redesign (Home, Programmes, About, MAM Auditer, Life), verified with Faithful
+
+The design handoff is committed at `docs/design/2026-11-site/` (HANDOFF.md, specs, the
+`.dc.html` page sources; the PDF and the 17 MB of screenshots are not — the living copy is
+linked from its README). Five pages are built from it: `/` (index.php), `/programmes` (new),
+`/about`, `/auditer`, `/life` (new). **Apply was not rebuilt** — see "Open" below.
+
+**How it was built, and why it can be checked.** The pages were not redrawn from screenshots.
+Each page source was rendered with Faithful's own design-component runtime (it runs the
+component's `renderVals()`), and the rendered DOM was ported: links mapped to real routes,
+the runtime's event bindings turned into `data-act` hooks, photo placeholders turned into
+slots. So the markup and inline styles ARE the design's, and Faithful compares them:
+
+```
+npx @faithful/cli verify docs/design/2026-11-site/source/pages/Main.dc.html --build http://localhost:8099/ --viewports 1440x900,390x844
+```
+
+Before: the old homepage scored **21%** against the design. After: 78–83% on every page,
+**0 errors and 0 warnings** once the intended differences are declared in
+`faithful.deviations.json` (each with a reason and an owner). The verdict still reads FAIL,
+because Faithful computes its match score before applying declared deviations and needs 90%:
+a Faithful behaviour, reported, not something to tune here.
+
+**What the pages must not type.** Every fee is `site_fee()` (api/lib/site.php) over the
+functions that charge an application; the estimator (`assets/js/site-programmes.js`) applies
+the handoff's rules to `window.MAM_SITE.fees` and types no number. The intake name is the
+academic session being promoted (`site_intake()`), the Power Play date is
+`mam_powerplay_next()` (the same function that dates its email), exchange rates are the cached
+live rates (the handoff's ₦1,500 was an illustration). Two places the handoff's fee model and
+the server differ: the server allows extra courses on Certified (the estimator keeps the
+design's "up to five courses" rule, which is a subset), and no cap on Grand extras (the
+estimator caps at 4 as designed). Both are charged by the server either way.
+
+**Parity.** Faithful's `parity` run against the old pages (a worktree of the previous HEAD)
+listed every destination that disappeared. Restored: Pay tuition (a payment page), the blog,
+`/about#method`, the external Auditer booking site, the NGV scholarship form, Pathways, and the
+**applicant checklist** (`/auditer#checklist`, same items, same `mam.auditer.checklist.v1`
+key — thank-you, status, booking and the student portal link to it). Dropped on purpose:
+`/apply?discipline=…` shortcuts (the page itself is linked), `/instructor-apply` (needs an
+invite; "Teach at MAM" goes to the contact form, which is how an invite starts), and the
+design's Safeguarding and Accessibility links (no page exists — never ship a link to nothing).
+
+**Guards** (`test_site_redesign.php`, each watched to fail on a planted fault): no radius,
+hex or px type size the design sources do not use (read from the sources, not typed); no
+money typed into a page; no `[INTAKE]`, `(upload)`, `.dc.html`, `/_blob/` or inline handler;
+every in-page anchor exists; the estimator's arithmetic equals `mam_compute_application_price()`
+and reproduces the handoff's check values; every destination of the legacy footer is reachable
+from the redesigned pages. `test_design_system.php`'s old radius ladder now skips pages built on
+`partials/site/shell.php` (derived, not listed).
+
+**Faithful's audit** on the new pages: Home, About, Auditer and Life PASS. Programmes reports
+"overlap" between large serif prices and the inline text beside them — the design's own
+markup produces the same finding, so it is to be confirmed by eye, not chased.
+
+**Open (owner decisions).**
+- **Apply.** The handoff's 10-screen flow collects less than `mam_validate_application()`
+  requires (date of birth, discipline vs programme, headshot, signature, consents, guardian
+  email under 16). Building it means deciding what the academy stops collecting. Until then
+  `/apply` is the existing wizard.
+- Real photos: a file at `assets/img/site/<slot>.webp` fills the matching slot (slot names are
+  the `data-photo` labels); until then the design's gradient shows.
+- The rest of the site (FAQ, pathways, store…) still wears the old header and footer.
+- Safeguarding and accessibility statement pages; the auditer sample profile values; the
+  vision line and faculty names (handoff §9 "facts to confirm").

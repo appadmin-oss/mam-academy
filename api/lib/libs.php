@@ -25,6 +25,7 @@ return [
     'money',
     'session',
     'academic-session',
+    'site',
     'auth',
     'mailer',
     'csrf',

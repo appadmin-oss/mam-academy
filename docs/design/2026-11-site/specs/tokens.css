@@ -1,0 +1,40 @@
+/* MAM Academy design tokens as CSS custom properties. */
+:root {
+  --mam-ivory: #FAF8F4;
+  --mam-sand: #F3EEE6;
+  --mam-line: #ECE5DA;
+  --mam-line-2: #E3DACD;
+  --mam-line-strong: #CFC3B3;
+  --mam-line-strong-2: #D6CCBE;
+  --mam-white: #FFFFFF;
+  --mam-ink: #211A13;
+  --mam-ink-soft: #3E342B;
+  --mam-muted: #574B40;
+  --mam-espresso: #2A1E14;
+  --mam-night-0: #140D08;
+  --mam-night-1: #24160B;
+  --mam-night-2: #5A3815;
+  --mam-gold: #F2A93B;
+  --mam-gold-text: #8A5208;
+  --mam-gold-deep: #C27A12;
+  --mam-on-dark: #FCF8F3;
+  --mam-on-dark-muted: #D8CEC1;
+  --mam-on-dark-body: #E9E1D6;
+  --mam-error: #B0361C;
+  --mam-serif: 'Cormorant Garamond', Georgia, serif;
+  --mam-sans: Inter, system-ui, sans-serif;
+  --out: cubic-bezier(.19,1,.22,1);
+  --soft: cubic-bezier(.25,1,.5,1);
+  --mam-content-max: 1360px;
+  --mam-gutter: clamp(20px, 4vw, 40px);
+  --mam-section-y: clamp(64px, 8.9vw, 128px);
+  --mam-panel-radius: clamp(14px, 1.6vw, 22px);
+  --mam-header-h: 72px;
+  --mam-radius-button: 10px;
+  --mam-radius-pill: 999px;
+  --mam-radius-input: 12px;
+  --mam-radius-tile: 16px;
+  --mam-radius-card: 20px;
+  --mam-radius-card-lg: 24px;
+  --mam-radius-panel: clamp(14px, 1.6vw, 22px);
+}

@@ -1,0 +1,86 @@
+{
+ "v": 3,
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-11-19T14:10:21Z"
+ },
+ "title": "MAM Academy \u2014 Simplified Redesign",
+ "launch": {
+  "view": "canvas"
+ },
+ "pages": [],
+ "boards": {
+  "Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 9580,
+   "title": "Homepage \u2014 proposed",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Programmes.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 6940,
+   "title": "Programmes & fees",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Apply.dc.html": {
+   "x": 3040,
+   "y": 0,
+   "w": 1440,
+   "h": 1000,
+   "title": "Apply",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "About.dc.html": {
+   "x": 4560,
+   "y": 0,
+   "w": 1440,
+   "h": 6360,
+   "title": "About",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Auditer.dc.html": {
+   "x": 6080,
+   "y": 0,
+   "w": 1440,
+   "h": 4640,
+   "title": "MAM Auditer",
+   "expand": "fill",
+   "is_interactive": true
+  },
+  "Life.dc.html": {
+   "x": 7600,
+   "y": 0,
+   "w": 1440,
+   "h": 6350,
+   "title": "Life at MAM",
+   "expand": "fill",
+   "is_interactive": true
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "Programmes.dc.html",
+  "Apply.dc.html",
+  "About.dc.html",
+  "Auditer.dc.html",
+  "Life.dc.html"
+ ],
+ "notes": {
+  "title": {
+   "x": 0,
+   "y": -300,
+   "text": "MAM Academy \u2014 website redesign",
+   "kind": "title1",
+   "maxW": 8920
+  }
+ },
+ "designSystems": []
+}

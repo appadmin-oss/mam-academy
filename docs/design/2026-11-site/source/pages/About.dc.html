@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MAM Academy — About</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FAF8F4}
+html{scroll-behavior:smooth}
+:root{--out:cubic-bezier(.19,1,.22,1);--soft:cubic-bezier(.25,1,.5,1)}
+a{color:#8A5208;text-decoration-color:rgba(138,82,8,.35);transition:color .5s var(--out),text-decoration-color .5s var(--out)}
+a:hover{color:#211A13;text-decoration-color:currentColor}
+a:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid #2563EB;outline-offset:2px;border-radius:6px}
+.skip:focus{top:8px!important}
+/* links: underline draws in */
+.ul{background:linear-gradient(currentColor,currentColor) 0 calc(50% + .78em)/0 1px no-repeat;transition:background-size .6s var(--out),color .3s ease}
+.ul:hover,.ul[aria-expanded="true"]{background-size:100% 1px}
+/* buttons: quiet press, arrow nudge */
+.btn{transition:background-color .2s ease,color .2s ease,border-color .2s ease,transform .15s var(--soft)}
+.btn:active{transform:scale(.98)}
+.arrow span[aria-hidden]{display:inline-block;transition:transform .5s var(--out)}
+.arrow:hover span[aria-hidden]{transform:translateX(4px)}
+.lift{transition:transform .75s var(--out),box-shadow .75s var(--out)}
+.lift:hover{transform:translateY(-4px);box-shadow:0 30px 60px -36px rgba(33,26,19,.4)}
+.zoom img,.zoom .ph{transition:transform 1.2s var(--out)}
+.zoom:hover img,.zoom:hover .ph{transform:scale(1.04)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+@keyframes fadeUp2{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+@keyframes wordIn{from{opacity:0;transform:translateY(.45em);filter:blur(8px)}to{opacity:1;transform:none;filter:blur(0)}}
+@keyframes heroIn{from{opacity:0}to{opacity:1}}
+@keyframes kenburns{from{transform:scale(1.08)}to{transform:scale(1)}}
+@keyframes panelIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.fade-in{animation:fadeUp 1s var(--soft) both}
+@supports (animation-timeline: view()){
+  .reveal{animation:fadeUp linear both;animation-timeline:view();animation-range:entry 0% entry 90%}
+}
+@keyframes barGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes drift{from{transform:translateY(-4%)}to{transform:translateY(4%)}}
+@keyframes heroOut{to{opacity:0;transform:translateY(-40px)}}
+@keyframes rise2{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:none}}
+.bar{transform-origin:left;animation:barGrow 1.4s var(--out) both}
+@supports (animation-timeline: view()){
+  .bar{animation:barGrow linear both;animation-timeline:view();animation-range:entry 20% entry 100%}
+  .par{animation:drift linear both;animation-timeline:view();animation-range:cover 0% cover 100%}
+  .hero-copy{animation:heroOut linear both;animation-timeline:view();animation-range:exit 0% exit 70%}
+  .stagger>*:not(sc-for),.stagger>sc-for>*{animation:fadeUp linear both;animation-timeline:view();animation-range:entry 0% entry 80%}
+  .stagger>*:nth-child(2):not(sc-for),.stagger>sc-for>*:nth-child(2){animation-range:entry 10% entry 90%}
+  .stagger>*:nth-child(3):not(sc-for),.stagger>sc-for>*:nth-child(3){animation-range:entry 20% entry 100%}
+  .stagger>*:nth-child(4):not(sc-for),.stagger>sc-for>*:nth-child(4){animation-range:entry 25% entry 100%}
+  .wordmark{animation:rise2 linear both;animation-timeline:view();animation-range:entry 0% entry 100%}
+}
+
+
+/* ---- responsive layer ---- */
+footer nav[aria-label="Footer"] a{overflow-wrap:anywhere;min-width:0}
+img{max-width:100%}
+.sr-xs{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (max-width: 1080px){.stick{position:static!important}}
+@media (max-width: 900px){footer nav[aria-label="Footer"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media (max-width: 720px){
+  .hide-sm{display:none}
+  .top-apply{display:none!important}
+  .lvl{min-height:0!important}
+  .lvl h3{margin-top:6px!important}
+  [aria-label="Newsletter"]>input{flex:none!important;width:100%}
+  .hero-copy{padding-bottom:40px!important}
+  .tgrid,.bento{gap:12px!important}
+  [aria-label="Fee estimator"],[aria-label="Newsletter"]{flex-direction:column}
+  footer nav[aria-label="Footer"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media (max-width: 480px){
+  .wm{font-size:21px!important}
+  header img{width:28px!important;height:28px!important}
+  header .btn{padding-left:12px!important;padding-right:12px!important}
+  .hide-xs{display:none}
+  .bento{grid-auto-rows:minmax(280px,auto)!important}
+  section h1{letter-spacing:-.01em!important}
+}
+/* ---- text motion system ---- */
+@property --n{syntax:'<integer>';initial-value:0;inherits:false}
+@keyframes wordUp{from{transform:translateY(108%) rotate(2deg);opacity:0}to{transform:none;opacity:1}}
+@keyframes lineIn{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes readIn{from{opacity:.18;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes count{from{--n:0}to{--n:var(--to)}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.mask{display:inline-block;overflow:hidden;vertical-align:bottom;padding:0 .04em .1em;margin:0 -.04em -.1em}
+.w{display:inline-block;transform-origin:0 100%;animation:wordUp 1.1s var(--soft) both}
+.count{counter-reset:n var(--to)}
+.count::after{content:counter(n)}
+@supports (animation-timeline: view()){
+  .sw{display:inline-block;transform-origin:0 100%;animation:wordUp linear both;animation-timeline:view()}
+  .read{animation:readIn linear both;animation-timeline:view();animation-range:entry 0% entry 100%}
+  .count{counter-reset:n var(--n);animation:count linear both;animation-timeline:view();animation-range:entry 20% entry 100%}
+}
+.rail{scroll-snap-type:x mandatory;scrollbar-width:thin}
+.rail>*{scroll-snap-align:start}
+.navlinks{display:flex}.menubtn{display:none!important}.mobileonly{display:none!important}
+@media (max-width: 1080px){.navlinks{display:none!important}.menubtn{display:inline-flex!important}.mobileonly{display:flex!important}.bento{grid-template-columns:1fr!important}.bento>*{grid-column:auto!important}.tgrid{grid-template-columns:1fr!important}.tgrid>*{grid-column:auto!important;grid-row:auto!important}}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}html{scroll-behavior:auto}.count{counter-reset:n var(--to)!important}}
+</style>
+
+<style data-fx>
+@view-transition{navigation:auto}
+::view-transition-old(root){animation:.3s ease both fxVtOut}
+::view-transition-new(root){animation:.6s cubic-bezier(.19,1,.22,1) both fxVtIn}
+@keyframes fxVtOut{to{opacity:0}}
+@keyframes fxVtIn{from{opacity:0;transform:translateY(14px)}}
+@supports (animation-timeline: view()){[data-fx-img]{animation:fxImg linear both;animation-timeline:view();animation-range:entry 0% entry 80%}}
+@keyframes fxImg{from{clip-path:inset(9% 7% 9% 7% round 26px);filter:saturate(.6) brightness(.96)}to{clip-path:inset(0 0 0 0 round 0);filter:none}}
+.spot::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;background:radial-gradient(380px circle at var(--mx,50%) var(--my,50%),var(--spot,rgba(242,169,59,.16)),transparent 62%);opacity:0;transition:opacity .5s ease}
+.spot:hover::after{opacity:1}
+nav[aria-label="On this page"]{transition:top .55s cubic-bezier(.19,1,.22,1)}
+nav[aria-label="On this page"] a.on{color:#8A5208!important;background-size:100% 1px!important}
+[data-smart]{transition:transform .55s cubic-bezier(.19,1,.22,1),box-shadow .4s ease}
+.fx-hide [data-smart]{transform:translateY(-100%)}
+.fx-hide nav[aria-label="On this page"]{top:0!important}
+@media (prefers-reduced-motion: reduce){::view-transition-old(root),::view-transition-new(root){animation:none}[data-fx-img]{animation:none!important}[data-smart]{transition:none}}
+</style>
+</helmet>
+<div style="font-family: Inter, system-ui, sans-serif; color: #211A13; background: #FAF8F4; font-size: 16px; line-height: 1.6">
+  <a href="#main" class="skip" style="position: absolute; left: 8px; top: -60px; z-index: 50; background: #FFFFFF; color: #211A13; padding: 12px 16px; border-radius: 6px">Skip to main content</a>
+  <header data-smart style="position: sticky; top: 0; z-index: 40; height: 72px; background: rgba(250,248,244,.92); backdrop-filter: saturate(1.3) blur(18px); -webkit-backdrop-filter: saturate(1.3) blur(18px); box-shadow: {{ headerShadow }}; transition: box-shadow .4s ease">
+    <div style="position: relative">
+      <div style="max-width: 1360px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px); height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 24px">
+        <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; min-height: 44px; text-decoration: none; color: #211A13">
+          <img src="/_blob/00dfca51d0e87c346b5650eddf166e20" alt="" width="30" height="30" style="width: 30px; height: 30px">
+          <span class="wm" style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px; font-weight: 600; line-height: 1; white-space: nowrap">MAM Academy</span>
+        </a>
+        <div style="display: flex; align-items: center; gap: 4px">
+          <nav aria-label="Main" class="navlinks" style="align-items: center; gap: 4px; margin-right: 36px">
+            <button type="button" class="ul" aria-expanded="{{ menuOpenAttr }}" aria-controls="programmes-panel" onClick="{{ toggleMenu }}" style="min-height: 44px; margin: 0 10px; padding: 0; border: 0; background-color: transparent; font: inherit; font-size: 15px; color: #211A13; cursor: pointer; display: inline-flex; align-items: center; gap: 6px">Programmes <svg aria-hidden="true" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" style="{{ chevStyle }}"><path d="M2.5 4.5L6 8l3.5-3.5"></path></svg></button>
+            <a href="Apply.dc.html" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; margin: 0 10px; font-size: 15px; color: #211A13; text-decoration: none">Admissions</a>
+            <a href="Life.dc.html" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; margin: 0 10px; font-size: 15px; color: #211A13; text-decoration: none">Life at MAM</a>
+            <a href="About.dc.html" class="ul" aria-current="page" style="display: inline-flex; align-items: center; min-height: 44px; margin: 0 10px; font-size: 15px; color: #8A5208; text-decoration: none">About</a>
+            <a href="#signin" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; margin: 0 10px; font-size: 15px; color: #211A13; text-decoration: none">Sign in</a>
+          </nav>
+          <a href="Auditer.dc.html" class="btn navlinks" style="align-items: center; min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid #D6CCBE; color: #211A13; font-size: 15px; text-decoration: none">Book an assessment</a>
+          <a href="Apply.dc.html" class="btn arrow" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 18px; border-radius: 10px; background: #211A13; color: #FAF8F4; font-size: 15px; font-weight: 500; text-decoration: none">Apply <span aria-hidden="true">→</span></a>
+          <button type="button" class="menubtn btn" aria-label="Menu" aria-expanded="{{ menuOpenAttr }}" aria-controls="programmes-panel" onClick="{{ toggleMenu }}" style="width: 44px; height: 44px; align-items: center; justify-content: center; background: none; border: 0; color: #211A13; cursor: pointer"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h16"></path></svg></button>
+        </div>
+      </div>
+      <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+        <div id="programmes-panel" onKeyDown="{{ panelKey }}" style="position: absolute; left: 0; right: 0; top: 72px; max-height: calc(100vh - 72px); overflow-y: auto; overscroll-behavior: contain; background: #FAF8F4; color: #211A13; border-top: 1px solid #ECE5DA; box-shadow: 0 40px 60px -40px rgba(23,16,9,.35); animation: panelIn .5s var(--out) both">
+          <div style="max-width: 1360px; margin: 0 auto; padding: 40px clamp(20px, 4vw, 40px) 48px; box-sizing: border-box; display: flex; flex-wrap: wrap; gap: 48px">
+            <nav aria-label="Explore" class="mobileonly" style="flex: 1 1 100%; flex-direction: column; gap: 4px">
+              <a href="Programmes.dc.html#fees" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 52px; border-bottom: 1px solid #E6DED2; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600; color: #211A13; text-decoration: none">Admissions</a>
+              <a href="Life.dc.html" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 52px; border-bottom: 1px solid #E6DED2; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600; color: #211A13; text-decoration: none">Life at MAM</a>
+              <a href="About.dc.html" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 52px; border-bottom: 1px solid #E6DED2; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600; color: #211A13; text-decoration: none">About</a>
+              <a href="#signin" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 52px; font-size: 16px; font-weight: 600; color: #8A5208; text-decoration: none">Sign in to your portal</a>
+            </nav>
+            <div style="flex: 1 1 220px; display: flex; flex-direction: column">
+              <p style="margin: 0 0 12px; font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #8A5208">Levels</p>
+              <sc-for list="{{levels}}" as="l" hint-placeholder-count="4"><a href="Programmes.dc.html" onClick="{{ closeMenu }}" style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 48px; padding: 8px 0; border-bottom: 1px solid #E6DED2; color: #211A13; text-decoration: none"><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 23px; font-weight: 600">{{ l.name }}</span><span style="font-size: 13px; color: #574B40">{{ l.grades }}</span></a></sc-for>
+            </div>
+            <div style="flex: 1 1 240px; display: flex; flex-direction: column">
+              <p style="margin: 0 0 12px; font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #8A5208">Instruments</p>
+              <ul style="list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 24px; font-size: 15px">
+                <sc-for list="{{instruments}}" as="i" hint-placeholder-count="8"><li><a href="Programmes.dc.html#instruments" onClick="{{ closeMenu }}" style="display: inline-flex; align-items: center; min-height: 40px; color: #211A13; text-decoration: none">{{ i }}</a></li></sc-for>
+              </ul>
+            </div>
+            <div style="flex: 1 1 220px; display: flex; flex-direction: column">
+              <p style="margin: 0 0 12px; font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #8A5208">Short courses</p>
+              <a href="Programmes.dc.html#intensives" onClick="{{ closeMenu }}" style="display: inline-flex; align-items: center; min-height: 40px; color: #211A13; text-decoration: none">Crash Programme · 6 weeks</a>
+              <a href="Life.dc.html" onClick="{{ closeMenu }}" style="display: inline-flex; align-items: center; min-height: 40px; color: #211A13; text-decoration: none">The MetaMusic Order · 12 weeks</a>
+              <a href="Life.dc.html#powerplay" onClick="{{ closeMenu }}" style="display: inline-flex; align-items: center; min-height: 40px; color: #211A13; text-decoration: none">Power Play · free, monthly</a>
+            </div>
+            <a href="Programmes.dc.html#levels" onClick="{{ closeMenu }}" class="zoom" style="flex: 1.1 1 260px; position: relative; isolation: isolate; overflow: hidden; border-radius: 18px; min-height: 220px; background: #2A1E14; color: #FBF8F3; text-decoration: none; display: flex; flex-direction: column; justify-content: flex-end; padding: 24px">
+              <img src="/_blob/3cf4f040bdf1a4ee31eed576f1ea28e0" alt="" style="position: absolute; right: -16px; bottom: 0; height: 100%; z-index: -1">
+              <span aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(42,30,20,.95) 0%, rgba(42,30,20,.2) 75%)"></span>
+              <span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26px; font-weight: 600; line-height: 1.1">Not sure where<br>to start?</span>
+              <span style="font-size: 13px; color: #E9E1D6; margin-top: 6px">Book a MAM Auditer assessment →</span>
+            </a>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </header>
+
+  <main id="main">
+    <section aria-labelledby="page-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(40px, 5vw, 72px); display: flex; flex-direction: column; gap: 20px">
+      <nav aria-label="Breadcrumb" class="fade-in" style="font-size: 14px; color: #574B40; display: flex; gap: 8px"><a href="Main.dc.html" class="ul" style="color: #574B40; text-decoration: none">Home</a><span aria-hidden="true">/</span><span aria-current="page">About</span></nav>
+      <h1 id="page-h" aria-label="About MAM Academy" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(52px, 6.4vw, 96px); line-height: 1; letter-spacing: -.01em"><span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.15s;">About</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.22s;">MAM</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.29s; font-style: italic; color: #8A5208;">Academy</span></span></h1>
+    </section>
+    <div class="fade-in" style="animation-delay: .25s; max-width: 1440px; margin: clamp(28px, 3vw, 44px) auto 0; padding: 0 clamp(8px, 1vw, 14px)"><div role="img" aria-label="Photo placeholder: MAM students and faculty on stage" style="height: clamp(260px, 42vw, 620px); border-radius: clamp(14px, 1.6vw, 22px); background: linear-gradient(135deg, #4A3726, #2E2118); display: flex; align-items: flex-end; padding: 24px; box-sizing: border-box; font-size: 13px; color: rgba(252,248,243,.75)">Photo — MAM students and faculty on stage after a showcase (upload)</div></div>
+
+    <section aria-labelledby="intro-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(64px, 8vw, 120px); padding-bottom: clamp(48px, 6vw, 88px)">
+      <div style="max-width: 820px; display: flex; flex-direction: column; gap: 20px">
+        <h2 id="intro-h" aria-label="A creative intelligence and performance academy" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(38px, 4vw, 58px); line-height: 1.08"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">A</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">creative</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 10% entry 70%">intelligence</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 15% entry 75%">and</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 20% entry 80%">performance</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 25% entry 85%">academy</span></span></h2>
+        <p class="read" style="margin: 0; font-size: 19px; line-height: 1.7; color: #3E342B">MAM Academy is not merely a music school. Since 2008, as the training arm of MAM Centre, it has formed musicians, performers, worship leaders, composers, conductors and creative thinkers — people who can play, perform, read, lead and think.</p>
+        <p class="read" style="margin: 0; font-size: 19px; line-height: 1.7; color: #3E342B">Students learn online or in person, through four levels equivalent to Trinity College London Grades 1–8, guided by a method of our own and taught by working musicians.</p>
+        <a href="#learn-more" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Our history</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">Learn more about the history of MAM Academy</span></a>
+      </div>
+    </section>
+    <section aria-labelledby="b0-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(48px, 6vw, 88px); padding-bottom: clamp(48px, 6vw, 88px); border-top: 1px solid #E6DED2">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center; flex-direction: row">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <h3 id="b0-h" aria-label="Excellence across four schools of learning" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Excellence</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">across</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 10% entry 70%">four</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 15% entry 75%">schools</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 20% entry 80%">of</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 25% entry 85%">learning</span></span></h3>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">Every programme draws on four schools: Instrumental, Performance, Rhythm, and MetaMusic &amp; Consciousness. Students grow as players, performers, readers and thinkers at the same time.</p>
+          <blockquote style="margin: 8px 0 0; padding: 4px 0 4px 24px; border-left: 3px solid #C27A12; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(22px, 1.9vw, 28px); line-height: 1.35; color: #211A13">Instrumental Intelligence · Performance Intelligence · Rhythm Intelligence · MetaMusic &amp; Consciousness</blockquote>
+          <a href="Programmes.dc.html" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Learn more about our programmes</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">Programmes, levels and fees</span></a>
+        </div>
+        <div class="reveal" style="flex: 1 1 440px; min-width: 0"><div data-fx-img data-fx-img role="img" aria-label="Photo placeholder: students in a group lesson" style="aspect-ratio: 3 / 2; border-radius: 14px; background: linear-gradient(135deg, #E8DECF, #CDB89C); display: flex; align-items: flex-end; padding: 16px; box-sizing: border-box; font-size: 13px; color: #574B40">Photo — students in a group lesson (upload)</div></div>
+      </div>
+    </section>
+    <section aria-labelledby="b1-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(48px, 6vw, 88px); padding-bottom: clamp(48px, 6vw, 88px); border-top: 1px solid #E6DED2">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center; flex-direction: row-reverse">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <h3 id="b1-h" aria-label="Every student is heard first" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Every</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">student</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 10% entry 70%">is</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 15% entry 75%">heard</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 20% entry 80%">first</span></span></h3>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">Before training begins, each applicant takes a MAM Auditer assessment. We listen to how they play, hear, move and perform, and place them at the level where they will grow fastest.</p>
+          <blockquote style="margin: 8px 0 0; padding: 4px 0 4px 24px; border-left: 3px solid #C27A12; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(22px, 1.9vw, 28px); line-height: 1.35; color: #211A13">Ten dimensions of musical readiness, measured on entry and reported every term.</blockquote>
+          <a href="Auditer.dc.html" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Learn more about the MAM Auditer</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">How the assessment works</span></a>
+        </div>
+        <div class="reveal" style="flex: 1 1 440px; min-width: 0"><div data-fx-img data-fx-img role="img" aria-label="Photo placeholder: an assessor listening to a student" style="aspect-ratio: 3 / 2; border-radius: 14px; background: linear-gradient(135deg, #E8DECF, #CDB89C); display: flex; align-items: flex-end; padding: 16px; box-sizing: border-box; font-size: 13px; color: #574B40">Photo — an assessor listening to a student (upload)</div></div>
+      </div>
+    </section>
+    <section aria-labelledby="b2-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(48px, 6vw, 88px); padding-bottom: clamp(48px, 6vw, 88px); border-top: 1px solid #E6DED2">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center; flex-direction: row">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <h3 id="b2-h" aria-label="A method of our own" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">A</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">method</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 10% entry 70%">of</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 15% entry 75%">our</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 20% entry 80%">own</span></span></h3>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">The MAM Method is a complete system, not just a curriculum. Five pillars shape every lesson at every level, from a four-year-old’s first notes to a diploma recital.</p>
+          <blockquote style="margin: 8px 0 0; padding: 4px 0 4px 24px; border-left: 3px solid #C27A12; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(22px, 1.9vw, 28px); line-height: 1.35; color: #211A13">Technique · Rhythm Intelligence · Performance Intelligence · Creative Consciousness · Artistic Discipline</blockquote>
+          <a href="Programmes.dc.html#levels" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Learn more about the four levels</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">From Pre-Certificate to Diploma</span></a>
+        </div>
+        <div class="reveal" style="flex: 1 1 440px; min-width: 0"><div data-fx-img data-fx-img role="img" aria-label="Photo placeholder: a student practising at the piano" style="aspect-ratio: 3 / 2; border-radius: 14px; background: linear-gradient(135deg, #E8DECF, #CDB89C); display: flex; align-items: flex-end; padding: 16px; box-sizing: border-box; font-size: 13px; color: #574B40">Photo — a student practising at the piano (upload)</div></div>
+      </div>
+    </section>
+    <section aria-labelledby="b3-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(48px, 6vw, 88px); padding-bottom: clamp(48px, 6vw, 88px); border-top: 1px solid #E6DED2">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center; flex-direction: row-reverse">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <h3 id="b3-h" aria-label="Taught by working musicians" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Taught</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">by</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 10% entry 70%">working</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 15% entry 75%">musicians</span></span></h3>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">Our faculty are performers, worship leaders and composers who are active in their craft. The academy is led by its founder, Van. BOJA, who also leads The MetaMusic Order and the monthly Power Play series.</p>
+          
+          <a href="#learn-more" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Meet our leadership and faculty</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">Founder, directors and lead faculty</span></a>
+        </div>
+        <div class="reveal" style="flex: 1 1 440px; min-width: 0"><div data-fx-img data-fx-img role="img" aria-label="Photo placeholder: faculty performing together" style="aspect-ratio: 3 / 2; border-radius: 14px; background: linear-gradient(135deg, #E8DECF, #CDB89C); display: flex; align-items: flex-end; padding: 16px; box-sizing: border-box; font-size: 13px; color: #574B40">Photo — faculty performing together (upload)</div></div>
+      </div>
+    </section>
+    <section aria-labelledby="b4-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(48px, 6vw, 88px); padding-bottom: clamp(48px, 6vw, 88px); border-top: 1px solid #E6DED2">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center; flex-direction: row">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <h3 id="b4-h" aria-label="Support that makes a difference" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Support</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">that</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 10% entry 70%">makes</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 15% entry 75%">a</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 20% entry 80%">difference</span></span></h3>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">Cost should not decide who becomes a musician. The NGV Scholarship supports talented students for whom tuition is the only barrier.</p>
+          
+          <a href="Apply.dc.html" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Ask about the scholarship when you apply</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">Admissions and support</span></a>
+        </div>
+        <div class="reveal" style="flex: 1 1 440px; min-width: 0"><div data-fx-img data-fx-img role="img" aria-label="Photo placeholder: a student smiling after a lesson" style="aspect-ratio: 3 / 2; border-radius: 14px; background: linear-gradient(135deg, #E8DECF, #CDB89C); display: flex; align-items: flex-end; padding: 16px; box-sizing: border-box; font-size: 13px; color: #574B40">Photo — a student smiling after a lesson (upload)</div></div>
+      </div>
+    </section>
+    <section aria-labelledby="b5-h" style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(48px, 6vw, 88px); padding-bottom: clamp(48px, 6vw, 88px); border-top: 1px solid #E6DED2">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center; flex-direction: row-reverse">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <h3 id="b5-h" aria-label="A community beyond lessons" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">A</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">community</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 10% entry 70%">beyond</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 15% entry 75%">lessons</span></span></h3>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">Every term ends in a showcase where every student performs. Each month, Power Play brings musicians, creatives and culture shapers together online — free and open to all.</p>
+          <blockquote style="margin: 8px 0 0; padding: 4px 0 4px 24px; border-left: 3px solid #C27A12; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(22px, 1.9vw, 28px); line-height: 1.35; color: #211A13">Music that builds people.</blockquote>
+          <a href="Life.dc.html" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Learn more about life at MAM</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">Showcases, Power Play and intensives</span></a>
+        </div>
+        <div class="reveal" style="flex: 1 1 440px; min-width: 0"><div data-fx-img data-fx-img role="img" aria-label="Photo placeholder: the termly showcase" style="aspect-ratio: 3 / 2; border-radius: 14px; background: linear-gradient(135deg, #E8DECF, #CDB89C); display: flex; align-items: flex-end; padding: 16px; box-sizing: border-box; font-size: 13px; color: #574B40">Photo — the termly showcase (upload)</div></div>
+      </div>
+    </section>
+
+    <section id="learn-more" aria-labelledby="lm-h" style="background: #F3EEE6; margin-top: clamp(24px, 3vw, 48px)">
+      <div style="max-width: 1200px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(64px, 8vw, 112px); padding-bottom: clamp(64px, 8vw, 112px); display: flex; flex-direction: column; gap: 28px">
+        <h2 id="lm-h" aria-label="Learn more" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(38px, 4vw, 58px); line-height: 1.08"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Learn</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 5% entry 65%">more</span></span></h2>
+        <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B; max-width: 760px">MAM Academy was commissioned in 2008 as the training arm of MAM Centre. Its vision: to interpret the timeless using instruments, and replay it in time.</p>
+        <div class="stagger" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px">
+          <a href="#leadership" class="lift" style="display: flex; flex-direction: column; gap: 8px; padding: 28px; border-radius: 16px; background: #FFFFFF; border: 1px solid #E6DED2; color: #211A13; text-decoration: none"><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 500">Leadership &amp; faculty</span><span style="font-size: 16px; color: #574B40">Meet the founder, directors and lead faculty who shape the academy.</span><span aria-hidden="true" style="margin-top: 8px; color: #8A5208; font-weight: 600">→</span></a>
+          <a href="#history" class="lift" style="display: flex; flex-direction: column; gap: 8px; padding: 28px; border-radius: 16px; background: #FFFFFF; border: 1px solid #E6DED2; color: #211A13; text-decoration: none"><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 500">Our history</span><span style="font-size: 16px; color: #574B40">From a training arm of MAM Centre in 2008 to an academy online and in person.</span><span aria-hidden="true" style="margin-top: 8px; color: #8A5208; font-weight: 600">→</span></a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+  <!-- ================= FOOTER: grouped by intent, one action, contact + legal always reachable ================= -->
+  <footer style="background: #171009; color: #E9E1D6; font-size: 15px; overflow: hidden">
+    <div style="max-width: 1360px; margin: 0 auto; padding: clamp(56px, 6.1vw, 88px) clamp(20px, 4vw, 40px) 0; display: flex; flex-direction: column; gap: 64px">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px 80px; justify-content: space-between; align-items: flex-end; padding-bottom: 56px; border-bottom: 1px solid rgba(252,248,243,.12)">
+        <div style="flex: 1 1 420px; display: flex; flex-direction: column; gap: 16px">
+          <p style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(30px, 3.06vw, 44px); font-weight: 500; line-height: 1.1; color: #FCF8F3">Notes from the music room</p>
+          <p style="margin: 0; color: #D8CEC1; max-width: 440px">One email a month: intake dates, showcases and Power Play sessions. No spam — unsubscribe any time.</p>
+        </div>
+        <form aria-label="Newsletter" style="flex: 1 1 420px; display: flex; gap: 8px; flex-wrap: wrap">
+          <label for="news-email" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Email address</label>
+          <input id="news-email" type="email" autocomplete="email" placeholder="you@example.com" style="flex: 1 1 240px; min-width: 0; height: 52px; box-sizing: border-box; padding: 0 18px; border-radius: 10px; border: 1px solid rgba(252,248,243,.22); background: rgba(252,248,243,.06); color: #FCF8F3; font: inherit">
+          <button type="submit" class="btn" style="min-height: 52px; padding: 0 24px; border-radius: 10px; border: 0; background: #F2A93B; color: #211A13; font: inherit; font-weight: 600; cursor: pointer">Subscribe</button>
+        </form>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 48px 64px">
+        <div style="flex: 1.2 1 280px; display: flex; flex-direction: column; gap: 20px">
+          <a href="Main.dc.html" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: #FCF8F3"><img src="/_blob/00dfca51d0e87c346b5650eddf166e20" alt="" width="40" height="40" style="width: 40px; height: 40px"><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600">MAM Academy</span></a>
+          <p style="margin: 0; color: #D8CEC1; max-width: 320px">A creative intelligence and performance academy, forming complete musicians since 2008. Part of MAM Centre.</p>
+          <a href="Apply.dc.html" class="btn arrow" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 22px; border-radius: 10px; border: 1px solid rgba(252,248,243,.35); color: #FCF8F3; font-weight: 600; text-decoration: none">Apply for [INTAKE] <span aria-hidden="true">→</span></a>
+        </div>
+        <nav aria-label="Footer" style="flex: 2.4 1 600px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 32px">
+          <sc-for list="{{footerGroups}}" as="g" hint-placeholder-count="4">
+            <div style="display: flex; flex-direction: column; gap: 2px">
+              <h2 style="margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #F2A93B">{{ g.title }}</h2>
+              <ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+                <sc-for list="{{ g.links }}" as="lk" hint-placeholder-count="4"><li><a href="{{ lk.href }}" class="ul" style="display: inline-flex; align-items: center; min-height: 36px; color: #E9E1D6; text-decoration: none">{{ lk.t }}</a></li></sc-for>
+              </ul>
+            </div>
+          </sc-for>
+        </nav>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px 32px; justify-content: space-between; align-items: center; padding: 24px 0; border-top: 1px solid rgba(252,248,243,.12); font-size: 13px; color: #D8CEC1">
+        <ul aria-label="MAM Academy on social media" style="list-style: none; margin: 0; padding: 0; display: flex; gap: 4px">
+          <sc-for list="{{socials}}" as="so" hint-placeholder-count="4"><li><a href="{{ so.href }}" aria-label="{{ so.name }}" class="btn" style="width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; color: #E9E1D6"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="{{ so.icon }}"></path></svg></a></li></sc-for>
+        </ul>
+        <span>© 2026 MAM Academy</span>
+        <ul aria-label="Legal" style="list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 20px"><li><a href="#privacy" class="ul" style="color: #D8CEC1; text-decoration: none">Privacy</a></li><li><a href="#terms" class="ul" style="color: #D8CEC1; text-decoration: none">Terms</a></li><li><a href="#policies" class="ul" style="color: #D8CEC1; text-decoration: none">Class policies</a></li><li><a href="#accessibility" class="ul" style="color: #D8CEC1; text-decoration: none">Accessibility</a></li><li><a href="#cookies" class="ul" style="color: #D8CEC1; text-decoration: none">Cookie settings</a></li></ul>
+      </div>
+    </div>
+    <p aria-hidden="true" class="wordmark" style="margin: 0; text-align: center; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: 16vw; line-height: .82; letter-spacing: -.03em; color: transparent; -webkit-text-stroke: 1px rgba(242,169,59,.34); white-space: nowrap; user-select: none; padding-top: 2vw; margin-bottom: -2.2vw">MAMCENTRE</p>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":5200}}'>
+function mamFx() {
+  if (window.__mamFx) return; window.__mamFx = true;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Spotlight: a soft warm light follows the pointer across cards
+  document.addEventListener('pointermove', function (e) {
+    var t = e.target && e.target.closest ? e.target.closest('.lift, .zoom, .bento > *, [data-spot]') : null; if (!t) return;
+    if (!t.classList.contains('spot')) { if (getComputedStyle(t).position === 'static') t.style.position = 'relative'; var bg = getComputedStyle(t).backgroundColor, m = bg.match(/\d+/g); if (m && (+m[0] + +m[1] + +m[2]) < 200) t.style.setProperty('--spot', 'rgba(242,169,59,.22)'); t.classList.add('spot'); }
+    var r = t.getBoundingClientRect(); t.style.setProperty('--mx', (e.clientX - r.left) + 'px'); t.style.setProperty('--my', (e.clientY - r.top) + 'px');
+  }, { passive: true });
+  // Smart header: steps aside while you read down, returns the moment you scroll up
+  if (document.querySelector('[data-smart]') && !reduce) {
+    var last = window.scrollY || 0;
+    window.addEventListener('scroll', function () { var y = window.scrollY || 0; if (Math.abs(y - last) < 6) return; document.documentElement.classList.toggle('fx-hide', y > last && y > 520); last = y; }, { passive: true });
+  }
+  // Scroll-spy: the section you are reading is marked in the page's local navigation
+  var nav = document.querySelector('nav[aria-label="On this page"]');
+  if (nav && window.IntersectionObserver) {
+    var links = [].slice.call(nav.querySelectorAll('a[href^="#"]')), map = {};
+    links.forEach(function (a) { var el = document.getElementById(a.getAttribute('href').slice(1)); if (el) map[el.id] = a; });
+    var io = new IntersectionObserver(function (es) { es.forEach(function (en) { if (!en.isIntersecting) return; links.forEach(function (a) { a.classList.remove('on'); a.removeAttribute('aria-current'); }); var a = map[en.target.id]; if (a) { a.classList.add('on'); a.setAttribute('aria-current', 'location'); var ul = a.closest('div'); if (ul && ul.scrollWidth > ul.clientWidth) ul.scrollTo({ left: a.offsetLeft - 40, behavior: reduce ? 'auto' : 'smooth' }); } }); }, { rootMargin: '-40% 0px -55% 0px' });
+    Object.keys(map).forEach(function (id) { io.observe(document.getElementById(id)); });
+  }
+}
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = Object.assign({ menu: false, scrolled: false }, {}); this.onScroll = this.onScroll.bind(this); }
+  componentDidMount() { mamFx(); window.addEventListener('scroll', this.onScroll, { passive: true }); this.onScroll(); }
+  componentWillUnmount() { window.removeEventListener('scroll', this.onScroll); }
+  onScroll() { const s = (window.scrollY || 0) > 8; if (s !== this.state.scrolled) this.setState({ scrolled: s }); }
+
+  renderVals() {
+    const levels = [
+      { n: '1', grades: 'Grades 1–2', name: 'Pre-Certificate', base: 120, desc: 'Foundations: technique, posture, rhythm and first performances.' },
+      { n: '2', grades: 'Grades 3–4', name: 'Certificate', base: 130, desc: 'Fluent playing, sight reading and stage presentation.' },
+      { n: '3', grades: 'Grades 5–6', name: 'Pre-Diploma', base: 160, desc: 'Advanced repertoire, improvisation and ensemble leadership.' },
+      { n: '4', grades: 'Grades 7–8', name: 'Diploma', base: 180, desc: 'Professional mastery, conducting and artistic identity.' }
+    ];
+    const footerGroups = [
+      { title: 'Study', links: [{ t: 'Programmes', href: 'Programmes.dc.html' }, { t: 'Admissions & fees', href: 'Programmes.dc.html#fees' }, { t: 'MAM Auditer', href: 'Auditer.dc.html' }, { t: 'Scholarships', href: 'Programmes.dc.html#scholarship' }] },
+      { title: 'Families', links: [{ t: 'Parents & guardians', href: '#parents' }, { t: 'Questions', href: 'Main.dc.html#questions' }, { t: 'Class policies', href: '#policies' }, { t: 'Safeguarding', href: '#safeguarding' }] },
+      { title: 'Community', links: [{ t: 'Events', href: 'Life.dc.html' }, { t: 'Power Play', href: 'Life.dc.html#powerplay' }, { t: 'Store', href: '#store' }, { t: 'Teach at MAM', href: '#teach' }] },
+      { title: 'Get in touch', links: [{ t: 'Contact admissions', href: '#contact' }, { t: 'academy@mamcentre.org', href: 'mailto:academy@mamcentre.org' }, { t: '+234 704 444 6517', href: 'tel:+2347044446517' }, { t: 'Sign in to the portal', href: '#signin' }] }
+    ];
+    const socials = [
+      { name: "Instagram", href: "https://instagram.com/mamacademy1", icon: "M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" },
+      { name: "X", href: "https://twitter.com/mamacademy1", icon: "M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" },
+      { name: "Facebook", href: "https://facebook.com/mamacademy1", icon: "M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" },
+      { name: "YouTube", href: "https://youtube.com/mamacademy1", icon: "M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" }
+    ];
+    return Object.assign({
+      headerShadow: this.state.scrolled || this.state.menu ? '0 1px 0 rgba(33,26,19,.10)' : 'none',
+      menuOpen: this.state.menu,
+      menuOpenAttr: this.state.menu ? 'true' : 'false',
+      chevStyle: 'transition: transform .3s; transform: rotate(' + (this.state.menu ? '180deg' : '0deg') + ')',
+      toggleMenu: () => this.setState({ menu: !this.state.menu }),
+      closeMenu: () => this.setState({ menu: false }),
+      panelKey: (e) => { if (e.key === 'Escape') this.setState({ menu: false }); },
+      levels, instruments: ['Piano & Keyboard', 'Voice & Choir', 'Violin & Strings', 'Guitar', 'Drums & Percussion', 'Wind & Brass', 'Music Theory & Ear', 'Performance'], footerGroups, socials
+    }, ((levels) => ({}))(levels));
+  }
+}
+</script>
+</body>
+</html>

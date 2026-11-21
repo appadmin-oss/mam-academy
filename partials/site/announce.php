@@ -1,0 +1,6 @@
+<div role="region" aria-label="Announcement" style="background: #120C07; color: #FCF8F3">
+      <div style="max-width: 1360px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px); min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 12px; position: relative">
+        <p style="margin: 0; padding: 10px 40px; font-size: 14px; line-height: 1.45; text-align: center"><?= site_h(site_intake()) ?> intake is open<span class="hide-sm"> — places are limited and applications are reviewed weekly</span>. <a href="/apply" class="arrow" style="color: #FCF8F3; font-weight: 600; text-decoration: none; white-space: nowrap">Apply now <span aria-hidden="true">›</span></a></p>
+        <button type="button" aria-label="Dismiss announcement" class="btn" style="position: absolute; right: clamp(8px, 2vw, 24px); top: 50%; transform: translateY(-50%); width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; border-radius: 8px; color: #FCF8F3; cursor: pointer" data-act="dismiss-bar"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+      </div>
+    </div>

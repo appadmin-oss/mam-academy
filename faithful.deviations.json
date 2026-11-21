@@ -1,0 +1,235 @@
+{
+  "deviations": [
+    {
+      "kind": "text",
+      "match": "[INTAKE]",
+      "reason": "The placeholder is filled from the academic calendar (site_intake), as handoff §9 asks",
+      "owner": "handoff §9"
+    },
+    {
+      "kind": "missing",
+      "match": "(upload)",
+      "reason": "Photo captions are the prototype's placeholders; a slot shows the gradient until a real MAM photo is added (handoff §9)",
+      "owner": "handoff §9"
+    },
+    {
+      "match": "photo - ",
+      "reason": "Photo captions are the prototype placeholders (handoff §9); where Faithful pairs one with a similarly-worded footer link, the finding is that pairing",
+      "owner": "handoff §9"
+    },
+    {
+      "kind": "text",
+      "match": "(upload)",
+      "reason": "Faithful paired a removed photo caption with a footer link of similar wording",
+      "owner": "build"
+    },
+    {
+      "kind": "missing",
+      "match": "Safeguarding",
+      "reason": "No safeguarding page exists yet; a link to nothing is not shipped (handoff §9, links still to wire)",
+      "owner": "handoff §9"
+    },
+    {
+      "kind": "missing",
+      "match": "Accessibility",
+      "reason": "No accessibility statement page exists yet (handoff §9, links still to wire)",
+      "owner": "handoff §9"
+    },
+    {
+      "kind": "missing",
+      "match": "img",
+      "reason": "Decorative cut-out art on the bento tiles and panel card was not supplied with the handoff",
+      "owner": "handoff §9"
+    },
+    {
+      "kind": "extra",
+      "match": "footer",
+      "reason": "The footer keeps every destination the previous footer offered (parity), under the design's four intent groups",
+      "owner": "parity"
+    },
+    {
+      "kind": "extra",
+      "match": "ul>li",
+      "reason": "Footer and legal-row links kept for parity: schools, compare, crash, MetaMusic Order, book, pay tuition, faculty, studio, notation, blog, sitemap, staff, MAM Centre",
+      "owner": "parity"
+    },
+    {
+      "kind": "size",
+      "match": "footer",
+      "reason": "The footer is taller by the destinations kept for parity",
+      "owner": "parity"
+    },
+    {
+      "kind": "size",
+      "match": "ul:nth-of-type(2)>li",
+      "reason": "Legal links grown from 16px to a 24px target (WCAG 2.5.8)",
+      "owner": "accessibility"
+    },
+    {
+      "kind": "position",
+      "match": "footer",
+      "reason": "Follows from the footer's kept destinations and 24px legal links",
+      "owner": "parity"
+    },
+    {
+      "kind": "position",
+      "match": "ul:nth-of-type(2)>li",
+      "reason": "Follows from the footer's kept destinations and 24px legal links",
+      "owner": "parity"
+    },
+    {
+      "kind": "position",
+      "match": "© ",
+      "reason": "Follows from the footer's kept destinations",
+      "owner": "parity"
+    },
+    {
+      "kind": "position",
+      "match": "MAMCENTRE",
+      "reason": "Follows from the footer's kept destinations",
+      "owner": "parity"
+    },
+    {
+      "kind": "position",
+      "match": "Community",
+      "reason": "Follows from the footer's kept destinations",
+      "owner": "parity"
+    },
+    {
+      "kind": "position",
+      "match": "a.btn",
+      "reason": "The social row follows the taller footer",
+      "owner": "parity"
+    },
+    {
+      "kind": "position",
+      "match": "news-email",
+      "reason": "Follows from the footer's kept destinations",
+      "owner": "parity"
+    },
+    {
+      "match": "checklist",
+      "reason": "The applicant checklist is kept from the previous Auditer page: thank-you, status, booking and the student portal link to /auditer#checklist",
+      "owner": "parity"
+    },
+    {
+      "match": "chk",
+      "reason": "The applicant checklist (kept for parity, see above)",
+      "owner": "parity"
+    },
+    {
+      "kind": "text",
+      "match": "NGV Scholarship",
+      "reason": "The scholarship line keeps the external NGV form and the in-depth Pathways page reachable (parity)",
+      "owner": "parity"
+    },
+    {
+      "kind": "size",
+      "match": "[INTAKE]",
+      "reason": "The intake name from the calendar is longer than the placeholder",
+      "owner": "handoff §9"
+    },
+    {
+      "kind": "missing",
+      "match": "a.btn>svg",
+      "reason": "The social icons sit lower in the taller footer, beyond Faithful's pairing distance; they are present",
+      "owner": "parity"
+    },
+    {
+      "kind": "extra",
+      "match": "a.btn>svg",
+      "reason": "The social icons sit lower in the taller footer, beyond Faithful's pairing distance",
+      "owner": "parity"
+    },
+    {
+      "kind": "size",
+      "match": "scholarship",
+      "reason": "The scholarship line keeps the external NGV form and Pathways reachable (parity)",
+      "owner": "parity"
+    },
+    {
+      "kind": "size",
+      "match": "#intensives",
+      "reason": "Taller by the scholarship line's kept links",
+      "owner": "parity"
+    },
+    {
+      "kind": "extra",
+      "match": "scholarship",
+      "reason": "The scholarship line keeps the external NGV form and Pathways reachable (parity)",
+      "owner": "parity"
+    },
+    {
+      "kind": "position",
+      "match": "cta-h",
+      "reason": "The closing section follows the kept applicant checklist",
+      "owner": "parity"
+    },
+    {
+      "kind": "extra",
+      "match": "#process>p",
+      "reason": "The external Auditer booking site the previous page linked (parity)",
+      "owner": "parity"
+    },
+    {
+      "kind": "extra",
+      "match": "#resonance",
+      "reason": "The pitch readout the design shows while listening; Faithful reads it as present because it is in the markup, hidden",
+      "owner": "build"
+    },
+    {
+      "kind": "extra",
+      "match": "ul:nth-of-type(2)>li",
+      "reason": "Legal-row links kept for parity: sitemap, MAM Centre, staff sign-in",
+      "owner": "parity"
+    },
+    {
+      "kind": "missing",
+      "match": "x-dc>div",
+      "reason": "The design runtime's root element; the build's root is <body>, which carries the same frame",
+      "owner": "build"
+    },
+    {
+      "kind": "missing",
+      "match": "section>div:nth-of-type(1)>span",
+      "reason": "The hero photo captions (prototype placeholders, handoff §9)",
+      "owner": "handoff §9"
+    },
+    {
+      "kind": "missing",
+      "match": "div>div:nth-of-type(3)",
+      "reason": "The footer's bottom row on a phone, moved beyond Faithful's pairing distance by the taller footer",
+      "owner": "parity"
+    },
+    {
+      "kind": "missing",
+      "match": "section:nth-of-type(5)",
+      "reason": "The Auditer's closing section is the sixth now: the kept checklist precedes it",
+      "owner": "parity"
+    },
+    {
+      "kind": "extra",
+      "match": "auditer.mamcentre.org",
+      "reason": "The external Auditer booking site the previous page linked (parity)",
+      "owner": "parity"
+    },
+    {
+      "kind": "extra",
+      "match": "MAM Code of Conduct",
+      "reason": "Inside the kept applicant checklist",
+      "owner": "parity"
+    },
+    {
+      "kind": "extra",
+      "match": "a:nth-of-type(1)>img",
+      "reason": "The footer logo, moved beyond Faithful's pairing distance by the taller footer",
+      "owner": "parity"
+    },
+    {
+      "kind": "position",
+      "match": "scholarship",
+      "reason": "The scholarship line rewraps around its kept links",
+      "owner": "parity"
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "color": {
+    "ivory": "#FAF8F4",
+    "sand": "#F3EEE6",
+    "line": "#ECE5DA",
+    "line-2": "#E3DACD",
+    "line-strong": "#CFC3B3",
+    "line-strong-2": "#D6CCBE",
+    "white": "#FFFFFF",
+    "ink": "#211A13",
+    "ink-soft": "#3E342B",
+    "muted": "#574B40",
+    "espresso": "#2A1E14",
+    "night-0": "#140D08",
+    "night-1": "#24160B",
+    "night-2": "#5A3815",
+    "gold": "#F2A93B",
+    "gold-text": "#8A5208",
+    "gold-deep": "#C27A12",
+    "on-dark": "#FCF8F3",
+    "on-dark-muted": "#D8CEC1",
+    "on-dark-body": "#E9E1D6",
+    "error": "#B0361C"
+  },
+  "contrast": {
+    "ink/ivory": 16.2,
+    "ink-soft/ivory": 11.4,
+    "muted/ivory": 8.0,
+    "ink/gold": 8.6,
+    "gold-text/ivory": 6.0,
+    "error/white": 6.2,
+    "on-dark/night-0": 18.2,
+    "on-dark-muted/night-1": 11.3
+  },
+  "font": {
+    "serif": "'Cormorant Garamond', Georgia, serif",
+    "sans": "Inter, system-ui, sans-serif",
+    "google": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@400;500;600&display=swap"
+  },
+  "type": {
+    "display-h1": "clamp(47px, 5.83vw, 84px)/1.02 500 serif, tracking -0.01em",
+    "page-h1": "clamp(46px, 5.6vw, 84px)/1.02 500 serif",
+    "h2": "clamp(34px, 4.17vw, 60px)/1.05 500 serif",
+    "h3": "24-44px/1.1 500-600 serif",
+    "statement": "clamp(30px, 3.4vw, 50px)/1.18 500 serif",
+    "eyebrow": "13px 600 sans uppercase, tracking 0.16em, gold-text",
+    "lead": "18-19px/1.6 sans",
+    "body": "16-17px/1.6 sans (About 18px/1.7)",
+    "small": "13-15px sans"
+  },
+  "space": {
+    "content-max": "1360px",
+    "gutter": "clamp(20px, 4vw, 40px)",
+    "section-y": "clamp(64px, 8.9vw, 128px) to clamp(72px, 10vw, 144px)",
+    "inset-panel": "clamp(8px, 1vw, 14px)",
+    "header-height": "72px"
+  },
+  "radius": {
+    "button": "10px",
+    "pill": "999px",
+    "input": "12px",
+    "tile": "16px",
+    "card": "20px",
+    "card-lg": "24px",
+    "panel": "clamp(14px, 1.6vw, 22px)"
+  },
+  "shadow": {
+    "card-hover": "0 30px 60px -36px rgba(33,26,19,.4)",
+    "tile-selected": "0 0 0 1px #211A13, 0 18px 40px -28px rgba(33,26,19,.5)"
+  },
+  "motion": {
+    "ease-out": "cubic-bezier(.19,1,.22,1)",
+    "ease-soft": "cubic-bezier(.25,1,.5,1)",
+    "hover-colour": "0.2s",
+    "underline": "0.6s",
+    "card-lift": "0.75s",
+    "word-rise": "1.1s, stagger 0.07-0.085s"
+  },
+  "breakpoints": {
+    "lg": 1080,
+    "apply-panel": 960,
+    "md": 900,
+    "sm": 720,
+    "xs": 480
+  },
+  "target-min": "44px"
+}

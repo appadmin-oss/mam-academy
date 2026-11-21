@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MAM Academy — Life at MAM</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#FAF8F4}
+html{scroll-behavior:smooth}
+:root{--out:cubic-bezier(.19,1,.22,1);--soft:cubic-bezier(.25,1,.5,1)}
+a{color:#8A5208;text-decoration-color:rgba(138,82,8,.35);transition:color .5s var(--out),text-decoration-color .5s var(--out)}
+a:hover{color:#211A13;text-decoration-color:currentColor}
+a:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid #2563EB;outline-offset:2px;border-radius:6px}
+.skip:focus{top:8px!important}
+/* links: underline draws in */
+.ul{background:linear-gradient(currentColor,currentColor) 0 calc(50% + .78em)/0 1px no-repeat;transition:background-size .6s var(--out),color .3s ease}
+.ul:hover,.ul[aria-expanded="true"]{background-size:100% 1px}
+/* buttons: quiet press, arrow nudge */
+.btn{transition:background-color .2s ease,color .2s ease,border-color .2s ease,transform .15s var(--soft)}
+.btn:active{transform:scale(.98)}
+.arrow span[aria-hidden]{display:inline-block;transition:transform .5s var(--out)}
+.arrow:hover span[aria-hidden]{transform:translateX(4px)}
+.lift{transition:transform .75s var(--out),box-shadow .75s var(--out)}
+.lift:hover{transform:translateY(-4px);box-shadow:0 30px 60px -36px rgba(33,26,19,.4)}
+.zoom img,.zoom .ph{transition:transform 1.2s var(--out)}
+.zoom:hover img,.zoom:hover .ph{transform:scale(1.04)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+@keyframes fadeUp2{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+@keyframes wordIn{from{opacity:0;transform:translateY(.45em);filter:blur(8px)}to{opacity:1;transform:none;filter:blur(0)}}
+@keyframes heroIn{from{opacity:0}to{opacity:1}}
+@keyframes kenburns{from{transform:scale(1.08)}to{transform:scale(1)}}
+@keyframes panelIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.fade-in{animation:fadeUp 1s var(--soft) both}
+@supports (animation-timeline: view()){
+  .reveal{animation:fadeUp linear both;animation-timeline:view();animation-range:entry 0% entry 90%}
+}
+@keyframes barGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes drift{from{transform:translateY(-4%)}to{transform:translateY(4%)}}
+@keyframes heroOut{to{opacity:0;transform:translateY(-40px)}}
+@keyframes rise2{from{opacity:0;transform:translateY(40px)}to{opacity:1;transform:none}}
+.bar{transform-origin:left;animation:barGrow 1.4s var(--out) both}
+@supports (animation-timeline: view()){
+  .bar{animation:barGrow linear both;animation-timeline:view();animation-range:entry 20% entry 100%}
+  .par{animation:drift linear both;animation-timeline:view();animation-range:cover 0% cover 100%}
+  .hero-copy{animation:heroOut linear both;animation-timeline:view();animation-range:exit 0% exit 70%}
+  .stagger>*:not(sc-for),.stagger>sc-for>*{animation:fadeUp linear both;animation-timeline:view();animation-range:entry 0% entry 80%}
+  .stagger>*:nth-child(2):not(sc-for),.stagger>sc-for>*:nth-child(2){animation-range:entry 10% entry 90%}
+  .stagger>*:nth-child(3):not(sc-for),.stagger>sc-for>*:nth-child(3){animation-range:entry 20% entry 100%}
+  .stagger>*:nth-child(4):not(sc-for),.stagger>sc-for>*:nth-child(4){animation-range:entry 25% entry 100%}
+  .wordmark{animation:rise2 linear both;animation-timeline:view();animation-range:entry 0% entry 100%}
+}
+
+
+/* ---- responsive layer ---- */
+footer nav[aria-label="Footer"] a{overflow-wrap:anywhere;min-width:0}
+img{max-width:100%}
+.sr-xs{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (max-width: 1080px){.stick{position:static!important}}
+@media (max-width: 900px){footer nav[aria-label="Footer"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media (max-width: 720px){
+  .hide-sm{display:none}
+  .top-apply{display:none!important}
+  .lvl{min-height:0!important}
+  .lvl h3{margin-top:6px!important}
+  [aria-label="Newsletter"]>input{flex:none!important;width:100%}
+  .hero-copy{padding-bottom:40px!important}
+  .tgrid,.bento{gap:12px!important}
+  [aria-label="Fee estimator"],[aria-label="Newsletter"]{flex-direction:column}
+  footer nav[aria-label="Footer"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media (max-width: 480px){
+  .wm{font-size:21px!important}
+  header img{width:28px!important;height:28px!important}
+  header .btn{padding-left:12px!important;padding-right:12px!important}
+  .hide-xs{display:none}
+  .bento{grid-auto-rows:minmax(280px,auto)!important}
+  section h1{letter-spacing:-.01em!important}
+}
+/* ---- text motion system ---- */
+@property --n{syntax:'<integer>';initial-value:0;inherits:false}
+@keyframes wordUp{from{transform:translateY(108%) rotate(2deg);opacity:0}to{transform:none;opacity:1}}
+@keyframes lineIn{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes readIn{from{opacity:.18;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes count{from{--n:0}to{--n:var(--to)}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.mask{display:inline-block;overflow:hidden;vertical-align:bottom;padding:0 .04em .1em;margin:0 -.04em -.1em}
+.w{display:inline-block;transform-origin:0 100%;animation:wordUp 1.1s var(--soft) both}
+.count{counter-reset:n var(--to)}
+.count::after{content:counter(n)}
+@supports (animation-timeline: view()){
+  .sw{display:inline-block;transform-origin:0 100%;animation:wordUp linear both;animation-timeline:view()}
+  .read{animation:readIn linear both;animation-timeline:view();animation-range:entry 0% entry 100%}
+  .count{counter-reset:n var(--n);animation:count linear both;animation-timeline:view();animation-range:entry 20% entry 100%}
+}
+.rail{scroll-snap-type:x mandatory;scrollbar-width:thin}
+.rail>*{scroll-snap-align:start}
+.navlinks{display:flex}.menubtn{display:none!important}.mobileonly{display:none!important}
+@media (max-width: 1080px){.navlinks{display:none!important}.menubtn{display:inline-flex!important}.mobileonly{display:flex!important}.bento{grid-template-columns:1fr!important}.bento>*{grid-column:auto!important}.tgrid{grid-template-columns:1fr!important}.tgrid>*{grid-column:auto!important;grid-row:auto!important}}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}html{scroll-behavior:auto}.count{counter-reset:n var(--to)!important}}
+</style>
+<style>.prow:hover{color:inherit}.prow:focus-visible{outline:3px solid #F2A93B;outline-offset:-3px}.pnl{animation:qIn .6s var(--out) both}@keyframes qIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}@keyframes qIn2{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}.erow:hover .ph{transform:scale(1.03)}.erow .ph{transition:transform 1.2s var(--out)}.lrow:hover .lname{color:#8A5208;transform:translateX(8px)}.lrow .lname{transition:transform .6s var(--out),color .3s}@media (prefers-reduced-motion: reduce){.pnl{animation:none}}</style>
+
+
+<style data-fx>
+@view-transition{navigation:auto}
+::view-transition-old(root){animation:.3s ease both fxVtOut}
+::view-transition-new(root){animation:.6s cubic-bezier(.19,1,.22,1) both fxVtIn}
+@keyframes fxVtOut{to{opacity:0}}
+@keyframes fxVtIn{from{opacity:0;transform:translateY(14px)}}
+@supports (animation-timeline: view()){[data-fx-img]{animation:fxImg linear both;animation-timeline:view();animation-range:entry 0% entry 80%}}
+@keyframes fxImg{from{clip-path:inset(9% 7% 9% 7% round 26px);filter:saturate(.6) brightness(.96)}to{clip-path:inset(0 0 0 0 round 0);filter:none}}
+.spot::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1;background:radial-gradient(380px circle at var(--mx,50%) var(--my,50%),var(--spot,rgba(242,169,59,.16)),transparent 62%);opacity:0;transition:opacity .5s ease}
+.spot:hover::after{opacity:1}
+nav[aria-label="On this page"]{transition:top .55s cubic-bezier(.19,1,.22,1)}
+nav[aria-label="On this page"] a.on{color:#8A5208!important;background-size:100% 1px!important}
+[data-smart]{transition:transform .55s cubic-bezier(.19,1,.22,1),box-shadow .4s ease}
+.fx-hide [data-smart]{transform:translateY(-100%)}
+.fx-hide nav[aria-label="On this page"]{top:0!important}
+@media (prefers-reduced-motion: reduce){::view-transition-old(root),::view-transition-new(root){animation:none}[data-fx-img]{animation:none!important}[data-smart]{transition:none}}
+</style>
+</helmet>
+<div style="font-family: Inter, system-ui, sans-serif; color: #211A13; background: #FAF8F4; font-size: 16px; line-height: 1.6">
+  <a href="#main" class="skip" style="position: absolute; left: 8px; top: -60px; z-index: 50; background: #FFFFFF; color: #211A13; padding: 12px 16px; border-radius: 6px">Skip to main content</a>
+  <header data-smart style="position: sticky; top: 0; z-index: 40; height: 72px; background: rgba(250,248,244,.92); backdrop-filter: saturate(1.3) blur(18px); -webkit-backdrop-filter: saturate(1.3) blur(18px); box-shadow: {{ headerShadow }}; transition: box-shadow .4s ease">
+    <div style="position: relative">
+      <div style="max-width: 1360px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px); height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 24px">
+        <a href="Main.dc.html" style="display: flex; align-items: center; gap: 10px; min-height: 44px; text-decoration: none; color: #211A13">
+          <img src="/_blob/00dfca51d0e87c346b5650eddf166e20" alt="" width="30" height="30" style="width: 30px; height: 30px">
+          <span class="wm" style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px; font-weight: 600; line-height: 1; white-space: nowrap">MAM Academy</span>
+        </a>
+        <div style="display: flex; align-items: center; gap: 4px">
+          <nav aria-label="Main" class="navlinks" style="align-items: center; gap: 4px; margin-right: 36px">
+            <button type="button" class="ul" aria-expanded="{{ menuOpenAttr }}" aria-controls="programmes-panel" onClick="{{ toggleMenu }}" style="min-height: 44px; margin: 0 10px; padding: 0; border: 0; background-color: transparent; font: inherit; font-size: 15px; color: #211A13; cursor: pointer; display: inline-flex; align-items: center; gap: 6px">Programmes <svg aria-hidden="true" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" style="{{ chevStyle }}"><path d="M2.5 4.5L6 8l3.5-3.5"></path></svg></button>
+            <a href="Apply.dc.html" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; margin: 0 10px; font-size: 15px; color: #211A13; text-decoration: none">Admissions</a>
+            <a href="Life.dc.html" class="ul" aria-current="page" style="display: inline-flex; align-items: center; min-height: 44px; margin: 0 10px; font-size: 15px; color: #8A5208; text-decoration: none">Life at MAM</a>
+            <a href="About.dc.html" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; margin: 0 10px; font-size: 15px; color: #211A13; text-decoration: none">About</a>
+            <a href="#signin" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; margin: 0 10px; font-size: 15px; color: #211A13; text-decoration: none">Sign in</a>
+          </nav>
+          <a href="Auditer.dc.html" class="btn navlinks" style="align-items: center; min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid #D6CCBE; color: #211A13; font-size: 15px; text-decoration: none">Book an assessment</a>
+          <a href="Apply.dc.html" class="btn arrow" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 18px; border-radius: 10px; background: #211A13; color: #FAF8F4; font-size: 15px; font-weight: 500; text-decoration: none">Apply <span aria-hidden="true">→</span></a>
+          <button type="button" class="menubtn btn" aria-label="Menu" aria-expanded="{{ menuOpenAttr }}" aria-controls="programmes-panel" onClick="{{ toggleMenu }}" style="width: 44px; height: 44px; align-items: center; justify-content: center; background: none; border: 0; color: #211A13; cursor: pointer"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h16"></path></svg></button>
+        </div>
+      </div>
+      <sc-if value="{{ menuOpen }}" hint-placeholder-val="{{ false }}">
+        <div id="programmes-panel" onKeyDown="{{ panelKey }}" style="position: absolute; left: 0; right: 0; top: 72px; max-height: calc(100vh - 72px); overflow-y: auto; overscroll-behavior: contain; background: #FAF8F4; color: #211A13; border-top: 1px solid #ECE5DA; box-shadow: 0 40px 60px -40px rgba(23,16,9,.35); animation: panelIn .5s var(--out) both">
+          <div style="max-width: 1360px; margin: 0 auto; padding: 40px clamp(20px, 4vw, 40px) 48px; box-sizing: border-box; display: flex; flex-wrap: wrap; gap: 48px">
+            <nav aria-label="Explore" class="mobileonly" style="flex: 1 1 100%; flex-direction: column; gap: 4px">
+              <a href="Programmes.dc.html#fees" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 52px; border-bottom: 1px solid #E6DED2; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600; color: #211A13; text-decoration: none">Admissions</a>
+              <a href="Life.dc.html" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 52px; border-bottom: 1px solid #E6DED2; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600; color: #211A13; text-decoration: none">Life at MAM</a>
+              <a href="About.dc.html" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 52px; border-bottom: 1px solid #E6DED2; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600; color: #211A13; text-decoration: none">About</a>
+              <a href="#signin" onClick="{{ closeMenu }}" style="display: flex; align-items: center; min-height: 52px; font-size: 16px; font-weight: 600; color: #8A5208; text-decoration: none">Sign in to your portal</a>
+            </nav>
+            <div style="flex: 1 1 220px; display: flex; flex-direction: column">
+              <p style="margin: 0 0 12px; font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #8A5208">Levels</p>
+              <sc-for list="{{levels}}" as="l" hint-placeholder-count="4"><a href="Programmes.dc.html" onClick="{{ closeMenu }}" style="display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 48px; padding: 8px 0; border-bottom: 1px solid #E6DED2; color: #211A13; text-decoration: none"><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 23px; font-weight: 600">{{ l.name }}</span><span style="font-size: 13px; color: #574B40">{{ l.grades }}</span></a></sc-for>
+            </div>
+            <div style="flex: 1 1 240px; display: flex; flex-direction: column">
+              <p style="margin: 0 0 12px; font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #8A5208">Instruments</p>
+              <ul style="list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 24px; font-size: 15px">
+                <sc-for list="{{instruments}}" as="i" hint-placeholder-count="8"><li><a href="Programmes.dc.html#instruments" onClick="{{ closeMenu }}" style="display: inline-flex; align-items: center; min-height: 40px; color: #211A13; text-decoration: none">{{ i }}</a></li></sc-for>
+              </ul>
+            </div>
+            <div style="flex: 1 1 220px; display: flex; flex-direction: column">
+              <p style="margin: 0 0 12px; font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #8A5208">Short courses</p>
+              <a href="Programmes.dc.html#intensives" onClick="{{ closeMenu }}" style="display: inline-flex; align-items: center; min-height: 40px; color: #211A13; text-decoration: none">Crash Programme · 6 weeks</a>
+              <a href="Life.dc.html" onClick="{{ closeMenu }}" style="display: inline-flex; align-items: center; min-height: 40px; color: #211A13; text-decoration: none">The MetaMusic Order · 12 weeks</a>
+              <a href="Life.dc.html#powerplay" onClick="{{ closeMenu }}" style="display: inline-flex; align-items: center; min-height: 40px; color: #211A13; text-decoration: none">Power Play · free, monthly</a>
+            </div>
+            <a href="Programmes.dc.html#levels" onClick="{{ closeMenu }}" class="zoom" style="flex: 1.1 1 260px; position: relative; isolation: isolate; overflow: hidden; border-radius: 18px; min-height: 220px; background: #2A1E14; color: #FBF8F3; text-decoration: none; display: flex; flex-direction: column; justify-content: flex-end; padding: 24px">
+              <img src="/_blob/3cf4f040bdf1a4ee31eed576f1ea28e0" alt="" style="position: absolute; right: -16px; bottom: 0; height: 100%; z-index: -1">
+              <span aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(42,30,20,.95) 0%, rgba(42,30,20,.2) 75%)"></span>
+              <span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26px; font-weight: 600; line-height: 1.1">Not sure where<br>to start?</span>
+              <span style="font-size: 13px; color: #E9E1D6; margin-top: 6px">Book a MAM Auditer assessment →</span>
+            </a>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </header>
+
+  <main id="main">
+    <div style="padding: 0 clamp(8px, 1vw, 14px)">
+    <section aria-labelledby="page-h" style="position: relative; isolation: isolate; overflow: hidden; min-height: clamp(520px, 78svh, 700px); display: flex; align-items: flex-end; border-radius: clamp(14px, 1.6vw, 22px); background: #3B2C1F">
+      <div role="img" aria-label="Photo placeholder: students on stage at the termly showcase" style="position: absolute; inset: 0; z-index: -2; background: linear-gradient(135deg, #4A3726 0%, #2E2118 100%); display: flex; align-items: flex-start; justify-content: flex-end; padding: 28px clamp(20px, 4vw, 40px); animation: kenburns 2.6s var(--out) both"><span style="font-size: 13px; color: rgba(252,248,243,.75); border: 1px dashed rgba(252,248,243,.4); padding: 6px 12px; border-radius: 6px">Photo — students on stage at the termly showcase (upload)</span></div>
+      <div aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: linear-gradient(0deg, rgba(23,16,9,.88) 0%, rgba(23,16,9,.3) 60%, rgba(23,16,9,0) 100%)"></div>
+      <div class="hero-copy" style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; width: 100%; padding-bottom: clamp(40px, 5vw, 72px); display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px 48px; color: #FCF8F3">
+        <div style="flex: 1 1 620px; min-width: 0; max-width: none; display: flex; flex-direction: column; gap: 18px">
+          <nav aria-label="Breadcrumb" class="fade-in" style="font-size: 14px; color: rgba(252,248,243,.75); display: flex; gap: 8px"><a href="Main.dc.html" class="ul" style="color: rgba(252,248,243,.85); text-decoration: none">Home</a><span aria-hidden="true">/</span><span aria-current="page">Life at MAM</span></nav>
+          <h1 id="page-h" aria-label="Music that builds people." style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(46px, 5.6vw, 84px); line-height: 1.02; letter-spacing: -.01em; max-width: 900px"><span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.15s;">Music</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.22s;">that</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.29s; font-style: italic; color: #F2A93B;">builds</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.36s;">people.</span></span></h1>
+          <p class="fade-in" style="animation-delay: .6s; margin: 0; font-size: 19px; color: rgba(252,248,243,.88); max-width: 580px">Lessons are only the start. Stages, gatherings and intensives build discipline, confidence and joy.</p>
+          
+        </div>
+        <div class="fade-in" style="animation-delay: .8s; display: flex; gap: 12px; flex-wrap: wrap"><a href="#powerplay" class="btn" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; background: #F2A93B; color: #211A13; font-weight: 600; text-decoration: none">Join Power Play — free</a></div>
+      </div>
+    </section>
+    </div>
+    <nav aria-label="On this page" style="position: sticky; top: 72px; z-index: 30; background: rgba(250,248,244,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid #ECE5DA">
+      <div style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; display: flex; align-items: center; gap: 28px; overflow-x: auto; scrollbar-width: none">
+        <span class="hide-sm" style="flex: none; font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #8A5208">Life at MAM</span>
+        <ul style="list-style: none; margin: 0; padding: 0; display: flex; gap: 20px; font-size: 15px"><li><a href="#powerplay" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: #211A13; text-decoration: none; white-space: nowrap">Power Play</a></li><li><a href="#term" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: #211A13; text-decoration: none; white-space: nowrap">A term at MAM</a></li><li><a href="#events" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: #211A13; text-decoration: none; white-space: nowrap">Stages & intensives</a></li><li><a href="#tools" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: #211A13; text-decoration: none; white-space: nowrap">Between lessons</a></li></ul>
+      </div>
+    </nav>
+    <section aria-label="Overview" style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(72px, 10vw, 144px); padding-bottom: clamp(72px, 10vw, 144px)">
+      <p class="read" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(30px, 3.4vw, 50px); line-height: 1.18; max-width: 1100px">Every term ends on a stage. Every month, the community meets. <em style="color: #8A5208">Music here is something you do together.</em></p>
+      
+    </section>
+
+    <section id="powerplay" aria-labelledby="pp-h" style="padding: 0 clamp(8px, 1vw, 14px)">
+      <div style="border-radius: clamp(14px, 1.6vw, 22px); background: radial-gradient(80% 120% at 85% 0%, #5A3815 0%, #24160B 50%, #140D08 100%); color: #FCF8F3">
+        <div style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(72px, 10vw, 144px); padding-bottom: clamp(72px, 10vw, 144px); display: flex; flex-wrap: wrap; gap: 48px clamp(40px, 6vw, 112px); align-items: center">
+          <div style="flex: 1.2 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+            <p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #F2A93B">Free · monthly · online</p>
+            <h2 id="pp-h" class="reveal" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(52px, 6vw, 96px); line-height: .95">Power Play</h2>
+            <p class="read" style="margin: 0; font-size: 18px; color: #E9E1D6; max-width: 560px">A monthly gathering with Van. BOJA for musicians, creatives and culture shapers — mindset, discipline and artistry, the spirituality of music, leadership for creatives, and open Q&amp;A.</p>
+            <p style="margin: 6px 0 0; font-size: 15px; color: #D8CEC1">First Wednesday of every month · 90 minutes · Google Meet · open to all</p>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px"><a href="#register" class="btn" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; background: #F2A93B; color: #211A13; font-weight: 600; text-decoration: none">Register free <span aria-hidden="true">→</span></a></div>
+          </div>
+          <div class="reveal" style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: clamp(24px, 3vw, 40px); border-radius: 20px; border: 1px solid rgba(252,248,243,.16); background: rgba(252,248,243,.04)">
+            <p style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #F2A93B">Next session</p>
+            <p style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(96px, 10vw, 148px); line-height: .9">{{ ppDays }}</p>
+            <p style="margin: 0; font-size: 17px">{{ ppUnit }}</p>
+            <p style="margin: 14px 0 0; padding-top: 14px; border-top: 1px solid rgba(252,248,243,.14); font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26px">{{ ppDate }}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="term" aria-labelledby="term-h" style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(72px, 10vw, 144px); padding-bottom: clamp(72px, 10vw, 144px); display: flex; flex-direction: column; gap: 56px">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px 64px"><div style="display: flex; flex-direction: column; gap: 14px"><p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Rhythm of the year</p><h2 id="term-h" aria-label="A term at MAM" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05;"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">A</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">term</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">at</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">MAM</span></span></h2></div><p class="read" style="margin: 0; font-size: 16px; color: #574B40; max-width: 420px">Every term follows the same shape, so students and families always know what comes next.</p></div>
+      <ol class="stagger" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr))">
+        <sc-for list="{{ term }}" as="h" hint-placeholder-count="4"><li style="position: relative; padding: 36px 28px 8px 0; border-top: 1px solid #CFC3B3; display: flex; flex-direction: column; gap: 10px"><span aria-hidden="true" style="position: absolute; top: -7px; left: 0; width: 13px; height: 13px; border-radius: 50%; background: #F2A93B; box-shadow: 0 0 0 5px #FAF8F4"></span><span style="font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #8A5208">{{ h.when }}</span><h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: 34px; line-height: 1.05">{{ h.t }}</h3><p style="margin: 0; font-size: 15px; color: #574B40; max-width: 280px">{{ h.d }}</p></li></sc-for>
+      </ol>
+    </section>
+
+    <section id="events" aria-labelledby="ev-h" style="background: #F3EEE6">
+      <div style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(72px, 10vw, 144px); padding-bottom: clamp(72px, 10vw, 144px); display: flex; flex-direction: column; gap: 56px">
+        <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px 64px"><div style="display: flex; flex-direction: column; gap: 14px"><p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">All year</p><h2 id="ev-h" aria-label="Stages, intensives and gatherings" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05;"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Stages,</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">intensives</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">and</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">gatherings</span></span></h2></div></div>
+        <div style="display: flex; flex-direction: column; gap: clamp(48px, 6vw, 96px)">
+          <sc-for list="{{ events }}" as="e" hint-placeholder-count="3"><article class="erow reveal" style="{{ e.row }}"><div style="flex: 1.2 1 440px; min-width: 0; overflow: hidden; border-radius: 18px"><div data-fx-img data-fx-img data-fx-img role="img" aria-label="Photo placeholder: {{ e.photo }}" class="ph" style="aspect-ratio: 16 / 10; border-radius: 16px; background: linear-gradient(135deg, #E8DECF, #D3C3AC); display: flex; align-items: flex-end; padding: 14px; box-sizing: border-box; font-size: 12px; color: #574B40; ">Photo — {{ e.photo }} (upload)</div></div><div style="flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 12px"><p style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #8A5208">{{ e.when }}</p><h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(38px, 3.6vw, 56px); line-height: 1">{{ e.t }}</h3><p style="margin: 0; font-size: 17px; color: #574B40; max-width: 460px">{{ e.d }}</p><a href="{{ e.href }}" class="ul" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 600; color: #211A13; text-decoration: none">{{ e.cta }} <span aria-hidden="true">→</span></a></div></article></sc-for>
+        </div>
+      </div>
+    </section>
+    <section id="tools" aria-labelledby="tools-h" style="">
+      <div style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(72px, 10vw, 144px); padding-bottom: clamp(72px, 10vw, 144px); display: flex; flex-wrap: wrap; gap: 48px clamp(40px, 6vw, 112px); color: #211A13">
+        <div style="flex: 1 1 320px; max-width: 440px">
+          <div class="stick" style="position: sticky; top: 150px; display: flex; flex-direction: column; gap: 16px"><p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Between lessons</p><h2 id="tools-h" aria-label="Practise, track and connect" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(31px, 3.89vw, 56px); line-height: 1.05;"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Practise,</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">track</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">and</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">connect</span></span></h2><p class="read" style="margin: 0; font-size: 17px; color: #574B40">The work continues between classes — with tools for students and families.</p></div>
+        </div>
+        <div style="flex: 2 1 560px; min-width: 0"><ul style="list-style: none; margin: 0; padding: 0; border-bottom: 1px solid #E3DACD">
+          <sc-for list="{{ tools }}" as="t" hint-placeholder-count="3"><li><a href="{{ t.href }}" class="lrow" style="display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 28px 0; border-top: 1px solid #E3DACD; color: #211A13; text-decoration: none"><span style="display: flex; flex-direction: column; gap: 4px"><span class="lname" style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(30px, 2.8vw, 42px); line-height: 1.05">{{ t.t }}</span><span style="font-size: 15px; color: #574B40">{{ t.d }}</span></span><span aria-hidden="true" style="flex: none; width: 48px; height: 48px; border-radius: 50%; border: 1px solid #CFC3B3; display: flex; align-items: center; justify-content: center">→</span></a></li></sc-for>
+        </ul></div>
+      </div>
+    </section>
+    <section aria-labelledby="cta-h" style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(72px, 10vw, 144px); padding-bottom: clamp(72px, 10vw, 144px); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 22px; border-top: 1px solid #ECE5DA">
+      <h2 id="cta-h" aria-label="Join the community." style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(40px, 5.00vw, 72px); line-height: 1.05; text-align: center;"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">Join</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">the</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">community.</span></span></h2>
+      <p class="read" style="margin: 0; font-size: 18px; color: #574B40; max-width: 520px">Start with a free Power Play session, or apply for the next intake.</p>
+      <div class="reveal" style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center"><a href="Apply.dc.html" class="btn" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; background: #211A13; color: #FAF8F4; font-weight: 600; text-decoration: none">Start your application <span aria-hidden="true">→</span></a><a href="#powerplay" class="btn" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; border: 1px solid #CFC3B3; color: #211A13; font-weight: 600; text-decoration: none">Join Power Play</a></div>
+    </section>
+
+  </main>
+  <!-- ================= FOOTER: grouped by intent, one action, contact + legal always reachable ================= -->
+  <footer style="background: #171009; color: #E9E1D6; font-size: 15px; overflow: hidden">
+    <div style="max-width: 1360px; margin: 0 auto; padding: clamp(56px, 6.1vw, 88px) clamp(20px, 4vw, 40px) 0; display: flex; flex-direction: column; gap: 64px">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px 80px; justify-content: space-between; align-items: flex-end; padding-bottom: 56px; border-bottom: 1px solid rgba(252,248,243,.12)">
+        <div style="flex: 1 1 420px; display: flex; flex-direction: column; gap: 16px">
+          <p style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(30px, 3.06vw, 44px); font-weight: 500; line-height: 1.1; color: #FCF8F3">Notes from the music room</p>
+          <p style="margin: 0; color: #D8CEC1; max-width: 440px">One email a month: intake dates, showcases and Power Play sessions. No spam — unsubscribe any time.</p>
+        </div>
+        <form aria-label="Newsletter" style="flex: 1 1 420px; display: flex; gap: 8px; flex-wrap: wrap">
+          <label for="news-email" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Email address</label>
+          <input id="news-email" type="email" autocomplete="email" placeholder="you@example.com" style="flex: 1 1 240px; min-width: 0; height: 52px; box-sizing: border-box; padding: 0 18px; border-radius: 10px; border: 1px solid rgba(252,248,243,.22); background: rgba(252,248,243,.06); color: #FCF8F3; font: inherit">
+          <button type="submit" class="btn" style="min-height: 52px; padding: 0 24px; border-radius: 10px; border: 0; background: #F2A93B; color: #211A13; font: inherit; font-weight: 600; cursor: pointer">Subscribe</button>
+        </form>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 48px 64px">
+        <div style="flex: 1.2 1 280px; display: flex; flex-direction: column; gap: 20px">
+          <a href="Main.dc.html" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: #FCF8F3"><img src="/_blob/00dfca51d0e87c346b5650eddf166e20" alt="" width="40" height="40" style="width: 40px; height: 40px"><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600">MAM Academy</span></a>
+          <p style="margin: 0; color: #D8CEC1; max-width: 320px">A creative intelligence and performance academy, forming complete musicians since 2008. Part of MAM Centre.</p>
+          <a href="Apply.dc.html" class="btn arrow" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 22px; border-radius: 10px; border: 1px solid rgba(252,248,243,.35); color: #FCF8F3; font-weight: 600; text-decoration: none">Apply for [INTAKE] <span aria-hidden="true">→</span></a>
+        </div>
+        <nav aria-label="Footer" style="flex: 2.4 1 600px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 32px">
+          <sc-for list="{{footerGroups}}" as="g" hint-placeholder-count="4">
+            <div style="display: flex; flex-direction: column; gap: 2px">
+              <h2 style="margin: 0 0 10px; font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #F2A93B">{{ g.title }}</h2>
+              <ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+                <sc-for list="{{ g.links }}" as="lk" hint-placeholder-count="4"><li><a href="{{ lk.href }}" class="ul" style="display: inline-flex; align-items: center; min-height: 36px; color: #E9E1D6; text-decoration: none">{{ lk.t }}</a></li></sc-for>
+              </ul>
+            </div>
+          </sc-for>
+        </nav>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px 32px; justify-content: space-between; align-items: center; padding: 24px 0; border-top: 1px solid rgba(252,248,243,.12); font-size: 13px; color: #D8CEC1">
+        <ul aria-label="MAM Academy on social media" style="list-style: none; margin: 0; padding: 0; display: flex; gap: 4px">
+          <sc-for list="{{socials}}" as="so" hint-placeholder-count="4"><li><a href="{{ so.href }}" aria-label="{{ so.name }}" class="btn" style="width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; color: #E9E1D6"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="{{ so.icon }}"></path></svg></a></li></sc-for>
+        </ul>
+        <span>© 2026 MAM Academy</span>
+        <ul aria-label="Legal" style="list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 20px"><li><a href="#privacy" class="ul" style="color: #D8CEC1; text-decoration: none">Privacy</a></li><li><a href="#terms" class="ul" style="color: #D8CEC1; text-decoration: none">Terms</a></li><li><a href="#policies" class="ul" style="color: #D8CEC1; text-decoration: none">Class policies</a></li><li><a href="#accessibility" class="ul" style="color: #D8CEC1; text-decoration: none">Accessibility</a></li><li><a href="#cookies" class="ul" style="color: #D8CEC1; text-decoration: none">Cookie settings</a></li></ul>
+      </div>
+    </div>
+    <p aria-hidden="true" class="wordmark" style="margin: 0; text-align: center; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: 16vw; line-height: .82; letter-spacing: -.03em; color: transparent; -webkit-text-stroke: 1px rgba(242,169,59,.34); white-space: nowrap; user-select: none; padding-top: 2vw; margin-bottom: -2.2vw">MAMCENTRE</p>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":5000}}'>
+function mamFx() {
+  if (window.__mamFx) return; window.__mamFx = true;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Spotlight: a soft warm light follows the pointer across cards
+  document.addEventListener('pointermove', function (e) {
+    var t = e.target && e.target.closest ? e.target.closest('.lift, .zoom, .bento > *, [data-spot]') : null; if (!t) return;
+    if (!t.classList.contains('spot')) { if (getComputedStyle(t).position === 'static') t.style.position = 'relative'; var bg = getComputedStyle(t).backgroundColor, m = bg.match(/\d+/g); if (m && (+m[0] + +m[1] + +m[2]) < 200) t.style.setProperty('--spot', 'rgba(242,169,59,.22)'); t.classList.add('spot'); }
+    var r = t.getBoundingClientRect(); t.style.setProperty('--mx', (e.clientX - r.left) + 'px'); t.style.setProperty('--my', (e.clientY - r.top) + 'px');
+  }, { passive: true });
+  // Smart header: steps aside while you read down, returns the moment you scroll up
+  if (document.querySelector('[data-smart]') && !reduce) {
+    var last = window.scrollY || 0;
+    window.addEventListener('scroll', function () { var y = window.scrollY || 0; if (Math.abs(y - last) < 6) return; document.documentElement.classList.toggle('fx-hide', y > last && y > 520); last = y; }, { passive: true });
+  }
+  // Scroll-spy: the section you are reading is marked in the page's local navigation
+  var nav = document.querySelector('nav[aria-label="On this page"]');
+  if (nav && window.IntersectionObserver) {
+    var links = [].slice.call(nav.querySelectorAll('a[href^="#"]')), map = {};
+    links.forEach(function (a) { var el = document.getElementById(a.getAttribute('href').slice(1)); if (el) map[el.id] = a; });
+    var io = new IntersectionObserver(function (es) { es.forEach(function (en) { if (!en.isIntersecting) return; links.forEach(function (a) { a.classList.remove('on'); a.removeAttribute('aria-current'); }); var a = map[en.target.id]; if (a) { a.classList.add('on'); a.setAttribute('aria-current', 'location'); var ul = a.closest('div'); if (ul && ul.scrollWidth > ul.clientWidth) ul.scrollTo({ left: a.offsetLeft - 40, behavior: reduce ? 'auto' : 'smooth' }); } }); }, { rootMargin: '-40% 0px -55% 0px' });
+    Object.keys(map).forEach(function (id) { io.observe(document.getElementById(id)); });
+  }
+}
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = Object.assign({ menu: false, scrolled: false }, {}); this.onScroll = this.onScroll.bind(this); }
+  componentDidMount() { mamFx(); window.addEventListener('scroll', this.onScroll, { passive: true }); this.onScroll(); }
+  componentWillUnmount() { window.removeEventListener('scroll', this.onScroll); }
+  onScroll() { const s = (window.scrollY || 0) > 8; if (s !== this.state.scrolled) this.setState({ scrolled: s }); }
+
+  renderVals() {
+    const levels = [
+      { n: '1', grades: 'Grades 1–2', name: 'Pre-Certificate', base: 120, desc: 'Foundations: technique, posture, rhythm and first performances.' },
+      { n: '2', grades: 'Grades 3–4', name: 'Certificate', base: 130, desc: 'Fluent playing, sight reading and stage presentation.' },
+      { n: '3', grades: 'Grades 5–6', name: 'Pre-Diploma', base: 160, desc: 'Advanced repertoire, improvisation and ensemble leadership.' },
+      { n: '4', grades: 'Grades 7–8', name: 'Diploma', base: 180, desc: 'Professional mastery, conducting and artistic identity.' }
+    ];
+    const footerGroups = [
+      { title: 'Study', links: [{ t: 'Programmes', href: 'Programmes.dc.html' }, { t: 'Admissions & fees', href: 'Programmes.dc.html#fees' }, { t: 'MAM Auditer', href: 'Auditer.dc.html' }, { t: 'Scholarships', href: 'Programmes.dc.html#scholarship' }] },
+      { title: 'Families', links: [{ t: 'Parents & guardians', href: '#parents' }, { t: 'Questions', href: 'Main.dc.html#questions' }, { t: 'Class policies', href: '#policies' }, { t: 'Safeguarding', href: '#safeguarding' }] },
+      { title: 'Community', links: [{ t: 'Events', href: 'Life.dc.html' }, { t: 'Power Play', href: 'Life.dc.html#powerplay' }, { t: 'Store', href: '#store' }, { t: 'Teach at MAM', href: '#teach' }] },
+      { title: 'Get in touch', links: [{ t: 'Contact admissions', href: '#contact' }, { t: 'academy@mamcentre.org', href: 'mailto:academy@mamcentre.org' }, { t: '+234 704 444 6517', href: 'tel:+2347044446517' }, { t: 'Sign in to the portal', href: '#signin' }] }
+    ];
+    const socials = [
+      { name: "Instagram", href: "https://instagram.com/mamacademy1", icon: "M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" },
+      { name: "X", href: "https://twitter.com/mamacademy1", icon: "M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" },
+      { name: "Facebook", href: "https://facebook.com/mamacademy1", icon: "M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" },
+      { name: "YouTube", href: "https://youtube.com/mamacademy1", icon: "M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" }
+    ];
+    return Object.assign({
+      headerShadow: this.state.scrolled || this.state.menu ? '0 1px 0 rgba(33,26,19,.10)' : 'none',
+      menuOpen: this.state.menu,
+      menuOpenAttr: this.state.menu ? 'true' : 'false',
+      chevStyle: 'transition: transform .3s; transform: rotate(' + (this.state.menu ? '180deg' : '0deg') + ')',
+      toggleMenu: () => this.setState({ menu: !this.state.menu }),
+      closeMenu: () => this.setState({ menu: false }),
+      panelKey: (e) => { if (e.key === 'Escape') this.setState({ menu: false }); },
+      levels, instruments: ['Piano & Keyboard', 'Voice & Choir', 'Violin & Strings', 'Guitar', 'Drums & Percussion', 'Wind & Brass', 'Music Theory & Ear', 'Performance'], footerGroups, socials
+    }, ((levels) => {
+      const now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const firstWed = (y, m) => { const d = new Date(y, m, 1); d.setDate(1 + ((3 - d.getDay() + 7) % 7)); return d; };
+      let nx = firstWed(today.getFullYear(), today.getMonth()); if (nx < today) nx = firstWed(today.getFullYear(), today.getMonth() + 1);
+      const days = Math.round((nx - today) / 864e5);
+      return {
+        ppDays: days === 0 ? 'Today' : String(days), ppUnit: days === 0 ? 'Join us this evening' : (days === 1 ? 'day to go' : 'days to go'),
+        ppDate: nx.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
+        term: [{ when: 'Week 1', t: 'Assess & plan', d: 'New students take the MAM Auditer; everyone gets term goals.' }, { when: 'Every week', t: 'Lessons', d: 'Small classes, online or in person, with practice set between.' }, { when: 'Mid-term', t: 'Check-in', d: 'Progress reviewed against your plan; families get an update.' }, { when: 'Term end', t: 'Showcase', d: 'Every student performs. Families and friends are invited.' }],
+        events: [
+          { when: 'Every term', t: 'Student Showcase', d: 'The term ends on a stage. Every student performs — first notes and diploma recitals alike.', photo: 'student showcase', href: 'Apply.dc.html', cta: 'Start this term' },
+          { when: '12 weeks · $60', t: 'The MetaMusic Order', d: 'A post-diploma intensive for cultural architects, psychological influencers, national builders and MetaMusicians.', photo: 'MetaMusic Order cohort', href: 'Programmes.dc.html#intensives', cta: 'See the intensive' },
+          { when: '6 weeks · $70', t: 'Crash Programme', d: 'A focused intensive in any discipline, online or in person. No levels needed.', photo: 'crash programme class', href: 'Programmes.dc.html#intensives', cta: 'See the intensive' }
+        ].map((e, i) => Object.assign(e, { row: 'display: flex; flex-wrap: wrap; align-items: center; gap: 32px clamp(32px, 5vw, 80px); flex-direction: ' + (i % 2 ? 'row-reverse' : 'row') })),
+        tools: [{ t: 'Practice Studio', d: 'Notation, rhythm and ear-training tools between lessons.', href: '#studio' }, { t: 'Student & parent portals', d: 'Timetables, attendance, termly reports and fees.', href: '#signin' }, { t: 'Store', d: 'Books, workbooks and essentials chosen by our faculty.', href: '#store' }]
+      };
+    })(levels));
+  }
+}
+</script>
+</body>
+</html>
