@@ -53,6 +53,18 @@
 .ck .btn{min-height:44px;padding:0 18px;border-radius:10px;font:inherit;font-weight:600;cursor:pointer}
 .ck-no{border:1px solid #CFC3B3;background:#FFFFFF;color:#211A13}
 .ck-ok{border:0;background:#211A13;color:#FAF8F4}
+/* On a phone the notice is a sheet docked to the bottom edge, full width, its two choices
+   side by side; the accessibility launcher rises to sit just above it (--ck-h is the sheet's
+   measured height, set by site.js) instead of covering its text, and drops back when the
+   notice is answered. On wider screens the card sits bottom right, clear of the launcher. */
+.a11y-launch{transition:bottom .45s var(--a11y-out)}
+@media (max-width: 720px){
+.ck:not(.ck--dock){left:0;right:0;bottom:0;max-width:none;margin:0;border-radius:16px 16px 0 0;border-width:1px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));gap:12px}
+.ck:not(.ck--dock) p{flex:1 1 100%}
+.ck:not(.ck--dock) .ck-act{flex:1 1 100%}
+.ck:not(.ck--dock) .ck-act .btn{flex:1 1 0}
+html.ck-on .a11y-launch{bottom:calc(var(--ck-h,0px) + 12px)}
+}
 
 /* ---- currency switch (the estimator's own control, as a site-wide one) ---- */
 .cur-sw{display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:rgba(252,248,243,.08)}

@@ -58,7 +58,6 @@ img{max-width:100%}
 @media (max-width: 900px){footer nav[aria-label="Footer"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
 @media (max-width: 720px){
 .hide-sm{display:none}
-.top-apply{display:none!important}
 .lvl{min-height:0!important}
 .lvl h3{margin-top:6px!important}
 [aria-label="Newsletter"]>input{flex:none!important;width:100%}

@@ -66,7 +66,7 @@ function site_org_jsonld(): string {
  * across once, so nobody loses a setting they made on the previous design.
  */
 function site_a11y_head(): string {
-    return '<link rel="stylesheet" href="/assets/css/a11y.css?v=20261121">' . "\n"
+    return '<link rel="stylesheet" href="/assets/css/a11y.css?v=20261121b">' . "\n"
         . "<script>(function(){try{var d=document.documentElement,s=JSON.parse(localStorage.getItem('mam.a11y')||'null');"
         . "if(!s){s={};if(localStorage.getItem('mam.contrast')==='high')s.contrast=1;var f=parseFloat(localStorage.getItem('mam.fontScale')||'1');if(f>1.02)s.size=f>=1.2?2:1;}"
         . "window.mamA11yZoom=function(n){var z=[1,1.12,1.25,1.5,1.75][n|0]||1,cap=Math.max(1,innerWidth/320);d.style.setProperty('--a11y-z',String(Math.min(z,cap)));return z>cap?cap:0;};"
@@ -134,7 +134,7 @@ function site_head(array $p): void {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/site.css?v=20261121">
+<link rel="stylesheet" href="/assets/css/site.css?v=20261121b">
 <?= site_a11y_head() ?>
 <?= site_org_jsonld() ?>
 <?= $p['jsonld'] ?? '' ?>
@@ -178,7 +178,7 @@ function site_footer_chrome(): void {
     include __DIR__ . '/footer.php';
     site_a11y_panel();
     echo "\n<script>window.MAM_SITE=" . json_encode(['fees' => site_fees(), 'intake' => site_intake()], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) . ";</script>\n";
-    echo '<script src="/assets/js/site.js?v=20261121" defer></script>' . "\n";
+    echo '<script src="/assets/js/site.js?v=20261121b" defer></script>' . "\n";
 }
 
 /** The footer, and the end of the document. $scripts: page scripts beyond site.js. */

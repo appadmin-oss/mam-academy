@@ -165,11 +165,19 @@
     // On a page still on the previous design the notice joins the dock (main.js), so it
     // stacks with the Apply bar instead of sitting on top of it.
     if (typeof window.mamDock === 'function') { window.mamDock().appendChild(ck); ck.classList.add('ck--dock'); }
-    var showCk = function (focus) { ck.hidden = false; if (focus) { var b = ck.querySelector('button'); if (b) b.focus(); } };
+    // While the notice is up, its height is published as --ck-h so the accessibility
+    // launcher can stand on top of it on a phone (a11y.css) rather than overlap it.
+    var root = d.documentElement;
+    var sizeCk = function () { root.style.setProperty('--ck-h', ck.offsetHeight + 'px'); };
+    var hideCk = function () { ck.hidden = true; root.classList.remove('ck-on'); window.removeEventListener('resize', sizeCk); };
+    var showCk = function (focus) {
+      ck.hidden = false; root.classList.add('ck-on'); sizeCk(); window.addEventListener('resize', sizeCk);
+      if (focus) { var b = ck.querySelector('button'); if (b) b.focus(); }
+    };
     if (!store('mam.cookie')) setTimeout(function () { showCk(false); }, reduce ? 0 : 1200);
     ck.addEventListener('click', function (e) {
       var b = e.target.closest && e.target.closest('[data-cookie-choice]'); if (!b) return;
-      store('mam.cookie', b.getAttribute('data-cookie-choice')); ck.hidden = true;
+      store('mam.cookie', b.getAttribute('data-cookie-choice')); hideCk();
     });
     $$('[data-cookie-open]').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); showCk(true); }); });
   }

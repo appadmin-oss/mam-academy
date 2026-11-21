@@ -8,7 +8,6 @@
         </a>
         <div style="display: flex; align-items: center; gap: 8px">
           <button type="button" class="btn" aria-controls="programmes-panel" style="min-height: 44px; padding: 0 16px; border-radius: 10px; background: rgba(252,248,243,.12); border: 1px solid rgba(252,248,243,.25); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); color: #FCF8F3; font: inherit; font-size: 15px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 8px" aria-expanded="false" data-act="menu"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h16"></path></svg><span class="hide-xs">Menu</span><span class="sr-xs">Menu</span></button>
-          <a href="/apply" class="btn arrow top-apply" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 10px; background: #FCF8F3; color: #211A13; font-size: 15px; font-weight: 600; text-decoration: none">Apply <span aria-hidden="true">→</span></a>
         </div>
       </div>
     </div>
@@ -28,7 +27,6 @@
             <a href="/portal/login" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; margin: 0 10px; font-size: 15px; color: #211A13; text-decoration: none">Sign in</a>
           </nav>
           <a href="/auditer" class="btn navlinks" style="align-items: center; min-height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid #D6CCBE; color: #211A13; font-size: 15px; text-decoration: none">Visit a class</a>
-          <a href="/apply" class="btn arrow" style="display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 18px; border-radius: 10px; background: #211A13; color: #FAF8F4; font-size: 15px; font-weight: 500; text-decoration: none">Apply <span aria-hidden="true">→</span></a>
           <button type="button" class="menubtn btn" aria-label="Menu" aria-controls="programmes-panel" style="width: 44px; height: 44px; align-items: center; justify-content: center; background: none; border: 0; color: #211A13; cursor: pointer" aria-expanded="false" data-act="menu"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h16"></path></svg></button>
         </div>
       </div>
