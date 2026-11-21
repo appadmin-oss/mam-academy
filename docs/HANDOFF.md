@@ -2600,3 +2600,21 @@ main.css, not hidden).
   above it (`--ck-h`, `html.ck-on`) and drops back once it is answered.
 - **Prompts for the hero video** (two concepts, both light-only so nothing figurative can look
   generated) were given to the owner in conversation; the brief is the README's file list.
+
+### 4z19 (21 Nov 2026) — other sessions' work brought in; Studio tools ported from June
+
+- **Brought in:** the Auditer checklist email (emails/), .gitattributes and runtime-folder
+  .gitkeeps, instructor accounts on approval (`mam_faculty_promote_to_instructor`, adds the
+  role in user_roles, never a password, never touches status), summer students linked to a
+  customer record. **Superseded/obsolete, not brought in:** trusted-proxy IP hardening (already
+  here), legacy-admin screen commits from `master` and the ETL branch (screens retired).
+- **Practice Studio, from claude/upbeat-fermat-cW7ay:** Chords & Scales (studio-chords.js, the
+  sampled piano is `window.MAM_PIANO` from tools.js), Drone (drone.js, stops on tab change via
+  `MAM_DRONE`), Transcribe (Klangio proxy: api/lib/klangio.php, /api/transcribe, signed-in +
+  CSRF + rate limit, OFF until `KLANGIO_API_KEY`), Note Rush (note-rush.js, the old student
+  dashboard's Practice Arcade, mounted in the Studio on first open; progress in localStorage).
+  The Studio remembers the last tool per device. **Not ported:** that branch's Beat Maker changes
+  (this branch's own upgrade covers them; 19 conflicting hunks), its AI assistant ("Ask MAM"),
+  its June security/admin/portal commits (rewritten or retired since).
+- **Still open:** the Stripe flow on claude/nifty-clarke-FcCy9 (payments; needs a rewrite
+  against today's payment-init and live test keys).

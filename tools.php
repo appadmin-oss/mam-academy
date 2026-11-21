@@ -440,6 +440,149 @@
 .drone-play{display:inline-flex;align-items:center;gap:10px;padding:14px 28px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.04em;border-radius:12px;border:0;cursor:pointer;min-height:52px;font-size:1rem;box-shadow:0 8px 22px rgba(224,138,26,0.34)}
 .drone-play.playing{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff;box-shadow:0 8px 22px rgba(244,66,59,0.4)}
 @media (max-width:680px){.drone-play{width:100%;justify-content:center}}
+
+/* ── Note Rush (sight-reading game) — ported 2026-11 from the June session ── */
+/* ── Practice Arcade · Note Rush game ─────────────────────────────── */
+.ng-wrap{max-width:760px;margin:0 auto}
+.ng-hero{text-align:center;margin-bottom:22px}
+.ng-hero-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:0.72rem;font-weight:800;letter-spacing:0.14em;text-transform:uppercase;color:var(--gold-bright)}
+.ng-hero-title{font-family:var(--font-serif);font-size:clamp(1.8rem,5vw,2.6rem);font-weight:700;color:var(--text);margin:6px 0 8px}
+.ng-hero-sub{color:var(--text-soft);line-height:1.6;margin:0 auto;max-width:560px;font-size:0.94rem}
+.ng-progress{background:linear-gradient(160deg,rgba(224,138,26,0.1),var(--bg-surface));border:1px solid var(--border-gold);border-radius:var(--radius-md);padding:18px;margin-bottom:22px}
+.ng-level{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.ng-level-badge{width:54px;height:54px;border-radius:16px;flex:none;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.6rem;color:#1A120B;background:linear-gradient(135deg,var(--gold),var(--gold-light));box-shadow:0 6px 18px rgba(224,138,26,0.45)}
+.ng-level-label{font-weight:800;color:var(--text);font-size:1.05rem}
+.ng-xpbar{height:8px;border-radius:8px;background:var(--bg-elevated);border:1px solid var(--border);overflow:hidden;margin:6px 0 4px}
+.ng-xpbar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:8px;transition:width .5s var(--ease)}
+.ng-xp-sub{font-size:0.76rem;color:var(--text-muted)}
+.ng-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:10px;margin-bottom:14px}
+.ng-stat{text-align:center;background:var(--bg-raised);border:1px solid var(--border);border-radius:10px;padding:10px 6px}
+.ng-stat b{display:block;font-family:var(--font-display);font-size:1.3rem;color:var(--gold-bright)}
+.ng-stat span{font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em}
+.ng-accs{display:grid;gap:8px}
+.ng-acc-row{display:flex;align-items:center;gap:10px;font-size:0.8rem;color:var(--text-soft)}
+.ng-acc-row span:first-child{width:48px;flex:none;font-weight:700}
+.ng-acc-bar{flex:1;height:7px;border-radius:4px;background:var(--bg-elevated);border:1px solid var(--border);overflow:hidden}
+.ng-acc-bar i{display:block;height:100%;background:linear-gradient(90deg,#34D399,#10B981)}
+.ng-acc-row b{width:38px;text-align:right;color:var(--text)}
+.ng-modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.ng-mode{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:16px 18px;border-radius:var(--radius-md);border:1.5px solid var(--border-strong);background:var(--bg-raised);cursor:pointer;text-align:left;transition:all .16s var(--ease)}
+.ng-mode:hover{border-color:var(--border-gold);transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.ng-mode-name{font-weight:800;color:var(--text);font-size:1.02rem}
+.ng-mode-sub{font-size:0.8rem;color:var(--text-muted)}
+.ng-mode-go{margin-top:8px;display:inline-flex;align-items:center;gap:7px;font-size:0.78rem;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:var(--gold-bright)}
+/* playing */
+.ng-hud{display:flex;align-items:center;gap:14px;margin-bottom:10px}
+.ng-hud-item{background:var(--bg-raised);border:1px solid var(--border);border-radius:12px;padding:8px 16px;text-align:center;min-width:74px}
+.ng-hud-item span{display:block;font-size:0.62rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted)}
+.ng-hud-item b{font-family:var(--font-display);font-size:1.5rem;color:var(--text)}
+.ng-hud-item.ng-hud-time b{color:var(--gold-bright)}
+.ng-hud-item.low b{color:#FB7185}
+.ng-hud-item b.hot{color:var(--gold-bright)}
+.ng-quit{margin-left:auto;width:40px;height:40px;border-radius:10px;border:1px solid var(--border-strong);background:var(--bg-raised);color:var(--text-muted);cursor:pointer;font-size:1rem}
+.ng-quit:hover{border-color:#FB7185;color:#FB7185}
+.ng-timebar{height:6px;border-radius:4px;background:var(--bg-elevated);border:1px solid var(--border);overflow:hidden;margin-bottom:14px}
+.ng-timebar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--gold),var(--gold-light))}
+.ng-stage{position:relative;background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px;margin-bottom:16px}
+#ngCanvas{display:block;width:100%}
+.ng-feedback{position:absolute;top:10px;right:16px;font-family:var(--font-display);font-size:1.6rem;opacity:0;transition:opacity .15s;pointer-events:none}
+.ng-feedback.show{opacity:1}
+.ng-feedback.good{color:#34D399}
+.ng-feedback.bad{color:#FB7185;font-size:1rem;font-family:var(--font-body);font-weight:700}
+.ng-answers{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.ng-key{padding:18px 0;border-radius:12px;border:1.5px solid var(--border-strong);background:linear-gradient(180deg,var(--bg-elevated),var(--bg-raised));color:var(--text);font-family:var(--font-display);font-size:1.5rem;cursor:pointer;transition:all .1s var(--ease)}
+.ng-key:hover{border-color:var(--border-gold)}
+.ng-key:active{transform:translateY(1px) scale(0.97);background:linear-gradient(180deg,var(--gold),var(--gold-light));color:#1A120B}
+.ng-key:disabled{opacity:0.5;cursor:default}
+.ng-tip{text-align:center;color:var(--text-muted);font-size:0.8rem;margin:12px 0 0}
+@media (max-width:520px){ .ng-answers{grid-template-columns:repeat(4,1fr)} .ng-key{font-size:1.3rem;padding:14px 0} }
+/* summary */
+.ng-summary{text-align:center;background:linear-gradient(160deg,rgba(224,138,26,0.1),var(--bg-surface));border:1px solid var(--border-gold);border-radius:var(--radius-md);padding:28px 22px;max-width:520px;margin:0 auto}
+.ng-levelup{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;padding:8px 16px;border-radius:100px;margin-bottom:14px;font-size:0.86rem}
+.ng-sum-eyebrow{font-size:0.74rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted)}
+.ng-sum-score{font-family:var(--font-display);font-size:4rem;line-height:1;color:var(--gold-bright);margin:6px 0}
+.ng-sum-score span{display:block;font-family:var(--font-body);font-size:0.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em}
+.ng-sum-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:20px 0}
+.ng-sum-grid div{background:var(--bg-raised);border:1px solid var(--border);border-radius:10px;padding:10px 4px}
+.ng-sum-grid b{display:block;font-family:var(--font-display);font-size:1.3rem;color:var(--text)}
+.ng-sum-grid span{font-size:0.64rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em}
+.ng-sum-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.ng-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:12px;font-weight:800;font-size:0.9rem;cursor:pointer;border:1px solid var(--border-strong);background:var(--bg-raised);color:var(--text)}
+.ng-btn:hover{border-color:var(--border-gold)}
+.ng-btn-gold{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent}
+@media (max-width:520px){ .ng-sum-grid{grid-template-columns:repeat(2,1fr)} }
+
+/* ── Note Rush · enterprise additions ─────────────────────────────── */
+.ng-section-title{display:flex;align-items:center;justify-content:space-between;font-size:0.74rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);margin:24px 0 12px}
+.ng-section-title span{font-size:0.72rem;color:var(--gold-bright);background:var(--bg-raised);border:1px solid var(--border);padding:2px 9px;border-radius:100px}
+.ng-spark-wrap{display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.ng-spark-wrap span{font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;flex:none}
+.ng-spark{display:flex;align-items:flex-end;gap:3px;height:34px;flex:1}
+.ng-spark i{flex:1;background:linear-gradient(180deg,var(--gold-light),var(--gold-2,#E08A1A));border-radius:4px 4px 0 0;min-height:8px;opacity:0.85}
+/* daily challenge */
+.ng-daily{display:block;width:100%;text-align:left;margin:18px 0 4px;padding:18px 20px;border-radius:var(--radius-md);border:1px solid var(--border-gold);background:linear-gradient(135deg,rgba(224,138,26,0.16),var(--bg-surface));cursor:pointer;transition:all .16s var(--ease)}
+.ng-daily:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.ng-daily-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.ng-daily-eyebrow{font-size:0.72rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:var(--gold-bright)}
+.ng-daily-streak{font-size:0.74rem;font-weight:700;color:var(--text-soft)}
+.ng-daily-streak i{color:#FB7185}
+.ng-daily-body{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ng-daily-body strong{display:block;color:var(--text);font-size:1.05rem}
+.ng-daily-body small{color:var(--text-muted);font-size:0.8rem}
+.ng-daily-cta{display:inline-flex;align-items:center;gap:8px;font-weight:800;color:#1A120B;background:linear-gradient(135deg,var(--gold),var(--gold-light));padding:9px 16px;border-radius:10px;white-space:nowrap}
+.ng-daily-banner{display:inline-flex;align-items:center;gap:8px;font-size:0.76rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:12px}
+/* mode best chip */
+.ng-mode-best{font-size:0.72rem;font-weight:700;color:var(--gold-bright);margin-top:4px}
+/* settings */
+.ng-settings{background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--radius-md);padding:6px 16px}
+.ng-set-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);font-size:0.9rem;color:var(--text-soft);cursor:pointer}
+.ng-set-row:last-child{border-bottom:0}
+.ng-set-row input[type=checkbox]{width:18px;height:18px;accent-color:var(--gold-bright,#FCC647);cursor:pointer}
+.ng-lens{display:inline-flex;gap:6px}
+.ng-len{padding:6px 12px;border-radius:8px;border:1px solid var(--border-strong);background:var(--bg-elevated);color:var(--text-muted);font-weight:700;font-size:0.8rem;cursor:pointer}
+.ng-len.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent}
+/* achievements */
+.ng-ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.ng-ach{background:var(--bg-raised);border:1px solid var(--border);border-radius:12px;padding:14px 12px;text-align:center;transition:border-color .15s var(--ease)}
+.ng-ach .ng-ach-ico{width:42px;height:42px;margin:0 auto 8px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
+.ng-ach-name{font-size:0.82rem;font-weight:800;color:var(--text)}
+.ng-ach-desc{font-size:0.7rem;color:var(--text-muted);margin-top:3px;line-height:1.35}
+.ng-ach.locked{opacity:0.5;filter:grayscale(0.7)}
+.ng-ach.locked .ng-ach-ico{background:var(--bg-elevated);color:var(--text-muted)}
+/* HUD lives + daily-best */
+.ng-hud-lives b{color:#FB7185;letter-spacing:2px}
+.ng-daily-best{background:linear-gradient(135deg,#34D399,#10B981) !important;color:#06281C !important}
+/* newly-unlocked achievements (summary) */
+.ng-new-ach{margin:16px 0;padding:14px;border:1px dashed var(--border-gold);border-radius:12px;background:rgba(224,138,26,0.08)}
+.ng-new-ach-title{font-size:0.78rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:8px}
+.ng-new-ach-chip{display:inline-flex;align-items:center;gap:6px;margin:3px;padding:6px 11px;border-radius:100px;background:var(--bg-raised);border:1px solid var(--border-gold);color:var(--text);font-size:0.82rem;font-weight:700}
+
+/* ── Note Rush · learning features ────────────────────────────────── */
+.ng-learn{background:linear-gradient(135deg,rgba(52,211,153,0.16),var(--bg-surface));border-color:rgba(52,211,153,0.5)}
+.ng-learn .ng-daily-eyebrow{color:#34D399}
+.ng-learn .ng-daily-cta{background:linear-gradient(135deg,#34D399,#10B981);color:#06281C}
+.ng-tricky{display:flex;flex-wrap:wrap;gap:10px}
+.ng-tricky-chip{display:flex;flex-direction:column;align-items:center;min-width:64px;padding:10px 12px;background:var(--bg-raised);border:1px solid #FB7185;border-radius:12px}
+.ng-tricky-chip b{font-family:var(--font-display);font-size:1.4rem;color:#FB7185}
+.ng-tricky-chip span{font-size:0.66rem;color:var(--text-muted);text-transform:capitalize;margin-top:2px}
+.ng-teach{margin-top:14px;padding:14px 16px;border-radius:12px;background:var(--bg-raised);border:1px solid var(--border);display:flex;flex-direction:column;gap:12px}
+.ng-teach-row{font-size:0.95rem;color:var(--text-soft);line-height:1.5}
+.ng-teach-row b{color:var(--gold-bright);font-size:1.1em}
+.ng-teach-row.good{color:#A7F3D0}.ng-teach-row.good i{color:#34D399}
+.ng-teach-row.bad i{color:#FB7185}
+.ng-teach-row.rev i{color:var(--gold-bright)}
+.ng-teach .ng-btn{align-self:flex-start}
+.ng-reveal{display:block;margin:12px auto 0;padding:9px 18px;border-radius:10px;border:1px dashed var(--border-gold);background:transparent;color:var(--gold-bright);font-weight:700;font-size:0.85rem;cursor:pointer}
+.ng-reveal:hover{background:rgba(224,138,26,0.08)}
+
+/* ── Note Rush · Interval Trainer ─────────────────────────────────── */
+.ng-answers-wide{flex-wrap:wrap}
+.ng-answers-wide .ng-key{min-width:62px;width:auto;font-size:0.92rem;padding:0 12px}
+.ng-interval{background:linear-gradient(135deg,rgba(165,180,252,0.14),var(--bg-surface));border-color:rgba(165,180,252,0.5)}
+.ng-interval .ng-daily-eyebrow{color:#A5B4FC}
+.ng-interval .ng-daily-cta{background:linear-gradient(135deg,#A5B4FC,#818CF8);color:#0E0A06}
+.ng-interval-banner{background:linear-gradient(90deg,rgba(129,140,248,0.22),transparent)!important;border-color:rgba(165,180,252,0.4)!important}
+
 </style>
 </head>
 <body>
@@ -471,6 +614,7 @@
       <button class="studio-card" type="button" data-goto-tool="ear"><span class="studio-card-ic"><i class="fa-solid fa-headphones"></i></span><span class="studio-card-name">Ear Training</span><span class="studio-card-desc">Interval, chord-quality &amp; pitch-direction drills that adapt to you.</span><span class="studio-card-tag free">Free</span></button>
       <button class="studio-card" type="button" data-goto-tool="seq"><span class="studio-card-ic"><i class="fa-solid fa-grip"></i></span><span class="studio-card-name">Beat Maker</span><span class="studio-card-desc">A 16-step sequencer with kits, swing, FX and one-click WAV export.</span><span class="studio-card-tag free">Free</span></button>
       <button class="studio-card" type="button" data-goto-tool="chords"><span class="studio-card-ic"><i class="fa-solid fa-music"></i></span><span class="studio-card-name">Chords &amp; Scales</span><span class="studio-card-desc">Pick a root and a scale or chord, see it on the keyboard and hear it played.</span><span class="studio-card-tag free">Free</span></button>
+      <button class="studio-card" type="button" data-goto-tool="noterush"><span class="studio-card-ic"><i class="fa-solid fa-gamepad"></i></span><span class="studio-card-name">Note Rush</span><span class="studio-card-desc">Name the note on the staff: a sight-reading game with a learn mode, daily challenge and interval trainer.</span><span class="studio-card-tag free">Free</span></button>
       <button class="studio-card" type="button" data-goto-tool="drone"><span class="studio-card-ic"><i class="fa-solid fa-wave-square"></i></span><span class="studio-card-name">Drone</span><span class="studio-card-desc">A warm, sustained reference pitch for intonation and improvising, with an optional fifth.</span><span class="studio-card-tag free">Free</span></button>
       <button class="studio-card" type="button" data-goto-tool="transcribe"><span class="studio-card-ic"><i class="fa-solid fa-wand-magic-sparkles"></i></span><span class="studio-card-name">Transcribe</span><span class="studio-card-desc">Record or upload a short clip and get notes, MIDI and MusicXML back. Sign in to use it.</span><span class="studio-card-tag">Sign in</span></button>
       <button class="studio-card locked" type="button" data-goto-tool="rhythm"><span class="studio-card-ic"><i class="fa-solid fa-drum"></i></span><span class="studio-card-name">Rhythm Trainer <i class="fa-solid fa-lock"></i></span><span class="studio-card-desc">Endless, Trinity-graded sight-reading — tap it or play it on any instrument.</span><span class="studio-card-tag">Students</span></button>
@@ -487,6 +631,7 @@
       <button data-tool="pomodoro" role="tab" aria-selected="false"><i class="fa-solid fa-hourglass-half"></i> Pomodoro</button>
       <button data-tool="ear" role="tab" aria-selected="false"><i class="fa-solid fa-headphones"></i> Ear Training</button>
       <button data-tool="chords" role="tab" aria-selected="false"><i class="fa-solid fa-music"></i> Chords &amp; Scales</button>
+      <button data-tool="noterush" role="tab" aria-selected="false"><i class="fa-solid fa-gamepad"></i> Note Rush</button>
       <button data-tool="seq" role="tab" aria-selected="false"><i class="fa-solid fa-grip"></i> Beat Maker</button>
       <button data-tool="rhythm" data-locked="student" role="tab" aria-selected="false"><i class="fa-solid fa-drum"></i> Rhythm Tap <i class="fa-solid fa-lock tab-lock" aria-label="Students only" title="Students only"></i></button>
       <button data-tool="pitchgame" data-locked="student" role="tab" aria-selected="false"><i class="fa-solid fa-microphone-lines"></i> Pitch Game <i class="fa-solid fa-lock tab-lock" aria-label="Students only" title="Students only"></i></button>
@@ -861,6 +1006,15 @@
       <div class="ch-info" id="chInfo"></div>
     </section>
 
+
+    <!-- ─── Note Rush (sight-reading game; progress stays on this device) ─── -->
+    <section class="tool-panel" data-tool="noterush" role="tabpanel">
+      <div class="tool-head">
+        <div><h2>Note Rush</h2><p>A sight-reading game that teaches as you play. Name the note on a real staff, treble, bass or both, with ledger lines. Learn Mode explains every note with its mnemonic; timed, survival and daily rounds build speed, and an interval trainer comes with it. Your progress is kept on this device.</p></div>
+      </div>
+      <div id="noteRush"></div>
+    </section>
+
     <!-- ─── Drone ─── -->
     <section class="tool-panel" data-tool="drone" role="tabpanel">
       <div class="tool-head">
@@ -987,6 +1141,7 @@
 <script src="assets/js/studio-chords.js?v=20261121a" defer></script>
 <script src="assets/js/drone.js?v=20261121a" defer></script>
 <script src="assets/js/transcribe.js?v=20261121a" defer></script>
+<script src="assets/js/note-rush.js?v=20261121a" defer></script>
 <script src="assets/js/sequencer.js?v=20260613a" defer></script>
 <script src="assets/js/pitch-game.js?v=20260615b" defer></script>
 <script src="assets/js/rhythm-game.js?v=20260615b" defer></script>
