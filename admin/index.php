@@ -1866,13 +1866,34 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=users&ok=1#faculty'); exit;
     }
     if ($action === 'faculty_app_status') {
+        $me  = mam_current_user();
         $fid = (int)($_POST['app_id'] ?? 0);
         $st  = (string)($_POST['status'] ?? '');
+        $msg = '1';
         if ($fid > 0 && in_array($st, ['submitted', 'reviewing', 'approved', 'declined'], true)) {
             mam_db_update('instructor_applications', ['status' => $st], ['id' => $fid]);
             mam_audit('faculty_app_status', 'instructor_application', $fid, ['status' => $st]);
+            // Approval gives them an instructor account (mam_faculty_promote_to_instructor),
+            // and a new account gets a set-your-password link. Re-saving "approved"
+            // is safe: the promotion is idempotent and only a NEW account is invited.
+            if ($st === 'approved') {
+                try {
+                    $pr = mam_faculty_promote_to_instructor($fid, $me ? (int) $me['id'] : null);
+                    if ($pr && $pr['invite']) {
+                        $inv = mam_auth_send_invite((int) $pr['user_id'], 'instructor', 'faculty_invite');
+                        $msg = ($inv && !empty($inv['sent'])) ? 'Approved — instructor account created and invitation sent'
+                                                               : 'Approved — instructor account created, but the invitation email did not send';
+                    } elseif ($pr) {
+                        $msg = $pr['active'] ? 'Approved — their existing account can now teach'
+                                             : 'Approved — instructor role added, but their account is not active';
+                    }
+                } catch (Throwable $e) {
+                    mam_log('error', 'faculty_promote_failed', ['app' => $fid, 'err' => $e->getMessage()]);
+                    $msg = 'Approved, but the instructor account could not be created: ' . $e->getMessage();
+                }
+            }
         }
-        header('Location: ?v=users&ok=1#faculty'); exit;
+        header('Location: ?v=users&ok=' . urlencode($msg) . '#faculty'); exit;
     }
     /* Accept an approved candidate's teaching matrix into
        instructor_assignments. This is the payoff for collecting (course, level)

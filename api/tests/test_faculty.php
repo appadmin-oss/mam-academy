@@ -264,3 +264,56 @@ $FA_fn = substr($FA_src, strpos($FA_src, 'function mam_faculty_assign_subjects')
 $FA_fn = substr($FA_fn, 0, strpos($FA_fn, "\nfunction ") ?: strlen($FA_fn));
 t_ok(!str_contains($FA_fn, 'mam_fail('),
     'mam_faculty_assign_subjects() never calls mam_fail() — its caller is an HTML page');
+
+t_group('faculty — approval gives the candidate an instructor account');
+
+$FP_shot  = '/api/media/headshot?k=202608/0123456789abcdef0123456789abcdef';
+$FP_email = 'prof.promote@example.com';
+$FP_app = mam_faculty_application_create($FP_email, mam_faculty_validate([
+    'full_name' => 'Prof Promote', 'phone' => '+2348111111', 'disciplines' => 'Piano',
+    'bio' => str_repeat('Experienced studio teacher. ', 3), 'headshot_url' => $FP_shot,
+])['data'], '10.0.0.2');
+t_ok(mam_db_row('SELECT id FROM users WHERE LOWER(email) = ?', [$FP_email]) === null, 'no account before approval');
+$FP_r = mam_faculty_promote_to_instructor($FP_app, null);
+t_ok($FP_r !== null && $FP_r['created'] === true && $FP_r['invite'] === true, 'approval creates an account and asks for an invitation');
+$FP_u = mam_db_row('SELECT id, role, status, avatar_url, password_hash FROM users WHERE LOWER(email) = ?', [$FP_email]);
+t_eq([(string) $FP_u['role'], (string) $FP_u['status']], ['instructor', 'active'], 'it is an active instructor account');
+t_eq((string) $FP_u['avatar_url'], $FP_shot, 'the application photo becomes the portal photo');
+t_ok(!password_verify('', (string) $FP_u['password_hash']) && strlen((string) $FP_u['password_hash']) > 20,
+    'no usable password is set: the invitation sets one');
+$FP_r2 = mam_faculty_promote_to_instructor($FP_app, null);
+t_ok($FP_r2['created'] === false && $FP_r2['invite'] === false && $FP_r2['user_id'] === $FP_r['user_id'],
+    're-approving changes nothing and invites nobody twice');
+
+// An existing account keeps its own role; teaching is ADDED, never swapped in.
+$FP_sid = (int) mam_db_insert('users', ['email' => 'student.teacher@example.com', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Stu Teach', 'status' => 'active']);
+$FP_app2 = mam_faculty_application_create('student.teacher@example.com', mam_faculty_validate([
+    'full_name' => 'Stu Teach', 'disciplines' => 'Voice', 'bio' => str_repeat('Choir section leader for years. ', 3),
+])['data'], '10.0.0.3');
+$FP_r3 = mam_faculty_promote_to_instructor($FP_app2, null);
+$FP_s = mam_db_row('SELECT id, role FROM users WHERE id = ?', [$FP_sid]);
+t_eq((string) $FP_s['role'], 'student', 'a student taken on to teach keeps their primary role');
+t_ok(mam_user_has_role($FP_s, 'instructor', 'student') && in_array('instructor', mam_user_roles($FP_s), true),
+    '…and gains the instructor role alongside it');
+t_ok($FP_r3['invite'] === false, 'an existing account is not sent a new-account invitation');
+
+// An admin is never touched beyond gaining the role.
+$FP_aid = (int) mam_db_insert('users', ['email' => 'admin.teacher@example.com', 'password_hash' => 'x', 'role' => 'admin', 'name' => 'Ad Min', 'status' => 'active']);
+$FP_app3 = mam_faculty_application_create('admin.teacher@example.com', mam_faculty_validate([
+    'full_name' => 'Ad Min', 'disciplines' => 'Theory', 'bio' => str_repeat('Theory teacher and examiner. ', 3),
+])['data'], '10.0.0.4');
+mam_faculty_promote_to_instructor($FP_app3, null);
+t_eq((string) mam_db_row('SELECT role FROM users WHERE id = ?', [$FP_aid])['role'], 'admin', 'an admin is never downgraded');
+
+// A suspended account is not reopened by being hired.
+$FP_xid = (int) mam_db_insert('users', ['email' => 'suspended.teacher@example.com', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Sus Pended', 'status' => 'suspended']);
+$FP_app4 = mam_faculty_application_create('suspended.teacher@example.com', mam_faculty_validate([
+    'full_name' => 'Sus Pended', 'disciplines' => 'Drums', 'bio' => str_repeat('Drummer with ten years on stage. ', 3),
+])['data'], '10.0.0.5');
+$FP_r4 = mam_faculty_promote_to_instructor($FP_app4, null);
+t_eq((string) mam_db_row('SELECT status FROM users WHERE id = ?', [$FP_xid])['status'], 'suspended', 'a suspended account stays suspended');
+t_ok($FP_r4['active'] === false, '…and the caller is told it is not active');
+
+$FP_admin = (string) file_get_contents(dirname(__DIR__, 2) . '/admin/index.php');
+t_ok(str_contains($FP_admin, 'mam_faculty_promote_to_instructor(') && str_contains($FP_admin, "mam_auth_send_invite((int) \$pr['user_id'], 'instructor'"),
+    'the admin\'s approve action provisions and invites');

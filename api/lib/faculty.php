@@ -499,6 +499,60 @@ function mam_faculty_applicant_email(?array $invite, array $in): string {
 }
 
 /**
+ * Approving an instructor application gives the candidate an instructor account.
+ * Before this, "approved" only flipped a status column: an accepted teacher had no
+ * login and no portal, and `mam_faculty_assign_subjects()` refused with
+ * `no_account` until an admin re-typed them into the user-create form.
+ * (Ported from the 2026-08 session branch claude/etl-v2-transition-audit-4rbh4t,
+ * reworked for the rules that came after it.)
+ *
+ *  - No account yet: one is created as an instructor with an UNUSABLE password,
+ *    and `invite: true` tells the caller to send `mam_auth_send_invite()`. No
+ *    password is ever generated, typed or emailed.
+ *  - An account already exists (a student, a guardian): the instructor role is
+ *    ADDED through the multi-role join, never swapped for theirs, so a student
+ *    who is also taken on to teach keeps their own portal. Its status is left
+ *    alone — whether somebody may sign in is `mam_member_set_status()`'s
+ *    decision, with a reason and a history, never a side effect of hiring.
+ *  - The application's headshot becomes the portal photo only where there is none.
+ *
+ * Idempotent. Returns ['user_id', 'created', 'invite', 'active'] or null when the
+ * application or its address is missing.
+ */
+function mam_faculty_promote_to_instructor(int $appId, ?int $by = null): ?array {
+    $app = mam_db_row('SELECT * FROM instructor_applications WHERE id = ?', [$appId]);
+    if (!$app) return null;
+    $email = strtolower(trim((string) $app['email']));
+    if ($email === '') return null;
+
+    $shot = (string) ($app['headshot_url'] ?? '');
+    $photoOk = $shot !== '' && function_exists('mam_upload_photo_url_ok') && mam_upload_photo_url_ok($shot);
+
+    $user = mam_db_row('SELECT id, role, status, avatar_url FROM users WHERE LOWER(email) = ?', [$email]);
+    if ($user) {
+        $uid = (int) $user['id'];
+        mam_user_ensure_role($uid, 'instructor');
+        if ($photoOk && empty($user['avatar_url'])) mam_db_update('users', ['avatar_url' => $shot], ['id' => $uid]);
+        mam_audit('faculty_promote', 'user', $uid, ['app' => $appId, 'existing' => true, 'by' => $by]);
+        return ['user_id' => $uid, 'created' => false, 'invite' => false, 'active' => (string) $user['status'] === 'active'];
+    }
+
+    $uid = (int) mam_db_insert('users', [
+        'email'                => $email,
+        'password_hash'        => mam_auth_unusable_password(),
+        'role'                 => 'instructor',
+        'name'                 => trim((string) ($app['full_name'] ?? '')) !== '' ? trim((string) $app['full_name']) : 'Instructor',
+        'phone'                => trim((string) ($app['phone'] ?? '')) !== '' ? trim((string) $app['phone']) : null,
+        'avatar_url'           => $photoOk ? $shot : null,
+        'status'               => 'active',
+        'must_change_password' => 0,
+    ]);
+    mam_user_ensure_role($uid, 'instructor');
+    mam_audit('faculty_promote', 'user', $uid, ['app' => $appId, 'created' => true, 'by' => $by]);
+    return ['user_id' => $uid, 'created' => true, 'invite' => true, 'active' => true];
+}
+
+/**
  * Copy an APPROVED application's teaching matrix into `instructor_assignments`.
  *
  * This is the point of collecting a structured matrix rather than a sentence:
@@ -534,9 +588,11 @@ function mam_faculty_assign_subjects(int $applicationId, ?int $by = null): array
     if (!$app) throw new RuntimeException('not_found');
     if ((string) $app['status'] !== 'approved') throw new RuntimeException('not_approved');
 
-    $user = mam_db_row("SELECT id, role FROM users WHERE email = ?", [strtolower((string) $app['email'])]);
+    $user = mam_db_row("SELECT id, role FROM users WHERE LOWER(email) = ?", [strtolower((string) $app['email'])]);
     if (!$user) throw new RuntimeException('no_account');
-    if ((string) $user['role'] !== 'instructor') throw new RuntimeException('not_an_instructor');
+    // Any role the account holds, not only its primary one: a student taken on to
+    // teach is an instructor through user_roles (mam_faculty_promote_to_instructor).
+    if (!mam_user_has_role($user, 'instructor')) throw new RuntimeException('not_an_instructor');
     $instructorId = (int) $user['id'];
 
     $added = 0; $already = 0;
