@@ -212,6 +212,24 @@
       "match": "scholarship",
       "reason": "The scholarship line rewraps around its kept links",
       "owner": "parity"
+    },
+    {
+      "kind": "text",
+      "match": "Question 1 of 7",
+      "reason": "The application asks what the server needs to create the record (date of birth, sex, style, focus, level, address), so there are more questions than the design's seven",
+      "owner": "server contract"
+    },
+    {
+      "kind": "extra",
+      "match": "Skip to the question",
+      "reason": "A skip link first on the page (WCAG 2.4.1); the design's Apply has none",
+      "owner": "accessibility"
+    },
+    {
+      "kind": "missing",
+      "match": "div.ap",
+      "reason": "The design runtime's root wrapper",
+      "owner": "build"
     }
   ]
 }

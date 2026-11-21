@@ -20,7 +20,7 @@ $DS_files = array_merge(
     // The 2026-11 redesign's pages (built on partials/site/shell.php) carry the
     // handoff's own system; test_site_redesign.php holds them to the design sources.
     array_filter(glob($DS_root . '/*.php') ?: [],
-        static fn($f) => !str_contains((string) file_get_contents($f), 'site_head(')),
+        static fn($f) => !(str_contains($c = (string) file_get_contents($f), 'partials/site/shell.php') && !str_contains($c, 'partials/header.html'))),
     [$DS_root . '/assets/js/main.js', $DS_root . '/assets/js/rhythm-game.js',
      $DS_root . '/assets/js/studio-gate.js', $DS_root . '/assets/js/headshot.js']
 );

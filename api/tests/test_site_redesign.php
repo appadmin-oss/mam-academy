@@ -16,7 +16,7 @@ $SR_root = dirname(dirname(__DIR__));
 /* The redesigned pages are the ones built on the shell — derived, not listed, so a
    sixth page is covered the day it is written. */
 $SR_pages = array_values(array_filter(glob($SR_root . '/*.php') ?: [],
-    static fn($f) => str_contains((string) file_get_contents($f), "site_head(")));
+    static fn($f) => str_contains($c = (string) file_get_contents($f), "partials/site/shell.php") && !str_contains($c, "partials/header.html")));
 $SR_parts = glob($SR_root . '/partials/site/*.php') ?: [];
 $SR_all = array_merge($SR_pages, $SR_parts, [$SR_root . '/assets/css/site.css']);
 $SR_src = static fn(array $files) => implode("\n", array_map(static fn($f) => (string) file_get_contents($f), $files));
@@ -24,8 +24,8 @@ $SR_design = $SR_src(glob($SR_root . '/docs/design/2026-11-site/source/pages/*.d
 
 t_group('site redesign — the pages are the ones the design describes');
 
-t_eq(array_map('basename', $SR_pages), ['about.php', 'accessibility.php', 'auditer.php', 'index.php', 'life.php', 'programmes.php', 'safeguarding.php'],
-    'the redesigned pages are the ones that draw themselves with site_head()');
+t_eq(array_map('basename', $SR_pages), ['about.php', 'accessibility.php', 'apply.php', 'auditer.php', 'index.php', 'life.php', 'programmes.php', 'safeguarding.php'],
+    'the redesigned pages are the ones on the shell and not on the legacy header');
 t_ok(strlen($SR_design) > 100000, 'the design sources are committed beside the build, so the check can be repeated');
 
 t_group('site redesign — no value the design does not have');
@@ -132,3 +132,25 @@ t_ok(str_contains((string) file_get_contents($SR_root . '/assets/js/site-auditer
     'the checklist keeps its storage key, so ticks made before the redesign are kept');
 t_ok(str_contains((string) file_get_contents($SR_root . '/about.php'), 'id="method"'),
     '/about#method still lands on the method (the legacy header links it)');
+
+t_group('site redesign — the application sends what the server requires');
+
+/* The design's seven questions collect less than mam_validate_application()
+   refuses without, so the flow adds screens. Each field the validator can reject
+   is READ from the validator ($errors[] = '…') and must be in the payload the
+   flow builds — a renamed field there fails here, not on a family's submission. */
+$SR_val  = (string) file_get_contents(MAM_API_ROOT . '/lib/validation.php');
+$SR_fn   = substr($SR_val, (int) strpos($SR_val, 'function mam_validate_application'));
+$SR_fn   = substr($SR_fn, 0, (int) strpos($SR_fn, "\nfunction "));
+preg_match_all("/\\\$errors\\[\\] = '([a-zA-Z]+)'/", $SR_fn, $SR_req);
+$SR_flow = (string) file_get_contents($SR_root . '/assets/js/apply-flow.js');
+$SR_pay  = substr($SR_flow, (int) strpos($SR_flow, 'function payload()'));
+$SR_pay  = substr($SR_pay, 0, (int) strpos($SR_pay, '  }'));
+$SR_missingFields = array_values(array_filter(array_unique($SR_req[1]),
+    static fn($k) => !preg_match('/\b' . $k . ':/', $SR_pay) && $k !== 'headshotUrl'));
+t_ok(count($SR_req[1]) >= 15, 'the validator\'s required fields were found (the sweep is reading something)');
+t_eq($SR_missingFields, [], 'every field the server requires is in the application flow\'s payload (headshot is optional)');
+t_ok(str_contains($SR_flow, "purpose: 'booking_fee'"), 'the only charge is the registration, through the existing booking-fee payment');
+t_ok(str_contains($SR_val, "'undecided'"), '"Help me choose" is a value the server accepts');
+t_ok(str_contains((string) file_get_contents($SR_root . '/api/lib/admissions.php'), "/apply-classic?resume="),
+    'emailed "resume your draft" links go to the wizard that saved the draft');

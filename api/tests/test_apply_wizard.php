@@ -23,7 +23,7 @@ declare(strict_types=1);
 t_group('apply wizard v2 — one question per screen');
 
 $ROOT  = dirname(MAM_API_ROOT);
-$page  = (string)@file_get_contents($ROOT . '/apply.php');
+$page  = (string)@file_get_contents($ROOT . '/apply-classic.php');
 $js    = (string)@file_get_contents($ROOT . '/assets/js/apply.js');
 $css   = (string)@file_get_contents($ROOT . '/assets/css/apply.css');
 $val   = (string)@file_get_contents($ROOT . '/api/lib/validation.php');

@@ -103,7 +103,7 @@ t_group('admin guards actually stop a request (the inert mam_fail defect)');
    `MAM_RESPONSE_SENT` to mean only what mam_json() reads it as. */
 
 $AG_pages = ['admin/index.php', 'admin/console.php', 'admin/phone.php',
-             'card-studio.php', 'apply.php', 'recital.php', 'status.php', 'summer.php'];
+             'card-studio.php', 'apply-classic.php', 'recital.php', 'status.php', 'summer.php'];
 foreach ($AG_pages as $AG_p) {
     $AG_src = (string) @file_get_contents(dirname(MAM_API_ROOT) . '/' . $AG_p);
     if ($AG_src === '') continue;

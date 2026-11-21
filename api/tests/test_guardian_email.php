@@ -33,7 +33,7 @@ t_eq($GE_ok['parentEmail'], 'bisi.ade@example.com', 'a good one is kept, trimmed
 $GE_adult = mam_validate_application(array_merge($GE_base, ['dob' => date('Y-m-d', strtotime('-25 years')), 'parentName' => '', 'policySignedName' => 'Tunde Ade']));
 t_ok($GE_adult['parentEmail'] === null, 'an adult needs none');
 t_ok(str_contains((string) file_get_contents(dirname(__DIR__) . '/routes/application.php'), "'parent_email'           => \$v['parentEmail']"), 'and it is stored on the application');
-$GE_form = (string) file_get_contents(dirname(__DIR__, 2) . '/apply.php');
+$GE_form = (string) file_get_contents(dirname(__DIR__, 2) . '/apply-classic.php');
 t_ok(str_contains($GE_form, 'id="parentEmail"') && str_contains($GE_form, 'type="email"'), 'the guardian screen asks for it');
 t_ok(str_contains($GE_form, 'They get their own portal account once you are enrolled'), 'beside the promise it now keeps');
 

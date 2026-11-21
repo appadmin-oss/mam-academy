@@ -330,7 +330,11 @@ function mam_validate_application(array $in): array {
     // rhythm, metamusic).
     $allowedDisc = [
         'piano','voice','guitar','bass','violin','saxophone','trumpet','flute','clarinet',
-        'drums','theory','performance','rhythm','metamusic','multiple'
+        'drums','theory','performance','rhythm','metamusic','multiple',
+        // "Help me choose" on the 2026-11 application: the instrument is decided at
+        // the MAM Auditer assessment. Not a course, so mam_enrol_resolve() leaves it
+        // to the admissions backlog rather than guessing a class.
+        'undecided'
     ];
     $out['discipline'] = mam_str($in, 'discipline', 32);
     if (!mam_in($out['discipline'], $allowedDisc)) $errors[] = 'discipline';

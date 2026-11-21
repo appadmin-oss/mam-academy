@@ -244,7 +244,7 @@ function mam_app_draft_load_verified(string $draftKey, string $token): ?array {
 /** The magic-link resume URL emailed to the applicant. */
 function mam_app_draft_resume_url(string $draftKey): string {
     $base = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/');
-    return $base . '/apply?resume=' . rawurlencode(trim($draftKey)) . '&t=' . mam_app_draft_token($draftKey);
+    return $base . '/apply-classic?resume=' . rawurlencode(trim($draftKey)) . '&t=' . mam_app_draft_token($draftKey);
 }
 /** Mark a draft submitted (called after a successful application submit). */
 function mam_app_draft_mark_submitted(string $draftKey): void {

@@ -15,7 +15,7 @@
  */
 declare(strict_types=1);
 
-$apply = (string) file_get_contents(dirname(__DIR__, 2) . '/apply.php');
+$apply = (string) file_get_contents(dirname(__DIR__, 2) . '/apply-classic.php');
 // Strip PHP and HTML comments before counting tags — the wrapper's own comment
 // explains the change and contains the literal "<form", which a naive count
 // reads as a second, nested form.
