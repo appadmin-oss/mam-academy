@@ -152,7 +152,7 @@ window.MAM_CONFIG = {
     timezone: 'Africa/Lagos',
     durationMinutes: 90,
     meetUrl:  '',                // paste your persistent meet link here
-    host:     'Van. BOJA'
+    host:     'Just-Joe Adeola'
   },
 
   /* -------- Book a Session (post-application appointment) --------

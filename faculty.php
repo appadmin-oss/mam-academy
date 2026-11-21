@@ -1,271 +1,122 @@
-<?php require __DIR__ . '/partials/site/shell.php'; ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="dark">
-<title>Faculty &amp; Instructors — MAM Academy</title>
-<meta name="description" content="Meet the musicians, performers and creative leaders who train students at MAM Academy. Each pathway is taught by someone who has lived it.">
-<link rel="canonical" href="https://academy.mamcentre.org/faculty">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Faculty &amp; Instructors — MAM Academy">
-<meta name="twitter:description" content="Meet the musicians, performers and creative leaders who train students at MAM Academy. Each pathway is taught by someone who has lived it.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Faculty","item":"https://academy.mamcentre.org/faculty"}]}</script>
-<link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
-<meta property="og:title" content="MAM Academy Faculty">
-<meta property="og:description" content="Meet the people who teach at MAM Academy.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260920">
-<style>
-.faculty-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:24px}
-.faculty-card{background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;transition:all 0.3s var(--ease);display:flex;flex-direction:column}
-.faculty-card:hover{transform:translateY(-4px);border-color:var(--border-gold);box-shadow:var(--shadow-md)}
-.faculty-photo{aspect-ratio:1/1;background-size:cover;background-position:center;background-color:var(--bg-elevated);position:relative}
-.faculty-photo::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 55%,rgba(18,13,8,0.85))}
-.faculty-school{position:absolute;left:14px;top:14px;padding:5px 11px;background:rgba(18,13,8,0.85);backdrop-filter:blur(10px);border:1px solid var(--border-gold);border-radius:100px;font-size:0.68rem;font-weight:800;color:var(--gold-bright);letter-spacing:0.12em;text-transform:uppercase;z-index:1}
-.faculty-body{padding:22px 24px;display:flex;flex-direction:column;flex:1}
-.faculty-name{font-family:var(--font-serif);font-size:1.35rem;font-weight:700;line-height:1.2;color:var(--text);margin-bottom:4px}
-.faculty-role{font-size:0.8rem;color:var(--gold-bright);font-weight:700;letter-spacing:0.04em;margin-bottom:14px}
-.faculty-bio{font-size:0.88rem;color:var(--text-soft);line-height:1.65;flex:1;margin-bottom:16px}
-.faculty-tags{display:flex;flex-wrap:wrap;gap:6px}
-.faculty-tag{padding:3px 10px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:100px;font-size:0.72rem;color:var(--text-muted)}
-/* Leadership & studio team — distinct accent-coded cards */
-.team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(270px,100%),1fr));gap:18px}
-.team-card{position:relative;display:flex;gap:16px;align-items:flex-start;padding:22px 22px 22px 26px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);transition:transform .3s var(--ease),border-color .3s,box-shadow .3s;overflow:hidden}
-.team-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent,var(--gold))}
-.team-card:hover{transform:translateY(-4px);border-color:var(--border-gold);box-shadow:var(--shadow-md)}
-.team-avatar{width:54px;height:54px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.2rem;letter-spacing:0.04em;color:#1A120B;flex-shrink:0;background:linear-gradient(135deg,var(--accent,var(--gold)),var(--gold-light));box-shadow:0 6px 16px color-mix(in srgb,var(--accent,var(--gold)) 35%,transparent)}
-.team-info{min-width:0}
-.team-name{font-size:1.04rem;font-weight:700;color:var(--text);line-height:1.2}
-.team-role{font-size:0.72rem;color:color-mix(in srgb,var(--accent,var(--gold-bright)) 66%,#fff);font-weight:800;letter-spacing:0.08em;text-transform:uppercase;margin:4px 0 8px}
-.team-line{font-size:0.85rem;color:var(--text-muted);line-height:1.55}
-</style>
-</head>
-<body>
-<a href="#main" class="skip-link">Skip to main content</a>
-<div id="preloader" role="status"><div class="preloader-logo"><img src="mam-academy-logo.svg" alt="" onerror="this.style.display='none'"><div class="preloader-name">MAM ACADEMY</div><div class="preloader-tag">Faculty &amp; Instructors</div></div><div class="waves"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+<?php
+/**
+ * Leadership & faculty — the page About's "Meet our leadership and faculty" and
+ * "Leadership & faculty" links lead to. The 2026-11 handoff did not draw it, so it
+ * is built from the handoff's own parts (the About page's breadcrumb, serif H1,
+ * hairline-ruled sections and photo frames) on partials/site/.
+ *
+ * Only the founder is named, because only the founder's name and photograph have
+ * been confirmed (handoff §9 "facts to confirm"). Each school's faculty is
+ * described, not named; nobody is shown in a stock photograph.
+ */
+declare(strict_types=1);
+require __DIR__ . '/partials/site/shell.php';
 
-<?php include __DIR__ . '/partials/header.html'; ?>
+$ffSchools = [
+    ['Instrumental Intelligence', 'Piano & keyboard', 'Classically trained pianists with active gospel, jazz and contemporary worship experience. They place each student on a curriculum that maps to Trinity Grades 1–8 and keep joy in the practice.'],
+    ['Instrumental Intelligence', 'Strings', 'Orchestra-trained players of violin, viola, cello and guitar who teach bow technique, intonation and ensemble craft — from first posture to diploma repertoire.'],
+    ['Instrumental Intelligence', 'Voice & choir', 'Vocal coaches with active choir-direction experience. They teach breath, tone, resonance, diction and stage presence, from age four to professional performers.'],
+    ['Performance Intelligence', 'Performance', 'Stage performers and worship leaders who teach what conservatories often do not: entrance, microphone discipline, communicating with an audience, performance psychology and rehearsal culture.'],
+    ['Rhythm Intelligence', 'Rhythm', 'Drummers, percussionists and choirmasters behind the academy’s own rhythm method: rapid sight reading, ear training, tonal recognition and playing together in time.'],
+];
+$ffTeam = [
+    ['Academic Director', 'Owns the MAM Method curriculum and its Trinity-equivalent certification, and guards the standard from Grade 1 to Diploma.'],
+    ['Head of Admissions', 'Runs the MAM Auditer entry assessment and places each student with the right instructor, level and pathway.'],
+    ['Operations', 'Coordinates onsite lessons, ensembles and stagecraft, and keeps every timetable running on time.'],
+    ['Student care', 'The first point of contact: onboarding, reminders, progress check-ins and an answer whenever a student or family is stuck.'],
+    ['Online learning', 'Makes online classes feel as present as the room — clear audio, recordings and a smooth experience on any device.'],
+];
 
+$ffPerson = [
+    '@context' => 'https://schema.org', '@type' => 'Person',
+    'name' => 'Just-Joe Adeola', 'alternateName' => 'Babatunde Oluwaseyi Just-Joe Adeola',
+    'jobTitle' => 'Founder and Director', 'image' => 'https://academy.mamcentre.org/assets/img/faculty/just-joe-adeola.jpg',
+    'worksFor' => ['@type' => 'EducationalOrganization', 'name' => 'MAM Academy', 'url' => 'https://academy.mamcentre.org/'],
+];
+
+site_head([
+    'title' => 'Leadership & faculty — MAM Academy',
+    'description' => 'The founder, school faculty and team behind MAM Academy. Every class is taught by a working musician.',
+    'path' => '/faculty',
+    'jsonld' => '<script type="application/ld+json">' . json_encode($ffPerson, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . '</script>',
+]);
+site_header('inner', '/about');
+ob_start();
+?>
 <main id="main">
-  <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=1920&q=80')">
-    <div class="page-hero-inner">
-      <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Faculty</span></nav>
-      <div class="page-hero-eyebrow"><i class="fa-solid fa-chalkboard-user"></i>Who Will Teach You</div>
-      <h1 class="page-hero-title">Trained by Working <span class="highlight-gold">Musicians</span></h1>
-      <p class="page-hero-lede">Every MAM Academy class is taught by an active performer, worship leader or composer — not someone repeating textbooks. Each instructor lives what they teach.</p>
-      <div class="page-hero-actions">
-        <a href="apply" class="btn btn-primary"><i class="fa-solid fa-music"></i>Apply &amp; Get Matched</a>
-        <a href="auditer" class="btn btn-secondary">Book MAM Auditer</a>
-      </div>
-    </div>
-  </header>
+    <section aria-labelledby="page-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(40px, 5vw, 72px) clamp(20px, 4vw, 40px) clamp(32px, 4vw, 56px); box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+      <nav aria-label="Breadcrumb" class="fade-in" style="font-size: 14px; color: #574B40; display: flex; gap: 8px; flex-wrap: wrap"><a href="/" class="ul" style="color: #574B40; text-decoration: none">Home</a><span aria-hidden="true">/</span><a href="/about" class="ul" style="color: #574B40; text-decoration: none">About</a><span aria-hidden="true">/</span><span aria-current="page">Leadership &amp; faculty</span></nav>
+      <h1 id="page-h" aria-label="Leadership and faculty" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(46px, 5.6vw, 84px); line-height: 1.02; letter-spacing: -.01em"><span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.15s;">Leadership</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.235s;">&amp;</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.32s;">faculty</span></span></h1>
+      <p class="fade-in" style="animation-delay: .3s; margin: 0; max-width: 760px; font-size: 19px; line-height: 1.7; color: #3E342B">Every class at MAM Academy is taught by a working musician — a performer, worship leader or composer who lives what they teach.</p>
+    </section>
 
-  <section>
-    <div class="container">
-      <div style="text-align:center;max-width:760px;margin:0 auto 56px">
-        <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>The Team<span class="line" style="transform:scaleX(-1)"></span></div>
-        <h2 class="section-title">Faculty Across Our <span class="highlight-gold">Four Schools</span></h2>
-        <p class="section-desc" style="margin:0 auto">A practicing musician, a stage psychologist, a rhythm intelligence specialist and a philosopher of sound — every school has a head who has done the work.</p>
-      </div>
-
-      <div class="faculty-grid">
-        <article class="faculty-card">
-          <div class="faculty-photo" style="background-image:url('https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=600&q=80')">
-            <span class="faculty-school">Founder</span>
+    <section id="founder" aria-labelledby="founder-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(40px, 5vw, 72px) clamp(20px, 4vw, 40px) clamp(48px, 6vw, 88px); box-sizing: border-box; border-top: 1px solid #E6DED2">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center">
+        <div class="reveal" style="flex: 1 1 340px; min-width: 0; max-width: 480px">
+          <div style="position: relative; aspect-ratio: 1 / 1; border-radius: 20px; overflow: hidden; background: #E8DECF">
+            <picture>
+              <source type="image/webp" srcset="/assets/img/faculty/just-joe-adeola-400.webp 400w, /assets/img/faculty/just-joe-adeola.webp 800w" sizes="(max-width: 720px) 90vw, 480px">
+              <img src="/assets/img/faculty/just-joe-adeola.jpg" srcset="/assets/img/faculty/just-joe-adeola-400.jpg 400w, /assets/img/faculty/just-joe-adeola.jpg 800w" sizes="(max-width: 720px) 90vw, 480px" width="800" height="800" alt="Portrait of Just-Joe Adeola, founder and director of MAM Academy" decoding="async" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover">
+            </picture>
           </div>
-          <div class="faculty-body">
-            <h3 class="faculty-name">Van. BOJA</h3>
-            <div class="faculty-role">Babatunde Oluwaseyi Just-Joe Adeola · Director &amp; Lead Faculty</div>
-            <p class="faculty-bio">Founder of MAM Centre and architect of the MAM Method. Leads The MetaMusic Order and the monthly Power Play series. Trains performers, worship leaders and creative thinkers in the philosophy and discipline of sound.</p>
-            <div class="faculty-tags">
-              <span class="faculty-tag">MetaMusic</span>
-              <span class="faculty-tag">Creative Leadership</span>
-              <span class="faculty-tag">Performance Intelligence</span>
-            </div>
-          </div>
-        </article>
-
-        <article class="faculty-card">
-          <div class="faculty-photo" style="background-image:url('https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=600&q=80')">
-            <span class="faculty-school">School A</span>
-          </div>
-          <div class="faculty-body">
-            <h3 class="faculty-name">Piano &amp; Keyboard Faculty</h3>
-            <div class="faculty-role">Instrumental Intelligence School</div>
-            <p class="faculty-bio">Classical-trained pianists with active gospel, jazz and contemporary worship experience. Specialise in placing students on a curriculum that maps to Trinity Grade 1–8 while keeping joy in practice.</p>
-            <div class="faculty-tags">
-              <span class="faculty-tag">Classical</span>
-              <span class="faculty-tag">Gospel</span>
-              <span class="faculty-tag">Theory</span>
-            </div>
-          </div>
-        </article>
-
-        <article class="faculty-card">
-          <div class="faculty-photo" style="background-image:url('https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&q=80')">
-            <span class="faculty-school">School A</span>
-          </div>
-          <div class="faculty-body">
-            <h3 class="faculty-name">Strings Faculty</h3>
-            <div class="faculty-role">Violin, Viola, Cello &amp; Guitar</div>
-            <p class="faculty-bio">Orchestra-trained string players who teach bow technique, intonation and ensemble craft. Comfortable taking beginners from posture to first concerto, and advanced students from Grade 5 toward diploma.</p>
-            <div class="faculty-tags">
-              <span class="faculty-tag">Violin</span>
-              <span class="faculty-tag">Cello</span>
-              <span class="faculty-tag">Classical Guitar</span>
-            </div>
-          </div>
-        </article>
-
-        <article class="faculty-card">
-          <div class="faculty-photo" style="background-image:url('https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=600&q=80')">
-            <span class="faculty-school">School B</span>
-          </div>
-          <div class="faculty-body">
-            <h3 class="faculty-name">Performance Faculty</h3>
-            <div class="faculty-role">Performance Intelligence School</div>
-            <p class="faculty-bio">Stage performers and worship leaders who teach what conservatories don't — entrance, microphone discipline, audience communication, performance psychology and rehearsal culture. Many MAM students cite this school as their turning point.</p>
-            <div class="faculty-tags">
-              <span class="faculty-tag">Stagecraft</span>
-              <span class="faculty-tag">Mic Discipline</span>
-              <span class="faculty-tag">Audience Comms</span>
-            </div>
-          </div>
-        </article>
-
-        <article class="faculty-card">
-          <div class="faculty-photo" style="background-image:url('https://images.unsplash.com/photo-1568454537842-d933259bb258?w=600&q=80')">
-            <span class="faculty-school">School C</span>
-          </div>
-          <div class="faculty-body">
-            <h3 class="faculty-name">Rhythm Intelligence Faculty</h3>
-            <div class="faculty-role">MAM Rapid Rhythm System</div>
-            <p class="faculty-bio">Drummers, percussionists and choirmasters who have built the academy's signature rhythm-cognition method. Focuses on rapid sight reading, ear training, tonal recognition and ensemble synchronization.</p>
-            <div class="faculty-tags">
-              <span class="faculty-tag">Sight Reading</span>
-              <span class="faculty-tag">Ear Training</span>
-              <span class="faculty-tag">Polyrhythm</span>
-            </div>
-          </div>
-        </article>
-
-        <article class="faculty-card">
-          <div class="faculty-photo" style="background-image:url('https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600&q=80')">
-            <span class="faculty-school">School A · Voice</span>
-          </div>
-          <div class="faculty-body">
-            <h3 class="faculty-name">Voice &amp; Choir Faculty</h3>
-            <div class="faculty-role">Voice production · Choir direction</div>
-            <p class="faculty-bio">Trained vocal coaches with active choir-direction experience. Teach breath, tone, resonance, diction and stage presence from age 4 to professional performers.</p>
-            <div class="faculty-tags">
-              <span class="faculty-tag">Voice Tech</span>
-              <span class="faculty-tag">Choral</span>
-              <span class="faculty-tag">Worship</span>
-            </div>
-          </div>
-        </article>
-      </div>
-
-      <p style="text-align:center;font-size:0.9rem;color:var(--text-muted);margin-top:48px;line-height:1.7">Specific instructor assignments are made after your <a href="auditer" style="color:var(--gold-bright)">MAM Auditer entry assessment</a> — we match you to the right teacher for your level, mode and goals.</p>
-    </div>
-  </section>
-
-  <section style="border-top:1px solid var(--border)">
-    <div class="container">
-      <div style="text-align:center;max-width:720px;margin:0 auto 48px">
-        <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Behind the Scenes<span class="line" style="transform:scaleX(-1)"></span></div>
-        <h2 class="section-title">The Team That <span class="highlight-gold">Carries You</span></h2>
-        <p class="section-desc" style="margin:0 auto">Beyond the studio, a dedicated crew makes your journey smooth — from your very first MAM Auditer to graduation day, online or onsite.</p>
-      </div>
-      <div class="team-grid">
-        <article class="team-card" style="--accent:#FBBF24">
-          <div class="team-avatar">AD</div>
-          <div class="team-info">
-            <h3 class="team-name">Academic Director</h3>
-            <div class="team-role">Curriculum &amp; Certification</div>
-            <p class="team-line">Owns the MAM Method curriculum and Trinity-equivalent certification — guards the standard from Grade 1 to Diploma.</p>
-          </div>
-        </article>
-        <article class="team-card" style="--accent:#A5B4FC">
-          <div class="team-avatar">MA</div>
-          <div class="team-info">
-            <h3 class="team-name">Head of Admissions</h3>
-            <div class="team-role">MAM Auditer &amp; Placement</div>
-            <p class="team-line">Runs your entry assessment and places you with the right instructor, level and pathway — KTAMS or MAM.</p>
-          </div>
-        </article>
-        <article class="team-card" style="--accent:#34D399">
-          <div class="team-avatar">OC</div>
-          <div class="team-info">
-            <h3 class="team-name">Operations &amp; Onsite Lead</h3>
-            <div class="team-role">Lagos Studio · Scheduling</div>
-            <p class="team-line">Coordinates onsite lessons, ensembles and stagecraft at MAM Centre, and keeps every timetable running on time.</p>
-          </div>
-        </article>
-        <article class="team-card" style="--accent:#F05A28">
-          <div class="team-avatar">SC</div>
-          <div class="team-info">
-            <h3 class="team-name">Student Care &amp; Success</h3>
-            <div class="team-role">Onboarding &amp; Support</div>
-            <p class="team-line">Your first point of contact — onboarding, reminders, progress check-ins and a friendly answer whenever you're stuck.</p>
-          </div>
-        </article>
-        <article class="team-card" style="--accent:#A5B4FC">
-          <div class="team-avatar">RL</div>
-          <div class="team-info">
-            <h3 class="team-name">Rhythm Lab Coordinator</h3>
-            <div class="team-role">MAM Rapid System</div>
-            <p class="team-line">Leads rhythm-intelligence labs and group clinics that sharpen timing, feel and groove across every discipline.</p>
-          </div>
-        </article>
-        <article class="team-card" style="--accent:#FBBF24">
-          <div class="team-avatar">OP</div>
-          <div class="team-info">
-            <h3 class="team-name">Online Learning Producer</h3>
-            <div class="team-role">Virtual Classes &amp; Media</div>
-            <p class="team-line">Makes online classes feel as present as the room — clean audio, recordings and a smooth experience on any device.</p>
-          </div>
-        </article>
-      </div>
-    </div>
-  </section>
-
-  <section style="background:var(--bg-surface);padding:64px 24px;text-align:center">
-    <div class="container">
-      <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Want to teach at MAM?<span class="line" style="transform:scaleX(-1)"></span></div>
-      <h2 class="section-title" style="margin:0 auto 16px">Join the <span class="highlight-gold">Faculty</span></h2>
-      <p class="section-desc" style="margin:0 auto 28px">We're always open to seasoned musicians and creative leaders who share the MAM vision. Send a short note &amp; portfolio.</p>
-      <a href="contact" class="btn btn-primary btn-large"><i class="fa-solid fa-envelope"></i>Reach Out</a>
-    </div>
-  </section>
-
-  <section id="next-step" aria-label="Continue your journey">
-    <div class="next-step-wrap">
-      <a class="next-step-back" href="schools">
-        <i class="fa-solid fa-arrow-left"></i>
-        <div><div class="next-step-back-label">Previous · Step 2</div><strong>The Four Schools</strong></div>
-      </a>
-      <a class="next-step-card" href="pathways">
-        <div class="next-step-eyebrow"><span class="num">04</span>Up next · Continue your journey</div>
-        <div class="next-step-title">Certification Pathways <i class="fa-solid fa-arrow-right"></i></div>
-        <p class="next-step-desc">See the 4 Trinity-equivalent levels — Pre-Cert through Diploma — plus Crash Programmes and The MetaMusic Order.</p>
-        <div class="next-step-meta">
-          <span><i class="fa-solid fa-graduation-cap"></i>Grade 1–8</span>
-          <span><i class="fa-solid fa-tag"></i>From <span data-cur-sym>$</span><span data-price="70">70</span> / <span data-cur-sym>$</span><span data-price="120">120</span></span>
         </div>
-      </a>
-    </div>
-  </section>
-</main>
+        <div style="flex: 1.3 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Founder &amp; Director</p>
+          <h2 id="founder-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(38px, 4vw, 58px); line-height: 1.05">Just-Joe Adeola</h2>
+          <p style="margin: 0; font-size: 15px; color: #574B40">Babatunde Oluwaseyi Just-Joe Adeola</p>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">Founder of MAM Centre and architect of the MAM Method. Just-Joe leads The MetaMusic Order and hosts the free monthly Power Play series, and trains performers, worship leaders and creative thinkers in the philosophy and discipline of sound.</p>
+          <ul style="list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px">
+            <li style="padding: 6px 14px; border-radius: 999px; border: 1px solid #D6CCBE; font-size: 14px; color: #3E342B">MetaMusic</li>
+            <li style="padding: 6px 14px; border-radius: 999px; border: 1px solid #D6CCBE; font-size: 14px; color: #3E342B">Creative leadership</li>
+            <li style="padding: 6px 14px; border-radius: 999px; border: 1px solid #D6CCBE; font-size: 14px; color: #3E342B">Performance intelligence</li>
+          </ul>
+          <a href="/power-play" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 8px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Join Just-Joe at Power Play</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">Free, online, every month</span></a>
+        </div>
+      </div>
+    </section>
 
-<?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20261120a"></script>
-<script src="assets/js/main.js?v=20260920"></script>
-</body>
-</html>
+    <section id="schools" aria-labelledby="schools-h" style="background: #F3EEE6">
+      <div style="max-width: 1200px; margin: 0 auto; padding: clamp(64px, 8vw, 120px) clamp(20px, 4vw, 40px); box-sizing: border-box; display: flex; flex-direction: column; gap: clamp(28px, 3vw, 44px)">
+        <div style="max-width: 760px; display: flex; flex-direction: column; gap: 16px">
+          <p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">The schools</p>
+          <h2 id="schools-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05">Faculty across the schools</h2>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">Your instructor is chosen after your <a href="/auditer" class="ul" style="color: #8A5208">MAM Auditer assessment</a>, matched to your level, your mode of study and your goals.</p>
+        </div>
+        <ul class="stagger" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 16px">
+<?php foreach ($ffSchools as [$school, $name, $bio]): ?>
+          <li class="lift" style="display: flex; flex-direction: column; gap: 10px; padding: 28px; border-radius: 16px; background: #FFFFFF; border: 1px solid #E6DED2">
+            <span style="font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #8A5208"><?= site_h($school) ?></span>
+            <h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 28px; line-height: 1.1"><?= site_h($name) ?> faculty</h3>
+            <p style="margin: 0; font-size: 16px; line-height: 1.65; color: #3E342B"><?= site_h($bio) ?></p>
+          </li>
+<?php endforeach; ?>
+        </ul>
+      </div>
+    </section>
+
+    <section id="team" aria-labelledby="team-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(64px, 8vw, 120px) clamp(20px, 4vw, 40px); box-sizing: border-box; display: flex; flex-wrap: wrap; gap: 32px clamp(40px, 6vw, 96px)">
+      <div style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 16px">
+        <h2 id="team-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1">The team behind the classes</h2>
+        <p class="read" style="margin: 0; font-size: 17px; line-height: 1.7; color: #3E342B">From your first assessment to your final recital, online or in person.</p>
+      </div>
+      <dl style="flex: 2 1 480px; min-width: 0; margin: 0; display: flex; flex-direction: column">
+<?php foreach ($ffTeam as $i => [$role, $line]): ?>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px 24px; padding: 20px 0; <?= $i ? 'border-top: 1px solid #E6DED2' : '' ?>">
+          <dt style="flex: 0 1 220px; font-weight: 600; font-size: 17px; color: #211A13"><?= site_h($role) ?></dt>
+          <dd style="flex: 1 1 280px; margin: 0; font-size: 16px; line-height: 1.65; color: #3E342B"><?= site_h($line) ?></dd>
+        </div>
+<?php endforeach; ?>
+      </dl>
+    </section>
+
+    <section aria-labelledby="teach-h" style="padding: 0 clamp(8px, 1vw, 14px) clamp(8px, 1vw, 14px)">
+      <div style="max-width: 1440px; margin: 0 auto; border-radius: clamp(14px, 1.6vw, 22px); background: radial-gradient(120% 140% at 80% 0%, #5A3815 0%, #24160B 45%, #140D08 100%); color: #FCF8F3; padding: clamp(56px, 7vw, 112px) clamp(20px, 4vw, 40px); box-sizing: border-box; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 20px">
+        <h2 id="teach-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05">Teach at <em style="font-style: italic; color: #F2A93B">MAM</em></h2>
+        <p style="margin: 0; max-width: 560px; font-size: 18px; line-height: 1.6; color: #D8CEC1">We welcome experienced musicians and creative leaders who share the academy’s vision.</p>
+        <a href="/instructor-apply" class="btn arrow" style="display: inline-flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 26px; border-radius: 999px; background: #F2A93B; color: #211A13; font-weight: 600; text-decoration: none">Apply to teach <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+</main>
+<?php
+echo (string) ob_get_clean();
+site_footer();

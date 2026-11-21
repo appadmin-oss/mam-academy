@@ -92,7 +92,7 @@ $html = '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">'
   .     ($diploma ? '<span class="diploma">Diploma Transcript Enclosed</span>' : '')
   .   '</div>'
   .   '<div class="foot">'
-  .     '<div class="sig"><div class="ln">Van. BOJA</div><div class="sub">Director, MAM Academy</div></div>'
+  .     '<div class="sig"><div class="ln">Just-Joe Adeola</div><div class="sub">Director, MAM Academy</div></div>'
   .     '<div class="meta">Issued ' . $issued . '<br>Certificate ID <span class="ref">' . $refEsc . '</span><br>Scan the QR or verify at academy.mamcentre.org/verify'
   .       '<div id="cert-qr" style="margin-top:8px;display:inline-block;background:#fff;padding:4px;border-radius:6px" title="Scan to verify this certificate"></div>'
   .     '</div>'

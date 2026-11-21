@@ -5,16 +5,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark">
-<title>Power Play — A Free Monthly Series with Van. BOJA | MAM Academy</title>
-<meta name="description" content="Power Play is a free monthly global series for musicians, artists, worship leaders and culture shapers — hosted by Van. BOJA. Online via Google Meet.">
+<title>Power Play — A Free Monthly Series with Just-Joe Adeola | MAM Academy</title>
+<meta name="description" content="Power Play is a free monthly global series for musicians, artists, worship leaders and culture shapers — hosted by Just-Joe Adeola. Online via Google Meet.">
 <link rel="canonical" href="https://academy.mamcentre.org/power-play">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Power Play — A Free Monthly Series with Van. BOJA | MAM Academy">
-<meta name="twitter:description" content="Power Play is a free monthly global series for musicians, artists, worship leaders and culture shapers — hosted by Van. BOJA. Online via Google Meet.">
+<meta name="twitter:title" content="Power Play — A Free Monthly Series with Just-Joe Adeola | MAM Academy">
+<meta name="twitter:description" content="Power Play is a free monthly global series for musicians, artists, worship leaders and culture shapers — hosted by Just-Joe Adeola. Online via Google Meet.">
 <meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Power Play","item":"https://academy.mamcentre.org/power-play"}]}</script>
 <link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
-<meta property="og:title" content="⚡ Power Play with Van. BOJA"><meta property="og:description" content="A free monthly global series for musicians, artists and culture shapers."><meta property="og:image" content="mam-academy-logo.svg">
+<meta property="og:title" content="⚡ Power Play with Just-Joe Adeola"><meta property="og:description" content="A free monthly global series for musicians, artists and culture shapers."><meta property="og:image" content="mam-academy-logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
@@ -86,7 +86,7 @@
 </head>
 <body>
 <a href="#main" class="skip-link">Skip to main content</a>
-<div id="preloader"><div class="preloader-logo"><img src="mam-academy-logo.svg" alt="" onerror="this.style.display='none'"><div class="preloader-name">MAM ACADEMY</div><div class="preloader-tag">Power Play with Van. BOJA</div></div><div class="waves"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+<div id="preloader"><div class="preloader-logo"><img src="mam-academy-logo.svg" alt="" onerror="this.style.display='none'"><div class="preloader-name">MAM ACADEMY</div><div class="preloader-tag">Power Play with Just-Joe Adeola</div></div><div class="waves"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
 
 <?php include __DIR__ . '/partials/header.html'; ?>
 
@@ -96,14 +96,14 @@
       <div>
         <nav class="breadcrumb" style="justify-content:flex-start"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Power Play</span></nav>
         <div class="pp-eyebrow"><span class="pp-live" aria-hidden="true"></span>Free Monthly Series</div>
-        <h1 class="pp-title">POWER <span class="accent">PLAY</span><span class="pp-withhost">with Van. BOJA</span></h1>
+        <h1 class="pp-title">POWER <span class="accent">PLAY</span><span class="pp-withhost">with Just-Joe Adeola</span></h1>
         <p class="pp-tagline">The War Room for Cultural Architects</p>
         <p class="pp-lede">A monthly gathering for musicians, creatives and culture shapers — built to forge presence, mastery and intentional influence.</p>
         <p class="pp-motto">"Building Men Who Can Move Nations."</p>
         <div class="pp-host">
           <div class="pp-host-avatar">VB</div>
           <div>
-            <div class="pp-host-name">Hosted by Van. BOJA</div>
+            <div class="pp-host-name">Hosted by Just-Joe Adeola</div>
             <div class="pp-host-role">Babatunde Oluwaseyi Just-Joe Adeola</div>
           </div>
         </div>
@@ -133,7 +133,7 @@
           <div class="pp-aside-row"><span>Frequency</span><span>First Wednesday, monthly</span></div>
           <div class="pp-aside-row"><span>Duration</span><span>90 minutes</span></div>
           <div class="pp-aside-row"><span>Audience</span><span>Global · Online</span></div>
-          <div class="pp-aside-row"><span>Host</span><span>Van. BOJA</span></div>
+          <div class="pp-aside-row"><span>Host</span><span>Just-Joe Adeola</span></div>
           <a href="#register" class="btn btn-primary"><i class="fa-solid fa-bolt"></i> Save my seat</a>
           <p style="font-size:0.82rem;color:var(--text-muted);margin-top:14px;line-height:1.6;text-align:center">Raw conversations. Fierce insights. Growth for musicians who think like architects.</p>
         </div>
@@ -184,12 +184,12 @@
             <li class="school-course-item"><i class="fa-solid fa-circle" style="color:#A5B4FC;font-size:0.6rem"></i>Spirituality of music &amp; presence</li>
             <li class="school-course-item"><i class="fa-solid fa-circle" style="color:#A5B4FC;font-size:0.6rem"></i>Leadership for creatives</li>
             <li class="school-course-item"><i class="fa-solid fa-circle" style="color:#A5B4FC;font-size:0.6rem"></i>Raw conversations &amp; fierce insights</li>
-            <li class="school-course-item"><i class="fa-solid fa-circle" style="color:#A5B4FC;font-size:0.6rem"></i>Q&amp;A with Van. BOJA</li>
+            <li class="school-course-item"><i class="fa-solid fa-circle" style="color:#A5B4FC;font-size:0.6rem"></i>Q&amp;A with Just-Joe Adeola</li>
             <li class="school-course-item"><i class="fa-solid fa-circle" style="color:#A5B4FC;font-size:0.6rem"></i>A growing global community of culture shapers</li>
           </ul>
           <blockquote style="margin-top:28px;padding:20px 24px;border-left:3px solid #A5B4FC;background:rgba(99,102,241,0.07);border-radius:0 var(--radius-sm) var(--radius-sm) 0">
             <p style="font-family:var(--font-serif);font-style:italic;font-size:1.1rem;color:var(--text);line-height:1.6">"The future does not belong to the loudest voices. It belongs to the most prepared."</p>
-            <cite style="display:block;margin-top:8px;color:#A5B4FC;font-weight:700;font-size:0.8rem;letter-spacing:0.08em;text-transform:uppercase;font-style:normal">— Van. BOJA</cite>
+            <cite style="display:block;margin-top:8px;color:#A5B4FC;font-weight:700;font-size:0.8rem;letter-spacing:0.08em;text-transform:uppercase;font-style:normal">— Just-Joe Adeola</cite>
           </blockquote>
         </div>
         <div><img src="https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=900&q=80" alt="Power Play gathering" loading="lazy" style="width:100%;border-radius:var(--radius-lg);border:2px solid rgba(165,180,252,0.4);box-shadow:var(--shadow-lg)"></div>

@@ -32,7 +32,7 @@ blocks = [
   'Ten dimensions of musical readiness, measured on entry and reported every term.', ('Auditer.dc.html', 'Learn more about the MAM Auditer', 'How the assessment works'), 'an assessor listening to a student'),
  ('A method of our own', ['The MAM Method is a complete system, not just a curriculum. Five pillars shape every lesson at every level, from a four-year-old’s first notes to a diploma recital.'],
   'Technique · Rhythm Intelligence · Performance Intelligence · Creative Consciousness · Artistic Discipline', ('Programmes.dc.html#levels', 'Learn more about the four levels', 'From Pre-Certificate to Diploma'), 'a student practising at the piano'),
- ('Taught by working musicians', ['Our faculty are performers, worship leaders and composers who are active in their craft. The academy is led by its founder, Van. BOJA, who also leads The MetaMusic Order and the monthly Power Play series.'],
+ ('Taught by working musicians', ['Our faculty are performers, worship leaders and composers who are active in their craft. The academy is led by its founder, Just-Joe Adeola, who also leads The MetaMusic Order and the monthly Power Play series.'],
   '', ('#learn-more', 'Meet our leadership and faculty', 'Founder, directors and lead faculty'), 'faculty performing together'),
  ('Support that makes a difference', ['Cost should not decide who becomes a musician. The NGV Scholarship supports talented students for whom tuition is the only barrier.'],
   '', ('Apply.dc.html', 'Ask about the scholarship when you apply', 'Admissions and support'), 'a student smiling after a lesson'),

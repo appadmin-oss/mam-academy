@@ -662,7 +662,7 @@ function mam_email_promo_block(array $exclude = []): string {
     $fp = mam_programme_from_prices();
     $base = 'https://academy.mamcentre.org/';
     $items = [
-        'powerplay' => ['⚡ Power Play with Van. BOJA', 'Free monthly online session for musicians & culture-shapers.', 'Free', 'power-play'],
+        'powerplay' => ['⚡ Power Play with Just-Joe Adeola', 'Free monthly online session for musicians & culture-shapers.', 'Free', 'power-play'],
         'crash'     => ['Crash Programme', 'A focused 6-week accelerated intensive — quick, real wins.', '$' . (int)round($fp['crash']), 'crash'],
         'pathways'  => ['Certified &amp; Grand Musician', 'Train across all four levels, online or onsite.', 'from $' . (int)round($fp['certified-musician']), 'pathways'],
         'metamusic' => ['The MetaMusic Order', '12-week post-graduate cultural-architecture track.', '$' . (int)round($fp['meta-order']), 'metamusic-order'],
@@ -862,7 +862,7 @@ function mam_email_powerplay_confirmation(): string {
         ? mam_email_button($meet, 'Join the Google Meet', '#6366F1,#A5B4FC')
         : "<p style='color:#7A5C3D;font-size:14px;text-align:center;margin:24px 0'>We'll email you the Google Meet link 24 hours before the session.</p>";
     $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>You're registered for Power Play.</h2>
-      <p style='color:#4A3624;font-size:15px;margin:0'>A free, raw, 90-minute session with <strong>Van. BOJA</strong> for musicians, artists and culture-shapers. Here's the next one:</p>
+      <p style='color:#4A3624;font-size:15px;margin:0'>A free, raw, 90-minute session with <strong>Just-Joe Adeola</strong> for musicians, artists and culture-shapers. Here's the next one:</p>
       <div style='background:#FBF4E8;border:1px dashed #A5B4FC;border-radius:10px;padding:18px;text-align:center;margin:18px 0'>
         <div style='font-size:13px;color:#A5B4FC;text-transform:uppercase;letter-spacing:0.1em;font-weight:800'>Next Session</div>
         <div style='font-size:18px;color:#fff;font-weight:700;margin-top:6px'>$date</div>
@@ -874,7 +874,7 @@ function mam_email_powerplay_confirmation(): string {
       " . mam_email_promo_block(['powerplay']);
     return mam_email_layout([
         'header' => '⚡ POWER PLAY', 'accent' => '#6366F1,#A5B4FC',
-        'preheader' => 'You are registered — here is the date for the next free Power Play with Van. BOJA.',
+        'preheader' => 'You are registered — here is the date for the next free Power Play with Just-Joe Adeola.',
         'reason' => 'You received this because you registered for Power Play on academy.mamcentre.org.',
         'unsubscribe' => true, 'body' => $inner,
     ]);
@@ -1165,7 +1165,7 @@ function mam_email_newsletter_welcome(string $source = 'site'): string {
     $inner = "<h2 class='h1' style='font-family:Georgia,serif;margin:0 0 12px;font-size:22px;color:#1A120B'>You're on the inside.</h2>
       <p style='color:#4A3624;font-size:15px;margin:0'>Thanks for joining the MAM Academy circle. Once a month you'll get:</p>
       <ul style='color:#4A3624;font-size:15px;line-height:1.85;padding-left:18px;margin:14px 0'>
-        <li>The date &amp; theme of the next free <strong style='color:#B8721B'>Power Play with Van. BOJA</strong></li>
+        <li>The date &amp; theme of the next free <strong style='color:#B8721B'>Power Play with Just-Joe Adeola</strong></li>
         <li>Open intake dates &amp; new programme launches</li>
         <li>Student showcases, faculty essays &amp; long-form notes on the MAM Method</li>
       </ul>

@@ -343,7 +343,7 @@ WebP or AVIF, under 300 KB each, with alt text.
 - [ ] Intake name and date for every [INTAKE] placeholder
 - [ ] MAM Auditer session length (designed as "about 30 minutes")
 - [ ] Vision line "We interpret the timeless using instruments and replay it in time"
-- [ ] Faculty names and photos beyond Van. BOJA
+- [ ] Faculty names and photos beyond Just-Joe Adeola
 - [ ] Term structure on Life
 - [ ] Auditer dimension descriptions and sample values
 

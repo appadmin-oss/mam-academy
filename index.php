@@ -246,7 +246,7 @@ ob_start();
               <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px">
                 <p style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #8A5208">First Wednesday of every month</p>
                 <h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 28px; line-height: 1.1">Power Play</h3>
-                <p style="margin: 0; font-size: 14px; color: #574B40">A global broadcast with Van. BOJA for musicians and creatives.</p>
+                <p style="margin: 0; font-size: 14px; color: #574B40">A global broadcast with Just-Joe Adeola for musicians and creatives.</p>
               </div>
               <span style="flex: none; font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 10px; background: #F6F1E9; color: #211A13">Free</span>
             </li>
