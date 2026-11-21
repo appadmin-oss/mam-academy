@@ -5,12 +5,14 @@ api/storage/.app_key
 # restore can tell before it starts. Still install-specific, so not committed.
 api/storage/.app_key.fingerprint
 api/.env
-api/storage/og/
+api/storage/og/*
+!api/storage/og/.gitkeep
 # ETL snapshots hold a full copy of the database — identity, payments,
 # audit and consent rows. They are a rollback artifact, never a commit.
 api/storage/export/
 # Uploaded headshots — real people's photographs, never committed.
-api/storage/uploads/
+api/storage/uploads/*
+!api/storage/uploads/.gitkeep
 # The job runner's flock. Running the cron on a checkout left this in
 # `git status`, where the repo's own rule is to stage paths explicitly —
 # so a `git add -A` would have committed a runtime lock.
@@ -18,3 +20,11 @@ api/storage/.run-jobs.lock
 
 # Faithful writes its last run here (npx @faithful/cli verify …)
 .faithful/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/

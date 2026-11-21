@@ -15,3 +15,6 @@
 *.otf   binary
 *.pdf  binary
 *.zip  binary
+*.webp binary
+*.mp4  binary
+*.webm binary
