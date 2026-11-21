@@ -1,203 +1,82 @@
-<?php require __DIR__ . '/partials/site/shell.php'; ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="dark">
-<title>Contact MAM Academy</title>
-<meta name="description" content="Get in touch with MAM Academy. Email, phone and contact form.">
-<link rel="canonical" href="https://academy.mamcentre.org/contact">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="MAM Academy">
-<meta property="og:title" content="Contact MAM Academy">
-<meta property="og:description" content="Get in touch with MAM Academy. Email, phone and contact form.">
-<meta property="og:url" content="https://academy.mamcentre.org/contact">
-<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=Talk+to+MAM+Academy&amp;s=Questions+about+programmes%2C+tuition+or+teaching%3F+We+reply+fast.&amp;e=Contact">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:type" content="image/png">
-<meta property="og:locale" content="en_US">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Contact MAM Academy">
-<meta name="twitter:description" content="Get in touch with MAM Academy. Email, phone and contact form.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/api/og?t=Talk+to+MAM+Academy&amp;s=Questions+about+programmes%2C+tuition+or+teaching%3F+We+reply+fast.&amp;e=Contact">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Contact","item":"https://academy.mamcentre.org/contact"}]}</script>
-<link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260920">
-<link rel="stylesheet" href="assets/css/apply.css?v=20260617b">
-</head>
-<body>
-<a href="#main" class="skip-link">Skip to main content</a>
-<div id="preloader"><div class="preloader-logo"><img src="mam-academy-logo.svg" alt="" onerror="this.style.display='none'"><div class="preloader-name">MAM ACADEMY</div><div class="preloader-tag">Contact</div></div><div class="waves"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+<?php
+/**
+ * Contact — on the 2026-11 redesign shell (partials/site/). The handoff did not
+ * draw it; it is built from the handoff's own parts (the About page's breadcrumb
+ * and serif H1, the Apply flow's fields). The form posts the same fields to the
+ * same CSRF-gated endpoint as before (POST /api/contact: name, email, phone,
+ * topic, message), from assets/js/contact.js, which needs neither config.js nor
+ * main.js.
+ */
+declare(strict_types=1);
+require __DIR__ . '/partials/site/shell.php';
 
-<?php include __DIR__ . '/partials/header.html'; ?>
+$ctTopics = ['Enrollment & Pathways', 'MAM Auditer Assessment', 'MetaMusic Order', 'Power Play series', 'Crash Programmes',
+             'Teaching at MAM (Faculty)', 'Partnerships & Speaking', 'Press & Media', 'Other'];
+$ctLabel = 'display: block; margin-bottom: 8px; font-size: 15px; font-weight: 600; color: #211A13';
+$ctInput = 'box-sizing: border-box; width: 100%; min-height: 52px; padding: 12px 16px; border-radius: 12px; border: 1px solid #CFC3B3; background: #FFFFFF; font: inherit; font-size: 16px; color: #211A13';
+$ctErr = 'margin: 6px 0 0; font-size: 14px; color: #B0361C';
 
+site_head([
+    'title' => 'Contact MAM Academy',
+    'description' => 'Get in touch with MAM Academy. Email, phone and contact form.',
+    'path' => '/contact',
+]);
+site_header('inner');
+ob_start();
+?>
 <main id="main">
-  <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=1920&q=80')">
-    <div class="page-hero-inner">
-      <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Contact</span></nav>
-      <div class="page-hero-eyebrow"><i class="fa-solid fa-envelope"></i>Get in Touch</div>
-      <h1 class="page-hero-title">Talk to <span class="highlight-gold">MAM Academy</span></h1>
-      <p class="page-hero-lede">Questions about pathways, the MetaMusic Order or your child's musical journey? We reply within 24 hours.</p>
-    </div>
-  </header>
-
-  <section>
-    <div class="container about-grid" style="display:grid;grid-template-columns:1fr 1.5fr;gap:48px;align-items:start">
-      <aside style="display:flex;flex-direction:column;gap:18px">
-        <div class="apply-side-card">
-          <h2>Reach Us Directly</h2>
-          <div class="help-list">
-            <div class="help-item"><i class="fa-solid fa-envelope"></i><span><strong>Email</strong><br><a href="mailto:academy@mamcentre.org" style="color:var(--gold-bright)">academy@mamcentre.org</a></span></div>
-            <div class="help-item"><i class="fa-solid fa-phone"></i><span><strong>Phone</strong><br><a href="tel:+2347044446517" style="color:var(--gold-bright)">+234 704 444 6517</a></span></div>
-            <div class="help-item"><i class="fa-solid fa-location-dot"></i><span><strong>Office</strong><br>CACENTRE-Egbeda, 2 Abolude Oremeji Street, Off Akowonjo Road, Bakery Bus Stop, Egbeda, Alimosho, Lagos</span></div>
-            <div class="help-item"><i class="fa-solid fa-clock"></i><span><strong>Hours</strong><br>Mon–Sat · 9am–6pm WAT</span></div>
-          </div>
+<?php
+site_doc_open('Contact', 'Talk to MAM Academy', 'Questions about pathways, the MetaMusic Order or your child’s musical journey? We reply within 24 hours.');
+?>
+    <section aria-label="Contact details and form" style="max-width: 1200px; margin: 0 auto; padding: clamp(40px, 5vw, 72px) clamp(20px, 4vw, 40px) clamp(64px, 8vw, 120px); box-sizing: border-box; border-top: 1px solid #E6DED2; display: flex; flex-wrap: wrap; gap: 48px clamp(40px, 6vw, 96px); align-items: flex-start">
+      <div style="flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 32px">
+        <div>
+          <h2 style="margin: 0 0 16px; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1">Reach us directly</h2>
+          <dl style="margin: 0; display: flex; flex-direction: column">
+            <div style="padding: 16px 0; border-top: 1px solid #E6DED2"><dt style="font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Email</dt><dd style="margin: 6px 0 0; font-size: 17px"><a href="mailto:academy@mamcentre.org" class="ul" style="color: #211A13; text-decoration: none">academy@mamcentre.org</a></dd></div>
+            <div style="padding: 16px 0; border-top: 1px solid #E6DED2"><dt style="font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Phone</dt><dd style="margin: 6px 0 0; font-size: 17px"><a href="tel:+2347044446517" class="ul" style="color: #211A13; text-decoration: none">+234 704 444 6517</a></dd></div>
+            <div style="padding: 16px 0; border-top: 1px solid #E6DED2"><dt style="font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Office</dt><dd style="margin: 6px 0 0; font-size: 16px; line-height: 1.6; color: #3E342B">CACENTRE-Egbeda, 2 Abolude Oremeji Street, Off Akowonjo Road, Bakery Bus Stop, Egbeda, Alimosho, Lagos</dd></div>
+            <div style="padding: 16px 0; border-top: 1px solid #E6DED2"><dt style="font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Hours</dt><dd style="margin: 6px 0 0; font-size: 16px; color: #3E342B">Mon–Sat · 9am–6pm WAT</dd></div>
+          </dl>
         </div>
-        <div class="apply-side-card">
-          <h2>Follow MAM</h2>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <a href="https://instagram.com/mamacademy1" target="_blank" rel="noopener" class="footer-social" aria-label="MAM Academy on Instagram"><i class="fa-brands fa-instagram"></i></a>
-            <a href="https://twitter.com/mamacademy1" target="_blank" rel="noopener" class="footer-social" aria-label="MAM Academy on X (Twitter)"><i class="fa-brands fa-x-twitter"></i></a>
-            <a href="https://facebook.com/mamacademy1" target="_blank" rel="noopener" class="footer-social" aria-label="MAM Academy on Facebook"><i class="fa-brands fa-facebook-f"></i></a>
-            <a href="https://youtube.com/mamacademy1" target="_blank" rel="noopener" class="footer-social" aria-label="MAM Academy on YouTube"><i class="fa-brands fa-youtube"></i></a>
-          </div>
+        <div>
+          <h2 style="margin: 0 0 12px; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: 28px; line-height: 1.1">Follow MAM</h2>
+          <ul style="list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 20px">
+            <li><a href="https://instagram.com/mamacademy1" target="_blank" rel="noopener" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; color: #211A13; text-decoration: none">Instagram</a></li>
+            <li><a href="https://twitter.com/mamacademy1" target="_blank" rel="noopener" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; color: #211A13; text-decoration: none">X (Twitter)</a></li>
+            <li><a href="https://facebook.com/mamacademy1" target="_blank" rel="noopener" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; color: #211A13; text-decoration: none">Facebook</a></li>
+            <li><a href="https://youtube.com/mamacademy1" target="_blank" rel="noopener" class="ul" style="display: inline-flex; align-items: center; min-height: 44px; color: #211A13; text-decoration: none">YouTube</a></li>
+          </ul>
         </div>
-      </aside>
+      </div>
 
-      <div class="apply-main" style="margin:0">
-        <h2 class="step-title">Send Us a Message</h2>
-        <p class="step-desc">All messages go to <strong>academy@mamcentre.org</strong>. We reply within 24 hours.</p>
-
-        <form id="contactForm" novalidate style="margin-top:24px">
-          <input type="text" name="_honeypot" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;opacity:0" aria-hidden="true">
-
-          <div class="field-row">
-            <div class="field"><label class="field-label" for="cf-name">Your Name <span class="req">*</span></label><input type="text" id="cf-name" class="field-input" placeholder="Full name" autocomplete="name" required></div>
-            <div class="field"><label class="field-label" for="cf-email">Email <span class="req">*</span></label><input type="email" id="cf-email" class="field-input" placeholder="you@example.com" autocomplete="email" inputmode="email" required></div>
+      <div style="flex: 1.5 1 440px; min-width: 0; padding: clamp(24px, 3vw, 40px); border-radius: 20px; background: #FFFFFF; border: 1px solid #E6DED2; box-sizing: border-box">
+        <h2 style="margin: 0 0 8px; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1">Send us a message</h2>
+        <p style="margin: 0 0 24px; font-size: 16px; line-height: 1.6; color: #574B40">All messages go to <strong>academy@mamcentre.org</strong>. We reply within 24 hours.</p>
+        <form id="contactForm" novalidate style="display: flex; flex-direction: column; gap: 20px">
+          <input type="text" name="_honeypot" tabindex="-1" autocomplete="off" aria-hidden="true" style="position: absolute; left: -9999px; width: 1px; height: 1px">
+          <div style="display: flex; flex-wrap: wrap; gap: 20px">
+            <div style="flex: 1 1 220px; min-width: 0"><label for="cf-name" style="<?= $ctLabel ?>">Your name <span aria-hidden="true" style="color: #B0361C">*</span></label><input type="text" id="cf-name" placeholder="Full name" autocomplete="name" required aria-describedby="cf-name-err" style="<?= $ctInput ?>"><p id="cf-name-err" hidden style="<?= $ctErr ?>"></p></div>
+            <div style="flex: 1 1 220px; min-width: 0"><label for="cf-email" style="<?= $ctLabel ?>">Email <span aria-hidden="true" style="color: #B0361C">*</span></label><input type="email" id="cf-email" placeholder="you@example.com" autocomplete="email" inputmode="email" required aria-describedby="cf-email-err" style="<?= $ctInput ?>"><p id="cf-email-err" hidden style="<?= $ctErr ?>"></p></div>
           </div>
-          <div class="field-row">
-            <div class="field"><label class="field-label" for="cf-phone">Phone</label><input type="tel" id="cf-phone" class="field-input" placeholder="+234…" autocomplete="tel" inputmode="tel"></div>
-            <div class="field"><label class="field-label" for="cf-topic">Topic <span class="req">*</span></label><div class="field-select-wrap"><select id="cf-topic" class="field-select" required><option value="">Select topic</option><option>Enrollment &amp; Pathways</option><option>MAM Auditer Assessment</option><option>MetaMusic Order</option><option>Power Play series</option><option>Crash Programmes</option><option>Teaching at MAM (Faculty)</option><option>Partnerships &amp; Speaking</option><option>Press &amp; Media</option><option>Other</option></select><i class="fa-solid fa-chevron-down field-select-arrow"></i></div></div>
+          <div style="display: flex; flex-wrap: wrap; gap: 20px">
+            <div style="flex: 1 1 220px; min-width: 0"><label for="cf-phone" style="<?= $ctLabel ?>">Phone</label><input type="tel" id="cf-phone" placeholder="+234…" autocomplete="tel" inputmode="tel" style="<?= $ctInput ?>"></div>
+            <div style="flex: 1 1 220px; min-width: 0"><label for="cf-topic" style="<?= $ctLabel ?>">Topic <span aria-hidden="true" style="color: #B0361C">*</span></label><select id="cf-topic" required aria-describedby="cf-topic-err cf-topic-tip" style="<?= $ctInput ?>"><option value="">Select topic</option>
+<?php foreach ($ctTopics as $t): ?>
+              <option><?= site_h($t) ?></option>
+<?php endforeach; ?>
+            </select><p id="cf-topic-err" hidden style="<?= $ctErr ?>"></p></div>
           </div>
-          <div class="field"><label class="field-label" for="cf-message">Message <span class="req">*</span></label><textarea id="cf-message" class="field-textarea" placeholder="Tell us how we can help…" required maxlength="2000"></textarea></div>
-          <button type="submit" class="btn-step btn-step-next" id="cf-submit"><i class="fa-solid fa-paper-plane"></i>Send Message</button>
-          <p id="cf-msg" style="margin-top:14px;font-size:0.88rem;color:var(--emerald);display:none">Thanks — we'll be in touch shortly.</p>
+          <p id="cf-topic-tip" hidden style="margin: -8px 0 0; padding: 14px 16px; border-radius: 12px; background: #F3EEE6; font-size: 15px; line-height: 1.6; color: #3E342B"></p>
+          <div><label for="cf-message" style="<?= $ctLabel ?>">Message <span aria-hidden="true" style="color: #B0361C">*</span></label><textarea id="cf-message" placeholder="Tell us how we can help…" required maxlength="2000" rows="6" aria-describedby="cf-message-err" style="<?= $ctInput ?>; min-height: 160px; resize: vertical"></textarea><p id="cf-message-err" hidden style="<?= $ctErr ?>"></p></div>
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px">
+            <button type="submit" id="cf-submit" class="btn arrow" style="display: inline-flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 26px; border: 0; border-radius: 999px; background: #211A13; color: #FAF8F4; font: inherit; font-weight: 600; cursor: pointer">Send message <span aria-hidden="true">→</span></button>
+            <p id="cf-msg" role="status" aria-live="polite" style="margin: 0; font-size: 15px; color: #3E342B"></p>
+          </div>
         </form>
       </div>
-    </div>
-  </section>
+    </section>
 </main>
-
-<?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20261120a"></script>
-<script src="assets/js/main.js?v=20260920"></script>
-<script>
-document.addEventListener('mam:ready', function () {
-  var form = document.getElementById('contactForm'); if (!form) return;
-  var submit = document.getElementById('cf-submit');
-
-  // Topic-aware tip: most contact-form senders are actually looking for an
-  // existing flow (apply, auditer, partnerships). Surface the shortcut so
-  // they don't wait 24h for an answer we can give in one link.
-  var TOPIC_TIPS = {
-    'Enrollment & Pathways':    { icon: 'graduation-cap', html: "Tip: you can start your enrollment directly at <a href='apply'>start your application</a> — 5 quick steps with auto-save." },
-    'MAM Auditer Assessment':   { icon: 'gauge-high',     html: "Tip: the MAM Auditer is automatically included with your application. <a href='auditer'>Read about it</a>." },
-    'MetaMusic Order':          { icon: 'fire',           html: "The MetaMusic Order is a 12-week intensive. <a href='apply?pathway=meta-order'>Apply</a> or <a href='metamusic-order'>learn more</a>." },
-    'Power Play series':        { icon: 'bolt',           html: "Catch the series at <a href='power-play'>the Power Play page</a>." },
-    'Crash Programmes':         { icon: 'forward',        html: "6-week fast-track. <a href='crash'>See details</a> or <a href='apply?pathway=crash'>start an application</a>." },
-    'Teaching at MAM (Faculty)':{ icon: 'chalkboard-user',html: "Great — tell us your instrument(s)/discipline and a line about your experience. We'll automatically email you the full instructor application form (details + headshot)." },
-    'Partnerships & Speaking':  { icon: 'handshake',      html: "Briefly include the organisation, timeline and audience size so we can route this to the right team." },
-    'Press & Media':            { icon: 'newspaper',      html: 'For press kits and interview requests, please include your outlet and deadline.' }
-  };
-  var topicEl = document.getElementById('cf-topic');
-  // Deep-link prefill: ?topic=Faculty (and friends) preselects the matching option.
-  if (topicEl) {
-    try {
-      var wanted = new URLSearchParams(location.search).get('topic');
-      if (wanted) {
-        var lw = wanted.toLowerCase();
-        Array.prototype.forEach.call(topicEl.options, function (o) {
-          if (o.value && o.value.toLowerCase().indexOf(lw) >= 0) topicEl.value = o.value;
-        });
-        topicEl.dispatchEvent(new Event('change'));
-      }
-    } catch (e) {}
-  }
-  if (topicEl) {
-    topicEl.addEventListener('change', function () {
-      var existing = document.getElementById('cf-topic-tip');
-      var spec = TOPIC_TIPS[topicEl.value];
-      if (!spec) { if (existing) existing.remove(); return; }
-      if (!existing) {
-        existing = document.createElement('div');
-        existing.id = 'cf-topic-tip';
-        existing.className = 'context-tip';
-        topicEl.closest('.field').appendChild(existing);
-      }
-      existing.innerHTML = '<i class="fa-solid fa-' + spec.icon + '"></i><span>' + spec.html + '</span>';
-    });
-  }
-  var doSubmit = function () {
-    var name = document.getElementById('cf-name').value.trim();
-    var email = document.getElementById('cf-email').value.trim();
-    var phone = document.getElementById('cf-phone').value.trim();
-    var topic = document.getElementById('cf-topic').value;
-    var message = document.getElementById('cf-message').value.trim();
-    var msgEl = document.getElementById('cf-msg');
-    if (form.querySelector('[name=_honeypot]').value) { msgEl.style.display='block'; return; }
-    var origLabel = submit.innerHTML;
-    if (window.MAM_FORMS) MAM_FORMS.setBusy(submit, 'Sending…');
-    else { submit.disabled = true; submit.innerHTML = '<span class="spinner"></span><span>Sending…</span>'; }
-    var payload = { name: name, email: email, phone: phone, topic: topic, message: message };
-    var done = function () { if (window.MAM_FORMS) MAM_FORMS.resetBusy(submit); else { submit.disabled = false; submit.innerHTML = origLabel; } };
-    if (window.MAM_API) {
-      window.MAM_API.sendContact(payload)
-        .then(function () { msgEl.textContent = "Thanks — we'll be in touch shortly."; msgEl.style.display='block'; form.reset(); done(); })
-        .catch(function (err) {
-          if (err && err.status === 429) { msgEl.textContent = 'Too many submissions — please try later.'; msgEl.style.color = 'var(--red-hot)'; msgEl.style.display='block'; done(); return; }
-          mailtoFallback();
-        });
-    } else { mailtoFallback(); }
-    function mailtoFallback() {
-      done();
-      var fallback = window.MAM_CONFIG.forms.fallbackEmail;
-      var subject = 'MAM Contact — ' + topic;
-      var body = 'From: ' + name + ' <' + email + '>\nPhone: ' + (phone||'—') + '\nTopic: ' + topic + '\n\n' + message;
-      window.location.href = 'mailto:' + fallback + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-      msgEl.textContent = 'Opening your email…'; msgEl.style.display='block';
-    }
-  };
-
-  // Hand validation to JustValidate when reachable. The library handles
-  // aria-live errors, focus management and inline error rendering — the
-  // raw submit handler is the fallback when the CDN is blocked.
-  if (typeof window.MAM_LOAD_JUSTVALIDATE === 'function') {
-    window.MAM_LOAD_JUSTVALIDATE().then(function (JV) {
-      if (!JV) {
-        form.addEventListener('submit', function (e) {
-          e.preventDefault();
-          var em = document.getElementById('cf-email').value.trim();
-          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { alert('Please enter a valid email.'); return; }
-          doSubmit();
-        });
-        return;
-      }
-      var v = new JV(form, { errorFieldCssClass: 'jv-error', errorLabelCssClass: 'jv-error-label', focusInvalidField: true });
-      v.addField('#cf-name',    [{ rule: 'required', errorMessage: 'Enter your name' }, { rule: 'minLength', value: 2 }])
-       .addField('#cf-email',   [{ rule: 'required', errorMessage: 'Email is required' }, { rule: 'email' }])
-       .addField('#cf-topic',   [{ rule: 'required', errorMessage: 'Pick a topic' }])
-       .addField('#cf-message', [{ rule: 'required', errorMessage: 'Tell us how we can help' }, { rule: 'minLength', value: 10, errorMessage: 'A little more detail would help' }])
-       .onSuccess(function (e) { e.preventDefault(); doSubmit(); });
-    });
-  } else {
-    form.addEventListener('submit', function (e) { e.preventDefault(); doSubmit(); });
-  }
-});
-</script>
-</body>
-</html>
+<?php
+echo (string) ob_get_clean();
+site_footer(['contact.js']);
