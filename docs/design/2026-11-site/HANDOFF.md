@@ -159,7 +159,7 @@ Press: scale 0.98. Focus: 3px gold outline, 2px offset.
 
 ### Home
 
-1. **Hero.** Inset rounded photo frame, min-height clamp(560px, 92svh, 760px), bottom-up dark gradient. H1 "Where young musicians become *complete* artists" (word rise; gold italic "complete"; no forced break). Sub-line "Graded music education from age 4 to diploma — online or in person at our studios." Buttons: Apply now (gold → Apply) and Visit a class (ghost → MAM Auditer). Photo 2.6s Ken Burns settle; copy drifts up on exit.
+1. **Hero.** Inset rounded photo frame, min-height clamp(560px, 92svh, 760px), bottom-up dark gradient. H1 "Where musicians become *complete* artists" (word rise; gold italic "complete"; no forced break). Sub-line "Graded music education from age 4 to diploma — online or in person at our studios." Buttons: Apply now (gold → Apply) and Visit a class (ghost → MAM Auditer). Photo 2.6s Ken Burns settle; copy drifts up on exit.
 2. **About.** Centred 900px column: "More than music lessons", paragraph, pills About MAM / The MAM Method.
 3. **Four schools (bento).** "Four schools inside every programme". Dark tiles: Instrumental, Performance, Rhythm Intelligence, MetaMusic & Consciousness (photo tile). 2 columns ≤ 900px, 1 ≤ 480px.
 4. **Learning journey.** "Four levels, one continuous path" — four level cards (level, grades chip, name, description, tuition from). Dark placement banner "Placed by audition, not by guesswork" + Book an assessment.

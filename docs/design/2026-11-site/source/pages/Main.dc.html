@@ -223,7 +223,7 @@ nav[aria-label="On this page"] a.on{color:#8A5208!important;background-size:100%
       <div aria-hidden="true" style="position: absolute; inset: 0; z-index: -1; background: linear-gradient(0deg, rgba(23,16,9,0.85) 0%, rgba(23,16,9,0.25) 55%, rgba(23,16,9,0) 100%)"></div>
       <div class="hero-copy" style="max-width: 1360px; width: 100%; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px) 72px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px 48px">
         <div style="flex: 1 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 20px; color: #FCF8F3">
-          <h1 id="hero-h" aria-label="Where young musicians become complete artists" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(47px, 5.83vw, 84px); line-height: 1.02; letter-spacing: -0.01em; max-width: 860px"><sc-for list="{{heroWords}}" as="w" hint-placeholder-count="6"><span class="mask" aria-hidden="true"><span class="{{ w.cls }}" style="{{ w.style }}">{{ w.t }}</span></span>{{ w.sp }}</sc-for></h1>
+          <h1 id="hero-h" aria-label="Where musicians become complete artists" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(47px, 5.83vw, 84px); line-height: 1.02; letter-spacing: -0.01em; max-width: 860px"><sc-for list="{{heroWords}}" as="w" hint-placeholder-count="6"><span class="mask" aria-hidden="true"><span class="{{ w.cls }}" style="{{ w.style }}">{{ w.t }}</span></span>{{ w.sp }}</sc-for></h1>
           <p class="fade-in" style="animation-delay: .7s; margin: 0; font-size: 19px; color: rgba(252,248,243,0.88); max-width: 560px">Graded music education from age 4 to diploma — online or in person at our studios.</p>
         </div>
         <div class="fade-in" style="animation-delay: .9s; display: flex; gap: 12px; flex-wrap: wrap">
@@ -720,7 +720,7 @@ class Component extends DCLogic {
     return {
       minimalStyle: 'position: absolute; left: 0; right: 0; top: 0; transition: opacity .5s var(--out), transform .75s var(--out); ' + (solid ? 'opacity: 0; transform: translateY(-12px); pointer-events: none; visibility: hidden' : 'opacity: 1; transform: none; animation: heroIn 1s .2s var(--soft) both'),
       fullStyle: 'position: absolute; left: 0; right: 0; top: 0; background: #FAF8F4; transition: transform .75s var(--out), box-shadow .5s ease, visibility 0s ' + (solid ? '0s' : '.75s') + '; ' + (solid ? 'transform: translateY(0); visibility: visible; box-shadow: 0 1px 0 rgba(33,26,19,.08)' : 'transform: translateY(-110%); visibility: hidden; box-shadow: none'),
-      heroWords: 'Where young musicians become complete artists'.split(' ').map((t, i, arr) => ({ t, sp: i < arr.length - 1 ? ' ' : '', cls: 'w', style: 'animation-delay: ' + (0.2 + i * 0.085).toFixed(3) + 's' + (t === 'complete' ? '; font-style: italic; color: #F2A93B' : '') })),
+      heroWords: 'Where musicians become complete artists'.split(' ').map((t, i, arr) => ({ t, sp: i < arr.length - 1 ? ' ' : '', cls: 'w', style: 'animation-delay: ' + (0.2 + i * 0.085).toFixed(3) + 's' + (t === 'complete' ? '; font-style: italic; color: #F2A93B' : '') })),
       canvasRef: this.canvasRef,
       soundPressed: this.state.sound ? 'true' : 'false',
       soundAria: this.state.sound ? 'Turn sound off' : 'Turn sound on',
