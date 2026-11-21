@@ -2482,3 +2482,35 @@ markup produces the same finding, so it is to be confirmed by eye, not chased.
 - The rest of the site (FAQ, pathways, store…) still wears the old header and footer.
 - Safeguarding and accessibility statement pages; the auditer sample profile values; the
   vision line and faculty names (handoff §9 "facts to confirm").
+
+### 4z16 (continued, 21 Nov 2026) — the open items, built
+
+- **Apply** is the design's flow at `/apply` (assets/js/apply-flow.js), posting the same
+  application to the same endpoint and charging only the existing $5 booking fee. It adds, in
+  the design's tiles and fields, what `mam_validate_application()` requires: date of birth
+  (replaces the age band; the band is derived), sex, style, focus area, a starting level ("not
+  sure" allowed), address/state/LGA, the guardian's own email, and a typed signature that must
+  be the guardian's for an under-16. "Help me choose" is the new server value `undecided`
+  (left to the admissions backlog by `mam_enrol_resolve()`). The old wizard is `/apply-classic`;
+  emailed resume links go there. `test_site_redesign.php` reads the validator's required fields
+  and fails if the flow stops sending one.
+- **Every public page wears the redesign's header and footer.** `partials/header.html` and
+  `footer.html` render the shell's; the cookie notice, accessibility toolbar and floating Apply
+  pill stay on those pages. `assets/css/site-chrome.css` scopes the chrome and undoes main.css
+  inside it. The page bodies are still the previous design.
+- **/safeguarding and /accessibility** exist and are linked where the design put them. Every
+  fact on Safeguarding is read from the code (required checks, the gate's actual mode, the
+  named officer).
+- **Photos:** the three "four schools" tiles and the panel card use MAM's own cut-out student
+  art (assets/img/showcase), which is what the design placed there. The other slots still need
+  real photographs (assets/img/site/<slot>.webp fills one).
+
+**Faithful, measured on this build** (its own HANDOFF has the detail): 18/18 planted faults
+caught, a 2px nudge correctly quiet; six gaps it showed were fixed upstream in Faithful
+(appadmin-oss/faithful 83cacf5). All six pages now PASS at 1440 and 390.
+
+**Decisions for the owner, from Faithful's parity run on the old and new homepage:** the new
+pages have no accessibility toolbar (contrast, text size — the browser's zoom and the OS's
+contrast settings still work), no cookie notice (they send no analytics, so none is required),
+and none of the old slideshow, testimonials or currency switch. Restoring any of them is a
+design decision, not a fix.
