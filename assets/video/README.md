@@ -14,3 +14,9 @@ What plays where (assets/js/site.js, "the homepage film panel"):
 - Reduced motion or data-saver: the still only, never the video.
 - Off screen: paused. The round button pauses it for good.
 - With no files at all the panel draws its own studio light (site.css `.film`).
+
+## Current files (21 Nov 2026)
+From the owner's 10s studio clip (1280×720). The audio track was removed entirely: none
+of these files carries sound. The last half-second crossfades into the first, so the
+loop has no visible restart (9.5s). The phone file is a 4:5 crop that pans to follow
+the action. The poster is a frame at 5.6s (the singer with the ensemble).
