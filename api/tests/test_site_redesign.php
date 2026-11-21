@@ -24,7 +24,7 @@ $SR_design = $SR_src(glob($SR_root . '/docs/design/2026-11-site/source/pages/*.d
 
 t_group('site redesign — the pages are the ones the design describes');
 
-t_eq(array_map('basename', $SR_pages), ['404.php', 'about.php', 'accessibility.php', 'apply.php', 'auditer.php', 'contact.php', 'faculty.php', 'faq.php', 'index.php', 'life.php', 'policies.php', 'privacy.php', 'programmes.php', 'safeguarding.php', 'terms.php', 'thank-you.php'],
+t_eq(array_map('basename', $SR_pages), ['404.php', 'about.php', 'accessibility.php', 'apply.php', 'auditer.php', 'contact.php', 'faculty.php', 'faq.php', 'index.php', 'life.php', 'policies.php', 'power-play.php', 'privacy.php', 'programmes.php', 'safeguarding.php', 'terms.php', 'thank-you.php'],
     'the redesigned pages are the ones on the shell and not on the legacy header');
 t_ok(strlen($SR_design) > 100000, 'the design sources are committed beside the build, so the check can be repeated');
 
@@ -60,7 +60,7 @@ foreach (['[INTAKE]' => 'the intake placeholder', '(upload)' => 'a photo-upload 
    an outside address — never an empty "#" the design used as a stand-in. */
 preg_match_all('/href="(#[^"]*)"/', $SR_pagesSrc, $SR_m);
 t_eq(array_values(array_diff(array_unique($SR_m[1]), ['#main', '#programmes', '#levels', '#fees', '#instruments', '#intensives',
-    '#measures', '#try', '#process', '#powerplay', '#term', '#events', '#tools', '#learn-more', '#history', '#schools-h', '#questions'])), [],
+    '#measures', '#try', '#process', '#powerplay', '#term', '#events', '#tools', '#learn-more', '#history', '#register', '#why', '#schools-h', '#questions'])), [],
     'every in-page link names an anchor the pages define');
 
 t_group('site redesign — every fee is the server\'s');

@@ -2559,3 +2559,26 @@ main.css, not hidden).
   (`faithful.deviations.json`, owners accessibility / privacy / parity). It caught two real
   faults on the way: the notice's "Details" link was a 17px target (WCAG 2.5.8), and
   Apply's new button moved the design's question counter by 38–129px; both fixed.
+
+### 4z17 (21 Nov 2026) — founder named, faculty page, and the text pages on the redesign
+
+- **The founder is Just-Joe Adeola** (Babatunde Oluwaseyi Just-Joe Adeola), confirmed by the owner;
+  every "Van. BOJA" is gone — pages, Power Play emails, the certificate signature, config.js, the
+  design sources. His portrait is `assets/img/faculty/just-joe-adeola{,-400}.{webp,jpg}`.
+- **/faculty** is rebuilt on partials/site/ with his portrait; the schools' faculty are described,
+  not named, until names are confirmed. No stock photos. About's two dead links now land
+  (`/faculty`, and a new `/about#history` built only from facts the site already states).
+- **On the shell now:** FAQ, Contact, 404, Thank-you, Privacy, Terms, Class policies, Power Play.
+  Contact (`/api/contact`) and Power Play registration (`/api/newsletter`, `#register`) were
+  submitted against a local server and answered 200. Neither loads config.js/main.js any more
+  (config.js would take over site.js's currency switch): `assets/js/contact.js` and
+  `assets/js/site-powerplay.js` carry what they needed. Policies lost its tabs — the three
+  policies read in sequence; fines print in naira, fees convert through the footer's choice.
+- **Still on the previous body (new header and footer only):** the apps and flows — store,
+  checkout, book, tuition, tools/studio, card/card-studio, scan, checkin, status, learner-report,
+  progress, recital, attend, embed, verify, notation, instructor-apply, apply-classic — and the
+  older marketing pages schools, pathways, compare, how-it-works, crash, metamusic-order,
+  scholarship, summer, join. Each is a port in its own right; the forms and payment flows need
+  driving end to end after a port, not just a screenshot.
+- **Owner decisions outstanding:** "Lagos" remains in one FAQ answer and the office address
+  (facts, but the handoff asks for no location wording); remaining photos and §9 facts.

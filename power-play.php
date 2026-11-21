@@ -1,366 +1,164 @@
-<?php require __DIR__ . '/partials/site/shell.php'; ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="dark">
-<title>Power Play — A Free Monthly Series with Just-Joe Adeola | MAM Academy</title>
-<meta name="description" content="Power Play is a free monthly global series for musicians, artists, worship leaders and culture shapers — hosted by Just-Joe Adeola. Online via Google Meet.">
-<link rel="canonical" href="https://academy.mamcentre.org/power-play">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Power Play — A Free Monthly Series with Just-Joe Adeola | MAM Academy">
-<meta name="twitter:description" content="Power Play is a free monthly global series for musicians, artists, worship leaders and culture shapers — hosted by Just-Joe Adeola. Online via Google Meet.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Power Play","item":"https://academy.mamcentre.org/power-play"}]}</script>
-<link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
-<meta property="og:title" content="⚡ Power Play with Just-Joe Adeola"><meta property="og:description" content="A free monthly global series for musicians, artists and culture shapers."><meta property="og:image" content="mam-academy-logo.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260920">
-<style>
-.pp-hero{position:relative;padding:clamp(96px,12vw,148px) clamp(16px,4vw,24px) clamp(72px,9vw,108px);background:radial-gradient(ellipse 70% 60% at 85% 0%,rgba(99,102,241,0.34),transparent 60%),radial-gradient(ellipse 60% 60% at 0% 100%,rgba(251,191,36,0.20),transparent 62%),var(--bg-surface);overflow:hidden;border-bottom:1px solid var(--border)}
-/* faint electric grid texture for depth */
-.pp-hero::before{content:'';position:absolute;inset:0;background-image:linear-gradient(rgba(165,180,252,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(165,180,252,0.05) 1px,transparent 1px);background-size:46px 46px;mask-image:radial-gradient(ellipse 80% 70% at 70% 20%,#000,transparent 75%);-webkit-mask-image:radial-gradient(ellipse 80% 70% at 70% 20%,#000,transparent 75%);pointer-events:none}
-.pp-hero-inner{position:relative;z-index:1;max-width:1100px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,0.88fr);gap:clamp(28px,4vw,52px);align-items:start}
-.pp-eyebrow{display:inline-flex;align-items:center;gap:9px;padding:8px 18px;background:rgba(99,102,241,0.2);border:1px solid rgba(165,180,252,0.5);border-radius:100px;font-size:0.78rem;font-weight:800;color:#C7D2FE;letter-spacing:0.14em;text-transform:uppercase;margin-bottom:22px}
-.pp-eyebrow .pp-live{width:8px;height:8px;border-radius:50%;background:#A5B4FC;box-shadow:0 0 0 0 rgba(165,180,252,0.6);animation:ppPulse 1.8s ease-out infinite}
-@keyframes ppPulse{0%{box-shadow:0 0 0 0 rgba(165,180,252,0.55)}70%{box-shadow:0 0 0 9px rgba(165,180,252,0)}100%{box-shadow:0 0 0 0 rgba(165,180,252,0)}}
-.pp-title{font-family:var(--font-display);font-size:clamp(2.8rem,10vw,6rem);line-height:0.92;letter-spacing:0.02em;color:#fff;margin-bottom:18px;text-shadow:0 0 48px rgba(99,102,241,0.35)}
-.pp-title .accent{background:linear-gradient(135deg,#FBBF24,#F59E0B);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-.pp-withhost{display:block;font-family:var(--font-body);font-size:clamp(0.92rem,2.4vw,1.15rem);font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:#C7D2FE;margin-top:10px}
-.pp-tagline{font-family:var(--font-serif);font-style:italic;font-size:clamp(1.3rem,4.2vw,1.95rem);font-weight:600;color:#fff;line-height:1.2;margin:6px 0 16px;max-width:560px}
-.pp-lede{font-size:clamp(1.02rem,2.2vw,1.18rem);color:rgba(255,255,255,0.9);line-height:1.65;margin-bottom:18px;max-width:560px}
-.pp-motto{display:inline-block;font-family:var(--font-serif);font-style:italic;font-size:clamp(0.96rem,2.4vw,1.12rem);color:#FBBF24;line-height:1.5;padding:12px 18px;margin-bottom:24px;border-left:3px solid rgba(251,191,36,0.6);background:rgba(251,191,36,0.06);border-radius:0 var(--radius-sm) var(--radius-sm) 0}
-.pp-host{display:flex;align-items:center;gap:16px;padding:14px 16px;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:22px;max-width:480px}
-.pp-host-avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#6366F1,#A5B4FC);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.4rem;color:#fff;flex-shrink:0;box-shadow:0 6px 18px rgba(99,102,241,0.4)}
-.pp-host-name{font-size:1.02rem;font-weight:700;color:var(--text)}
-.pp-host-role{font-size:0.84rem;color:var(--text-muted)}
-.pp-stats{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:26px}
-.pp-stat{flex:1;min-width:104px;padding:14px 16px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:var(--radius-md)}
-.pp-stat b{display:block;font-family:var(--font-display);font-size:1.7rem;line-height:1;color:#C7D2FE;letter-spacing:0.02em}
-.pp-stat span{font-size:0.74rem;color:var(--text-muted);letter-spacing:0.04em;text-transform:uppercase}
-.pp-cta-row{display:flex;gap:12px;flex-wrap:wrap}
-.pp-aside{position:relative}
-.pp-aside-card{padding:24px;border-radius:var(--radius-lg);background:rgba(18,13,8,0.88);backdrop-filter:blur(20px);border:1px solid var(--border-gold);box-shadow:var(--shadow-lg)}
-.pp-next{display:flex;align-items:center;gap:14px;padding:14px 16px;margin-bottom:18px;border-radius:var(--radius-md);background:linear-gradient(135deg,rgba(99,102,241,0.28),rgba(99,102,241,0.08));border:1px solid rgba(165,180,252,0.4)}
-.pp-next-cal{width:46px;height:46px;border-radius:12px;background:#0E0A06;border:1px solid rgba(165,180,252,0.4);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;flex-shrink:0}
-.pp-next-cal b{font-family:var(--font-display);font-size:1.3rem;color:#C7D2FE}
-.pp-next-cal span{font-size:0.58rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted)}
-.pp-next-label{font-size:0.68rem;letter-spacing:0.14em;text-transform:uppercase;color:#A5B4FC;font-weight:800}
-.pp-next-when{font-size:0.95rem;font-weight:700;color:var(--text);margin-top:2px}
-.pp-aside-card h3{font-family:var(--font-serif);font-size:1.25rem;font-weight:700;color:var(--text);margin-bottom:10px}
-.pp-aside-row{display:flex;justify-content:space-between;gap:14px;padding:9px 0;border-bottom:1px solid var(--border);font-size:0.88rem}
-.pp-aside-row:last-child{border-bottom:none}
-.pp-aside-row span:first-child{color:var(--text-muted)}
-.pp-aside-row span:last-child{color:var(--text);font-weight:700;text-align:right}
-.pp-aside-card .btn{width:100%;margin-top:16px}
-@media (max-width:1024px){
-  .pp-hero-inner{grid-template-columns:1fr;gap:30px}
-  .pp-aside{order:2;max-width:560px}
-  .pp-title{font-size:clamp(2.8rem,13vw,4.4rem)}
-}
-@media (max-width:600px){
-  .pp-hero{padding:96px 18px 64px}
-  .pp-lede{font-size:1.02rem;margin-bottom:20px}
-  .pp-host{width:100%;max-width:none}
-  .pp-cta-row{flex-direction:column;gap:10px}
-  .pp-cta-row .btn{width:100%;justify-content:center}
-  .pp-stats{gap:10px}
-}
-@media (max-width:420px){
-  .pp-stat{min-width:0;flex:1 1 30%;padding:12px}
-  .pp-stat b{font-size:1.4rem}
-}
-@media (max-width:600px){
-  #register{padding:64px 18px!important}
-  #ppForm{flex-direction:column;gap:10px}
-  #ppForm .btn{width:100%;justify-content:center;min-height:52px}
-  .pp-motto{display:block}
-}
-@media (prefers-reduced-motion:reduce){
-  .pp-eyebrow .pp-live{animation:none}
-}
-</style>
-</head>
-<body>
-<a href="#main" class="skip-link">Skip to main content</a>
-<div id="preloader"><div class="preloader-logo"><img src="mam-academy-logo.svg" alt="" onerror="this.style.display='none'"><div class="preloader-name">MAM ACADEMY</div><div class="preloader-tag">Power Play with Just-Joe Adeola</div></div><div class="waves"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+<?php
+/**
+ * Power Play — the free monthly series, on the 2026-11 site shell (partials/site/),
+ * in the language of Life at MAM's Power Play panel. The handoff did not draw this
+ * page; Life links here (/power-play#register) to register.
+ *
+ * The next session is dated by mam_powerplay_next() (mailer.php), the same function
+ * that dates the confirmation email, so the page and the email agree; the countdown
+ * is recounted on the visitor's clock by site-powerplay.js. Registration posts to
+ * the same endpoint with the same source as before: /api/newsletter, 'power-play'.
+ */
+declare(strict_types=1);
+require __DIR__ . '/partials/site/shell.php';
 
-<?php include __DIR__ . '/partials/header.html'; ?>
+$ppNext = mam_powerplay_next();
+$ppAt   = $ppNext['dt'];
+$ppDays = (int) (new DateTimeImmutable('today', $ppAt->getTimezone()))->diff($ppAt->setTime(0, 0))->days;
+$ppCount = $ppDays === 0 ? 'Today — join us this evening' : ($ppDays === 1 ? '1 day to go' : $ppDays . ' days to go');
+$ppMeet = (string) $ppNext['meetUrl'];
 
+$ppEvent = [
+    '@context' => 'https://schema.org', '@type' => 'Event',
+    'name' => 'Power Play with Just-Joe Adeola',
+    'description' => 'A free monthly gathering for musicians, creatives and culture shapers.',
+    'startDate' => $ppAt->format(DATE_ATOM),
+    'endDate' => $ppAt->modify('+90 minutes')->format(DATE_ATOM),
+    'eventAttendanceMode' => 'https://schema.org/OnlineEventAttendanceMode',
+    'eventStatus' => 'https://schema.org/EventScheduled',
+    'isAccessibleForFree' => true,
+    'location' => ['@type' => 'VirtualLocation', 'url' => 'https://academy.mamcentre.org/power-play'],
+    'organizer' => ['@type' => 'EducationalOrganization', 'name' => 'MAM Academy', 'url' => 'https://academy.mamcentre.org/'],
+    'performer' => ['@type' => 'Person', 'name' => 'Just-Joe Adeola'],
+];
+
+site_head([
+    'title' => 'Power Play — a free monthly series with Just-Joe Adeola | MAM Academy',
+    'description' => 'Power Play is a free monthly global series for musicians, artists, worship leaders and culture shapers — hosted by Just-Joe Adeola. Online via Google Meet.',
+    'path' => '/power-play',
+    'jsonld' => '<script type="application/ld+json">' . json_encode($ppEvent, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . '</script>',
+]);
+site_header('inner', '/life');
+ob_start();
+?>
 <main id="main">
-  <header class="pp-hero">
-    <div class="pp-hero-inner">
-      <div>
-        <nav class="breadcrumb" style="justify-content:flex-start"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Power Play</span></nav>
-        <div class="pp-eyebrow"><span class="pp-live" aria-hidden="true"></span>Free Monthly Series</div>
-        <h1 class="pp-title">POWER <span class="accent">PLAY</span><span class="pp-withhost">with Just-Joe Adeola</span></h1>
-        <p class="pp-tagline">The War Room for Cultural Architects</p>
-        <p class="pp-lede">A monthly gathering for musicians, creatives and culture shapers — built to forge presence, mastery and intentional influence.</p>
-        <p class="pp-motto">"Building Men Who Can Move Nations."</p>
-        <div class="pp-host">
-          <div class="pp-host-avatar">VB</div>
-          <div>
-            <div class="pp-host-name">Hosted by Just-Joe Adeola</div>
-            <div class="pp-host-role">Babatunde Oluwaseyi Just-Joe Adeola</div>
-          </div>
-        </div>
-        <div class="pp-stats">
-          <div class="pp-stat"><b>Free</b><span>Forever</span></div>
-          <div class="pp-stat"><b>90<small style="font-size:0.5em">min</small></b><span>Each session</span></div>
-          <div class="pp-stat"><b>Global</b><span>Join online</span></div>
-        </div>
-        <div class="pp-cta-row">
-          <a href="#register" class="btn btn-primary btn-large"><i class="fa-solid fa-bolt"></i>Register Free</a>
-          <a href="#why" class="btn btn-secondary btn-large">Learn More</a>
-        </div>
-      </div>
-
-      <aside class="pp-aside">
-        <div class="pp-aside-card">
-          <div class="pp-next">
-            <div class="pp-next-cal" id="ppCal"><b>—</b><span>—</span></div>
-            <div>
-              <div class="pp-next-label">Next Session</div>
-              <div class="pp-next-when" id="ppWhen">Calculating…</div>
-              <div class="pp-next-countdown" id="ppCountdown" style="margin-top:6px;font-size:0.8rem;color:var(--gold-bright);font-weight:700;letter-spacing:0.04em"></div>
+    <div style="padding: 0 clamp(8px, 1vw, 14px)">
+    <section aria-labelledby="page-h" style="border-radius: clamp(14px, 1.6vw, 22px); background: radial-gradient(80% 120% at 85% 0%, #5A3815 0%, #24160B 50%, #140D08 100%); color: #FCF8F3">
+      <div style="max-width: 1360px; margin: 0 auto; padding: clamp(40px, 5vw, 72px) clamp(20px, 4vw, 40px) clamp(72px, 10vw, 144px); box-sizing: border-box; display: flex; flex-direction: column; gap: clamp(32px, 4vw, 56px)">
+        <nav aria-label="Breadcrumb" class="fade-in" style="font-size: 14px; color: rgba(252,248,243,.75); display: flex; gap: 8px; flex-wrap: wrap"><a href="/" class="ul" style="color: rgba(252,248,243,.85); text-decoration: none">Home</a><span aria-hidden="true">/</span><a href="/life" class="ul" style="color: rgba(252,248,243,.85); text-decoration: none">Life at MAM</a><span aria-hidden="true">/</span><span aria-current="page">Power Play</span></nav>
+        <div style="display: flex; flex-wrap: wrap; gap: 48px clamp(40px, 6vw, 112px); align-items: center">
+          <div style="flex: 1.2 1 460px; min-width: 0; display: flex; flex-direction: column; gap: 18px">
+            <p class="fade-in" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #F2A93B">Free · monthly · online</p>
+            <h1 id="page-h" aria-label="Power Play with Just-Joe Adeola" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(52px, 6vw, 96px); line-height: .95"><span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.15s;">Power</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.235s;">Play</span></span></h1>
+            <p class="fade-in" style="animation-delay: .3s; margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: clamp(30px, 3.4vw, 50px); line-height: 1.18; color: #F2A93B">The war room for cultural architects</p>
+            <p class="fade-in" style="animation-delay: .4s; margin: 0; font-size: 18px; line-height: 1.6; color: #E9E1D6; max-width: 560px">A monthly gathering for musicians, creatives and culture shapers — built to forge presence, mastery and intentional influence. Raw conversations, fierce insights, and growth for musicians who think like architects.</p>
+            <p class="fade-in" style="animation-delay: .45s; margin: 0; font-size: 15px; color: #D8CEC1">First Wednesday of every month · 90 minutes · Google Meet · free, and open to all</p>
+            <div class="fade-in" style="animation-delay: .5s; display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px">
+              <a href="#register" data-pp-cta class="btn arrow" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; background: #F2A93B; color: #211A13; font-weight: 600; text-decoration: none">Register free <span aria-hidden="true">→</span></a>
+              <a href="#why" class="btn" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; border: 1px solid rgba(252,248,243,.6); color: #FCF8F3; font-weight: 600; text-decoration: none">Who it is for</a>
             </div>
           </div>
-          <h3>What to expect</h3>
-          <div class="pp-aside-row"><span>Format</span><span>Free · Google Meet</span></div>
-          <div class="pp-aside-row"><span>Frequency</span><span>First Wednesday, monthly</span></div>
-          <div class="pp-aside-row"><span>Duration</span><span>90 minutes</span></div>
-          <div class="pp-aside-row"><span>Audience</span><span>Global · Online</span></div>
-          <div class="pp-aside-row"><span>Host</span><span>Just-Joe Adeola</span></div>
-          <a href="#register" class="btn btn-primary"><i class="fa-solid fa-bolt"></i> Save my seat</a>
-          <p style="font-size:0.82rem;color:var(--text-muted);margin-top:14px;line-height:1.6;text-align:center">Raw conversations. Fierce insights. Growth for musicians who think like architects.</p>
+          <div class="reveal" style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: clamp(24px, 3vw, 40px); border-radius: 20px; border: 1px solid rgba(252,248,243,.16); background: rgba(252,248,243,.04)">
+            <p style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #F2A93B">Next session</p>
+            <p style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(30px, 3.4vw, 50px); line-height: 1.18" data-pp-date data-pp-at="<?= site_h($ppAt->format(DATE_ATOM)) ?>"><?= site_h($ppAt->format('l j F Y')) ?></p>
+            <p style="margin: 0; font-size: 17px; color: #E9E1D6" data-pp-time><?= site_h($ppNext['time']) ?></p>
+            <p style="margin: 0; font-size: 15px; color: #D8CEC1" data-pp-count aria-live="polite"><?= site_h($ppCount) ?></p>
+            <dl style="margin: 14px 0 0; padding-top: 14px; border-top: 1px solid rgba(252,248,243,.14); display: grid; grid-template-columns: auto 1fr; gap: 8px 20px; font-size: 15px">
+              <dt style="color: #D8CEC1">Format</dt><dd style="margin: 0">Free · Google Meet</dd>
+              <dt style="color: #D8CEC1">Frequency</dt><dd style="margin: 0">First Wednesday, monthly</dd>
+              <dt style="color: #D8CEC1">Duration</dt><dd style="margin: 0">90 minutes</dd>
+              <dt style="color: #D8CEC1">Audience</dt><dd style="margin: 0">Global · online</dd>
+              <dt style="color: #D8CEC1">Host</dt><dd style="margin: 0">Just-Joe Adeola</dd>
+            </dl>
+          </div>
         </div>
-      </aside>
-    </div>
-  </header>
-
-  <section id="why">
-    <div class="container">
-      <div style="text-align:center;max-width:760px;margin:0 auto 64px">
-        <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Not motivation<span class="line" style="transform:scaleX(-1)"></span></div>
-        <h2 class="section-title">Built for <span class="highlight-gold">influence.</span></h2>
       </div>
-
-      <div class="schools-grid">
-        <article class="school-card" data-school="D">
-          <div class="school-icon" style="background:linear-gradient(135deg,rgba(99,102,241,0.25),rgba(165,180,252,0.12));border-color:rgba(165,180,252,0.4);width:64px;height:64px"><dotlottie-wc src="https://fonts.gstatic.com/s/e/notoemoji/latest/26a1/lottie.json" speed="1" autoplay loop class="fx-lottie fx-md" aria-hidden="true"></dotlottie-wc></div>
-          <h3 class="school-name">Ready for global relevance</h3>
-          <p class="school-desc">A framework for the global stage.</p>
-        </article>
-        <article class="school-card" data-school="D">
-          <div class="school-icon" style="background:linear-gradient(135deg,rgba(99,102,241,0.25),rgba(165,180,252,0.12));border-color:rgba(165,180,252,0.4);width:64px;height:64px"><dotlottie-wc src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f525/lottie.json" speed="1" autoplay loop class="fx-lottie fx-md" aria-hidden="true"></dotlottie-wc></div>
-          <h3 class="school-name">Tired of mediocrity</h3>
-          <p class="school-desc">The discipline mastery requires.</p>
-        </article>
-        <article class="school-card" data-school="D">
-          <div class="school-icon" style="background:linear-gradient(135deg,rgba(99,102,241,0.25),rgba(165,180,252,0.12));border-color:rgba(165,180,252,0.4);width:64px;height:64px"><dotlottie-wc src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f3a8/lottie.json" speed="1" autoplay loop class="fx-lottie fx-md" aria-hidden="true"></dotlottie-wc></div>
-          <h3 class="school-name">Seeking mastery</h3>
-          <p class="school-desc">For every creative discipline.</p>
-        </article>
-        <article class="school-card" data-school="D">
-          <div class="school-icon" style="background:linear-gradient(135deg,rgba(99,102,241,0.25),rgba(165,180,252,0.12));border-color:rgba(165,180,252,0.4);width:64px;height:64px"><dotlottie-wc src="https://fonts.gstatic.com/s/e/notoemoji/latest/1f451/lottie.json" speed="1" autoplay loop class="fx-lottie fx-md" aria-hidden="true"></dotlottie-wc></div>
-          <h3 class="school-name">Greatness without direction</h3>
-          <p class="school-desc">Sharpen the lens, the path, the work.</p>
-        </article>
-      </div>
+    </section>
     </div>
-  </section>
 
-  <section style="background:var(--bg-surface)">
-    <div class="container">
-      <div class="about-grid">
-        <div>
-          <div class="section-eyebrow" style="color:#A5B4FC"><span class="line" style="background:linear-gradient(90deg,#A5B4FC,transparent)"></span>What You'll Get</div>
-          <h2 class="section-title">Every Month: <span class="highlight-purple">Mindset, Mastery, Movement.</span></h2>
-          <ul class="school-courses" style="margin-top:18px">
-            <li class="school-course-item"><i class="fa-solid fa-circle" style="color:#A5B4FC;font-size:0.6rem"></i>Mindset, discipline &amp; artistry</li>
-            <li class="school-course-item"><i class="fa-solid fa-circle" style="color:#A5B4FC;font-size:0.6rem"></i>Spirituality of music &amp; presence</li>
-            <li class="school-course-item"><i class="fa-solid fa-circle" style="color:#A5B4FC;font-size:0.6rem"></i>Leadership for creatives</li>
-            <li class="school-course-item"><i class="fa-solid fa-circle" style="color:#A5B4FC;font-size:0.6rem"></i>Raw conversations &amp; fierce insights</li>
-            <li class="school-course-item"><i class="fa-solid fa-circle" style="color:#A5B4FC;font-size:0.6rem"></i>Q&amp;A with Just-Joe Adeola</li>
-            <li class="school-course-item"><i class="fa-solid fa-circle" style="color:#A5B4FC;font-size:0.6rem"></i>A growing global community of culture shapers</li>
-          </ul>
-          <blockquote style="margin-top:28px;padding:20px 24px;border-left:3px solid #A5B4FC;background:rgba(99,102,241,0.07);border-radius:0 var(--radius-sm) var(--radius-sm) 0">
-            <p style="font-family:var(--font-serif);font-style:italic;font-size:1.1rem;color:var(--text);line-height:1.6">"The future does not belong to the loudest voices. It belongs to the most prepared."</p>
-            <cite style="display:block;margin-top:8px;color:#A5B4FC;font-weight:700;font-size:0.8rem;letter-spacing:0.08em;text-transform:uppercase;font-style:normal">— Just-Joe Adeola</cite>
+    <section id="host" aria-labelledby="host-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(64px, 8vw, 120px) clamp(20px, 4vw, 40px) clamp(48px, 6vw, 88px); box-sizing: border-box">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center">
+        <a href="/faculty#founder" class="reveal zoom" style="flex: 0 1 360px; min-width: 0; display: block; position: relative; aspect-ratio: 1 / 1; border-radius: 20px; overflow: hidden; background: #E8DECF">
+          <picture>
+            <source type="image/webp" srcset="/assets/img/faculty/just-joe-adeola-400.webp 400w, /assets/img/faculty/just-joe-adeola.webp 800w" sizes="(max-width: 720px) 90vw, 360px">
+            <img src="/assets/img/faculty/just-joe-adeola.jpg" srcset="/assets/img/faculty/just-joe-adeola-400.jpg 400w, /assets/img/faculty/just-joe-adeola.jpg 800w" sizes="(max-width: 720px) 90vw, 360px" width="800" height="800" alt="Portrait of Just-Joe Adeola, host of Power Play" loading="lazy" decoding="async" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover">
+          </picture>
+        </a>
+        <div style="flex: 1.4 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Your host</p>
+          <h2 id="host-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(38px, 4vw, 58px); line-height: 1.05">Just-Joe Adeola</h2>
+          <p style="margin: 0; font-size: 15px; color: #574B40">Babatunde Oluwaseyi Just-Joe Adeola · Founder of MAM Centre</p>
+          <blockquote style="margin: 8px 0 0; padding: 4px 0 4px 24px; border-left: 3px solid #C27A12; display: flex; flex-direction: column; gap: 10px">
+            <p style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(30px, 3.4vw, 50px); line-height: 1.18; color: #211A13">“The future does not belong to the loudest voices. It belongs to the most prepared.”</p>
+            <cite style="font-style: normal; font-size: 15px; color: #574B40">— Just-Joe Adeola</cite>
           </blockquote>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">Building men who can move nations.</p>
+          <a href="/faculty#founder" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; margin-top: 4px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">About Just-Joe</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">Leadership &amp; faculty</span></a>
         </div>
-        <div><img src="https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=900&q=80" alt="Power Play gathering" loading="lazy" style="width:100%;border-radius:var(--radius-lg);border:2px solid rgba(165,180,252,0.4);box-shadow:var(--shadow-lg)"></div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section id="register" style="background:linear-gradient(135deg,rgba(67,56,202,0.18),rgba(225,29,72,0.12));padding:96px 24px">
-    <div class="container" style="text-align:center;max-width:680px">
-      <div class="section-eyebrow" style="justify-content:center;color:#A5B4FC"><span class="line" style="background:linear-gradient(90deg,#A5B4FC,transparent)"></span>Register Free<span class="line" style="background:linear-gradient(90deg,transparent,#A5B4FC)"></span></div>
-      <h2 class="section-title">Join the <span class="highlight-purple">Next Session</span></h2>
-      <p class="section-desc" style="margin:0 auto 32px">Drop your email — we'll send the Google Meet link for the next monthly Power Play.</p>
-      <form id="ppForm" novalidate style="display:flex;gap:12px;flex-wrap:wrap;max-width:520px;margin:0 auto">
-        <input type="email" id="ppEmail" placeholder="you@example.com" required style="flex:1 1 240px;padding:14px 18px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:var(--radius-sm);color:var(--text);font-size:0.96rem;outline:none">
-        <button type="submit" class="btn btn-primary">Reserve My Seat <i class="fa-solid fa-arrow-right"></i></button>
-      </form>
-      <p id="ppMsg" style="margin-top:14px;font-size:0.88rem;color:var(--emerald);display:none">Thanks — check your inbox for the link.</p>
-      <p style="margin-top:18px;font-size:0.85rem;color:var(--text-muted)">POWER. INFLUENCE. LEGACY.</p>
-    </div>
-  </section>
-
-  <section id="next-step" aria-label="Continue your journey">
-    <div class="next-step-wrap">
-      <a class="next-step-back" href="metamusic-order">
-        <i class="fa-solid fa-arrow-left"></i>
-        <div><div class="next-step-back-label">Go deeper</div><strong>The MetaMusic Order</strong></div>
-      </a>
-      <a class="next-step-card" href="apply">
-        <div class="next-step-eyebrow"><span class="num">→</span>Want full formation?</div>
-        <div class="next-step-title">Apply to MAM Academy <i class="fa-solid fa-arrow-right"></i></div>
-        <p class="next-step-desc">Power Play is the free spark. Apply for a full pathway to keep the fire structured — Trinity-equivalent certification, instructors, ensemble &amp; stage time.</p>
-        <div class="next-step-meta">
-          <span><i class="fa-solid fa-graduation-cap"></i>From <span data-cur-sym>$</span><span data-price="70">70</span> / <span data-cur-sym>$</span><span data-price="120">120</span></span>
-          <span><i class="fa-solid fa-globe"></i>Online or onsite</span>
+    <section id="why" aria-labelledby="why-h" style="background: #F3EEE6">
+      <div style="max-width: 1200px; margin: 0 auto; padding: clamp(64px, 8vw, 120px) clamp(20px, 4vw, 40px); box-sizing: border-box; display: flex; flex-direction: column; gap: clamp(28px, 3vw, 44px)">
+        <div style="max-width: 760px; display: flex; flex-direction: column; gap: 16px">
+          <p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Not motivation</p>
+          <h2 id="why-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05">Built for <em style="font-style: italic; color: #8A5208">influence</em></h2>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">For musicians, artists, worship leaders and culture shapers who are:</p>
         </div>
-      </a>
-    </div>
-  </section>
+        <ul class="stagger" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 16px">
+<?php foreach ([
+    ['Ready for global relevance', 'A framework for the global stage.'],
+    ['Tired of mediocrity', 'The discipline mastery requires.'],
+    ['Seeking mastery', 'For every creative discipline.'],
+    ['Greatness without direction', 'Sharpen the lens, the path, the work.'],
+] as [$t, $d]): ?>
+          <li class="lift" style="display: flex; flex-direction: column; gap: 10px; padding: 28px; border-radius: 16px; background: #FFFFFF; border: 1px solid #E6DED2">
+            <h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 28px; line-height: 1.1"><?= site_h($t) ?></h3>
+            <p style="margin: 0; font-size: 16px; line-height: 1.65; color: #3E342B"><?= site_h($d) ?></p>
+          </li>
+<?php endforeach; ?>
+        </ul>
+      </div>
+    </section>
+
+    <section id="sessions" aria-labelledby="sessions-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(64px, 8vw, 120px) clamp(20px, 4vw, 40px); box-sizing: border-box; display: flex; flex-wrap: wrap; gap: 32px clamp(40px, 6vw, 96px)">
+      <div style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 16px">
+        <p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Every month</p>
+        <h2 id="sessions-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1">Mindset, mastery, movement</h2>
+      </div>
+      <ul style="flex: 2 1 480px; min-width: 0; list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+<?php foreach (['Mindset, discipline & artistry', 'The spirituality of music & presence', 'Leadership for creatives', 'Raw conversations & fierce insights', 'Q&A with Just-Joe Adeola', 'A growing global community of culture shapers'] as $i => $item): ?>
+        <li style="padding: 18px 0; font-size: 18px; color: #211A13; <?= $i ? 'border-top: 1px solid #E6DED2' : '' ?>"><?= site_h($item) ?></li>
+<?php endforeach; ?>
+      </ul>
+    </section>
+
+    <section id="register" aria-labelledby="register-h" style="padding: 0 clamp(8px, 1vw, 14px) clamp(8px, 1vw, 14px)">
+      <div style="max-width: 1440px; margin: 0 auto; border-radius: clamp(14px, 1.6vw, 22px); background: radial-gradient(120% 140% at 80% 0%, #5A3815 0%, #24160B 45%, #140D08 100%); color: #FCF8F3; padding: clamp(56px, 7vw, 112px) clamp(20px, 4vw, 40px); box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center">
+        <p style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #F2A93B">Register free</p>
+        <h2 id="register-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05">Join the next session</h2>
+        <p style="margin: 0; max-width: 560px; font-size: 18px; line-height: 1.6; color: #D8CEC1">Leave your email and we will send the Google Meet link for the next monthly Power Play.</p>
+        <form id="ppForm" novalidate style="width: 100%; max-width: 560px; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center">
+          <label for="ppEmail" class="sr">Email address</label>
+          <input type="email" id="ppEmail" name="email" autocomplete="email" placeholder="you@example.com" required aria-describedby="ppMsg" style="flex: 1 1 260px; min-width: 0; min-height: 52px; padding: 0 18px; border-radius: 12px; border: 1px solid rgba(252,248,243,.35); background: rgba(252,248,243,.06); color: #FCF8F3; font: inherit; font-size: 16px; box-sizing: border-box">
+          <button type="submit" class="btn" style="min-height: 52px; padding: 0 26px; border-radius: 999px; border: 0; background: #F2A93B; color: #211A13; font: inherit; font-weight: 600; cursor: pointer">Reserve my seat</button>
+        </form>
+        <p id="ppMsg" role="status" aria-live="polite" style="margin: 0; min-height: 24px; font-size: 15px; color: #E9E1D6"></p>
+        <p style="margin: 8px 0 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #D8CEC1">Power · Influence · Legacy</p>
+      </div>
+    </section>
+
+    <section aria-labelledby="next-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(64px, 8vw, 120px) clamp(20px, 4vw, 40px); box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+      <h2 id="next-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1">Go further</h2>
+      <div class="stagger" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 16px">
+        <a href="/metamusic-order" class="lift" style="display: flex; flex-direction: column; gap: 8px; padding: 28px; border-radius: 16px; background: #FFFFFF; border: 1px solid #E6DED2; color: #211A13; text-decoration: none"><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600">The MetaMusic Order</span><span style="font-size: 16px; line-height: 1.6; color: #574B40">Go deeper: a 12-week intensive that moves musicians from performer to architect.</span><span aria-hidden="true" style="color: #8A5208">→</span></a>
+        <a href="/apply" class="lift" style="display: flex; flex-direction: column; gap: 8px; padding: 28px; border-radius: 16px; background: #FFFFFF; border: 1px solid #E6DED2; color: #211A13; text-decoration: none"><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600">Apply to MAM Academy</span><span style="font-size: 16px; line-height: 1.6; color: #574B40">Power Play is the free spark. A full pathway keeps the fire structured — certification, instructors, ensemble and stage time, online or onsite.</span><span aria-hidden="true" style="color: #8A5208">→</span></a>
+      </div>
+    </section>
 </main>
-
-<?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20261120a"></script>
-<script src="assets/js/main.js?v=20260920"></script>
-<script>
-// ── Power Play scheduling: compute the next first-Wednesday from MAM_CONFIG ──
-// Pure date math — no library. Honours the configured time/timezone and
-// auto-rolls to next month once that Wednesday has passed.
-(function () {
-  function parseRule(s) {
-    var m = /^(first|second|third|fourth|last)-(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$/i.exec(s || '');
-    if (!m) return { ord: 'first', day: 3 }; // default first-Wednesday
-    var dayMap = { sunday:0, monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6 };
-    return { ord: m[1].toLowerCase(), day: dayMap[m[2].toLowerCase()] };
-  }
-  function nthWeekday(year, month, weekday, ord) {
-    if (ord === 'last') {
-      var lastDay = new Date(year, month + 1, 0).getDate();
-      var d = new Date(year, month, lastDay);
-      d.setDate(lastDay - ((d.getDay() - weekday + 7) % 7));
-      return d;
-    }
-    var ordMap = { first:1, second:2, third:3, fourth:4 };
-    var n = ordMap[ord] || 1;
-    var first = new Date(year, month, 1);
-    var offset = (weekday - first.getDay() + 7) % 7;
-    return new Date(year, month, 1 + offset + (n - 1) * 7);
-  }
-  function nextOccurrence(rule, time) {
-    var parts = (time || '19:00').split(':');
-    var hh = parseInt(parts[0], 10) || 19, mm = parseInt(parts[1], 10) || 0;
-    var now = new Date();
-    var candidate = nthWeekday(now.getFullYear(), now.getMonth(), rule.day, rule.ord);
-    candidate.setHours(hh, mm, 0, 0);
-    if (candidate < now) {
-      candidate = nthWeekday(now.getFullYear(), now.getMonth() + 1, rule.day, rule.ord);
-      candidate.setHours(hh, mm, 0, 0);
-    }
-    return candidate;
-  }
-  function fmtParts(d, tz) {
-    var dayFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', timeZone: tz });
-    var monFmt = new Intl.DateTimeFormat(undefined, { month: 'short', timeZone: tz });
-    var dateFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: tz });
-    var timeFmt = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZoneName: 'short', timeZone: tz });
-    return { day: dayFmt.format(d), month: monFmt.format(d), date: dateFmt.format(d), time: timeFmt.format(d) };
-  }
-  function diffStr(d) {
-    var s = Math.max(0, Math.floor((d - Date.now()) / 1000));
-    var days = Math.floor(s / 86400); s -= days * 86400;
-    var hrs  = Math.floor(s / 3600);  s -= hrs * 3600;
-    var mins = Math.floor(s / 60);
-    if (days > 0)  return days + (days === 1 ? ' day ' : ' days ') + hrs + 'h to go';
-    if (hrs  > 0)  return hrs  + 'h ' + mins + 'm to go';
-    if (mins > 0)  return mins + ' minutes to go — almost live';
-    return 'Live now';
-  }
-  function render() {
-    var cfg = (window.MAM_CONFIG && window.MAM_CONFIG.powerPlay) || {};
-    var rule = parseRule(cfg.rrule || 'first-wednesday');
-    var when = nextOccurrence(rule, cfg.time);
-    var tz   = cfg.timezone || undefined;
-    var parts = fmtParts(when, tz);
-
-    var cal      = document.getElementById('ppCal');
-    var whenEl   = document.getElementById('ppWhen');
-    var countEl  = document.getElementById('ppCountdown');
-    if (cal)     cal.innerHTML = '<b>' + parts.day + '</b><span>' + parts.month + '</span>';
-    if (whenEl)  whenEl.textContent = parts.date + ' · ' + parts.time;
-    if (countEl) countEl.textContent = diffStr(when);
-
-    // Update the countdown every minute so it stays fresh while the tab's open.
-    if (countEl) setTimeout(function tick(){ countEl.textContent = diffStr(when); setTimeout(tick, 60000); }, 60000);
-
-    // If a Meet URL is configured, hook the CTAs to open it for the next session.
-    if (cfg.meetUrl) {
-      document.querySelectorAll('a[href="#register"]').forEach(function (a) {
-        a.href = cfg.meetUrl; a.target = '_blank'; a.rel = 'noopener';
-      });
-    }
-  }
-  if (window.MAM_CONFIG) render();
-  else document.addEventListener('mam:ready', render, { once: true });
-})();
-
-document.addEventListener('mam:ready', function () {
-  var form = document.getElementById('ppForm'); if (!form) return;
-  var emailEl = document.getElementById('ppEmail');
-  var msg = document.getElementById('ppMsg');
-  var btn = form.querySelector('button[type="submit"]');
-  var btnHtml = btn ? btn.innerHTML : '';
-  var re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-  function show(html, kind) {
-    msg.innerHTML = html;
-    msg.style.display = 'block';
-    msg.style.color = kind === 'error' ? 'var(--red-hot)' : kind === 'ok' ? 'var(--emerald)' : 'var(--text-muted)';
-  }
-  function busy(on) {
-    if (!btn) return;
-    if (window.MAM_FORMS) { if (on) MAM_FORMS.setBusy(btn, 'Reserving…'); else MAM_FORMS.resetBusy(btn); }
-    else { btn.disabled = on; btn.innerHTML = on ? 'Reserving…' : btnHtml; }
-  }
-  function mailtoLink(email) {
-    var fb = (window.MAM_CONFIG && window.MAM_CONFIG.forms && window.MAM_CONFIG.forms.fallbackEmail) || 'academy@mamcentre.org';
-    return 'mailto:' + fb + '?subject=' + encodeURIComponent('Power Play — register me') +
-      '&body=' + encodeURIComponent('Please send me the link for the next Power Play session.\nEmail: ' + email);
-  }
-  var GOLD = 'style="color:var(--gold-bright);font-weight:700;text-decoration:underline"';
-
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
-    var email = emailEl.value.trim();
-    if (!re.test(email)) { emailEl.style.borderColor = 'var(--red-hot)'; emailEl.focus(); show('Please enter a valid email address.', 'error'); return; }
-    emailEl.style.borderColor = '';
-
-    // No email-client hijack: the API delivers the confirmation. We only ever
-    // surface a mailto as an explicit, optional link if the API is unreachable.
-    if (!window.MAM_API || !window.MAM_API.subscribeNewsletter) {
-      show('Registration is briefly unavailable. <a href="' + mailtoLink(email) + '" ' + GOLD + '>Email us your seat request</a> and we\'ll send the Meet link.', 'error');
-      return;
-    }
-    busy(true);
-    window.MAM_API.subscribeNewsletter(email, 'power-play')
-      .then(function () { busy(false); emailEl.value = ''; show('🎉 You\'re in — check your inbox for the Google Meet link.', 'ok'); })
-      .catch(function (err) {
-        busy(false);
-        if (err && err.status === 429) { show('You\'ve tried a few times — please wait a minute, then try again.', 'error'); return; }
-        show('Couldn\'t reserve your seat just now. Please try again — or <a href="' + mailtoLink(email) + '" ' + GOLD + '>email us your request</a>.', 'error');
-      });
-  });
-});
-</script>
-</body>
-</html>
+<?php if ($ppMeet !== ''): ?>
+<script>window.MAM_POWERPLAY = <?= json_encode(['meetUrl' => $ppMeet], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
+<?php endif; ?>
+<?php
+echo (string) ob_get_clean();
+site_footer(['site-powerplay.js']);
