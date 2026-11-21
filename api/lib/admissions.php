@@ -579,7 +579,41 @@ function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
     // untestable without a mailer.
     $out = ['user_id' => $userId, 'cohort_id' => null, 'enrollment_id' => null, 'reason' => 'enrolled',
             'invite' => $invite, 'guardian_id' => null, 'guardian_email' => null,
-            'guardian_invite' => false, 'account_created' => $created];
+            'guardian_invite' => false, 'account_created' => $created, 'customer_id' => null];
+
+    // 1b. Parity with year-round students: link the account to a `customers`
+    //     record. A year-round student ALWAYS has a customer_id (their applicant
+    //     row), which is what the portal profile, the auditer panel and the
+    //     applicant identity spine resolve through. A summer child provisioned
+    //     only from `summer_applications` had none — so their portal profile read
+    //     empty and the account could not be joined to the rest of the app, even
+    //     though they could log in and be assigned to a class. We create/reuse a
+    //     customer from the application and fill a MISSING link only — never
+    //     repoint an account already tied to a customer (a returning child who
+    //     once applied year-round). Best-effort: a link failure must not stop a
+    //     child being enrolled.
+    try {
+        $existingCust = mam_db_row('SELECT id FROM customers WHERE LOWER(email) = ?', [$email]);
+        if ($existingCust) {
+            $custId = (int)$existingCust['id'];
+        } else {
+            $custId = (int)mam_db_insert('customers', [
+                'email'      => $email,
+                'first_name' => (string)($app['first_name'] ?? ''),
+                'last_name'  => (string)($app['last_name'] ?? ''),
+                'phone'      => (string)($app['phone'] ?? '') !== '' ? (string)$app['phone'] : null,
+                'dob'        => (string)($app['dob'] ?? '') !== '' ? (string)$app['dob'] : null,
+            ]);
+        }
+        $cur = mam_db_row('SELECT customer_id FROM users WHERE id = ?', [$userId]);
+        if ($custId && empty($cur['customer_id'])) {
+            mam_db_update('users', ['customer_id' => $custId], ['id' => $userId]);
+            mam_audit('summer_customer_linked', 'user', $userId, ['customer_id' => $custId, 'summer_app' => $summerAppId]);
+        }
+        $out['customer_id'] = $custId ?: ((int)($cur['customer_id'] ?? 0) ?: null);
+    } catch (Throwable $e) {
+        mam_log('warn', 'summer_customer_link_failed', ['summer_app' => $summerAppId, 'err' => $e->getMessage()]);
+    }
 
     // 2. The guardian. Best-effort by design: a summer child must still be
     //    enrolled if the guardian's address is missing or malformed, and an

@@ -145,6 +145,27 @@ if (function_exists('mam_summer_enrol')) {
     $gVisible = array_filter(mam_lms_instructor_cohorts($gIns), fn($c) => (int)$c['id'] === (int)$gRes['cohort_id']);
     t_eq(count($gVisible), 1, 'GD: the instructor can actually see the summer cohort');
 
+    /* GF: a summer student is a FIRST-CLASS student — same access as a
+       year-round one. It must (a) be linked to a customers record so the portal
+       profile populates and the account sits on the applicant identity spine,
+       and (b) appear in the admin "assign to a class" list, which selects on
+       role='student' AND status='active'. Both were the parity gap: a summer
+       child provisioned only from summer_applications had a NULL customer_id. */
+    $gStu = mam_db_row('SELECT id, role, status, customer_id FROM users WHERE id = ?', [(int)$gRes['user_id']]);
+    t_eq($gStu['role'], 'student', 'GF: the summer account is a student');
+    t_eq($gStu['status'], 'active', 'GF: and active, so it can sign in');
+    t_ok((int)($gStu['customer_id'] ?? 0) > 0, 'GF: it is linked to a customers record (portal profile parity)');
+    t_eq((int)$gRes['customer_id'], (int)$gStu['customer_id'], 'GF: the result reports the linked customer');
+    $gCust = mam_db_row('SELECT email FROM customers WHERE id = ?', [(int)$gStu['customer_id']]);
+    t_eq(strtolower((string)$gCust['email']), 't_gap_summer@x.dev', 'GF: the customer carries the applicant email');
+    $gAssignable = mam_db_row("SELECT id FROM users WHERE id = ? AND role = 'student' AND status = 'active'", [(int)$gRes['user_id']]);
+    t_ok($gAssignable !== null, 'GF: the summer student appears in the assign-to-class candidate list');
+    // Idempotent: re-enrolling must not create a second customer or repoint the link.
+    $gRes1b = mam_summer_enrol($gSum, null);
+    t_eq((int)$gRes1b['customer_id'], (int)$gStu['customer_id'], 'GF: re-enrol reuses the same customer, never a duplicate');
+    t_eq((int)mam_db_row('SELECT COUNT(*) n FROM customers WHERE LOWER(email) = ?', ['t_gap_summer@x.dev'])['n'], 1,
+        'GF: exactly one customer row for the summer student');
+
     // 0 means unlimited — it must NOT read as a permanently full cohort.
     mam_setting_set('summer_capacity', '0');
     $gSum2 = mam_db_insert('summer_applications', [
