@@ -156,4 +156,50 @@
     }, { rootMargin: '-40% 0px -55% 0px' });
     Object.keys(map).forEach(function (id) { io.observe(d.getElementById(id)); });
   }
+  /* ---------- the cookie notice (partials/site/a11y.php) ----------
+     "mam.cookie" is the key MAM_PRIVACY.mayMeasure() reads, so a decline here is
+     the decline every measurement on the site honours. Not answering is not a yes. */
+  var ck = d.querySelector('[data-cookie]');
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  if (ck) {
+    // On a page still on the previous design the notice joins the dock (main.js), so it
+    // stacks with the Apply bar instead of sitting on top of it.
+    if (typeof window.mamDock === 'function') { window.mamDock().appendChild(ck); ck.classList.add('ck--dock'); }
+    var showCk = function (focus) { ck.hidden = false; if (focus) { var b = ck.querySelector('button'); if (b) b.focus(); } };
+    if (!store('mam.cookie')) setTimeout(function () { showCk(false); }, reduce ? 0 : 1200);
+    ck.addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('[data-cookie-choice]'); if (!b) return;
+      store('mam.cookie', b.getAttribute('data-cookie-choice')); ck.hidden = true;
+    });
+    $$('[data-cookie-open]').forEach(function (a) { a.addEventListener('click', function (e) { e.preventDefault(); showCk(true); }); });
+  }
+
+  /* ---------- prices in your currency ----------
+     The footer's switch and the Programmes estimator are one choice ("mam.currency",
+     the key the rest of the site reads too). Rates are the server's (site_fees()),
+     the ones a charge is made at, never a third-party feed. On a page still on the
+     previous design main.js paints instead, from the same key. */
+  var F = window.MAM_SITE && window.MAM_SITE.fees;
+  if (!window.MAM_CCY && F && F.rates) {
+    var SYM = { USD: '$', NGN: '₦', GBP: '£' };
+    var cur = store('mam.currency');
+    if (!SYM[cur] || !F.rates[cur]) cur = 'USD';
+    var paint = function () {
+      var r = F.rates[cur] || 1;
+      $$('[data-amt-usd]').forEach(function (el) {
+        el.textContent = SYM[cur] + Math.round(parseFloat(el.getAttribute('data-amt-usd')) * r).toLocaleString('en-US');
+      });
+      $$('.cur-sw [data-currency]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-currency') === cur ? 'true' : 'false'); });
+    };
+    window.MAM_SITE.currency = function (c) {
+      if (c === undefined) return cur;
+      if (!SYM[c] || !F.rates[c] || c === cur) return cur;
+      cur = c; store('mam.currency', c); paint();
+      try { d.dispatchEvent(new CustomEvent('mam:currency', { detail: { currency: c } })); } catch (e) { /* old browser */ }
+      return cur;
+    };
+    $$('.cur-sw [data-currency]').forEach(function (b) { b.addEventListener('click', function () { window.MAM_SITE.currency(b.getAttribute('data-currency')); }); });
+    $$('.cur-sw [data-currency]').forEach(function (b) { if (!F.rates[b.getAttribute('data-currency')]) b.hidden = true; });
+    paint();
+  }
 })();

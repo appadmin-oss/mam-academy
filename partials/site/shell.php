@@ -60,6 +60,51 @@ function site_org_jsonld(): string {
 }
 
 /**
+ * The accessibility settings, applied before the first paint (assets/js/a11y.js keeps
+ * them in step afterwards). Inline because a reader who needs 175% text or no motion
+ * must not see a frame of the page without it. Carries the old toolbar's two keys
+ * across once, so nobody loses a setting they made on the previous design.
+ */
+function site_a11y_head(): string {
+    return '<link rel="stylesheet" href="/assets/css/a11y.css?v=20261121">' . "\n"
+        . "<script>(function(){try{var d=document.documentElement,s=JSON.parse(localStorage.getItem('mam.a11y')||'null');"
+        . "if(!s){s={};if(localStorage.getItem('mam.contrast')==='high')s.contrast=1;var f=parseFloat(localStorage.getItem('mam.fontScale')||'1');if(f>1.02)s.size=f>=1.2?2:1;}"
+        . "window.mamA11yZoom=function(n){var z=[1,1.12,1.25,1.5,1.75][n|0]||1,cap=Math.max(1,innerWidth/320);d.style.setProperty('--a11y-z',String(Math.min(z,cap)));return z>cap?cap:0;};"
+        . "if(s.size){d.setAttribute('data-a11y-size',s.size);mamA11yZoom(s.size);}"
+        . "['contrast','mute','links','focus','cursor','font','spacing','still'].forEach(function(k){if(s[k])d.classList.add('a11y-'+k);});"
+        . "if(s.contrast)d.setAttribute('data-contrast','high');}catch(e){}})();</script>\n";
+}
+
+/**
+ * The accessibility panel's settings: the one list the panel is drawn from and the
+ * accessibility statement describes, so the statement cannot offer what the panel lacks.
+ * group => [key => [label, what it does]]; every key has a rule in assets/css/a11y.css.
+ */
+function site_a11y_options(): array {
+    return [
+        'Seeing the page' => [
+            'contrast' => ['Higher contrast', 'Darker words, firmer edges'],
+            'mute'     => ['Muted colours', 'Less colour, for comfort or light sensitivity'],
+            'links'    => ['Underline links', 'Every link marked, not only by colour'],
+            'focus'    => ['Strong focus ring', 'See exactly where the keyboard is'],
+            'cursor'   => ['Large pointer', 'A bigger mouse pointer'],
+        ],
+        'Reading' => [
+            'font'     => ['Readable typeface', 'Atkinson Hyperlegible, made for low vision'],
+            'spacing'  => ['More space', 'Wider lines, letters and paragraphs'],
+            'guide'    => ['Reading guide', 'A band that follows your pointer or keyboard'],
+            'still'    => ['Stop movement', 'No animation, no moving waveform'],
+        ],
+    ];
+}
+
+/** The accessibility panel and the cookie notice; $launcher false where the page offers its own way in. */
+function site_a11y_panel(bool $launcher = true): void {
+    include __DIR__ . '/a11y.php';
+    echo '<script src="/assets/js/a11y.js?v=20261121" defer></script>' . "\n";
+}
+
+/**
  * <head> and the opening of <body>.
  * $p: title, description, path (canonical), jsonld (extra <script> blocks)
  */
@@ -90,6 +135,7 @@ function site_head(array $p): void {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/site.css?v=20261120">
+<?= site_a11y_head() ?>
 <?= site_org_jsonld() ?>
 <?= $p['jsonld'] ?? '' ?>
 </head>
@@ -130,6 +176,7 @@ function site_header(string $variant, string $current = '', bool $skip = true): 
 /** The footer and the scripts the shared chrome needs (the panel, the newsletter). */
 function site_footer_chrome(): void {
     include __DIR__ . '/footer.php';
+    site_a11y_panel();
     echo "\n<script>window.MAM_SITE=" . json_encode(['fees' => site_fees(), 'intake' => site_intake()], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) . ";</script>\n";
     echo '<script src="/assets/js/site.js?v=20261121" defer></script>' . "\n";
 }

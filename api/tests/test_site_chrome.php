@@ -32,9 +32,63 @@ $sjs    = (string)@file_get_contents($ROOT . '/assets/js/site.js');
 t_ok(str_contains($header, "site_header('inner'") && !str_contains($header, 'id="navbar"'),
     'the shared header partial renders the redesign\'s bar, not the retired navbar');
 t_ok(str_contains($footer, 'site_footer_chrome()'), 'the shared footer partial renders the redesign\'s footer');
-t_ok(str_contains($footer, 'id="cookieBanner"'), 'the cookie notice survives the move: MAM_PRIVACY.mayMeasure() reads the choice it records');
-t_ok(str_contains($header, 'id="contrastToggle"') && str_contains($header, 'id="floatingEnroll"'),
-    'the accessibility toolbar and the floating Apply pill survive on the pages that had them');
+$shell = (string)@file_get_contents($ROOT . '/partials/site/shell.php');
+$a11y  = (string)@file_get_contents($ROOT . '/partials/site/a11y.php');
+$acss  = (string)@file_get_contents($ROOT . '/assets/css/a11y.css');
+$ajs   = (string)@file_get_contents($ROOT . '/assets/js/a11y.js');
+$apply = (string)@file_get_contents($ROOT . '/apply.php');
+t_ok(preg_match('/function site_footer_chrome\(\): void \{[^}]*site_a11y_panel\(\)/s', $shell) === 1
+     && str_contains($a11y, 'data-cookie aria-label="Cookie notice"') && str_contains($sjs, "store('mam.cookie'"),
+    'every page that wears the footer gets the cookie notice, and its answer is stored where MAM_PRIVACY.mayMeasure() reads it');
+t_ok(str_contains($header, 'site_a11y_head()') && str_contains($shell, '<?= site_a11y_head() ?>')
+     && str_contains($apply, 'site_a11y_head()') && str_contains($apply, 'site_a11y_panel(false)'),
+    'the accessibility settings are applied before paint on the older pages, the redesigned ones and Apply');
+t_ok(!str_contains($header, 'id="contrastToggle"') && str_contains($header, 'id="floatingEnroll"'),
+    'the old four-button toolbar is gone (the panel replaces it); the floating Apply pill stays');
+t_ok(str_contains($apply, 'data-a11y-open'), 'Apply, which draws no launcher, opens the panel from its own top bar');
+
+t_group('site chrome — the accessibility panel does what it offers');
+// The settings are one table, site_a11y_options(); the panel draws it and the statement describes it.
+preg_match('/function site_a11y_options\(\): array \{(.*?)\n\}/s', $shell, $ob);
+preg_match_all("/'([a-z]+)'\s*=>\s*\['/", $ob[1] ?? '', $m);
+$A11Y_keys = $m[1];
+t_ok(str_contains($a11y, 'site_a11y_options()') && str_contains((string)@file_get_contents($ROOT . '/accessibility.php'), 'site_a11y_options()'),
+    'the panel and the accessibility statement read the same list, so the statement cannot promise a setting the panel lacks');
+t_ok(count($A11Y_keys) >= 9, 'the panel offers at least nine settings beyond text size (it had four buttons)');
+preg_match("/var FLAGS = \[([^\]]*)\]/", $ajs, $fm);
+foreach ($A11Y_keys as $k) {
+    // A switch with no rule behind it is a control that does nothing, which is worse than no switch.
+    $hasRule = str_contains($acss, "html.a11y-$k") || ($k === 'guide' && str_contains($acss, '.a11y-guide{'));
+    t_ok($hasRule && str_contains($fm[1] ?? '', "'$k'"), "'$k' is applied by the script and has a rule in a11y.css");
+    if ($k !== 'guide') t_ok(str_contains($shell, "'$k'"), "'$k' is applied before the first paint, not after it");
+}
+preg_match("/foreach \(\[('[^\]]*')\] as \\\$i => \\\$t\)/", $a11y, $lab);
+preg_match('/var z=\[([0-9.,]+)\]/', $shell, $zt);
+$A11Y_labels = array_map(static fn($x) => trim($x, " '%"), explode(',', $lab[1] ?? ''));
+$A11Y_z      = array_map(static fn($x) => (string) round((float) $x * 100, 1), explode(',', $zt[1] ?? ''));
+t_eq($A11Y_z, array_map(static fn($x) => (string) round((float) $x, 1), $A11Y_labels),
+    'each text size does what its button says (the zoom is the figure on the button)');
+t_ok(str_contains($acss, 'zoom:var(--a11y-z') && str_contains($shell, 'innerWidth/320'),
+    'text size never lays the page out narrower than 320px (WCAG 1.4.10), so it cannot cause sideways scrolling');
+t_ok(str_contains($shell, "localStorage.getItem('mam.contrast')") && str_contains($shell, "localStorage.getItem('mam.fontScale')")
+     && str_contains($ajs, "localStorage.getItem('mam.contrast')"),
+    'a contrast or text size chosen on the old toolbar carries across, before paint and after');
+t_ok(str_contains($a11y, 'role="dialog" aria-modal="true"') && str_contains($ajs, "e.key === 'Escape'")
+     && str_contains($ajs, "e.key === 'Tab'") && str_contains($ajs, 'opener.focus()'),
+    'aria-modal is a promise the script keeps: focus moves in, Tab stays inside, Escape closes, focus returns');
+t_ok(str_contains($ajs, "'speechSynthesis' in window") && !preg_match('/fetch\(|XMLHttpRequest/', $ajs),
+    'read-aloud uses the device\'s own voice and sends nothing anywhere (the panel says so)');
+
+t_group('site chrome — one currency choice, at the rates a charge is made at');
+preg_match_all('/"([A-Z]{3})" => "/', $sfoot, $cm);
+t_eq($cm[1], ['USD', 'NGN', 'GBP'], 'the footer switch offers the three currencies the server prices in');
+$siteLib = (string)@file_get_contents(MAM_API_ROOT . '/lib/site.php');
+foreach ($cm[1] as $c) t_ok($c === 'USD' || str_contains($siteLib, "'$c' => (float)"),
+    "$c has a rate in site_fees(), the rates a charge is made at (a missing rate hides the button)");
+t_ok(str_contains($sjs, 'F.rates[cur]') && !preg_match('/open\.er-api|ipapi/', $sjs),
+    'the redesigned pages convert at the server\'s rates, never a third-party feed');
+t_ok(str_contains((string)@file_get_contents($ROOT . '/assets/js/site-programmes.js'), "addEventListener('mam:currency'"),
+    'the estimator and the footer switch are one choice: changing either moves the other');
 $legacy = array_filter(glob($ROOT . '/*.php') ?: [], static fn($f) => str_contains((string) file_get_contents($f), "partials/header.html"));
 $unset  = array_values(array_map('basename', array_filter($legacy, static function ($f) {
     $src = (string) file_get_contents($f);

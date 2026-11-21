@@ -1,15 +1,9 @@
 <?php
 /* The footer is the 2026-11 redesign's (partials/site/footer.php), so every page
-   ends the same way. The cookie notice below stays: main.js drives it, and the
-   choice it records is the one MAM_PRIVACY.mayMeasure() reads. */
+   ends the same way. The chrome brings the accessibility panel and the cookie
+   notice with it (partials/site/a11y.php); the choice the notice records is the
+   one MAM_PRIVACY.mayMeasure() reads, under the same key ("mam.cookie"). */
 site_footer_chrome();
 ?>
-<aside class="cookie-banner" id="cookieBanner" aria-label="Cookie notice">
-  <div class="cookie-text">Essential cookies only &mdash; they remember your draft and your preferences. <a href="privacy">Details</a>.</div>
-  <div class="cookie-actions">
-    <button class="cookie-btn cookie-btn-decline" id="cookieDecline">Decline</button>
-    <button class="cookie-btn cookie-btn-accept" id="cookieAccept">OK</button>
-  </div>
-</aside>
 
 <div class="grain-overlay" aria-hidden="true"></div>

@@ -59,8 +59,9 @@ foreach (['apply.js', 'studio-core.js'] as $CS_f) {
     t_ok(str_contains($src, 'MAM_PRIVACY.mayMeasure()') && !str_contains($src, 'navigator.doNotTrack'),
         "$CS_f asks that predicate rather than keeping its own check");
 }
-t_ok(str_contains((string) file_get_contents(dirname(__DIR__, 2) . '/assets/js/main.js'), "dismiss('decline')"),
-    'the banner still records a Decline under the key the predicate reads');
+t_ok(str_contains((string) file_get_contents(dirname(__DIR__, 2) . '/partials/site/a11y.php'), 'data-cookie-choice="decline"')
+     && str_contains((string) file_get_contents(dirname(__DIR__, 2) . '/assets/js/site.js'), "store('mam.cookie', b.getAttribute('data-cookie-choice'))"),
+    'the cookie notice still records a Decline under the key the predicate reads');
 
 t_group('code structure — one base64url for every signed token');
 

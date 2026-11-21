@@ -28,9 +28,17 @@ site_doc_section('built', 'What is built in',
     . '<li>If your device asks for reduced motion, nothing on the pages animates, and every count shows its final number.</li>'
     . '<li>Nothing makes a sound until you press a button. The microphone is used only when you press “Sing to it”, and what it hears is analysed on your device — never recorded or sent.</li>'
     . '<li>Fees are written as text, not images, and the estimate is announced when it changes.</li>'
-    . '<li>Pages still on our previous design carry a toolbar for higher contrast and larger or smaller text.</li>'
     . '<li>In the student, parent and instructor portals, the Display &amp; access screen offers larger text and a light or dark appearance.</li>'
     . '</ul>');
+
+$A11Y_list = '';
+foreach (site_a11y_options() as $opts) foreach ($opts as [$label, $hint]) $A11Y_list .= '<li><strong>' . site_h($label) . '</strong> — ' . site_h(lcfirst($hint)) . '.</li>';
+site_doc_section('settings', 'Your settings',
+    '<p>The round button at the bottom left of every page (or <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd>) opens the accessibility panel. What you choose is kept on this device only, applies to every page, and is in place before a page first appears.</p>'
+    . '<ul><li><strong>Text size</strong> — 100% to 175%. The whole page grows together; on a narrow phone it grows only as far as it can without scrolling sideways, and the panel tells you when that limit is reached.</li>'
+    . $A11Y_list
+    . '<li><strong>Read this page aloud</strong> — in your device’s own voice, at three speeds; select some text first to hear only that. Nothing is sent anywhere.</li></ul>'
+    . '<p>Your browser’s own zoom, text size and reader view work too, and nothing on these pages blocks them.</p>');
 
 site_doc_section('tested', 'How we test',
     '<p>Each redesigned page is checked against its design and audited for clipped or overlapping text, small targets, sideways scrolling on a phone and readability, at a phone width and a desktop width. We also go through the pages with a keyboard alone.</p>');

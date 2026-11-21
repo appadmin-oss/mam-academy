@@ -135,3 +135,16 @@ nav[aria-label="On this page"] a.on{color:#8A5208!important;background-size:100%
 .doc ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:8px}
 .doc a{color:#211A13;font-weight:600}
 .doc strong{color:#211A13}
+
+/* The header holds a logo, the wordmark, Apply and the menu: 323px, three more than the
+   narrowest phone, so below 360px of header the wordmark goes (the logo and the page's
+   own title still say where you are). A container query, not a media query, because the
+   accessibility panel's text size zooms the page and a media query cannot see that. */
+header,main{container-type:inline-size}
+@container (max-width: 359px){header .wm{display:none}}
+/* The 1080px layout switch again, as the width the page HAS rather than the window's:
+   unzoomed they are the same and these rules change nothing; at 175% text on a laptop
+   the page lays out at ~820px and must take its narrow layout, header included. */
+@container (max-width: 1080px){
+header .navlinks{display:none!important}header .menubtn{display:inline-flex!important}header .mobileonly{display:flex!important}
+.stick{position:static!important}.bento{grid-template-columns:1fr!important}.bento>*{grid-column:auto!important}.tgrid{grid-template-columns:1fr!important}.tgrid>*{grid-column:auto!important;grid-row:auto!important}}

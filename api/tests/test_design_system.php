@@ -101,12 +101,8 @@ foreach (['.footer-link', '.footer-legal-link', '.footer-contact .footer-link'] 
         "$DS_sel never sets min-height:0 — that is how it measured 19px, under WCAG 2.5.8's 24");
 }
 
-/* The hero carousel dot: the BUTTON is the target, the 14px circle is the
-   mark. Two rules inside the `pointer:coarse` block once sized the button to
-   the mark, which put the control at 32x14 on the phones that are most of this
-   academy's traffic. The same separation now carries the testimonial dot. */
-t_ok(str_contains($DS_css, '.hero-dot-face') && str_contains($DS_css, '.t-dot::before'),
-    'both carousels paint the mark on a child/pseudo-element, so the hit area is sized independently');
+/* The carousel-dot rule went with both carousels (the hero rotator and the
+   testimonial rail): the 2026-11 site has no slideshows, by the owner's decision. */
 
 t_group('design system — contrast that was computed, not eyeballed');
 

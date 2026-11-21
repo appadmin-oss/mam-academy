@@ -891,94 +891,6 @@
     var timer = setInterval(function () { if (tick()) clearInterval(timer); }, 1000);
   }
 
-  // ============================================================
-  // Testimonials
-  // ============================================================
-  function initTestimonials() {
-    var track = $('#testimonialsTrack'); if (!track) return;
-    // Source from config so the academy can edit/extend without touching JS.
-    var data = (window.MAM_CONFIG && window.MAM_CONFIG.testimonials) || [];
-    if (!data.length) { track.parentNode && (track.parentNode.style.display = 'none'); return; }
-
-    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-    function avatar(t) {
-      var photo = t.photo && window.MAM_CDN ? window.MAM_CDN.image(t.photo, { width: 120 }) : t.photo;
-      return photo
-        ? '<div class="testimonial-avatar"><img src="' + esc(photo) + '" alt="' + esc(t.name) + '" loading="lazy"></div>'
-        : '<div class="testimonial-avatar" aria-hidden="true">' + esc(t.initials || (t.name || '?').slice(0, 2).toUpperCase()) + '</div>';
-    }
-    function card(t) {
-      var stars = Math.max(0, Math.min(5, t.stars || 5));
-      return '<figure class="testimonial-card" role="group" aria-roledescription="testimonial">' +
-        '<div class="testimonial-stars" aria-label="' + stars + ' out of 5 stars">' + '★'.repeat(stars) + '<span style="opacity:.25">' + '★'.repeat(5 - stars) + '</span></div>' +
-        '<blockquote class="testimonial-quote">&ldquo;' + esc(t.quote) + '&rdquo;</blockquote>' +
-        '<figcaption class="testimonial-author">' + avatar(t) +
-        '<div><div class="testimonial-name">' + esc(t.name) + '</div><div class="testimonial-role">' + esc(t.role) + '</div></div>' +
-        '</figcaption></figure>';
-    }
-
-    // Build a proper rotator: a viewport that scrolls one card at a time,
-    // with dots, prev/next, autoplay (paused on hover/focus/visibility),
-    // and native touch-swipe via scroll-snap.
-    var wrap = track.parentNode; // .testimonials-track-wrap
-    wrap.classList.add('is-rotator');
-    track.classList.remove('testimonials-track');
-    track.classList.add('testimonials-rail');
-    track.innerHTML = data.map(card).join('');
-
-    var controls = document.createElement('div');
-    controls.className = 'testimonials-controls';
-    controls.innerHTML =
-      '<button type="button" class="t-arrow t-prev" aria-label="Previous testimonial"><i class="fa-solid fa-chevron-left"></i></button>' +
-      '<div class="t-dots" role="tablist" aria-label="Choose testimonial"></div>' +
-      '<button type="button" class="t-arrow t-next" aria-label="Next testimonial"><i class="fa-solid fa-chevron-right"></i></button>';
-    wrap.appendChild(controls);
-
-    var dotsWrap = controls.querySelector('.t-dots');
-    data.forEach(function (_, i) {
-      var b = document.createElement('button');
-      b.type = 'button'; b.className = 't-dot'; b.setAttribute('role', 'tab');
-      b.setAttribute('aria-label', 'Testimonial ' + (i + 1));
-      b.addEventListener('click', function () { go(i, true); });
-      dotsWrap.appendChild(b);
-    });
-    var dots = Array.prototype.slice.call(dotsWrap.children);
-    var cards = Array.prototype.slice.call(track.children);
-    var index = 0, timer = null, userPaused = false;
-
-    function go(i, fromUser) {
-      index = (i + cards.length) % cards.length;
-      var el = cards[index];
-      track.scrollTo({ left: el.offsetLeft - track.offsetLeft, behavior: 'smooth' });
-      dots.forEach(function (d, di) { d.classList.toggle('active', di === index); d.setAttribute('aria-selected', di === index ? 'true' : 'false'); });
-      if (fromUser) restart();
-    }
-    function next() { go(index + 1); }
-    function prev() { go(index - 1); }
-    function start() { if (!userPaused) { stop(); timer = setInterval(next, 6000); } }
-    function stop() { if (timer) { clearInterval(timer); timer = null; } }
-    function restart() { stop(); start(); }
-
-    controls.querySelector('.t-next').addEventListener('click', function () { next(); restart(); });
-    controls.querySelector('.t-prev').addEventListener('click', function () { prev(); restart(); });
-    ['mouseenter', 'focusin', 'touchstart'].forEach(function (ev) { wrap.addEventListener(ev, function () { userPaused = true; stop(); }, { passive: true }); });
-    ['mouseleave', 'focusout'].forEach(function (ev) { wrap.addEventListener(ev, function () { userPaused = false; start(); }); });
-    document.addEventListener('visibilitychange', function () { if (document.hidden) stop(); else start(); });
-    // Keep dots in sync if the user free-scrolls/swipes the rail.
-    var st;
-    track.addEventListener('scroll', function () {
-      clearTimeout(st);
-      st = setTimeout(function () {
-        var nearest = 0, best = Infinity;
-        cards.forEach(function (c, ci) { var d = Math.abs(c.offsetLeft - track.offsetLeft - track.scrollLeft); if (d < best) { best = d; nearest = ci; } });
-        index = nearest;
-        dots.forEach(function (d, di) { d.classList.toggle('active', di === index); });
-      }, 120);
-    }, { passive: true });
-
-    go(0);
-    if (!matchMedia('(prefers-reduced-motion: reduce)').matches) start();
-  }
 
   // ============================================================
   // Cookie banner
@@ -1026,15 +938,7 @@
   window.addEventListener('resize', dockFloatingEnroll);
   dockFloatingEnroll();
 
-  function initCookie() {
-    var banner = $('#cookieBanner'); if (!banner) return;
-    if (Storage.getItem('mam.cookie')) { banner.remove(); return; }
-    mamDock().appendChild(banner);      // dock it — stacking handled by flex
-    setTimeout(function () { banner.classList.add('shown'); }, 1200);
-    function dismiss(v) { return function () { Storage.setItem('mam.cookie', v); banner.classList.remove('shown'); setTimeout(function () { banner.remove(); }, 380); }; }
-    on($('#cookieAccept'),  'click', dismiss('accept'));
-    on($('#cookieDecline'), 'click', dismiss('decline'));
-  }
+  // The cookie notice is partials/site/a11y.php, run by site.js on every page.
 
   // ============================================================
   // Announcement strip
@@ -1104,28 +1008,8 @@
     else if (mq.addListener) mq.addListener(sync);
   }
 
-  // ============================================================
-  // Accessibility toolbar
-  // ============================================================
-  function initToolbar() {
-    function setContrast(high) {
-      document.documentElement.setAttribute('data-contrast', high ? 'high' : 'normal');
-      Storage.setItem('mam.contrast', high ? 'high' : 'normal');
-      var b = $('#contrastToggle'); if (b) b.classList.toggle('active', high);
-    }
-    on($('#contrastToggle'), 'click', function () {
-      var c = document.documentElement.getAttribute('data-contrast') === 'high';
-      setContrast(!c);
-    });
-    if (Storage.getItem('mam.contrast') === 'high') setContrast(true);
-
-    var scale = parseFloat(Storage.getItem('mam.fontScale') || '1');
-    function apply() { document.documentElement.style.fontSize = (16 * scale) + 'px'; Storage.setItem('mam.fontScale', String(scale)); }
-    apply();
-    on($('#fontUp'),   'click', function () { scale = Math.min(1.3, scale + 0.05); apply(); });
-    on($('#fontDown'), 'click', function () { scale = Math.max(0.85, scale - 0.05); apply(); });
-    on($('#printBtn'), 'click', function () { window.print(); });
-  }
+  // The accessibility toolbar became the panel in partials/site/a11y.php
+  // (assets/js/a11y.js), which carries its old settings across.
 
   // ============================================================
   // Currency toggle
@@ -1133,7 +1017,9 @@
   function initCurrency() {
     // Run wherever there's money on the page — the switcher is an optional
     // override; prices convert to the visitor's local currency regardless.
-    var btns = $$('.currency-btn');
+    // .cur-sw is the footer's switch (partials/site/footer.php): on these pages
+    // this painter owns it, on the redesigned ones site.js does.
+    var btns = $$('.currency-btn, .cur-sw [data-currency]');
     if (!btns.length && !$$('[data-price]').length && !$$('[data-cur-sym]').length) return;
     var CCY = window.MAM_CCY;
     if (!CCY) return; // config.js provides the single currency source of truth
@@ -1437,7 +1323,7 @@
   function initCardGlow() {
     if (!mamWaveFine) return;
     var sel = '.school-card,.mode-card,.faculty-card,.pathway-card,.unique-card,'
-            + '.next-step-card,.choice-card,.struct-card,.extra-card,.testimonial-card,.method-step';
+            + '.next-step-card,.choice-card,.struct-card,.extra-card,.method-step';
     $$(sel).forEach(function (card) {
       if (card.__mamGlow) return;
       card.__mamGlow = 1;
@@ -1565,7 +1451,7 @@
          whole width. A FAB painted over a form's primary action is the same
          defect the dock exists to prevent — it just arrived from a different
          direction. */
-      ['.cookie-banner.shown', '.mam-cta-bar.is-in', '.a-bar', '.fac-bar'].forEach(function (sel) {
+      ['.ck:not([hidden])', '.mam-cta-bar.is-in', '.a-bar', '.fac-bar'].forEach(function (sel) {
         var el = document.querySelector(sel); if (!el) return;
         var r = el.getBoundingClientRect();
         if (r.height && r.bottom > vh - 40 && r.left < 110) blocked = true;
@@ -1708,7 +1594,7 @@
     // others from running — otherwise a single failure could, for example,
     // leave the scroll-reveal section headers stuck at opacity:0.
     [initPreloader, initNav, initAuthNav, initActiveNav, initHero, initSmoothScroll, initFaq, initAnimations,
-     initCountdown, initTestimonials, initAnnounce, initCookie, initToolbar, initCurrency, initPromoBanner,
+     initCountdown, initAnnounce, initCurrency, initPromoBanner,
      initNewsletter, initFilters, initImageFallback, initYear, initScholarship,
      initFooterGroups, initNavPricing, initGraphics, initBackToTop].forEach(function (fn) {
       try { fn(); } catch (e) { if (window.console) console.error('[MAM] init failed:', fn.name, e); }

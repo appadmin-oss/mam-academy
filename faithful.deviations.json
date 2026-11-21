@@ -218,6 +218,42 @@
       "match": "a:nth-of-type(1)>img",
       "reason": "The footer logo, moved by the kept checklist beyond Faithful's pairing distance",
       "owner": "parity"
+    },
+    {
+      "kind": "extra",
+      "match": "a11y-",
+      "reason": "The accessibility panel's launcher (and Apply's own button for it): text size, contrast, reading aids and read-aloud on every page, replacing the previous site's four-button toolbar. The design drew no accessibility control",
+      "owner": "accessibility"
+    },
+    {
+      "kind": "extra",
+      "match": "aside.ck",
+      "reason": "The cookie notice kept from the previous site: its Decline is what MAM_PRIVACY.mayMeasure() reads, so removing it would remove the only way most visitors can refuse measurement",
+      "owner": "privacy"
+    },
+    {
+      "kind": "extra",
+      "match": "Essential cookies only",
+      "reason": "The cookie notice's sentence (see aside.ck)",
+      "owner": "privacy"
+    },
+    {
+      "kind": "extra",
+      "match": "ck-act",
+      "reason": "The cookie notice's Decline and OK (see aside.ck)",
+      "owner": "privacy"
+    },
+    {
+      "kind": "extra",
+      "match": "cur-sw",
+      "reason": "The currency switch kept from the previous site's footer: every price on the page in USD, NGN or GBP at the server's own rates, one choice shared with the Programmes estimator",
+      "owner": "parity"
+    },
+    {
+      "kind": "extra",
+      "match": "$ USD",
+      "reason": "The currency switch (see cur-sw)",
+      "owner": "parity"
     }
   ]
 }

@@ -101,7 +101,7 @@ ob_start();
             </div>
             <h3 style="margin: 18px 0 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 34px; line-height: 1.05">Pre-Certificate</h3>
             <p style="margin: 0; font-size: 15px; color: #574B40">Foundations: technique, posture, rhythm and first performances.</p>
-            <p style="margin: auto 0 0; padding-top: 18px; border-top: 1px solid #F1EADF; display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 14px; color: #574B40">Tuition from</span><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 600"><?= site_fee('level0') ?><span style="font-family: Inter, sans-serif; font-size: 13px; font-weight: 400; color: #574B40"> /term</span></span></p>
+            <p style="margin: auto 0 0; padding-top: 18px; border-top: 1px solid #F1EADF; display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 14px; color: #574B40">Tuition from</span><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 600"><?= site_money('level0') ?><span style="font-family: Inter, sans-serif; font-size: 13px; font-weight: 400; color: #574B40"> /term</span></span></p>
           </li>
         
           <li class="lift lvl" style="position: relative; background: #FFFFFF; border: 1px solid #ECE5DA; border-radius: 20px; padding: 28px; display: flex; flex-direction: column; gap: 12px; min-height: 340px; box-sizing: border-box; overflow: hidden">
@@ -111,7 +111,7 @@ ob_start();
             </div>
             <h3 style="margin: 18px 0 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 34px; line-height: 1.05">Certificate</h3>
             <p style="margin: 0; font-size: 15px; color: #574B40">Fluent playing, sight reading and stage presentation.</p>
-            <p style="margin: auto 0 0; padding-top: 18px; border-top: 1px solid #F1EADF; display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 14px; color: #574B40">Tuition from</span><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 600"><?= site_fee('level1') ?><span style="font-family: Inter, sans-serif; font-size: 13px; font-weight: 400; color: #574B40"> /term</span></span></p>
+            <p style="margin: auto 0 0; padding-top: 18px; border-top: 1px solid #F1EADF; display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 14px; color: #574B40">Tuition from</span><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 600"><?= site_money('level1') ?><span style="font-family: Inter, sans-serif; font-size: 13px; font-weight: 400; color: #574B40"> /term</span></span></p>
           </li>
         
           <li class="lift lvl" style="position: relative; background: #FFFFFF; border: 1px solid #ECE5DA; border-radius: 20px; padding: 28px; display: flex; flex-direction: column; gap: 12px; min-height: 340px; box-sizing: border-box; overflow: hidden">
@@ -121,7 +121,7 @@ ob_start();
             </div>
             <h3 style="margin: 18px 0 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 34px; line-height: 1.05">Pre-Diploma</h3>
             <p style="margin: 0; font-size: 15px; color: #574B40">Advanced repertoire, improvisation and ensemble leadership.</p>
-            <p style="margin: auto 0 0; padding-top: 18px; border-top: 1px solid #F1EADF; display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 14px; color: #574B40">Tuition from</span><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 600"><?= site_fee('level2') ?><span style="font-family: Inter, sans-serif; font-size: 13px; font-weight: 400; color: #574B40"> /term</span></span></p>
+            <p style="margin: auto 0 0; padding-top: 18px; border-top: 1px solid #F1EADF; display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 14px; color: #574B40">Tuition from</span><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 600"><?= site_money('level2') ?><span style="font-family: Inter, sans-serif; font-size: 13px; font-weight: 400; color: #574B40"> /term</span></span></p>
           </li>
         
           <li class="lift lvl" style="position: relative; background: #FFFFFF; border: 1px solid #ECE5DA; border-radius: 20px; padding: 28px; display: flex; flex-direction: column; gap: 12px; min-height: 340px; box-sizing: border-box; overflow: hidden">
@@ -131,7 +131,7 @@ ob_start();
             </div>
             <h3 style="margin: 18px 0 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 34px; line-height: 1.05">Diploma</h3>
             <p style="margin: 0; font-size: 15px; color: #574B40">Professional mastery, conducting and artistic identity.</p>
-            <p style="margin: auto 0 0; padding-top: 18px; border-top: 1px solid #F1EADF; display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 14px; color: #574B40">Tuition from</span><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 600"><?= site_fee('level3') ?><span style="font-family: Inter, sans-serif; font-size: 13px; font-weight: 400; color: #574B40"> /term</span></span></p>
+            <p style="margin: auto 0 0; padding-top: 18px; border-top: 1px solid #F1EADF; display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 14px; color: #574B40">Tuition from</span><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 30px; font-weight: 600"><?= site_money('level3') ?><span style="font-family: Inter, sans-serif; font-size: 13px; font-weight: 400; color: #574B40"> /term</span></span></p>
           </li>
         
       </ol>
@@ -257,7 +257,7 @@ ob_start();
                 <h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 28px; line-height: 1.1">The MetaMusic Order</h3>
                 <p style="margin: 0; font-size: 14px; color: #574B40">From performer to architect: sound, culture and atmosphere.</p>
               </div>
-              <span style="flex: none; font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 10px; background: #F6F1E9; color: #211A13"><?= site_fee('meta') ?></span>
+              <span style="flex: none; font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 10px; background: #F6F1E9; color: #211A13"><?= site_money('meta') ?></span>
             </li>
           
             <li class="reveal lift" style="flex: 1; background: #FFFFFF; border: 1px solid #ECE5DA; border-radius: 20px; padding: 24px 28px; display: flex; gap: 20px; align-items: center">
@@ -266,7 +266,7 @@ ob_start();
                 <h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 28px; line-height: 1.1">Crash Programme</h3>
                 <p style="margin: 0; font-size: 14px; color: #574B40">A focused intensive, online or in person.</p>
               </div>
-              <span style="flex: none; font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 10px; background: #F6F1E9; color: #211A13"><?= site_fee('crash') ?></span>
+              <span style="flex: none; font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 10px; background: #F6F1E9; color: #211A13"><?= site_money('crash') ?></span>
             </li>
           
         </ul>
@@ -291,7 +291,7 @@ ob_start();
               <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0">
                 <p style="margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #D8CEC1">Today · 5 minutes</p>
                 <h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 30px; line-height: 1.1">Apply online</h3>
-                <p style="margin: 0; font-size: 15px; color: #E9E1D6">Tell us about the learner, choose an instrument and online or in person. Registration is <?= site_fee('reg') ?>.</p>
+                <p style="margin: 0; font-size: 15px; color: #E9E1D6">Tell us about the learner, choose an instrument and online or in person. Registration is <?= site_money('reg') ?>.</p>
               </div>
             </li>
           
@@ -325,9 +325,9 @@ ob_start();
           <li class="reveal" style="background: #352719; border-radius: 20px; padding: 32px; display: flex; flex-direction: column; gap: 18px">
             <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px"><h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 30px">Tuition per term</h3><span style="font-size: 13px; color: #D8CEC1">Onsite · online adds <?= site_fee('online') ?></span></div>
             <dl style="margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px">
-              <div style="padding: 18px; border-radius: 14px; background: #2A1E14; display: flex; flex-direction: column; gap: 4px"><dt style="font-size: 14px; color: #E9E1D6">Standard</dt><dd style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 34px; font-weight: 600; line-height: 1">from <?= site_fee('from:standard') ?></dd><dd style="margin: 0; font-size: 13px; color: #D8CEC1">One course</dd></div>
-              <div style="padding: 18px; border-radius: 14px; background: #2A1E14; box-shadow: inset 0 0 0 1px #F2A93B; display: flex; flex-direction: column; gap: 4px"><dt style="font-size: 14px; color: #F2A93B">Certified Musician</dt><dd style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 34px; font-weight: 600; line-height: 1">from <?= site_fee('from:certified-musician') ?></dd><dd style="margin: 0; font-size: 13px; color: #D8CEC1">Major + 4 core courses</dd></div>
-              <div style="padding: 18px; border-radius: 14px; background: #2A1E14; display: flex; flex-direction: column; gap: 4px"><dt style="font-size: 14px; color: #E9E1D6">Grand Musician</dt><dd style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 34px; font-weight: 600; line-height: 1">from <?= site_fee('from:grand-musician') ?></dd><dd style="margin: 0; font-size: 13px; color: #D8CEC1">All 3 expressions</dd></div>
+              <div style="padding: 18px; border-radius: 14px; background: #2A1E14; display: flex; flex-direction: column; gap: 4px"><dt style="font-size: 14px; color: #E9E1D6">Standard</dt><dd style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 34px; font-weight: 600; line-height: 1">from <?= site_money('from:standard') ?></dd><dd style="margin: 0; font-size: 13px; color: #D8CEC1">One course</dd></div>
+              <div style="padding: 18px; border-radius: 14px; background: #2A1E14; box-shadow: inset 0 0 0 1px #F2A93B; display: flex; flex-direction: column; gap: 4px"><dt style="font-size: 14px; color: #F2A93B">Certified Musician</dt><dd style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 34px; font-weight: 600; line-height: 1">from <?= site_money('from:certified-musician') ?></dd><dd style="margin: 0; font-size: 13px; color: #D8CEC1">Major + 4 core courses</dd></div>
+              <div style="padding: 18px; border-radius: 14px; background: #2A1E14; display: flex; flex-direction: column; gap: 4px"><dt style="font-size: 14px; color: #E9E1D6">Grand Musician</dt><dd style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 34px; font-weight: 600; line-height: 1">from <?= site_money('from:grand-musician') ?></dd><dd style="margin: 0; font-size: 13px; color: #D8CEC1">All 3 expressions</dd></div>
             </dl>
           </li>
           <li class="reveal" style="background: #F2A93B; color: #211A13; border-radius: 20px; padding: 32px; display: flex; flex-wrap: wrap; gap: 16px 32px; justify-content: space-between; align-items: center">

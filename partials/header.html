@@ -33,23 +33,18 @@
    the previous design wears the same header as the redesigned ones, so a visitor
    moving between them is on one site. This file keeps what the old header carried
    that the new one does not draw: the organisation's structured data above, and
-   the accessibility toolbar and floating Apply pill below (main.js drives both).
+   the floating Apply pill below (main.js drives it). The old four-button toolbar
+   (contrast, bigger, smaller, print) is replaced by the accessibility panel the
+   footer chrome adds to every page; its settings are applied here, before paint.
    The old search box posted ?q= to a homepage that never read it, so it was a
    control that did nothing; it was not carried over. */
 require_once __DIR__ . '/site/shell.php';
 echo '<link rel="stylesheet" href="/assets/css/site-chrome.css?v=20261121">' . "\n";
+echo site_a11y_head();
 // The page carries its own skip link, so the shell does not add a second.
 site_header('inner', '/' . basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''), '.php'), false);
 ?>
 
-<aside class="toolbar-region" aria-label="Accessibility tools">
-<div class="toolbar" role="toolbar" aria-label="Accessibility tools">
-  <button class="toolbar-btn" id="contrastToggle" title="High contrast" aria-label="High contrast"><i class="fa-solid fa-circle-half-stroke"></i></button>
-  <button class="toolbar-btn" id="fontUp" title="Increase text" aria-label="Increase text"><i class="fa-solid fa-plus"></i></button>
-  <button class="toolbar-btn" id="fontDown" title="Decrease text" aria-label="Decrease text"><i class="fa-solid fa-minus"></i></button>
-  <button class="toolbar-btn" id="printBtn" title="Print" aria-label="Print"><i class="fa-solid fa-print"></i></button>
-</div>
-</aside>
 
 <div class="floating-enroll" id="floatingEnroll" inert>
   <a href="apply" class="floating-enroll-btn"><i class="fa-solid fa-music"></i>Apply Now</a>

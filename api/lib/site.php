@@ -69,6 +69,27 @@ function site_usd(float $v): string { return '$' . number_format(round($v), 0); 
  * One printed fee, by name: level0..level3 (a level's base), from:<programme>,
  * crash, meta, reg, online ("20%"). Every figure a page prints goes through here.
  */
+/** The dollar figure behind a fee name (see site_fee), for money that can be converted. */
+function site_fee_usd(string $k): float {
+    $f = site_fees();
+    if (preg_match('/^level([0-3])$/', $k, $m)) return (float) $f['levels'][(int) $m[1]]['base'];
+    if (str_starts_with($k, 'from:')) return (float) ($f['from'][substr($k, 5)] ?? 0);
+    return (float) match ($k) {
+        'crash' => $f['crash'], 'meta' => $f['meta'], 'reg' => $f['registration'], 'compulsory' => $f['compulsory'],
+        default => throw new InvalidArgumentException("not a money fee: $k"),
+    };
+}
+
+/**
+ * A fee as page text the visitor's currency choice can convert: the server's dollars,
+ * marked with data-amt-usd, which config.js's MAM_CCY repaints in the currency they
+ * chose (or the one their region suggests). With no script it stays in dollars.
+ */
+function site_money(string $k): string {
+    $usd = round(site_fee_usd($k));
+    return '<span data-amt-usd="' . $usd . '">' . site_usd($usd) . '</span>';
+}
+
 function site_fee(string $k): string {
     $f = site_fees();
     if (preg_match('/^level([0-3])$/', $k, $m)) return site_usd($f['levels'][(int) $m[1]]['base']);

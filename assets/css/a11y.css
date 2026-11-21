@@ -1,0 +1,96 @@
+/* The accessibility panel, its launcher, the cookie notice, the currency switch, and the
+   page adjustments the panel turns on. Loaded on every page (redesigned and older) and
+   drawn in the 2026-11 design's palette, radii and type; the adjustments themselves are
+   deliberately forceful (!important), because they must win over inline design styles. */
+:root{--a11y-out:cubic-bezier(.19,1,.22,1)}
+
+/* ---- launcher ---- */
+.a11y-launch{position:fixed;left:16px;bottom:16px;z-index:1100;width:52px;height:52px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid rgba(252,248,243,.25);background:#211A13;color:#FCF8F3;cursor:pointer;box-shadow:0 18px 40px -20px rgba(33,26,19,.6);font:inherit}
+.a11y-launch:hover{background:#3E342B}
+.a11y-launch:focus-visible{outline:3px solid #2563EB;outline-offset:2px}
+.a11y-inline{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0;border:0;background:none;font:inherit;font-size:14px;color:#574B40;cursor:pointer}
+
+/* ---- panel ---- */
+.a11y-scrim{position:fixed;inset:0;z-index:1200;background:rgba(18,12,7,.45)}
+.a11y-panel{position:fixed;left:16px;right:16px;bottom:16px;z-index:1201;max-width:400px;max-height:calc(100% - 32px);overflow-y:auto;overscroll-behavior:contain;box-sizing:border-box;padding:24px;border-radius:20px;background:#FAF8F4;color:#211A13;border:1px solid #ECE5DA;box-shadow:0 30px 60px -36px rgba(33,26,19,.4);font-family:Inter,system-ui,sans-serif;font-size:16px;line-height:1.5;animation:a11yIn .45s var(--a11y-out) both}
+@keyframes a11yIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.a11y-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.a11y-head h2{margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-weight:500;font-size:34px;line-height:1.05}
+.a11y-x{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:10px;background:none;color:#211A13;cursor:pointer}
+.a11y-x:hover{background:#F3EEE6}
+.a11y-lede{margin:6px 0 18px;font-size:14px;color:#574B40}
+.a11y-group{margin:0;padding:16px 0 0;border:0;border-top:1px solid #E3DACD}
+.a11y-group+.a11y-group{margin-top:16px}
+.a11y-group legend{float:left;width:100%;padding:0;margin:0 0 10px;font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8A5208}
+.a11y-seg{clear:both;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:4px;border-radius:12px;background:#F3EEE6}
+.a11y-seg--sm{grid-template-columns:repeat(3,minmax(0,1fr))}
+.a11y-seg button{min-height:44px;border:0;border-radius:9px;background:transparent;color:#574B40;font:inherit;font-size:14px;cursor:pointer}
+.a11y-seg button[aria-checked=true]{background:#FFFFFF;color:#211A13;font-weight:600;box-shadow:0 1px 3px rgba(33,26,19,.18)}
+.a11y-opt{clear:both;display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;min-height:56px;padding:8px 0;border:0;background:none;color:#211A13;font:inherit;text-align:left;cursor:pointer}
+.a11y-opt+.a11y-opt{border-top:1px solid #ECE5DA}
+.a11y-opt-t{display:flex;flex-direction:column;font-weight:600;font-size:16px}
+.a11y-opt-h{font-weight:400;font-size:13px;color:#574B40}
+.a11y-sw{flex:none;position:relative;width:44px;height:26px;border-radius:999px;background:#CFC3B3;transition:background .2s ease}
+.a11y-sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#FFFFFF;box-shadow:0 1px 3px rgba(33,26,19,.18);transition:transform .3s var(--a11y-out)}
+.a11y-opt[aria-pressed=true] .a11y-sw{background:#211A13}
+.a11y-opt[aria-pressed=true] .a11y-sw::after{transform:translateX(18px)}
+.a11y-read{clear:both;display:flex;flex-direction:column;gap:10px}
+.a11y-act{min-height:48px;padding:0 20px;border-radius:999px;border:0;background:#211A13;color:#FAF8F4;font:inherit;font-weight:600;cursor:pointer}
+.a11y-act[aria-pressed=true]{background:#F2A93B;color:#211A13}
+.a11y-cap{margin:10px 0 0;font-size:13px;color:#574B40}
+.a11y-note{margin:8px 0 0;font-size:13px;color:#574B40}
+.a11y-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid #E3DACD}
+.a11y-foot a{color:#211A13;text-decoration:none;font-size:14px}
+.a11y-reset{min-height:44px;padding:0 18px;border-radius:10px;border:1px solid #CFC3B3;background:#FFFFFF;color:#211A13;font:inherit;font-size:15px;cursor:pointer}
+.a11y-panel :focus-visible{outline:3px solid #2563EB;outline-offset:2px}
+.sr-xs{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ---- cookie notice ---- */
+.ck{position:fixed;left:84px;right:16px;bottom:16px;z-index:1100;max-width:440px;margin-left:auto;box-sizing:border-box;padding:18px 20px;border-radius:16px;background:#FFFFFF;color:#211A13;border:1px solid #ECE5DA;box-shadow:0 30px 60px -36px rgba(33,26,19,.4);font-family:Inter,system-ui,sans-serif;font-size:14px;line-height:1.5;display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px}
+.ck p{margin:0;flex:1 1 220px}
+.ck a{display:inline-flex;align-items:center;min-height:24px;color:#8A5208}
+.ck-act{display:flex;gap:8px}
+.ck .btn{min-height:44px;padding:0 18px;border-radius:10px;font:inherit;font-weight:600;cursor:pointer}
+.ck-no{border:1px solid #CFC3B3;background:#FFFFFF;color:#211A13}
+.ck-ok{border:0;background:#211A13;color:#FAF8F4}
+
+/* ---- currency switch (the estimator's own control, as a site-wide one) ---- */
+.cur-sw{display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:rgba(252,248,243,.08)}
+.cur-sw button{min-height:32px;padding:0 12px;border:0;border-radius:8px;background:transparent;color:#D8CEC1;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.cur-sw button[aria-pressed=true]{background:#FCF8F3;color:#211A13}
+.cur-sw--light{background:#F3EEE6}
+.cur-sw--light button{color:#574B40}
+.cur-sw--light button[aria-pressed=true]{background:#FFFFFF;color:#211A13;box-shadow:0 1px 3px rgba(33,26,19,.18)}
+
+/* ---- the adjustments ---- */
+/* Text size zooms the page, as the browser's own zoom does: everything reflows together.
+   The factor is --a11y-z, set by mamA11yZoom() (partials/site/shell.php) and never allowed
+   to lay the page out narrower than 320 CSS px — WCAG 1.4.10's reflow width, below which
+   these pages would scroll sideways. On a phone that is what limits it, and the panel says
+   so. The panel's own controls stay out of the zoom, so they cannot leave the screen. */
+html[data-a11y-size] body>:not(.a11y-ui){zoom:var(--a11y-z,1)}
+/* Higher contrast: the design's quiet words become ink on light grounds and white on dark
+   ones; hairlines become firm edges. Older pages also get their own [data-contrast=high]. */
+html.a11y-contrast :is([style*="color: #574B40"],[style*="color: #3E342B"],[style*="color: #8C7F70"],[style*="color:#574B40"],[style*="color: #8A5208"]){color:#211A13!important}
+html.a11y-contrast :is([style*="color: #D8CEC1"],[style*="color: #B8AC9E"],[style*="color: #E9E1D6"],[style*="color: rgba(252,248,243"]){color:#FFFFFF!important}
+html.a11y-contrast :is([style*="border: 1px solid #E3DACD"],[style*="border: 1px solid #ECE5DA"],[style*="border-top: 1px solid #E6DED2"],[style*="border-bottom: 1px solid #E3DACD"]){border-color:#211A13!important}
+html.a11y-contrast .a11y-opt-h,html.a11y-contrast .a11y-lede,html.a11y-contrast .a11y-note{color:#211A13}
+html.a11y-mute :is(main,footer,header,.ap){filter:saturate(.25)}
+html.a11y-links a{text-decoration:underline!important;text-underline-offset:3px!important;text-decoration-thickness:2px!important}
+html.a11y-focus :focus-visible,html.a11y-focus :focus{outline:4px solid #F2A93B!important;outline-offset:3px!important;box-shadow:0 0 0 7px #211A13!important}
+html.a11y-cursor,html.a11y-cursor *{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24'%3E%3Cpath d='M4 2l15 11-7 1 4 8-3 1-4-8-5 5z' fill='%23211A13' stroke='%23FFFFFF' stroke-width='1.4' stroke-linejoin='round'/%3E%3C/svg%3E") 6 3,auto!important}
+html.a11y-font body,html.a11y-font body :not(svg):not(svg *):not(.a11y-sw){font-family:'Atkinson Hyperlegible',Inter,system-ui,sans-serif!important}
+/* WCAG 1.4.12's text-spacing values: nothing may break when a reader sets them. */
+/* In running text: a display headline at 84px with .12em tracking falls apart, and
+   nobody asking for space between letters is asking for it there. */
+html.a11y-spacing body :is(p,li,dd,dt,td,th,label,input,textarea,select,blockquote,figcaption,summary){line-height:1.8!important;letter-spacing:.12em!important;word-spacing:.16em!important}
+html.a11y-spacing body p{margin-bottom:2em!important}
+html.a11y-still *,html.a11y-still *::before,html.a11y-still *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+.a11y-guide{position:fixed;left:0;right:0;z-index:1150;height:2.6em;pointer-events:none;background:rgba(242,169,59,.16);border-top:2px solid #F2A93B;border-bottom:2px solid #F2A93B}
+.a11y-reading{outline:3px solid #F2A93B!important;outline-offset:6px;border-radius:6px}
+@media (prefers-reduced-motion: reduce){.a11y-panel{animation:none}.a11y-sw,.a11y-sw::after{transition:none}}
+@media print{.a11y-launch,.a11y-panel,.a11y-scrim,.a11y-guide,.ck{display:none!important}}
+/* On a page still on the previous design the notice is in main.js's dock, which stacks
+   it with the Apply bar; there it is a row of the stack, not a corner of the screen. */
+.mam-dock>.ck--dock{position:static;width:auto;max-width:440px;align-self:flex-end}
+.ck[hidden]{display:none}

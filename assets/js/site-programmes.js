@@ -86,6 +86,14 @@
   }
 
   function pick(act, value) { s[act] = value; if (act === 'prog' && !(value === 'standard' || value === 'grand')) s.extras = 0; render(); }
+  // The estimator's currency is the site's one choice (site.js, the footer's switch).
+  var site = window.MAM_SITE && window.MAM_SITE.currency;
+  if (site && CURS.indexOf(site()) >= 0) s.cur = site();
+  var pickSelf = pick;
+  pick = function (act, value) { pickSelf(act, value); if (act === 'cur' && site) site(value); };
+  document.addEventListener('mam:currency', function (e) {
+    var c = e.detail && e.detail.currency; if (CURS.indexOf(c) >= 0 && c !== s.cur) { s.cur = c; render(); }
+  });
   form.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-act]'); if (!b) return;
     var act = b.getAttribute('data-act'), i = +b.getAttribute('data-i');

@@ -43,6 +43,7 @@ $apIntake = site_intake();
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/css/site.css?v=20261121">
+<?= site_a11y_head() ?>
 <style>
 @media (max-width: 960px){.ap-aside{display:none!important}.ap-mob{display:flex!important}}
 @keyframes qIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
@@ -61,7 +62,7 @@ $apIntake = site_intake();
     <div style="padding: 20px 22px; border-radius: 16px; background: rgba(252,248,243,.06); display: flex; flex-direction: column; gap: 2px">
       <p style="margin: 0; font-size: 14px; color: #D8CEC1">Estimated tuition</p>
       <p aria-live="polite" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 40px; font-weight: 600; line-height: 1.15"><span data-ap="fee">—</span><span data-ap="fee-unit" style="font-family: Inter, sans-serif; font-size: 15px; font-weight: 400; color: #D8CEC1"></span></p>
-      <p style="margin: 0; font-size: 13px; color: #D8CEC1"><span data-ap="fee-note">Choose a programme to see the fee.</span> Due today: <?= site_fee('reg') ?> registration.</p>
+      <p style="margin: 0; font-size: 13px; color: #D8CEC1"><span data-ap="fee-note">Choose a programme to see the fee.</span> Due today: <?= site_money('reg') ?> registration.</p>
     </div>
     <div style="margin-top: auto; display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #B8AC9E">
       <span data-ap="saved" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CC59A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L20 7"></path></svg>Progress saved on this device<span data-ap="reset-wrap" hidden> · <button type="button" data-ap="reset" class="ul" style="padding: 0; border: 0; background: none; font: inherit; color: #D8CEC1; cursor: pointer">Start over</button></span></span>
@@ -74,6 +75,7 @@ $apIntake = site_intake();
       <div style="display: flex; align-items: center; gap: 16px">
         <a href="/" class="ap-mob" style="display: none; align-items: center; min-height: 44px; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 22px; font-weight: 600; color: #211A13; text-decoration: none">MAM</a>
         <button type="button" data-ap="back" hidden class="ul" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0; border: 0; background: none; font: inherit; font-size: 15px; color: #211A13; cursor: pointer"><span aria-hidden="true">←</span> Back</button>
+        <button type="button" class="a11y-inline ul" style="min-width: 44px; justify-content: center" data-a11y-open aria-label="Accessibility settings" aria-haspopup="dialog" aria-controls="a11y-panel"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4.5" r="1.8"></circle><path d="M4 8.5l8 1.5 8-1.5M12 10v5M12 15l-3.5 6M12 15l3.5 6"></path></svg><span class="hide-sm">Accessibility</span></button>
       </div>
       <div style="display: flex; align-items: center; gap: 20px; font-size: 14px; color: #574B40"><span data-ap="counter" aria-live="polite">Question 1</span><a href="/" class="ul hide-sm" style="color: #574B40; text-decoration: none">Save and exit</a></div>
     </div>
@@ -85,8 +87,10 @@ $apIntake = site_intake();
     </main>
   </div>
 </div>
+<?php site_a11y_panel(false); ?>
 <script>window.MAM_SITE=<?= json_encode(['fees' => site_fees(), 'intake' => $apIntake], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 <script src="/assets/js/config.js?v=20261121"></script>
+<script src="/assets/js/site.js?v=20261121" defer></script>
 <script src="/assets/js/apply-flow.js?v=20261121" defer></script>
 </body>
 </html>

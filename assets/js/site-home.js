@@ -16,6 +16,9 @@
   var soundBtn = document.querySelector('[data-act="sound"]'), micBtn = document.querySelector('[data-act="mic"]');
   var readout = document.querySelector('[data-pitch]');
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // "Stop movement" in the accessibility panel (assets/js/a11y.js) is the same request, made here.
+  function still() { return reduce || document.documentElement.classList.contains('a11y-still'); }
+  document.addEventListener('mam:a11y', function () { if (typeof kick === 'function') kick(); });
   var state = { sound: false, mic: false, micError: false, pitch: null };
 
   var seed = 11, rnd = function () { return ((seed = (seed * 16807) % 2147483647) / 2147483647); };
@@ -155,7 +158,7 @@
       } else if (state.pitch) { state.pitch = null; paintButtons(); }
     }
   }
-  function kick() { if (reduce && !state.mic) { draw(0); return; } if (!raf) raf = requestAnimationFrame(frame); }
+  function kick() { if (still() && !state.mic) { draw(0); return; } if (!raf) raf = requestAnimationFrame(frame); }
   function frame() {
     raf = 0; if (!visible) return;
     var now = performance.now();
@@ -163,6 +166,7 @@
     if (state.mic) listen(now);
     if (!state.mic && px == null && now - lastMove > 2500 && Math.random() < 0.006) ripple(W * (0.2 + Math.random() * 0.6), 0.45);   // the room breathes
     draw((now - t0) / 1000);
+    if (still() && !state.mic) return;   // switched off mid-visit: this frame was the last
     raf = requestAnimationFrame(frame);
   }
   function draw(time) {
@@ -170,14 +174,14 @@
     var c = ctx, now = performance.now(), base = H, i;
     c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
     c.lineCap = 'round'; c.globalCompositeOperation = 'lighter';
-    var grow = reduce ? 1 : Math.min(1, time / 1.4), ease = 1 - Math.pow(1 - grow, 3);
+    var grow = still() ? 1 : Math.min(1, time / 1.4), ease = 1 - Math.pow(1 - grow, 3);
     var pitchX = state.mic && pitchHz ? (Math.log(pitchHz / 70) / Math.log(1600 / 70)) * W : null;
     for (i = 0; i < N; i++) {
       var t = (i + 0.5) / N, x = t * W;
       // a song-like envelope that rises from the floor, tallest in the middle
       var env = Math.pow(Math.sin(Math.PI * t), 1.6) * (0.5 + 0.5 * noise[(i * 3) % 400]) * (0.8 + 0.2 * Math.sin(t * 11 + 1.3));
       if (state.mic && live) env = env * 0.18 + (live[i] || 0) * 1.05;
-      var breathe = reduce ? 1 : 0.84 + 0.16 * Math.sin(time * 1.7 + i * 0.21) * Math.sin(time * 0.6 + i * 0.05);
+      var breathe = still() ? 1 : 0.84 + 0.16 * Math.sin(time * 1.7 + i * 0.21) * Math.sin(time * 0.6 + i * 0.05);
       var target = pitchX != null ? Math.exp(-Math.pow((x - pitchX) / 26, 2)) : (px == null ? 0 : Math.exp(-Math.pow((x - px) / 70, 2)));
       boost[i] += (target - boost[i]) * 0.14;
       var rip = 0;

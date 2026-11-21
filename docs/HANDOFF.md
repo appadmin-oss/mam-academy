@@ -2514,3 +2514,48 @@ pages have no accessibility toolbar (contrast, text size — the browser's zoom 
 contrast settings still work), no cookie notice (they send no analytics, so none is required),
 and none of the old slideshow, testimonials or currency switch. Restoring any of them is a
 design decision, not a fix.
+
+## 4z17. 2026-11-21 — the accessibility panel, the cookie notice, one currency choice; testimonials removed
+
+The owner's decisions on the parity losses: no slideshows; accessibility "more advanced"
+than the old toolbar; the cookie notice and the currency switch back, in the design's
+style; the testimonials removed (they are gone from main.js, config.js, libs.js and
+main.css, not hidden).
+
+- **The panel** (`partials/site/a11y.php`, `assets/css/a11y.css`, `assets/js/a11y.js`) is on
+  every public page: a launcher at the bottom left, Alt+Shift+A, and on Apply a button in
+  its own top bar (Apply draws no launcher). Text size 100–175%, nine switches, and read
+  aloud in the device's own voice. The settings are ONE table, `site_a11y_options()`
+  (shell.php): the panel draws it and `/accessibility` describes it.
+  `test_site_chrome.php` fails on a switch with no CSS rule, no script flag, or no pre-paint
+  line — a switch that does nothing is worse than none (proven by renaming one rule).
+- **Applied before paint.** `site_a11y_head()` is inline in `<head>` (shell pages, Apply)
+  and in `partials/header.html` (older pages), and carries the old toolbar's
+  `mam.contrast` / `mam.fontScale` across once. On older pages contrast also sets the
+  previous design's own `data-contrast="high"`.
+- ⚠️ **Text size is `zoom` on `body>:not(.a11y-ui)`, capped at a 320px layout** (WCAG
+  1.4.10). Measured: an uncapped 175% on a 390px phone laid the page out at 223px and every
+  page scrolled sideways by 175px. On a phone the cap is ~122%, and the panel says so in
+  words. The panel's own controls are `.a11y-ui`, outside the zoom, or `vw`/`vh` maths put
+  the cookie notice over the launcher.
+- ⚠️ **A media query cannot see the zoom.** At 175% a 1440 laptop lays out at ~820px while
+  every `@media (max-width:1080px)` still reads 1440: the desktop nav wrapped and its last
+  button was cut off. `header` and `main` are size containers now and the 1080px switch
+  is repeated as `@container` (identical when unzoomed). The same container query hides
+  the wordmark below 360px of header — which also fixed a 3px sideways scroll at 320px
+  that predates the panel (logo + Apply + menu = 323px).
+- **"More space" spaces running text, not display headlines** (WCAG 1.4.12's values on an
+  84px headline pull it apart). **"Stop movement"** also stops the homepage waveform
+  mid-visit (`site-home.js` listens for `mam:a11y`).
+- **The cookie notice** keeps the key `mam.cookie`, which `MAM_PRIVACY.mayMeasure()` reads;
+  site.js runs it on every page (Apply now loads site.js), and on older pages it joins
+  main.js's dock. "Cookie settings" in the footer reopens it.
+- **Currency**: the footer's switch offers USD / NGN / GBP, the three `site_fees()` has rates
+  for — the rates a charge is made at, never a third-party feed. It and the Programmes
+  estimator are one choice (`mam.currency`, `MAM_SITE.currency()`, the `mam:currency`
+  event). Prices are `site_money()` spans (`data-amt-usd`). On older pages main.js's
+  existing painter drives the same switch.
+- **Faithful**: all six redesigned pages PASS at 1440 and 390 with the additions declared
+  (`faithful.deviations.json`, owners accessibility / privacy / parity). It caught two real
+  faults on the way: the notice's "Details" link was a 17px target (WCAG 2.5.8), and
+  Apply's new button moved the design's question counter by 38–129px; both fixed.

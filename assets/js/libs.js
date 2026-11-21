@@ -122,7 +122,7 @@
      grid get a stagger via data-aos-delay. */
   function autoTagAos() {
     // Section intros rise first.
-    document.querySelectorAll('.section-eyebrow, .section-title, .section-desc, .testimonials-head, .page-hero-inner').forEach(function (el) {
+    document.querySelectorAll('.section-eyebrow, .section-title, .section-desc, .page-hero-inner').forEach(function (el) {
       if (!el.hasAttribute('data-aos')) { el.setAttribute('data-aos', 'fade-up'); el.setAttribute('data-aos-duration', '650'); }
     });
     // Card grids: stagger children for a gentle cascade.
