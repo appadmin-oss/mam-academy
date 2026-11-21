@@ -4,7 +4,7 @@ Drop the files here with exactly these names and the homepage picks them up — 
 
 | File | What | Target |
 |---|---|---|
-| `hero.mp4` | The desktop loop (H.264, no audio) | 1920×1080, under 4 MB |
+| `hero.mp4` | The desktop loop (H.264, no audio). The panel is 21:9 and opens to the full screen width on scroll, so keep the subject in the middle band of the frame | 2560×1080 (or 1920×1080, cropped top and bottom), under 4 MB |
 | `hero.webm` | Optional smaller copy of the same loop | under 3 MB |
 | `hero-mobile.mp4` | Optional phone crop, 4:5 | 1080×1350, under 2.5 MB |
 | `hero-poster.webp` (or `.jpg`) | The first frame as a still | under 200 KB |

@@ -155,8 +155,19 @@ header .navlinks{display:none!important}header .menubtn{display:inline-flex!impo
    not played to, the frame draws a studio in the late-morning sun: a window's light
    falling across the room, leaf shadows swaying in it, haze and film grain. Light
    only — nothing figurative, so nothing in it can look wrong. */
-.film{position:relative;overflow:hidden;isolation:isolate;border-radius:clamp(14px,1.6vw,22px);aspect-ratio:16/9;background:linear-gradient(160deg,#F3EEE6 0%,#E8DECF 52%,#CDB89C 100%)}
+.film-wrap{margin-top:clamp(32px,4vw,56px)}
+.film{position:relative;overflow:hidden;isolation:isolate;margin:0 auto;width:min(1280px,calc(100% - 2 * clamp(20px,4vw,40px)));border-radius:clamp(14px,1.6vw,22px);aspect-ratio:21/9;background:linear-gradient(160deg,#F3EEE6 0%,#E8DECF 52%,#CDB89C 100%)}
 @media (max-width: 720px){.film{aspect-ratio:4/5}}
+/* On a desktop the inset panel opens into a full-width band as it scrolls up the
+   page (the corners square off as it reaches the edges). Scroll-driven, so no
+   script; a phone keeps the inset card, and so does anybody who asked for less
+   motion or whose browser has no scroll timelines. */
+@media (min-width: 721px) and (prefers-reduced-motion: no-preference){
+  @supports (animation-timeline: scroll()){
+    .film{animation:filmBand linear both;animation-timeline:scroll(root block);animation-range:24px 50vh}
+  }
+}
+@keyframes filmBand{to{width:100%;border-radius:0}}
 .film::after{content:"";position:absolute;inset:0;z-index:3;pointer-events:none;border-radius:inherit;box-shadow:inset 0 0 140px rgba(90,56,21,.28)}
 .film video,.film-poster{position:absolute;inset:0;z-index:1;width:100%;height:100%;object-fit:cover}
 .film video{opacity:0;transition:opacity 1.2s var(--soft)}

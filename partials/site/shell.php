@@ -158,7 +158,7 @@ function site_head(array $p): void {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/site.css?v=20261121c">
+<link rel="stylesheet" href="/assets/css/site.css?v=20261121d">
 <?= site_a11y_head() ?>
 <?= site_org_jsonld() ?>
 <?= $p['jsonld'] ?? '' ?>
@@ -199,7 +199,7 @@ function site_footer_chrome(): void {
     include __DIR__ . '/footer.php';
     site_a11y_panel();
     echo "\n<script>window.MAM_SITE=" . json_encode(['fees' => site_fees(), 'intake' => site_intake()], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) . ";</script>\n";
-    echo '<script src="/assets/js/site.js?v=20261121c" defer></script>' . "\n";
+    echo '<script src="/assets/js/site.js?v=20261121d" defer></script>' . "\n";
 }
 
 /** The footer, and the end of the document. $scripts: page scripts beyond site.js. */

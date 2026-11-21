@@ -20,14 +20,16 @@ ob_start();
           <a href="/auditer" style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 25px; border-radius: 999px; border: 1px solid #CFC3B3; color: #211A13; font-weight: 600; text-decoration: none">Visit a class</a>
         </div>
       </div>
+    </section>
+    <div class="film-wrap fade-in" style="animation-delay: .5s">
       <?php $heroMedia = site_hero_media(); ?>
-      <div class="film fade-in<?= $heroMedia['poster'] !== '' ? ' has-poster' : '' ?>" data-film data-src="<?= site_h($heroMedia['mp4']) ?>" data-webm="<?= site_h($heroMedia['webm']) ?>" data-mobile="<?= site_h($heroMedia['mobile']) ?>" style="animation-delay: .5s; margin-top: clamp(32px, 4vw, 56px)">
+      <div class="film<?= $heroMedia['poster'] !== '' ? ' has-poster' : '' ?>" data-film data-src="<?= site_h($heroMedia['mp4']) ?>" data-webm="<?= site_h($heroMedia['webm']) ?>" data-mobile="<?= site_h($heroMedia['mobile']) ?>">
         <?php if ($heroMedia['poster'] !== ''): ?><img class="film-poster" src="<?= site_h($heroMedia['poster']) ?>" alt="" decoding="async" fetchpriority="high"><?php endif; ?>
         <div class="film-light" aria-hidden="true"><span></span><span></span><span></span></div>
         <div class="film-grain" aria-hidden="true"></div>
         <button type="button" class="film-pause" data-film-toggle aria-pressed="false" aria-label="Pause the moving background"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14"><rect class="i-pause" x="3" y="2" width="3" height="10" rx="1"/><rect class="i-pause" x="8" y="2" width="3" height="10" rx="1"/><path class="i-play" d="M4 2.5v9l7.5-4.5z"/></svg></button>
       </div>
-    </section>
+    </div>
 
     <section id="about" aria-labelledby="about-h" style="max-width: 900px; margin: 0 auto; padding: clamp(64px, 8.3vw, 120px) clamp(20px, 4vw, 40px) clamp(56px, 7.8vw, 112px); display: flex; flex-direction: column; align-items: center; gap: 24px; text-align: center">
       <h2 aria-label="More than music lessons" id="about-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.08; letter-spacing: -0.005em"><span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 0% entry 60%">More</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 6% entry 66%">than</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 12% entry 72%">music</span></span> <span class="mask" aria-hidden="true"><span class="sw" style="animation-range: entry 18% entry 78%">lessons</span></span></h2>
