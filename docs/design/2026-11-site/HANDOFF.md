@@ -343,15 +343,16 @@ WebP or AVIF, under 300 KB each, with alt text.
 - [ ] Intake name and date for every [INTAKE] placeholder
 - [ ] MAM Auditer session length (designed as "about 30 minutes")
 - [ ] Vision line "We interpret the timeless using instruments and replay it in time"
-- [ ] Faculty names and photos beyond Just-Joe Adeola
+- [x] Founder: **Just-Joe Adeola** (Babatunde Oluwaseyi Just-Joe Adeola), with portrait — confirmed 21 Nov 2026; replaces "Van. BOJA" everywhere
+- [ ] Faculty names and photos beyond the founder
 - [ ] Term structure on Life
 - [ ] Auditer dimension descriptions and sample values
 
 ### Links still to wire
 
-- [ ] Power Play registration form
-- [ ] Portal sign-in, Practice Studio, Store
-- [ ] Leadership & faculty, Our history pages
+- [x] Power Play registration form — `/power-play#register`
+- [x] Portal sign-in, Practice Studio, Store — `/portal/login`, `/studio`, `/store`
+- [x] Leadership & faculty, Our history pages — `/faculty`, `/about#history`
 - [ ] Terms, class policies, privacy, accessibility, cookies
 - [ ] Paystack checkout for the $5 registration
 - [ ] Confirm the Apply endpoint (designed to post to the existing `apply.php`)
