@@ -35,6 +35,9 @@ if (!headers_sent()) header('Cache-Control: public, max-age=300');
 
 mam_ok([
     'pricing'                 => $pricing,
+    // Capability flag, no secret: the Studio's Transcribe tool shows a calm "not available"
+    // state up front rather than failing after somebody records a clip.
+    'transcribe_enabled'      => function_exists('mam_klangio_configured') ? mam_klangio_configured() : false,
     'registration_fee_usd'    => mam_registration_fee(),
     'online_surcharge_pct'    => mam_online_surcharge_pct(),
     'store_shipping_flat_usd' => mam_setting_num('store_shipping_flat_usd', 5),

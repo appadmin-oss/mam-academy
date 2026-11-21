@@ -349,6 +349,97 @@
 .faq-item p a{color:var(--gold-bright,#FCC647)}
 @media (max-width:600px){.studio-overview{grid-template-columns:1fr 1fr}.studio-card-desc{display:none}.studio-overview-band{padding:20px 16px 0}}
 @media (max-width:400px){.studio-overview{grid-template-columns:1fr}}
+
+/* ── Chords & Scales, Transcribe, Drone — ported 2026-11 from the June session ── */
+.ch-controls{display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap;padding:18px;background:var(--bg-raised);border:1px solid var(--border);border-radius:16px;margin-bottom:18px}
+.ch-field{display:flex;flex-direction:column;gap:6px;font-size:0.72rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted)}
+.ch-field-grow{flex:1;min-width:180px}
+.ch-field select{padding:11px 12px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.95rem;font-weight:600;min-height:46px;cursor:pointer}
+.ch-toggle{display:inline-flex;background:var(--bg-elevated);border:1px solid var(--border-strong);border-radius:12px;padding:4px;gap:4px}
+.ch-toggle button{padding:9px 16px;border:0;border-radius:8px;background:transparent;color:var(--text-muted);font-weight:800;font-size:0.84rem;cursor:pointer;min-height:38px}
+.ch-toggle button.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
+.ch-play{display:inline-flex;align-items:center;gap:9px;padding:13px 24px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.04em;border-radius:12px;border:0;cursor:pointer;min-height:48px;box-shadow:0 6px 18px rgba(224,138,26,0.35)}
+.ch-play:hover{transform:translateY(-1px)}
+.ch-keys{margin-bottom:18px}
+.ch-kb-inner{position:relative;display:flex;height:clamp(140px,28vw,184px);background:var(--bg-raised);border:1px solid var(--border);border-radius:12px;padding:6px}
+.ch-key{position:relative;border:1px solid var(--border-strong);cursor:pointer;padding:0;transition:background .08s,transform .05s,filter .08s;display:flex;align-items:flex-end;justify-content:center}
+.ch-white{background:linear-gradient(180deg,#FBF7F1,#E9DFCE);color:#1A120B;border-radius:0 0 8px 8px;border-top:0;box-shadow:inset 0 -3px 6px rgba(0,0,0,0.08)}
+.ch-white + .ch-white{border-left:0}
+.ch-black{position:absolute;top:6px;height:62%;background:linear-gradient(180deg,#2A1D11,#160F08);border:1px solid #000;border-radius:0 0 4px 4px;transform:translateX(-50%);z-index:3;box-shadow:0 3px 6px rgba(0,0,0,0.5)}
+.ch-key.on.ch-white{background:linear-gradient(180deg,#FFE9B8,#FCC647)}
+.ch-key.on.ch-black{background:linear-gradient(180deg,#E08A1A,#B8721B)}
+.ch-key.root.ch-white{background:linear-gradient(180deg,#FFD27A,#F2A93B);box-shadow:inset 0 0 0 2px #B8721B}
+.ch-key.root.ch-black{background:linear-gradient(180deg,#FBBF24,#E08A1A)}
+.ch-key.ch-hit{transform:translateY(2px) scaleY(0.98);filter:brightness(1.15)}
+.ch-key-label{font-size:0.74rem;font-weight:800;padding-bottom:8px;pointer-events:none}
+.ch-info{background:var(--bg-raised);border:1px solid var(--border);border-radius:16px;padding:16px 20px}
+.ch-info-name{font-family:var(--font-serif);font-size:1.3rem;font-weight:700;color:var(--gold-bright,#FCC647);margin-bottom:12px}
+.ch-info-notes{display:flex;flex-wrap:wrap;gap:8px}
+.ch-chip{display:inline-flex;flex-direction:column;align-items:center;min-width:46px;padding:8px 10px;background:var(--bg-elevated);border:1px solid var(--border-strong);border-radius:10px}
+.ch-chip.root{border-color:var(--border-gold);background:rgba(224,138,26,0.12)}
+.ch-chip b{font-size:1rem;color:var(--text);font-weight:800}
+.ch-chip i{font-size:0.7rem;color:var(--text-muted);font-style:normal;margin-top:2px}
+.tr-grid{display:grid;grid-template-columns:minmax(0,360px) 1fr;gap:20px}
+@media (max-width:760px){.tr-grid{grid-template-columns:1fr}}
+.tr-pane{background:var(--bg-raised);border:1px solid var(--border);border-radius:16px;padding:18px 20px}
+.tr-label{display:block;font-size:0.72rem;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px}
+.tr-select{width:100%;padding:11px 12px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);font-size:0.95rem;font-weight:600;min-height:46px;cursor:pointer;margin-bottom:16px}
+.tr-inputs{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.tr-rec{display:inline-flex;align-items:center;gap:9px;padding:13px 22px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.03em;border-radius:12px;border:0;cursor:pointer;min-height:48px}
+.tr-rec.recording{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff;animation:trPulse 1.1s ease-in-out infinite}
+@keyframes trPulse{0%,100%{box-shadow:0 0 0 0 rgba(244,66,59,0.5)}50%{box-shadow:0 0 0 8px rgba(244,66,59,0)}}
+.tr-or{color:var(--text-muted);font-size:0.84rem}
+.tr-upload{display:inline-flex;align-items:center;gap:8px;padding:12px 18px;background:transparent;border:1px solid var(--border-gold);color:var(--gold-bright);font-weight:700;border-radius:12px;min-height:48px;cursor:pointer}
+.tr-upload:hover{background:rgba(224,138,26,0.06)}
+.tr-clip{margin-top:16px;padding:12px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:12px}
+.tr-clip audio{width:100%;display:block}
+.tr-clip-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;font-size:0.82rem;color:var(--text-muted)}
+.tr-clip-x{background:none;border:0;color:var(--text-muted);cursor:pointer;font-size:1rem;padding:2px 6px;border-radius:8px}
+.tr-clip-x:hover{color:#FCA5A5;background:rgba(244,63,94,0.08)}
+.tr-go{display:inline-flex;align-items:center;justify-content:center;gap:10px;width:100%;margin-top:16px;padding:14px 22px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.04em;font-size:1rem;border-radius:12px;border:0;cursor:pointer;min-height:52px;box-shadow:0 8px 22px rgba(224,138,26,0.34)}
+.tr-go:disabled{opacity:0.45;cursor:not-allowed;box-shadow:none}
+.tr-hint{margin:12px 0 0;font-size:0.78rem;color:var(--text-muted);line-height:1.55}
+.tr-result{min-height:240px;display:flex;flex-direction:column}
+.tr-empty{margin:auto;text-align:center;color:var(--text-muted)}
+.tr-empty i{font-size:2.2rem;color:var(--border-strong);margin-bottom:10px;display:block}
+.tr-status{display:flex;align-items:center;gap:12px;color:var(--text-soft);font-size:0.94rem;margin:auto}
+.tr-spin{width:22px;height:22px;border:3px solid var(--border-strong);border-top-color:var(--gold-bright,#FCC647);border-radius:50%;animation:trSpin .8s linear infinite;flex-shrink:0}
+@keyframes trSpin{to{transform:rotate(360deg)}}
+.tr-done-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.tr-done-head h3{margin:0;font-family:var(--font-serif);font-size:1.15rem;color:var(--text)}
+.tr-done-head span{font-size:0.84rem;color:var(--gold-bright,#FCC647);font-weight:700}
+.tr-roll{width:100%;height:170px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;display:block;margin-bottom:6px}
+.tr-roll-x{font-size:0.72rem;color:var(--text-muted);text-align:center;margin:0 0 12px}
+.tr-dl{display:flex;gap:10px;flex-wrap:wrap}
+.tr-dl a{display:inline-flex;align-items:center;gap:8px;padding:11px 16px;background:var(--bg-elevated);border:1px solid var(--border-strong);border-radius:10px;color:var(--text);font-weight:700;font-size:0.86rem;text-decoration:none;min-height:44px}
+.tr-dl a:hover{border-color:var(--border-gold);color:var(--gold-bright)}
+.tr-msg{margin:auto;text-align:center;color:var(--text-soft);line-height:1.6;max-width:340px}
+.tr-msg i{font-size:1.8rem;margin-bottom:10px;display:block}
+.tr-msg.err i{color:#FCA5A5}
+.tr-msg .tr-retry{margin-top:14px;padding:10px 18px;background:transparent;border:1px solid var(--border-gold);color:var(--gold-bright);font-weight:700;border-radius:10px;cursor:pointer}
+@media (max-width:680px){
+  .tr-inputs{flex-direction:column;align-items:stretch;gap:10px}
+  .tr-rec,.tr-upload{width:100%;justify-content:center}
+  .tr-or{text-align:center}
+}
+.drone-display{text-align:center;padding:28px 20px;background:var(--bg-raised);border:1px solid var(--border);border-radius:16px;margin-bottom:18px}
+.drone-note{font-family:var(--font-display);font-size:clamp(4rem,12vw,6.5rem);line-height:1;color:var(--gold-bright,#FCC647);letter-spacing:0.02em}
+.drone-oct{font-size:0.42em;color:var(--text-muted);vertical-align:super;margin-left:4px}
+.drone-freq{margin-top:8px;color:var(--text-soft);font-variant-numeric:tabular-nums}
+.drone-keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(56px,1fr));gap:8px;margin-bottom:16px}
+.drone-key{padding:12px 0;border-radius:10px;border:1.5px solid var(--border-strong);background:var(--bg-elevated);color:var(--text);font-weight:700;font-size:0.95rem;cursor:pointer;min-height:46px}
+.drone-key.sharp{color:var(--text-muted)}
+.drone-key:hover{border-color:var(--border-gold)}
+.drone-key.on{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent}
+.drone-controls{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-bottom:18px}
+.drone-controls label{display:inline-flex;align-items:center;gap:8px;font-size:0.86rem;font-weight:700;color:var(--text-muted)}
+.drone-controls select{padding:8px 11px;background:var(--bg-elevated);border:1.5px solid var(--border-strong);border-radius:10px;color:var(--text);min-height:42px}
+.drone-controls input{accent-color:var(--gold-bright,#FCC647)}
+.drone-vol{flex:1;min-width:170px}
+.drone-vol input{flex:1}
+.drone-play{display:inline-flex;align-items:center;gap:10px;padding:14px 28px;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;letter-spacing:0.04em;border-radius:12px;border:0;cursor:pointer;min-height:52px;font-size:1rem;box-shadow:0 8px 22px rgba(224,138,26,0.34)}
+.drone-play.playing{background:linear-gradient(135deg,#F4423B,#FF6B6B);color:#fff;box-shadow:0 8px 22px rgba(244,66,59,0.4)}
+@media (max-width:680px){.drone-play{width:100%;justify-content:center}}
 </style>
 </head>
 <body>
@@ -379,6 +470,9 @@
       <button class="studio-card" type="button" data-goto-tool="pomodoro"><span class="studio-card-ic"><i class="fa-solid fa-hourglass-half"></i></span><span class="studio-card-name">Practice Timer</span><span class="studio-card-desc">Focused Pomodoro blocks that keep a log of every session.</span><span class="studio-card-tag free">Free</span></button>
       <button class="studio-card" type="button" data-goto-tool="ear"><span class="studio-card-ic"><i class="fa-solid fa-headphones"></i></span><span class="studio-card-name">Ear Training</span><span class="studio-card-desc">Interval, chord-quality &amp; pitch-direction drills that adapt to you.</span><span class="studio-card-tag free">Free</span></button>
       <button class="studio-card" type="button" data-goto-tool="seq"><span class="studio-card-ic"><i class="fa-solid fa-grip"></i></span><span class="studio-card-name">Beat Maker</span><span class="studio-card-desc">A 16-step sequencer with kits, swing, FX and one-click WAV export.</span><span class="studio-card-tag free">Free</span></button>
+      <button class="studio-card" type="button" data-goto-tool="chords"><span class="studio-card-ic"><i class="fa-solid fa-music"></i></span><span class="studio-card-name">Chords &amp; Scales</span><span class="studio-card-desc">Pick a root and a scale or chord, see it on the keyboard and hear it played.</span><span class="studio-card-tag free">Free</span></button>
+      <button class="studio-card" type="button" data-goto-tool="drone"><span class="studio-card-ic"><i class="fa-solid fa-wave-square"></i></span><span class="studio-card-name">Drone</span><span class="studio-card-desc">A warm, sustained reference pitch for intonation and improvising, with an optional fifth.</span><span class="studio-card-tag free">Free</span></button>
+      <button class="studio-card" type="button" data-goto-tool="transcribe"><span class="studio-card-ic"><i class="fa-solid fa-wand-magic-sparkles"></i></span><span class="studio-card-name">Transcribe</span><span class="studio-card-desc">Record or upload a short clip and get notes, MIDI and MusicXML back. Sign in to use it.</span><span class="studio-card-tag">Sign in</span></button>
       <button class="studio-card locked" type="button" data-goto-tool="rhythm"><span class="studio-card-ic"><i class="fa-solid fa-drum"></i></span><span class="studio-card-name">Rhythm Trainer <i class="fa-solid fa-lock"></i></span><span class="studio-card-desc">Endless, Trinity-graded sight-reading — tap it or play it on any instrument.</span><span class="studio-card-tag">Students</span></button>
       <button class="studio-card locked" type="button" data-goto-tool="pitchgame"><span class="studio-card-ic"><i class="fa-solid fa-microphone-lines"></i></span><span class="studio-card-name">Pitch Game <i class="fa-solid fa-lock"></i></span><span class="studio-card-desc">Real-time intonation, timing &amp; consistency scoring as you sing or play.</span><span class="studio-card-tag">Students</span></button>
       <button class="studio-card locked" type="button" data-goto-tool="speed"><span class="studio-card-ic"><i class="fa-solid fa-gauge-high"></i></span><span class="studio-card-name">Speed &amp; Pitch <i class="fa-solid fa-lock"></i></span><span class="studio-card-desc">Slow any track down and transpose it to your key — independently.</span><span class="studio-card-tag">Students</span></button>
@@ -392,10 +486,13 @@
       <button data-tool="tuner" role="tab" aria-selected="false"><i class="fa-solid fa-tower-broadcast"></i> Tuner</button>
       <button data-tool="pomodoro" role="tab" aria-selected="false"><i class="fa-solid fa-hourglass-half"></i> Pomodoro</button>
       <button data-tool="ear" role="tab" aria-selected="false"><i class="fa-solid fa-headphones"></i> Ear Training</button>
+      <button data-tool="chords" role="tab" aria-selected="false"><i class="fa-solid fa-music"></i> Chords &amp; Scales</button>
       <button data-tool="seq" role="tab" aria-selected="false"><i class="fa-solid fa-grip"></i> Beat Maker</button>
       <button data-tool="rhythm" data-locked="student" role="tab" aria-selected="false"><i class="fa-solid fa-drum"></i> Rhythm Tap <i class="fa-solid fa-lock tab-lock" aria-label="Students only" title="Students only"></i></button>
       <button data-tool="pitchgame" data-locked="student" role="tab" aria-selected="false"><i class="fa-solid fa-microphone-lines"></i> Pitch Game <i class="fa-solid fa-lock tab-lock" aria-label="Students only" title="Students only"></i></button>
       <button data-tool="speed" data-locked="student" role="tab" aria-selected="false"><i class="fa-solid fa-gauge-high"></i> Speed &amp; Pitch <i class="fa-solid fa-lock tab-lock" aria-label="Students only" title="Students only"></i></button>
+      <button data-tool="drone" role="tab" aria-selected="false"><i class="fa-solid fa-wave-square"></i> Drone</button>
+      <button data-tool="transcribe" role="tab" aria-selected="false"><i class="fa-solid fa-wand-magic-sparkles"></i> Transcribe</button>
     </nav>
 
     <!-- ─── Metronome ─── -->
@@ -736,6 +833,93 @@
       </div>
       <div id="pitchGame"></div>
     </section>
+
+    <!-- ─── Chords & Scales ─── -->
+    <section class="tool-panel" data-tool="chords" role="tabpanel">
+      <div class="tool-head">
+        <div>
+          <h2>Chords &amp; Scales</h2>
+          <p>Pick a root, then a scale or chord — the keyboard lights up. Click any key to hear it, or press Play to arpeggiate the scale / strum the chord. A pocket theory reference that actually sounds.</p>
+        </div>
+      </div>
+      <div class="ch-controls">
+        <label class="ch-field">Root
+          <select id="chRoot" aria-label="Root note">
+            <option value="0" selected>C</option><option value="1">C♯</option><option value="2">D</option><option value="3">D♯</option><option value="4">E</option><option value="5">F</option><option value="6">F♯</option><option value="7">G</option><option value="8">G♯</option><option value="9">A</option><option value="10">A♯</option><option value="11">B</option>
+          </select>
+        </label>
+        <div class="ch-toggle" role="group" aria-label="Scale or chord">
+          <button type="button" data-ch-mode="scale" class="active">Scales</button>
+          <button type="button" data-ch-mode="chord">Chords</button>
+        </div>
+        <label class="ch-field ch-field-grow">Type
+          <select id="chPick" aria-label="Scale or chord type"></select>
+        </label>
+        <button class="ch-play" id="chPlay" type="button"><i class="fa-solid fa-play"></i> Play</button>
+      </div>
+      <div class="ch-keys" id="chKeys" aria-label="Piano keyboard — click a key to play it"></div>
+      <div class="ch-info" id="chInfo"></div>
+    </section>
+
+    <!-- ─── Drone ─── -->
+    <section class="tool-panel" data-tool="drone" role="tabpanel">
+      <div class="tool-head">
+        <div><h2>Drone</h2><p>A warm, sustained reference pitch for intonation, improvisation and play-along practice. Pick a note — add the perfect fifth for a tanpura-style backing — and hold it as long as you like.</p></div>
+      </div>
+      <div class="drone-display">
+        <div class="drone-note"><span id="droneNote">A</span><span class="drone-oct" id="droneOct">3</span></div>
+        <div class="drone-freq" id="droneFreq">—</div>
+      </div>
+      <div class="drone-keys" id="droneKeys" role="group" aria-label="Choose a note"></div>
+      <div class="drone-controls">
+        <label>Octave
+          <select id="droneOctSel"><option value="2">2</option><option value="3" selected>3</option><option value="4">4</option></select>
+        </label>
+        <label><input type="checkbox" id="droneFifth"> Add perfect fifth</label>
+        <label class="drone-vol">Volume <input type="range" id="droneVol" min="0" max="100" value="50"></label>
+      </div>
+      <button class="drone-play" id="dronePlay" type="button"><i class="fa-solid fa-play"></i> <span>Start drone</span></button>
+    </section>
+
+    <!-- ─── Transcribe (Klangio; needs KLANGIO_API_KEY, signed-in users only) ─── -->
+    <section class="tool-panel" data-tool="transcribe" role="tabpanel">
+      <div class="tool-head">
+        <div>
+          <h2>Transcribe to notation</h2>
+          <p>Record yourself or upload a short clip and turn it into notes, MIDI and MusicXML — powered by Klangio's music-AI. Perfect for capturing an idea, or checking what you just played.</p>
+        </div>
+      </div>
+      <div class="tr-grid">
+        <div class="tr-pane">
+          <label class="tr-label" for="trModel">Instrument</label>
+          <select id="trModel" class="tr-select">
+            <option value="piano">Piano / keys</option>
+            <option value="guitar">Guitar</option>
+            <option value="singing">Voice / melody</option>
+            <option value="bass">Bass</option>
+          </select>
+
+          <div class="tr-inputs">
+            <button class="tr-rec" id="trRec" type="button"><i class="fa-solid fa-microphone"></i> <span id="trRecLabel">Record</span></button>
+            <span class="tr-or">or</span>
+            <button class="tr-upload" id="trUploadBtn" type="button"><i class="fa-solid fa-file-arrow-up"></i> Upload a file</button>
+            <input type="file" id="trFile" accept="audio/*" hidden>
+          </div>
+
+          <div class="tr-clip" id="trClip" hidden>
+            <audio id="trAudio" controls preload="metadata"></audio>
+            <div class="tr-clip-meta"><span id="trClipName">clip</span><button class="tr-clip-x" id="trClipX" type="button" aria-label="Discard clip"><i class="fa-solid fa-xmark"></i></button></div>
+          </div>
+
+          <button class="tr-go" id="trGo" type="button" disabled><i class="fa-solid fa-wand-magic-sparkles"></i> Transcribe</button>
+          <p class="tr-hint" id="trHint">Up to ~30 seconds. A clean, single-instrument recording works best. Your clip is sent securely and isn't stored.</p>
+        </div>
+
+        <div class="tr-pane tr-result" id="trResult" aria-live="polite">
+          <div class="tr-empty" id="trEmpty"><i class="fa-solid fa-music"></i><p>Your transcription will appear here.</p></div>
+        </div>
+      </div>
+    </section>
   </section>
 
   <!-- ─── SEO + UX: a real, indexable FAQ (mirrored in FAQPage structured data) ─── -->
@@ -799,7 +983,10 @@
   })();
 </script>
 <script src="assets/js/studio-core.js?v=20261120a" defer></script>
-<script src="assets/js/tools.js?v=20260615b" defer></script>
+<script src="assets/js/tools.js?v=20261121a" defer></script>
+<script src="assets/js/studio-chords.js?v=20261121a" defer></script>
+<script src="assets/js/drone.js?v=20261121a" defer></script>
+<script src="assets/js/transcribe.js?v=20261121a" defer></script>
 <script src="assets/js/sequencer.js?v=20260613a" defer></script>
 <script src="assets/js/pitch-game.js?v=20260615b" defer></script>
 <script src="assets/js/rhythm-game.js?v=20260615b" defer></script>

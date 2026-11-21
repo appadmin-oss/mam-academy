@@ -191,6 +191,10 @@ $r->get('/report-print',   $f('report-print.php'),   [mw_rate_limit('progress_re
 $r->get('/learner-lookup', $f('learner-lookup.php'), [mw_rate_limit('learner_lookup', 5, 60)]);
 
 /* ─── Studio AI practice feedback (any signed-in user; S3) ─── */
+/* Practice Studio · Transcribe (Klangio audio→notation, api/lib/klangio.php). POST submits a
+   clip, GET polls or streams a result. Signed-in only: each submission spends a paid quota. */
+$r->post('/transcribe', $f('transcribe.php'), [mw_csrf(), mw_user(), mw_rate_limit('transcribe', 12, 600)]);
+$r->get ('/transcribe', $f('transcribe.php'), [mw_user(), mw_rate_limit('transcribe_poll', 180, 60)]);
 $r->post('/studio/feedback', $f('studio/feedback.php'), [mw_csrf(), mw_user(), mw_rate_limit('studio_feedback', 60, 600)]);
 
 /* ─── Studio leaderboard (opt-in; S2) ─── */

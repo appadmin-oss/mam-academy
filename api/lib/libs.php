@@ -36,6 +36,7 @@ return [
     'payments',
     'store',
     'practice',
+    'klangio',
     'lms',
     'curriculum-seed',
     'ai',

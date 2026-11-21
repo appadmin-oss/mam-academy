@@ -37,6 +37,7 @@
 
   // ── Tab switching ──────────────────────────────────────────────────
   var toolTabs = $$('.tools-tabs button');
+  var TAB_STORE = 'mam.studio.tab';
   function setRoving(active) { toolTabs.forEach(function (t) { t.tabIndex = (t === active ? 0 : -1); }); }
   toolTabs.forEach(function (b) {
     b.addEventListener('click', function () {
@@ -48,6 +49,12 @@
       // Stop sound-producing tools when switching away so they don't haunt the page.
       if (key !== 'metronome') stopMetronome();
       if (key !== 'tuner') stopTuner();
+      if (key !== 'drone' && window.MAM_DRONE) window.MAM_DRONE.stop();
+      // Remember the tool on this device and make the address shareable
+      // (replaceState never scrolls); keep the tab visible on the phone strip.
+      try { localStorage.setItem(TAB_STORE, key); } catch (e) {}
+      try { history.replaceState(null, '', '#' + key); } catch (e) {}
+      if (b.scrollIntoView) { try { b.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} }
     });
   });
 
@@ -70,13 +77,15 @@
 
   // Deep links: /studio#tuner, /studio#pitchgame … open that tab directly
   // (the student portal links into specific tools this way).
-  function openToolFromHash() {
+  function openToolFromHash(initial) {
     var key = (location.hash || '').replace('#', '');
+    // On first load with no #tool, reopen the last tool used on this device.
+    if (!key && initial === true) { try { key = localStorage.getItem(TAB_STORE) || ''; } catch (e) { key = ''; } }
     if (!key) return;
     var btn = $$('.tools-tabs button').filter(function (b) { return b.getAttribute('data-tool') === key; })[0];
     if (btn) btn.click();
   }
-  openToolFromHash();
+  openToolFromHash(true);
   window.addEventListener('hashchange', openToolFromHash);
 
   // "Tools at a glance" cards jump to their tab and scroll it into view.
@@ -677,6 +686,23 @@
       o.start(when); o.stop(when + dur + 0.05);
     });
   }
+  // The same warmed piano for the other Studio tools (the Chord & Scale Explorer):
+  // gap 0 plays the notes together, gap > 0 arpeggiates them gap seconds apart.
+  window.MAM_PIANO = { play: function (midis, gap, dur) {
+    if (!midis || !midis.length) return false;
+    gap = gap || 0; dur = dur || 1.0;
+    var inst = ensureEarInstrument();
+    if (inst && window.Tone) {
+      try {
+        var now = Tone.now() + 0.03;
+        midis.forEach(function (m, i) { inst.triggerAttackRelease(Tone.Frequency(m, 'midi').toFrequency(), dur, now + i * gap); });
+        return true;
+      } catch (e) {}
+    }
+    var a = audio();
+    midis.forEach(function (m, i) { pianoVoiceWA(a, m, a.currentTime + i * gap, dur); });
+    return true;
+  } };
   function playNotes(midis, mode) {
     var inst = ensureEarInstrument();
     if (inst) {
