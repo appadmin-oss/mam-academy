@@ -4,7 +4,7 @@
  * Accepts a new application, upserts the customer, records the row,
  * computes total, returns the persisted reference for the payment step.
  *
- * Body: JSON application payload (see apply.js)
+ * Body: JSON application payload (see assets/js/apply-flow.js)
  * Headers: X-CSRF-Token, X-Idempotency-Key (optional)
  */
 declare(strict_types=1);

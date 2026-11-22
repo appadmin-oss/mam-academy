@@ -24,7 +24,7 @@ $SR_design = $SR_src(glob($SR_root . '/docs/design/2026-11-site/source/pages/*.d
 
 t_group('site redesign — the pages are the ones the design describes');
 
-t_eq(array_map('basename', $SR_pages), ['404.php', 'about.php', 'accessibility.php', 'apply.php', 'auditer.php', 'contact.php', 'faculty.php', 'faq.php', 'index.php', 'life.php', 'policies.php', 'power-play.php', 'privacy.php', 'programmes.php', 'safeguarding.php', 'terms.php', 'thank-you.php'],
+t_eq(array_map('basename', $SR_pages), ['404.php', 'about.php', 'accessibility.php', 'apply.php', 'auditer.php', 'book.php', 'checkout.php', 'compare.php', 'contact.php', 'crash.php', 'faculty.php', 'faq.php', 'how-it-works.php', 'index.php', 'life.php', 'metamusic-order.php', 'pathways.php', 'policies.php', 'power-play.php', 'privacy.php', 'programmes.php', 'safeguarding.php', 'scholarship.php', 'schools.php', 'status.php', 'store.php', 'summer.php', 'terms.php', 'thank-you.php', 'tuition.php', 'verify.php'],
     'the redesigned pages are the ones on the shell and not on the legacy header');
 t_ok(strlen($SR_design) > 100000, 'the design sources are committed beside the build, so the check can be repeated');
 
@@ -60,7 +60,7 @@ foreach (['[INTAKE]' => 'the intake placeholder', '(upload)' => 'a photo-upload 
    an outside address — never an empty "#" the design used as a stand-in. */
 preg_match_all('/href="(#[^"]*)"/', $SR_pagesSrc, $SR_m);
 t_eq(array_values(array_diff(array_unique($SR_m[1]), ['#main', '#programmes', '#levels', '#fees', '#instruments', '#intensives',
-    '#measures', '#try', '#process', '#powerplay', '#term', '#events', '#tools', '#learn-more', '#history', '#register', '#why', '#schools-h', '#questions'])), [],
+    '#measures', '#try', '#process', '#powerplay', '#term', '#events', '#tools', '#learn-more', '#history', '#register', '#why', '#categories', '#what', '#estimator', '#apply', '#schools-h', '#questions'])), [],
     'every in-page link names an anchor the pages define');
 
 t_group('site redesign — every fee is the server\'s');
@@ -152,5 +152,6 @@ t_ok(count($SR_req[1]) >= 15, 'the validator\'s required fields were found (the 
 t_eq($SR_missingFields, [], 'every field the server requires is in the application flow\'s payload (headshot is optional)');
 t_ok(str_contains($SR_flow, "purpose: 'booking_fee'"), 'the only charge is the registration, through the existing booking-fee payment');
 t_ok(str_contains($SR_val, "'undecided'"), '"Help me choose" is a value the server accepts');
-t_ok(str_contains((string) file_get_contents($SR_root . '/api/lib/admissions.php'), "/apply-classic?resume="),
-    'emailed "resume your draft" links go to the wizard that saved the draft');
+t_ok(str_contains((string) file_get_contents($SR_root . '/api/lib/admissions.php'), "/apply?resume=")
+     && str_contains((string) file_get_contents($SR_root . '/apply.php'), '$apFromDraft'),
+    'a "resume your draft" link from the retired wizard lands on the live form with a note');

@@ -3,12 +3,15 @@
  * /summer — MAM Summer Programme landing page + application form.
  * All content (dates, fee, age limits, description) is pulled from admin settings.
  * Shareable clean URL via .htaccess (summer.php → /summer).
+ * On the 2026-11 redesign's shell. The form, its field names and assets/js/summer.js
+ * are unchanged; headshot.js mounts the photo uploader as before (config.js is loaded
+ * first so MAM_API and MAM_CONFIG exist for the upload chain). The fee is painted by
+ * site-ccy-bridge.js from [data-amt-usd], as convertFees() did.
+ * The shell (partials/site/shell.php) defines MAM_HTML_RESPONSE, which keeps bootstrap's
+ * JSON envelope out of this page; MAM_RESPONSE_SENT is never pre-defined here.
  */
 declare(strict_types=1);
-require_once __DIR__ . '/api/lib/bootstrap.php';
-header_remove('Content-Type');
-header('Content-Type: text/html; charset=utf-8');
-if (!defined('MAM_HTML_RESPONSE')) define('MAM_HTML_RESPONSE', true);
+require __DIR__ . '/partials/site/shell.php';
 
 $progName    = (string)mam_setting('summer_prog_name',       'MAM Summer Music Camp');
 $tagline     = (string)mam_setting('summer_tagline',         '');
@@ -48,298 +51,129 @@ if ($sessionStart && $sessionEnd) {
 }
 
 $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="color-scheme" content="dark">
-<title><?= htmlspecialchars($progName) ?> — MAM Academy</title>
-<meta name="description" content="<?= htmlspecialchars($tagline ?: "An immersive summer music programme for young musicians aged $ageRange.") ?>">
-<link rel="canonical" href="https://academy.mamcentre.org/summer">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="MAM Academy">
-<meta property="og:title" content="<?= htmlspecialchars($progName) ?> — MAM Academy">
-<meta property="og:description" content="<?= htmlspecialchars($tagline ?: "An immersive summer music experience for young musicians.") ?>">
-<meta property="og:url" content="https://academy.mamcentre.org/summer">
-<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=<?= rawurlencode($progName) ?>&amp;s=<?= rawurlencode($tagline ?: 'An immersive summer music experience') ?>&amp;e=<?= rawurlencode($dateRangeDisplay ?: 'Summer') ?>">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:type" content="image/png">
-<meta name="twitter:card" content="summary_large_image">
-<link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260920">
+
+site_head([
+    'title' => $progName . ' — MAM Academy',
+    'description' => $tagline ?: "An immersive summer music programme for young musicians aged $ageRange.",
+    'path' => '/summer',
+    'jsonld' => <<<'CSS'
 <style>
-/* ── Summer page tokens ──────────────────────────────── */
-:root {
-  --su-amber:#F59E0B; --su-amber-dk:#B45309; --su-glow:rgba(245,158,11,.18);
-  --su-gold:#E8961F;  --su-gold-lt:rgba(232,150,31,.12);
-  --su-bg:#0E0A06;    --su-card:#1A120A;     --su-border:rgba(245,158,11,.22);
-  --su-ink:#F5EDE0;   --su-muted:#B09070;    --su-radius:16px;
-}
-/* ── Hero — uses site page-hero pattern with summer overrides ── */
-.su-page-hero.page-hero::before { opacity:.32 } /* more image visible than the default 0.18 */
-.su-page-hero.page-hero::after {
-  background:
-    radial-gradient(ellipse 80% 65% at 20% 55%,rgba(245,158,11,.14) 0%,transparent 58%),
-    linear-gradient(105deg,rgba(14,10,4,.82) 0%,rgba(14,10,4,.55) 45%,rgba(14,10,4,.2) 100%);
-}
-.su-page-hero .page-hero-inner {
-  text-align:left; align-items:flex-start; max-width:960px;
-}
-.su-page-hero .page-hero-title {
-  font-family:'Bebas Neue',sans-serif;
-  font-size:clamp(3.2rem,9vw,6.4rem);
-  letter-spacing:.01em; line-height:.94;
-  text-align:left;
-}
-.su-page-hero .page-hero-lede { text-align:left; margin-left:0; }
-.su-hero-chips { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:28px; }
-.su-hero-chip {
-  display:inline-flex; align-items:center; gap:6px;
-  background:rgba(0,0,0,.38); border:1px solid rgba(245,158,11,.3);
-  color:#E5C88A; font-size:.78rem; font-weight:600;
-  padding:5px 13px; border-radius:100px; backdrop-filter:blur(6px);
-}
-.su-hero-chip i { color:var(--su-amber); font-size:.7rem; }
-.su-hero-ctas{display:flex;gap:12px;flex-wrap:wrap}
-.su-btn-primary{
-  display:inline-flex;align-items:center;gap:8px;
-  background:linear-gradient(135deg,var(--su-amber),#FBBF24);
-  color:#0E0A06;font-weight:800;font-size:1rem;padding:14px 28px;
-  border:none;border-radius:10px;cursor:pointer;text-decoration:none;
-  transition:transform .15s,box-shadow .15s;letter-spacing:.02em;
-}
-.su-btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(245,158,11,.35)}
-.su-btn-ghost{
-  display:inline-flex;align-items:center;gap:8px;
-  background:rgba(0,0,0,.3);color:#C4A873;
-  font-weight:600;font-size:.9rem;padding:14px 20px;
-  border:1px solid rgba(245,158,11,.25);border-radius:10px;cursor:pointer;
-  text-decoration:none;transition:border-color .15s,color .15s;backdrop-filter:blur(4px);
-}
-.su-btn-ghost:hover{border-color:var(--su-amber);color:var(--su-amber)}
-/* ── Info cards grid ─────────────────────────────────── */
-.su-info{background:var(--su-card);padding:clamp(48px,7vw,80px) 24px;border-top:1px solid var(--su-border);border-bottom:1px solid var(--su-border)}
-.su-info-grid{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
-  gap:20px;max-width:960px;margin:0 auto;
-}
-.su-info-card{
-  background:#120B04;border:1px solid var(--su-border);border-radius:12px;
-  padding:22px 20px;text-align:center;
-}
-.su-info-card-icon{font-size:1.6rem;margin-bottom:10px}
-.su-info-card-label{font-size:.75rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--su-muted);margin-bottom:6px}
-.su-info-card-value{font-size:1.05rem;font-weight:700;color:#fff;line-height:1.3}
-.su-info-card-sub{font-size:.78rem;color:var(--su-muted);margin-top:4px}
-/* ── About / description section ───────────────────── */
-.su-about{padding:clamp(52px,8vw,90px) 24px;max-width:780px;margin:0 auto}
-.su-section-eyebrow{font-size:.75rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--su-amber);margin-bottom:10px}
-.su-section-title{font-family:'Cinzel',serif;font-size:clamp(1.3rem,3vw,1.9rem);color:#fff;margin:0 0 20px;line-height:1.25}
-.su-description{font-size:1.02rem;color:var(--su-muted);line-height:1.75;margin:0 0 32px}
-.su-highlights{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:12px}
-.su-highlights li{
-  display:flex;align-items:flex-start;gap:12px;
-  background:rgba(245,158,11,.05);border:1px solid rgba(245,158,11,.15);
-  border-radius:10px;padding:14px 16px;color:var(--su-ink);font-size:.95rem;line-height:1.5;
-}
-.su-highlights li::before{content:'✦';color:var(--su-amber);font-size:.7rem;margin-top:3px;flex-shrink:0}
-/* ── Disciplines ───────────────────────────────────── */
-.su-disciplines{
-  padding:clamp(40px,6vw,70px) 24px;
-  background:linear-gradient(180deg,transparent,rgba(245,158,11,.04),transparent);
-  border-top:1px solid var(--su-border);border-bottom:1px solid var(--su-border);
-}
-.su-disciplines-inner{max-width:960px;margin:0 auto;text-align:center}
-.su-discs{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:22px}
-.su-disc{
-  background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);
-  color:var(--su-amber);font-size:.85rem;font-weight:600;
-  padding:8px 18px;border-radius:100px;letter-spacing:.04em;
-}
-/* ── Application form section ───────────────────────── */
-.su-apply{padding:clamp(52px,8vw,90px) 24px}
-.su-apply-inner{max-width:680px;margin:0 auto}
-.su-form-card{
-  background:var(--su-card);border:1px solid var(--su-border);
-  border-radius:var(--su-radius);padding:clamp(24px,5vw,44px);
-  box-shadow:0 24px 64px rgba(0,0,0,.4);
-}
-.su-closed-notice{
-  text-align:center;padding:40px 24px;
-}
-.su-closed-icon{font-size:2.5rem;margin-bottom:12px}
-.su-closed-title{font-family:'Cinzel',serif;font-size:1.3rem;color:#fff;margin:0 0 10px}
-.su-closed-msg{color:var(--su-muted);font-size:.95rem;line-height:1.6;max-width:400px;margin:0 auto}
-/* form sections */
-.su-form-group{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media(max-width:520px){.su-form-group{grid-template-columns:1fr}}
-.su-form-section{margin-bottom:28px}
-.su-form-section-title{
-  font-size:.7rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--su-amber);margin:0 0 14px;padding-bottom:8px;
-  border-bottom:1px solid rgba(245,158,11,.2);
-}
-.su-field{margin-bottom:16px}
-.su-field label{display:block;font-size:.8rem;font-weight:600;color:var(--su-muted);margin-bottom:6px}
-.su-field label .req{color:var(--su-amber)}
-.su-field input,.su-field select,.su-field textarea{
-  width:100%;padding:12px 14px;
-  background:#0A0703;border:1px solid rgba(245,158,11,.25);
-  border-radius:10px;color:#fff;font-size:.95rem;font-family:inherit;
-  box-sizing:border-box;transition:border-color .2s;
-}
-.su-field input:focus,.su-field select:focus,.su-field textarea:focus{
-  outline:none;border-color:var(--su-amber);box-shadow:0 0 0 3px rgba(245,158,11,.1);
-}
-.su-field select option{background:#1A120A;color:#fff}
-.su-field textarea{resize:vertical;min-height:90px}
-.su-field-hint{font-size:.75rem;color:var(--su-muted);margin-top:5px;line-height:1.4}
-.su-field-error{display:none;color:#FCA5A5;font-size:.76rem;margin-top:5px;line-height:1.4}
-.su-field-error.show{display:block}
-.su-field.has-error input,.su-field.has-error select,.su-field.has-error textarea{border-color:rgba(239,68,68,.5)!important}
-.su-age-notice{
-  display:flex;align-items:flex-start;gap:10px;
-  background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);
-  border-radius:10px;padding:12px 14px;margin-bottom:20px;
-  font-size:.85rem;color:var(--su-muted);line-height:1.5;
-}
-.su-age-notice i{color:var(--su-amber);flex-shrink:0;margin-top:2px}
-.su-policy-box{
-  background:#0A0703;border:1px solid rgba(245,158,11,.18);
-  border-radius:10px;padding:16px;margin-bottom:18px;
-}
-.su-policy-check{display:flex;align-items:flex-start;gap:12px;cursor:pointer;color:var(--su-muted);font-size:.88rem;line-height:1.55}
-.su-policy-check input[type=checkbox]{accent-color:var(--su-amber);width:16px;height:16px;flex-shrink:0;margin-top:2px}
-.su-submit-btn{
-  width:100%;padding:16px;background:linear-gradient(135deg,var(--su-amber),#FBBF24);
-  color:#0E0A06;font-weight:800;font-size:1.05rem;letter-spacing:.04em;
-  border:none;border-radius:12px;cursor:pointer;transition:transform .15s,box-shadow .15s;
-  margin-top:4px;
-}
-.su-submit-btn:hover:not([disabled]){transform:translateY(-2px);box-shadow:0 8px 24px rgba(245,158,11,.3)}
-.su-submit-btn[disabled]{opacity:.6;cursor:default}
-.su-form-error{
-  display:none;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);
-  border-radius:10px;padding:12px 14px;color:#FCA5A5;font-size:.88rem;
-  margin-bottom:16px;line-height:1.5;
-}
+.su-hero-chips{display:flex;flex-wrap:wrap;gap:8px}
+.su-hero-chip{display:inline-flex;align-items:center;min-height:36px;padding:0 14px;border-radius:999px;background:#F3EEE6;font-size:15px;color:#3E342B}
+.su-hero-ctas{display:flex;flex-wrap:wrap;gap:12px}
+.su-btn-primary{display:inline-flex;align-items:center;min-height:48px;padding:0 26px;border-radius:999px;background:#F2A93B;color:#211A13;font-weight:600;text-decoration:none}
+.su-btn-primary.is-static{background:#F3EEE6}
+.su-btn-ghost{display:inline-flex;align-items:center;min-height:48px;padding:0 25px;border-radius:999px;border:1px solid #CFC3B3;color:#211A13;font-weight:600;text-decoration:none}
+.su-info,.su-about,.su-disciplines,.su-apply,.su-contact{max-width:1200px;margin:0 auto;padding:clamp(40px,5vw,72px) clamp(20px,4vw,40px);box-sizing:border-box}
+.su-info{padding-top:0}
+.su-info-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr));gap:16px}
+.su-info-card{padding:20px;border-radius:16px;background:#FFFFFF;border:1px solid #E6DED2}
+.su-info-card-label{font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8A5208}
+.su-info-card-value{margin-top:6px;font-family:'Cormorant Garamond',Georgia,serif;font-weight:500;font-size:28px;line-height:1.15;color:#211A13}
+.su-info-card-sub{margin-top:4px;font-size:14px;color:#574B40}
+.su-about,.su-disciplines,.su-apply,.su-contact{border-top:1px solid #E6DED2}
+.su-section-eyebrow{font-size:13px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:#8A5208;margin:0 0 8px}
+.su-section-title{margin:0 0 20px;font-family:'Cormorant Garamond',Georgia,serif;font-weight:500;font-size:clamp(34px,4.17vw,60px);line-height:1.05;color:#211A13}
+.su-description{max-width:760px;margin:0 0 32px;font-size:18px;line-height:1.7;color:#3E342B}
+.su-highlights{max-width:760px;margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:8px;font-size:17px;line-height:1.6;color:#3E342B}
+.su-discs{display:flex;flex-wrap:wrap;gap:8px}
+.su-disc{padding:8px 16px;border-radius:999px;border:1px solid #D6CCBE;font-size:15px;color:#3E342B}
+.su-apply-inner{max-width:760px}
+.su-form-card{padding:clamp(20px,3vw,32px);border-radius:20px;background:#FFFFFF;border:1px solid #E6DED2}
+.su-age-notice{margin-bottom:20px;padding:12px 16px;border-radius:12px;background:#F3EEE6;font-size:15px;line-height:1.55;color:#211A13}
+.su-form-error{display:none;margin-bottom:16px;padding:12px 16px;border-radius:12px;border:2px solid #B0361C;color:#B0361C;font-size:15px}
 .su-form-error.show{display:block}
-/* success screen */
-.su-success{display:none;text-align:center;padding:32px 16px}
-.su-success-icon{
-  width:70px;height:70px;background:linear-gradient(135deg,var(--su-amber),#FBBF24);
-  border-radius:50%;display:flex;align-items:center;justify-content:center;
-  margin:0 auto 20px;font-size:1.8rem;
-}
-.su-success-title{font-family:'Cinzel',serif;font-size:1.5rem;color:#fff;margin:0 0 8px}
-.su-success-ref{
-  display:inline-block;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);
-  color:var(--su-amber);font-family:monospace;font-size:1rem;font-weight:700;
-  padding:8px 18px;border-radius:8px;margin:12px 0 20px;letter-spacing:.06em;
-}
-.su-success-msg{color:var(--su-muted);font-size:.95rem;line-height:1.65;max-width:440px;margin:0 auto 24px}
-/* contact CTA */
-.su-contact{
-  padding:clamp(36px,5vw,60px) 24px;text-align:center;
-  border-top:1px solid var(--su-border);
-}
-.su-contact p{color:var(--su-muted);margin:0 0 10px;font-size:.95rem}
-.su-contact a{color:var(--su-amber);text-decoration:none}
-.su-contact a:hover{text-decoration:underline}
+.su-form-section{padding:20px 0;border-top:1px solid #E6DED2}
+.su-form-section:first-of-type{border-top:0;padding-top:0}
+.su-form-section-title{margin-bottom:12px;font-size:17px;font-weight:600;color:#211A13}
+.su-form-section-title span{font-weight:400;font-size:14px;color:#574B40}
+.su-form-group{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:0 16px}
+.su-field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.su-field label{font-size:14px;font-weight:600;color:#3E342B}
+.su-field .req{color:#B0361C}
+.su-field input,.su-field select,.su-field textarea{width:100%;box-sizing:border-box;min-height:48px;padding:10px 14px;border-radius:12px;border:1px solid #CFC3B3;background:#FFFFFF;color:#211A13;font:inherit;font-size:16px}
+.su-field textarea{min-height:110px;resize:vertical}
+.su-field input:focus,.su-field select:focus,.su-field textarea:focus{outline:3px solid #2563EB;outline-offset:1px;border-color:#211A13}
+.su-field.has-error input,.su-field.has-error select,.su-field.has-error textarea{border:2px solid #B0361C}
+.su-field-error{display:none;font-size:14px;color:#B0361C}
+.su-field-error.show{display:block}
+.su-field-hint{font-size:14px;color:#574B40}
+.su-policy-box{margin-bottom:14px;padding:14px 16px;border-radius:12px;background:#F3EEE6}
+.su-policy-check{display:flex;gap:10px;align-items:flex-start;font-size:15px;line-height:1.55;color:#211A13}
+.su-policy-check input{width:20px;height:20px;margin-top:2px;flex:none}
+.su-policy-check a{color:#8A5208}
+.su-submit-btn{width:100%;min-height:52px;margin-top:8px;border:0;border-radius:999px;background:#F2A93B;color:#211A13;font:inherit;font-size:16px;font-weight:600;cursor:pointer}
+.su-submit-btn[disabled]{opacity:.6;cursor:default}
+#summerApplyForm>p{margin:12px 0 0;font-size:14px;color:#574B40;text-align:center}
+.su-success{display:none;text-align:center;padding:12px 0}
+.su-success-icon{width:56px;height:56px;margin:0 auto 12px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:#F3EEE6;color:#8A5208;font-size:28px}
+.su-success-title{margin:0 0 8px;font-family:'Cormorant Garamond',Georgia,serif;font-weight:500;font-size:34px;color:#211A13}
+.su-success-ref{font-family:ui-monospace,monospace;font-size:16px;color:#8A5208;margin-bottom:12px}
+.su-success-msg{margin:0 0 20px;font-size:16px;line-height:1.6;color:#3E342B}
+.su-closed-title{margin:0 0 8px;font-family:'Cormorant Garamond',Georgia,serif;font-weight:500;font-size:34px;color:#211A13}
+.su-closed-msg{margin:0;font-size:16px;line-height:1.65;color:#3E342B}
+.su-closed-msg a,.su-contact a{color:#8A5208}
+.su-contact p{margin:0 0 6px;font-size:17px;color:#3E342B}
+.su-contact a{font-size:18px;font-weight:600}
 </style>
-</head>
-<body>
-<a href="#main" class="skip-link">Skip to main content</a>
-<div id="preloader" role="status" aria-label="Loading">
-  <div class="preloader-logo">
-    <img src="mam-academy-logo.svg" alt="" onerror="this.style.display='none'">
-    <div class="preloader-name">MAM ACADEMY</div>
-    <div class="preloader-tag"><?= htmlspecialchars($progName) ?></div>
-  </div>
-  <div class="waves" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
-</div>
-
-<?php include __DIR__ . '/partials/header.html'; ?>
-
+CSS,
+]);
+site_header('inner');
+?>
 <main id="main">
 
-<!-- ── HERO ─────────────────────────────────────────────── -->
-<header class="page-hero su-page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1920&q=80');padding:clamp(88px,13vw,148px) 24px clamp(64px,9vw,104px)">
-  <div class="page-hero-inner">
-    <nav class="breadcrumb" style="margin-bottom:18px;justify-content:flex-start" aria-label="Breadcrumb">
-      <a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Summer</span>
-    </nav>
-    <div class="page-hero-eyebrow"><i class="fa-solid fa-sun"></i>Summer Programme</div>
-    <h1 class="page-hero-title"><?= htmlspecialchars($progName) ?></h1>
-    <p class="page-hero-lede">
-      <?= htmlspecialchars($tagline ?: "An immersive music experience for young musicians aged $ageRange. Intensive tuition, performance, and community — all summer long.") ?>
-    </p>
-    <div class="su-hero-chips">
-      <?php if ($dateRangeDisplay): ?>
-        <span class="su-hero-chip"><i class="fa-regular fa-calendar"></i><?= htmlspecialchars($dateRangeDisplay) ?></span>
-      <?php endif; ?>
-      <span class="su-hero-chip"><i class="fa-solid fa-users"></i>Ages <?= htmlspecialchars($ageRange) ?></span>
-      <?php if ($fee > 0): ?>
-        <span class="su-hero-chip"><i class="fa-solid fa-tag"></i><span class="su-fee-local" data-usd="<?= htmlspecialchars((string)$fee) ?>">USD $<?= number_format($fee, 0) ?></span></span>
-      <?php endif; ?>
-      <?php if ($location): ?>
-        <span class="su-hero-chip"><i class="fa-solid fa-location-dot"></i><?= htmlspecialchars($location) ?></span>
-      <?php endif; ?>
-    </div>
-    <div class="su-hero-ctas">
-      <?php if ($isOpen): ?>
-        <a href="#apply" class="su-btn-primary"><i class="fa-solid fa-pen-to-square"></i>Apply Now</a>
-      <?php elseif ($notYet): ?>
-        <span class="su-btn-primary" style="opacity:.6;cursor:default"><i class="fa-solid fa-clock"></i>Opens <?= htmlspecialchars(formatDate($appOpen, 'F j')) ?></span>
-      <?php else: ?>
-        <span class="su-btn-primary" style="opacity:.6;cursor:default"><i class="fa-solid fa-lock"></i>Applications Closed</span>
-      <?php endif; ?>
-      <a href="/status" class="su-btn-ghost"><i class="fa-solid fa-magnifying-glass"></i>Check my status</a>
-    </div>
+<section aria-labelledby="page-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(40px, 5vw, 72px) clamp(20px, 4vw, 40px) clamp(32px, 4vw, 56px); box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+  <nav aria-label="Breadcrumb" class="fade-in" style="font-size: 14px; color: #574B40; display: flex; gap: 8px"><a href="/" class="ul" style="color: #574B40; text-decoration: none">Home</a><span aria-hidden="true">/</span><span aria-current="page">Summer</span></nav>
+  <p class="fade-in" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Summer programme</p>
+  <h1 id="page-h" class="fade-in" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(46px, 5.6vw, 84px); line-height: 1.02; letter-spacing: -.01em"><?= htmlspecialchars($progName) ?></h1>
+  <p class="fade-in" style="margin: 0; max-width: 720px; font-size: 19px; line-height: 1.7; color: #3E342B"><?= htmlspecialchars($tagline ?: "An immersive music experience for young musicians aged $ageRange. Intensive tuition, performance, and community — all summer long.") ?></p>
+  <div class="su-hero-chips fade-in">
+    <?php if ($dateRangeDisplay): ?><span class="su-hero-chip"><?= htmlspecialchars($dateRangeDisplay) ?></span><?php endif; ?>
+    <span class="su-hero-chip">Ages <?= htmlspecialchars($ageRange) ?></span>
+    <?php if ($fee > 0): ?><span class="su-hero-chip"><span data-amt-usd="<?= htmlspecialchars((string) round($fee)) ?>">USD $<?= number_format($fee, 0) ?></span></span><?php endif; ?>
+    <?php if ($location): ?><span class="su-hero-chip"><?= htmlspecialchars($location) ?></span><?php endif; ?>
   </div>
-</header>
+  <div class="su-hero-ctas fade-in">
+    <?php if ($isOpen): ?>
+      <a href="#apply" class="su-btn-primary">Apply now</a>
+    <?php elseif ($notYet): ?>
+      <span class="su-btn-primary is-static">Opens <?= htmlspecialchars(formatDate($appOpen, 'F j')) ?></span>
+    <?php else: ?>
+      <span class="su-btn-primary is-static">Applications closed</span>
+    <?php endif; ?>
+    <a href="/status" class="su-btn-ghost">Check my status</a>
+  </div>
+</section>
 
 <!-- ── INFO CARDS GRID ──────────────────────────────────── -->
 <section class="su-info" aria-label="Programme details">
   <div class="su-info-grid">
     <?php if ($dateRangeDisplay): ?>
     <div class="su-info-card">
-      <div class="su-info-card-icon">📅</div>
       <div class="su-info-card-label">Session dates</div>
       <div class="su-info-card-value"><?= htmlspecialchars($dateRangeDisplay) ?></div>
     </div>
     <?php endif; ?>
     <div class="su-info-card">
-      <div class="su-info-card-icon">🎂</div>
       <div class="su-info-card-label">Age range</div>
       <div class="su-info-card-value"><?= htmlspecialchars($ageRange) ?></div>
       <div class="su-info-card-sub">Admin-verified at submission</div>
     </div>
     <?php if ($fee > 0): ?>
     <div class="su-info-card">
-      <div class="su-info-card-icon">💳</div>
       <div class="su-info-card-label">Programme fee</div>
-      <div class="su-info-card-value su-fee-local" data-usd="<?= htmlspecialchars((string)$fee) ?>">USD $<?= number_format($fee, 0) ?></div>
+      <div class="su-info-card-value"><span data-amt-usd="<?= htmlspecialchars((string) round($fee)) ?>">USD $<?= number_format($fee, 0) ?></span></div>
       <div class="su-info-card-sub">Details via confirmation email</div>
     </div>
     <?php endif; ?>
     <?php if ($location): ?>
     <div class="su-info-card">
-      <div class="su-info-card-icon">📍</div>
       <div class="su-info-card-label">Location</div>
       <div class="su-info-card-value"><?= htmlspecialchars($location) ?></div>
     </div>
     <?php endif; ?>
     <?php if ($capacity > 0): ?>
     <div class="su-info-card">
-      <div class="su-info-card-icon">👥</div>
       <div class="su-info-card-label">Capacity</div>
       <div class="su-info-card-value"><?= (int)$capacity ?> participants</div>
       <div class="su-info-card-sub">Apply early — spots are limited</div>
@@ -347,14 +181,12 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
     <?php endif; ?>
     <?php if ($isOpen && $appClose): ?>
     <div class="su-info-card">
-      <div class="su-info-card-icon">⏳</div>
       <div class="su-info-card-label">Apply by</div>
       <div class="su-info-card-value"><?= htmlspecialchars(formatDate($appClose, 'F j, Y')) ?></div>
       <div class="su-info-card-sub">Applications close at end of day</div>
     </div>
     <?php elseif ($notYet && $appOpen): ?>
     <div class="su-info-card">
-      <div class="su-info-card-icon">🚀</div>
       <div class="su-info-card-label">Applications open</div>
       <div class="su-info-card-value"><?= htmlspecialchars(formatDate($appOpen, 'F j, Y')) ?></div>
     </div>
@@ -371,7 +203,7 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
     <p class="su-description"><?= nl2br(htmlspecialchars($description)) ?></p>
   <?php endif; ?>
   <?php if ($highlights): ?>
-    <div class="su-section-eyebrow" style="margin-top:<?= $description ? '0' : '0' ?>">What you'll experience</div>
+    <div class="su-section-eyebrow">What you'll experience</div>
     <ul class="su-highlights" aria-label="Programme highlights">
       <?php foreach ($highlights as $h): ?>
         <li><?= htmlspecialchars($h) ?></li>
@@ -399,8 +231,8 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
 <!-- ── APPLICATION FORM ─────────────────────────────────── -->
 <section class="su-apply" id="apply" aria-label="Apply for the summer programme">
   <div class="su-apply-inner">
-    <div class="su-section-eyebrow" style="text-align:center">Apply now</div>
-    <h2 class="su-section-title" style="text-align:center;margin-bottom:30px">
+    <div class="su-section-eyebrow">Apply now</div>
+    <h2 class="su-section-title">
       Secure your spot in<br><?= htmlspecialchars($progName) ?>
     </h2>
 
@@ -409,7 +241,6 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
       <?php if ($isOpen): ?>
       <!-- ── Open: show form ── -->
       <div class="su-age-notice" role="note">
-        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
         <span>This programme is open to participants aged <strong><?= htmlspecialchars($ageRange) ?></strong>. Age is verified from your date of birth at the time of submission.</span>
       </div>
 
@@ -423,7 +254,7 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
           <div class="su-form-section-title">Your photo</div>
           <div id="suHeadshotMount"></div>
           <input type="hidden" id="suHeadshotUrl" name="headshotUrl" value="">
-          <div class="su-field-hint" style="margin-top:8px">A recent, clear front-facing photo — used for your admission file.</div>
+          <div class="su-field-hint">A recent, clear front-facing photo — used for your admission file.</div>
         </div>
 
         <!-- Personal details -->
@@ -492,8 +323,8 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
         <div class="su-form-section" id="suGuardianSection">
           <div class="su-form-section-title">
             Guardian information
-            <span id="suGuardianReqNote" style="font-size:.65rem;letter-spacing:.04em;color:var(--su-muted);margin-left:8px;text-transform:none;font-weight:400">(required — applicant is under 18)</span>
-            <span id="suGuardianOptNote" style="display:none;font-size:.65rem;letter-spacing:.04em;color:var(--su-muted);margin-left:8px;text-transform:none;font-weight:400">(optional — applicant is 18+)</span>
+            <span id="suGuardianReqNote">(required — applicant is under 18)</span>
+            <span id="suGuardianOptNote" style="display: none">(optional — applicant is 18+)</span>
           </div>
           <div class="su-form-group">
             <div class="su-field">
@@ -563,9 +394,9 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
           <div class="su-policy-box">
             <label class="su-policy-check">
               <input type="checkbox" id="suPolicyAgreed" name="policyAgreed" required>
-              <span>I confirm that the information provided is accurate and I agree to the MAM Academy <a href="/terms" target="_blank" style="color:var(--su-amber)">terms &amp; policies</a>. I understand that submitting this form does not guarantee a place, and the academy will confirm enrollment separately.</span>
+              <span>I confirm that the information provided is accurate and I agree to the MAM Academy <a href="/terms" target="_blank">terms &amp; policies</a>. I understand that submitting this form does not guarantee a place, and the academy will confirm enrollment separately.</span>
             </label>
-            <div class="su-field-error" id="su-err-policyAgreed" style="margin-top:8px">You must agree to the programme policy.</div>
+            <div class="su-field-error" id="su-err-policyAgreed">You must agree to the programme policy.</div>
           </div>
           <div class="su-field">
             <label for="suPolicySig">Electronic signature <span class="req">*</span></label>
@@ -578,58 +409,54 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
         <button type="submit" class="su-submit-btn" id="summerSubmitBtn">
           Submit Application
         </button>
-        <p style="text-align:center;color:var(--su-muted);font-size:.8rem;margin:14px 0 0">
-          <i class="fa-solid fa-shield-halved" style="color:var(--su-amber)"></i>&nbsp;
+        <p>
           Your information is private and never shared without your consent.
         </p>
       </form>
 
       <!-- Success state (shown by JS) -->
       <div class="su-success" id="summerSuccess" role="status">
-        <div class="su-success-icon">✓</div>
+        <div class="su-success-icon" aria-hidden="true">✓</div>
         <h3 class="su-success-title">Application received!</h3>
         <div class="su-success-ref" id="summerSuccessRef"></div>
         <p class="su-success-msg">
           Thank you for applying to <strong><?= htmlspecialchars($progName) ?></strong>.
           We've sent a confirmation to your email. Our team will review your application and be in touch shortly.
         </p>
-        <a href="/status" class="su-btn-primary" style="display:inline-flex;margin:0 auto">
-          <i class="fa-solid fa-magnifying-glass"></i> Track your application
+        <a href="/status" class="su-btn-primary">
+          Track your application
         </a>
       </div>
 
       <?php elseif ($notYet): ?>
       <!-- ── Not yet open ── -->
       <div class="su-closed-notice">
-        <div class="su-closed-icon">🌅</div>
         <h3 class="su-closed-title">Applications open <?= htmlspecialchars(formatDate($appOpen, 'F j, Y')) ?></h3>
         <p class="su-closed-msg">
           The application window for <?= htmlspecialchars($progName) ?> hasn't opened yet.
           Check back on <?= htmlspecialchars(formatDate($appOpen, 'F j')) ?> to apply.
-          <?php if ($contactEmail): ?><br><br>Have questions? Email <a href="mailto:<?= htmlspecialchars($contactEmail) ?>" style="color:var(--su-amber)"><?= htmlspecialchars($contactEmail) ?></a><?php endif; ?>
+          <?php if ($contactEmail): ?><br><br>Have questions? Email <a href="mailto:<?= htmlspecialchars($contactEmail) ?>"><?= htmlspecialchars($contactEmail) ?></a><?php endif; ?>
         </p>
       </div>
 
       <?php elseif ($closed): ?>
       <!-- ── Applications closed ── -->
       <div class="su-closed-notice">
-        <div class="su-closed-icon">🏁</div>
         <h3 class="su-closed-title">Applications are now closed</h3>
         <p class="su-closed-msg">
           The application window for <?= htmlspecialchars($progName) ?> has ended.
-          If you've already applied, <a href="/status" style="color:var(--su-amber)">check your application status</a>.
-          <?php if ($contactEmail): ?><br><br>Questions? Email <a href="mailto:<?= htmlspecialchars($contactEmail) ?>" style="color:var(--su-amber)"><?= htmlspecialchars($contactEmail) ?></a><?php endif; ?>
+          If you've already applied, <a href="/status">check your application status</a>.
+          <?php if ($contactEmail): ?><br><br>Questions? Email <a href="mailto:<?= htmlspecialchars($contactEmail) ?>"><?= htmlspecialchars($contactEmail) ?></a><?php endif; ?>
         </p>
       </div>
 
       <?php else: ?>
       <!-- ── No dates configured yet ── -->
       <div class="su-closed-notice">
-        <div class="su-closed-icon">🎵</div>
         <h3 class="su-closed-title">Coming soon</h3>
         <p class="su-closed-msg">
           Details for <?= htmlspecialchars($progName) ?> are being finalised.
-          <?php if ($contactEmail): ?>Contact <a href="mailto:<?= htmlspecialchars($contactEmail) ?>" style="color:var(--su-amber)"><?= htmlspecialchars($contactEmail) ?></a> to register your interest.<?php else: ?>Check back soon for dates and application details.<?php endif; ?>
+          <?php if ($contactEmail): ?>Contact <a href="mailto:<?= htmlspecialchars($contactEmail) ?>"><?= htmlspecialchars($contactEmail) ?></a> to register your interest.<?php else: ?>Check back soon for dates and application details.<?php endif; ?>
         </p>
       </div>
       <?php endif; ?>
@@ -643,32 +470,13 @@ $ageRange = $minAge . ($maxAge > 0 ? '–' . $maxAge : '+') . ' years';
 <section class="su-contact">
   <p>Have questions about <?= htmlspecialchars($progName) ?>?</p>
   <a href="mailto:<?= htmlspecialchars($contactEmail) ?>">
-    <i class="fa-solid fa-envelope" style="color:var(--su-amber)"></i>
     <?= htmlspecialchars($contactEmail) ?>
   </a>
 </section>
 <?php endif; ?>
 
 </main>
-
-<?php include __DIR__ . '/partials/footer.html'; ?>
-
-<script src="assets/js/config.js?v=20261120a"></script>
-<script src="assets/js/main.js?v=20260920"></script>
-<script src="assets/js/headshot.js?v=20260817a"></script>
-<script src="assets/js/summer.js?v=20260807a"></script>
-<script>
-(function () {
-  function convertFees() {
-    if (!window.MAM_CCY) return;
-    document.querySelectorAll('.su-fee-local[data-usd]').forEach(function (el) {
-      var usd = parseFloat(el.dataset.usd);
-      if (!isNaN(usd) && usd > 0) el.textContent = MAM_CCY.format(usd);
-    });
-  }
-  convertFees();
-  document.addEventListener('mam:config', convertFees);
-})();
-</script>
-</body>
-</html>
+<script src="/assets/js/config.js?v=20261120a"></script>
+<script src="/assets/js/headshot.js?v=20260817a"></script>
+<script src="/assets/js/summer.js?v=20260807a"></script>
+<?php site_footer(['site-ccy-bridge.js']); ?>

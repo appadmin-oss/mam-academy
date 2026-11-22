@@ -54,7 +54,7 @@ $CS_cfg = (string) file_get_contents(dirname(__DIR__, 2) . '/assets/js/config.js
 t_ok(str_contains($CS_cfg, 'window.MAM_PRIVACY') && str_contains($CS_cfg, 'globalPrivacyControl')
      && str_contains($CS_cfg, "localStorage.getItem('mam.cookie') === 'decline'"),
     'the one predicate honours Do-Not-Track, Global Privacy Control and the banner\'s Decline');
-foreach (['apply.js', 'studio-core.js'] as $CS_f) {
+foreach (['studio-core.js'] as $CS_f) {
     $src = (string) file_get_contents(dirname(__DIR__, 2) . "/assets/js/$CS_f");
     t_ok(str_contains($src, 'MAM_PRIVACY.mayMeasure()') && !str_contains($src, 'navigator.doNotTrack'),
         "$CS_f asks that predicate rather than keeping its own check");

@@ -15,17 +15,15 @@
  * does not read. HANDOFF §4z16 lists each addition and why.
  *
  * assets/js/apply-flow.js draws the screens; every fee comes from site_fees().
- * The previous wizard is /apply-classic, where emailed "resume your draft" links
- * still land.
+ * The previous wizard (/apply-classic) was retired on 2026-11-22 (owner's call).
+ * It could save a draft and email a "resume" link; this flow is short enough not
+ * to need one, so a resume link from before lands here with a note to start again.
  */
 declare(strict_types=1);
 require __DIR__ . '/partials/site/shell.php';
 
-// A saved-draft link from an email belongs to the wizard that saved the draft.
-if (isset($_GET['resume'])) {
-    header('Location: /apply-classic?' . (string) $_SERVER['QUERY_STRING'], true, 302);
-    exit;
-}
+// A "resume your draft" link from the retired wizard: say why the draft is not here.
+$apFromDraft = isset($_GET['resume']);
 
 $apIntake = site_intake();
 ?><!doctype html>
@@ -81,6 +79,7 @@ $apIntake = site_intake();
     </div>
     <div class="ap-mob" style="display: none; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); padding-bottom: 8px; font-size: 14px; color: #574B40; justify-content: space-between; gap: 12px"><span data-ap="mob-summary">Your application</span><strong data-ap="mob-fee" style="color: #211A13">—</strong></div>
     <main id="main" style="flex: 1; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); padding-top: clamp(32px, 7vh, 96px); padding-bottom: 96px">
+      <?php if ($apFromDraft): ?><p role="status" style="max-width: 640px; margin: 0 0 24px; padding: 14px 16px; border-radius: 12px; background: #F3EEE6; font-size: 15px; line-height: 1.6; color: #3E342B">Our application form has been renewed, so drafts saved in the old one can no longer be opened. This one takes about five minutes. Thank you for starting again.</p><?php endif; ?>
       <div data-ap="screen" style="max-width: 640px; display: flex; flex-direction: column; gap: 28px">
         <noscript><p style="font-size: 17px">This application needs JavaScript. You can also apply by email at <a href="mailto:academy@mamcentre.org">academy@mamcentre.org</a> or by phone on +234 704 444 6517.</p></noscript>
       </div>

@@ -44,6 +44,8 @@ DirectoryIndex index.php index.html index.htm
   # both /studio and /tools serve the tools page — the old URL keeps working so
   # existing email links / bookmarks / sitemaps don't 404.
   RewriteRule ^studio/?$ tools.php [L]
+  # The legacy application wizard was retired (2026-11-22); its address goes to the live form.
+  RewriteRule ^apply-classic(\.php)?/?$ /apply [R=301,L,QSA]
 
   # ID card pages: /card/{serial} → card.php?serial={serial}
   RewriteRule ^card/([A-Za-z0-9-]+)/?$ card.php?serial=$1 [L,QSA]

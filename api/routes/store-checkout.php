@@ -15,7 +15,7 @@ $in = mam_json_input();
 $cart = (array)($in['items'] ?? []);
 if (count($cart) === 0) mam_fail('empty_cart', 400);
 
-$email = mam_email_val(($in['email'] ?? ''));
+$email = mam_email((string) ($in['email'] ?? ''));
 if (!$email) mam_fail('invalid_email', 400, ['field' => 'email']);
 $name  = mam_str($in, 'name', 200);
 if ($name === '') mam_fail('missing_name', 400, ['field' => 'name']);

@@ -1,193 +1,133 @@
-<?php require __DIR__ . '/partials/site/shell.php'; ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="dark">
-<title>MAM Crash Programmes — 6-Week Intensives | $70</title>
-<meta name="description" content="6-week professional intensives for fast-track learning. Instruments, Rhythm Intelligence, Performance Intelligence and MetaMusic. Online or onsite. $70.">
-<link rel="canonical" href="https://academy.mamcentre.org/crash">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="MAM Academy">
-<meta property="og:title" content="MAM Crash Programmes — 6-Week Intensives | $70">
-<meta property="og:description" content="6-week professional intensives for fast-track learning. Instruments, Rhythm Intelligence, Performance Intelligence and MetaMusic. Online or onsite. $70.">
-<meta property="og:url" content="https://academy.mamcentre.org/crash">
-<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=Crash+Courses&amp;s=Short%2C+focused+programmes+to+level+up+a+specific+skill+fast.&amp;e=Fast+Track">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:type" content="image/png">
-<meta property="og:locale" content="en_US">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="MAM Crash Programmes — 6-Week Intensives | $70">
-<meta name="twitter:description" content="6-week professional intensives for fast-track learning. Instruments, Rhythm Intelligence, Performance Intelligence and MetaMusic. Online or onsite. $70.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/api/og?t=Crash+Courses&amp;s=Short%2C+focused+programmes+to+level+up+a+specific+skill+fast.&amp;e=Fast+Track">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Crash Programmes","item":"https://academy.mamcentre.org/crash"}]}</script>
-<link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260920">
-<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"Course","name":"MAM Crash Programme","url":"https://academy.mamcentre.org/crash",
- "description":"A 6-week accelerated music intensive at MAM Academy — one course, one tradition, 1 hour weekly. Instruments, Rhythm Intelligence, Performance Intelligence and MetaMusic. Online or onsite in Lagos.",
- "provider":{"@type":"EducationalOrganization","name":"MAM Academy","sameAs":"https://academy.mamcentre.org/"},
- "offers":{"@type":"Offer","price":"70","priceCurrency":"USD","category":"Tuition"},
- "hasCourseInstance":[
-   {"@type":"CourseInstance","courseMode":"onsite","location":{"@type":"Place","name":"MAM Centre, Lagos"},"courseWorkload":"PT1H","courseSchedule":{"@type":"Schedule","repeatFrequency":"P1W","duration":"P6W"}},
-   {"@type":"CourseInstance","courseMode":"online","courseWorkload":"PT1H","courseSchedule":{"@type":"Schedule","repeatFrequency":"P1W","duration":"P6W"}}
- ]}
-</script>
-</head>
-<body>
-<a href="#main" class="skip-link">Skip to main content</a>
-<div id="preloader"><div class="preloader-logo"><img src="mam-academy-logo.svg" alt="" onerror="this.style.display='none'"><div class="preloader-name">MAM ACADEMY</div><div class="preloader-tag">Crash Programmes</div></div><div class="waves"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+<?php
+/**
+ * Crash Programmes — the 6-week intensives, on the 2026-11 redesign shell
+ * (partials/site/). The handoff did not draw this page; it is built from the
+ * handoff's own parts (breadcrumb + serif H1, the sand band of cards, the dark
+ * closing panel), the way faculty.php and faq.php are.
+ *
+ * The price is the server's (site_money('crash') — the same figure /apply
+ * charges), never typed. #categories is kept: the hero links to it.
+ */
+declare(strict_types=1);
+require __DIR__ . '/partials/site/shell.php';
 
-<?php include __DIR__ . '/partials/header.html'; ?>
+$crPrice = site_money('crash');
+$crUsd   = (int) round(site_fee_usd('crash'));
+$crFor = [
+    ['Beginners', 'Wanting fast exposure'], ['Exam Candidates', 'Preparing for grading'],
+    ['Worship Teams', 'Sharper ensemble'], ['Choir Members', 'Better timing & tone'],
+    ['Busy Professionals', 'Focused outcomes'], ['Summer Learners', 'School holiday programs'],
+    ['Children on Break', 'Structured fun'], ['Event Performers', 'Stage-ready prep'],
+];
+$crCats = [
+    ['1', 'Instrument Crash Courses', 'Focused instrument training', 'piano',
+        ['Piano', 'Violin · Guitar', 'Saxophone · Trumpet · Recorder', 'Drums · Voice', 'Music Theory Foundations']],
+    ['2', 'Rhythm Intelligence Crash', 'MAM Rapid Rhythm System', 'rhythm',
+        ['Sight singing & reading', 'Rhythmic interpretation', 'Timing correction & ear training', 'Beat coordination', 'Ensemble synchronization']],
+    ['3', 'Performance Intelligence Crash', 'Stagecraft & psychology', 'performance',
+        ['Stage confidence', 'Microphone usage', 'Rehearsal discipline', 'Audience engagement', 'Overcoming stage fear']],
+    ['4', 'MetaMusic Crash', 'Philosophy of music', 'metamusic',
+        ['Music and emotions', 'African musical intelligence', 'Sound and consciousness', 'Music as communication', 'Artistic identity']],
+];
+$crOutcomes = ['Measurable improvement', 'Stronger musical confidence', 'Improved timing', 'Better stage presentation', 'Greater artistic understanding'];
 
+$crLd = [
+    '@context' => 'https://schema.org', '@type' => 'Course', 'name' => 'MAM Crash Programme',
+    'url' => 'https://academy.mamcentre.org/crash',
+    'description' => 'A 6-week accelerated music intensive at MAM Academy — one course, one tradition, 1 hour weekly. Instruments, Rhythm Intelligence, Performance Intelligence and MetaMusic. Online or onsite.',
+    'provider' => ['@type' => 'EducationalOrganization', 'name' => 'MAM Academy', 'sameAs' => 'https://academy.mamcentre.org/'],
+    'offers' => ['@type' => 'Offer', 'price' => (string) $crUsd, 'priceCurrency' => 'USD', 'category' => 'Tuition'],
+    'hasCourseInstance' => [
+        ['@type' => 'CourseInstance', 'courseMode' => 'onsite', 'courseWorkload' => 'PT1H', 'courseSchedule' => ['@type' => 'Schedule', 'repeatFrequency' => 'P1W', 'duration' => 'P6W']],
+        ['@type' => 'CourseInstance', 'courseMode' => 'online', 'courseWorkload' => 'PT1H', 'courseSchedule' => ['@type' => 'Schedule', 'repeatFrequency' => 'P1W', 'duration' => 'P6W']],
+    ],
+];
+
+site_head([
+    'title' => 'MAM Crash Programmes — 6-Week Intensives | ' . site_fee('crash'),
+    'description' => '6-week professional intensives for fast-track learning. Instruments, Rhythm Intelligence, Performance Intelligence and MetaMusic. Online or onsite. ' . site_fee('crash') . '.',
+    'path' => '/crash',
+    'jsonld' => '<script type="application/ld+json">' . json_encode($crLd, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . '</script>',
+]);
+site_header('inner', '/programmes');
+ob_start();
+?>
 <main id="main">
-  <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1568454537842-d933259bb258?w=1920&q=80')">
-    <div class="page-hero-inner">
-      <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><a href="pathways">Pathways</a><i class="fa-solid fa-chevron-right"></i><span>Crash Programmes</span></nav>
-      <div class="page-hero-eyebrow"><i class="fa-solid fa-bolt"></i>6 Weeks · <span data-cur-sym>$</span><span data-price="70">70</span> · Online or Onsite</div>
-      <h1 class="page-hero-title">MAM <span class="highlight-gold">Crash Programmes</span></h1>
-      <p class="page-hero-lede">Intensive 6-week professional courses designed for fast-track learning and rapid skill development. Online or onsite.</p>
-      <div class="page-hero-actions">
-        <a href="apply?pathway=crash" class="btn btn-primary"><i class="fa-solid fa-bolt"></i>Apply — <span data-cur-sym>$</span><span data-price="70">70</span></a>
-        <a href="#categories" class="btn btn-secondary">Browse Categories</a>
+    <section aria-labelledby="page-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(40px, 5vw, 72px) clamp(20px, 4vw, 40px) clamp(40px, 5vw, 64px); box-sizing: border-box; display: flex; flex-direction: column; gap: 24px">
+      <nav aria-label="Breadcrumb" class="fade-in" style="font-size: 14px; color: #574B40; display: flex; gap: 8px; flex-wrap: wrap"><a href="/" class="ul" style="color: #574B40; text-decoration: none">Home</a><span aria-hidden="true">/</span><a href="/programmes" class="ul" style="color: #574B40; text-decoration: none">Programmes</a><span aria-hidden="true">/</span><span aria-current="page">Crash Programmes</span></nav>
+      <p class="fade-in" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">6 weeks · <?= $crPrice ?> · Online or onsite</p>
+      <h1 id="page-h" aria-label="MAM Crash Programmes" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(46px, 5.6vw, 84px); line-height: 1.02; letter-spacing: -.01em"><span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.15s;">MAM</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.235s; font-style: italic; color: #8A5208">Crash</span></span> <span class="mask" aria-hidden="true"><span class="w" style="animation-delay: 0.32s;">Programmes</span></span></h1>
+      <p class="fade-in" style="animation-delay: .3s; margin: 0; max-width: 760px; font-size: 19px; line-height: 1.7; color: #3E342B">Intensive 6-week professional courses designed for fast-track learning and rapid skill development. Online or onsite.</p>
+      <div class="fade-in" style="animation-delay: .45s; display: flex; flex-wrap: wrap; gap: 12px">
+        <a href="/apply?pathway=crash" class="btn arrow" style="display: inline-flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 26px; border-radius: 999px; background: #F2A93B; color: #211A13; font-weight: 600; text-decoration: none">Apply — <?= $crPrice ?> <span aria-hidden="true">→</span></a>
+        <a href="#categories" style="display: inline-flex; align-items: center; min-height: 52px; padding: 0 25px; border-radius: 999px; border: 1px solid #CFC3B3; color: #211A13; font-weight: 600; text-decoration: none">Browse categories</a>
       </div>
-    </div>
-  </header>
+    </section>
 
-  <section>
-    <div class="container">
-      <div style="text-align:center;max-width:760px;margin:0 auto 48px">
-        <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Built for impact<span class="line" style="transform:scaleX(-1)"></span></div>
-        <h2 class="section-title">Who Crash Programmes <span class="highlight-gold">Are For</span></h2>
-        <p class="section-desc" style="margin:0 auto">Designed for fast results, not surface exposure.</p>
+    <section aria-labelledby="for-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(48px, 6vw, 88px) clamp(20px, 4vw, 40px); box-sizing: border-box; border-top: 1px solid #E6DED2; display: flex; flex-wrap: wrap; gap: 32px clamp(40px, 6vw, 96px)">
+      <div style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 16px">
+        <p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Built for impact</p>
+        <h2 id="for-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1">Who Crash Programmes are for</h2>
+        <p class="read" style="margin: 0; font-size: 17px; line-height: 1.7; color: #3E342B">Designed for fast results, not surface exposure.</p>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-seedling"></i></div><div class="pillar-title">Beginners</div><div class="pillar-desc">Wanting fast exposure</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-graduation-cap"></i></div><div class="pillar-title">Exam Candidates</div><div class="pillar-desc">Preparing for grading</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-hands-praying"></i></div><div class="pillar-title">Worship Teams</div><div class="pillar-desc">Sharper ensemble</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-microphone"></i></div><div class="pillar-title">Choir Members</div><div class="pillar-desc">Better timing &amp; tone</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-briefcase"></i></div><div class="pillar-title">Busy Professionals</div><div class="pillar-desc">Focused outcomes</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-sun"></i></div><div class="pillar-title">Summer Learners</div><div class="pillar-desc">School holiday programs</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-child"></i></div><div class="pillar-title">Children on Break</div><div class="pillar-desc">Structured fun</div></div>
-        <div class="pillar-item"><div class="pillar-icon"><i class="fa-solid fa-star"></i></div><div class="pillar-title">Event Performers</div><div class="pillar-desc">Stage-ready prep</div></div>
-      </div>
-    </div>
-  </section>
+      <dl class="stagger" style="flex: 2 1 480px; min-width: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 0 24px">
+<?php foreach ($crFor as [$who, $why]): ?>
+        <div style="padding: 16px 0; border-top: 1px solid #E6DED2"><dt style="font-weight: 600; font-size: 17px; color: #211A13"><?= site_h($who) ?></dt><dd style="margin: 4px 0 0; font-size: 15px; color: #574B40"><?= site_h($why) ?></dd></div>
+<?php endforeach; ?>
+      </dl>
+    </section>
 
-  <section id="categories" style="background:var(--bg-surface)">
-    <div class="container">
-      <div class="schools-head fade-in-up">
-        <div class="section-eyebrow" style="justify-content:center"><span class="line"></span>Four Crash Categories<span class="line" style="transform:scaleX(-1)"></span></div>
-        <h2 class="section-title">Choose Your <span class="highlight-gold">Intensive</span></h2>
+    <section id="categories" aria-labelledby="cat-h" style="background: #F3EEE6">
+      <div style="max-width: 1200px; margin: 0 auto; padding: clamp(64px, 8vw, 120px) clamp(20px, 4vw, 40px); box-sizing: border-box; display: flex; flex-direction: column; gap: clamp(28px, 3vw, 44px)">
+        <div style="max-width: 760px; display: flex; flex-direction: column; gap: 16px">
+          <p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Four crash categories</p>
+          <h2 id="cat-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05">Choose your intensive</h2>
+        </div>
+        <ul class="stagger" style="list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 16px">
+<?php foreach ($crCats as [$n, $name, $tag, $disc, $items]): ?>
+          <li class="lift" style="display: flex; flex-direction: column; gap: 12px; padding: 28px; border-radius: 16px; background: #FFFFFF; border: 1px solid #E6DED2">
+            <span aria-hidden="true" style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; color: #8A5208"><?= $n ?></span>
+            <h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 28px; line-height: 1.1"><?= site_h($name) ?></h3>
+            <p style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #8A5208"><?= site_h($tag) ?></p>
+            <ul style="margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 6px; font-size: 16px; line-height: 1.5; color: #3E342B">
+<?php foreach ($items as $it): ?>
+              <li><?= site_h($it) ?></li>
+<?php endforeach; ?>
+            </ul>
+            <a href="/apply?pathway=crash&amp;discipline=<?= $disc ?>" class="lrow" style="margin-top: auto; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 600; font-size: 16px; color: #211A13; text-decoration: none"><span class="ul">Apply</span> <span aria-hidden="true" style="color: #8A5208">→</span><span class="sr-xs"> for <?= site_h($name) ?></span></a>
+          </li>
+<?php endforeach; ?>
+        </ul>
       </div>
-      <div class="schools-grid">
-        <article class="school-card" data-school="A">
-          <span class="school-letter">1</span>
-          <div class="school-icon"><i class="fa-solid fa-music"></i></div>
-          <h3 class="school-name">Instrument Crash Courses</h3>
-          <div class="school-tagline">Focused instrument training</div>
-          <ul class="school-courses">
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Piano</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Violin · Guitar</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Saxophone · Trumpet · Recorder</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Drums · Voice</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Music Theory Foundations</li>
-          </ul>
-          <a href="apply?pathway=crash&discipline=piano" class="school-link">Apply <i class="fa-solid fa-arrow-right"></i></a>
-        </article>
-        <article class="school-card" data-school="C">
-          <span class="school-letter">2</span>
-          <div class="school-icon"><i class="fa-solid fa-drum"></i></div>
-          <h3 class="school-name">Rhythm Intelligence Crash</h3>
-          <div class="school-tagline">MAM Rapid Rhythm System</div>
-          <ul class="school-courses">
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Sight singing &amp; reading</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Rhythmic interpretation</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Timing correction &amp; ear training</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Beat coordination</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Ensemble synchronization</li>
-          </ul>
-          <a href="apply?pathway=crash&discipline=rhythm" class="school-link">Apply <i class="fa-solid fa-arrow-right"></i></a>
-        </article>
-        <article class="school-card" data-school="B">
-          <span class="school-letter">3</span>
-          <div class="school-icon"><i class="fa-solid fa-masks-theater"></i></div>
-          <h3 class="school-name">Performance Intelligence Crash</h3>
-          <div class="school-tagline">Stagecraft &amp; psychology</div>
-          <ul class="school-courses">
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Stage confidence</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Microphone usage</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Rehearsal discipline</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Audience engagement</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Overcoming stage fear</li>
-          </ul>
-          <a href="apply?pathway=crash&discipline=performance" class="school-link">Apply <i class="fa-solid fa-arrow-right"></i></a>
-        </article>
-        <article class="school-card" data-school="D">
-          <span class="school-letter">4</span>
-          <div class="school-icon"><i class="fa-solid fa-infinity"></i></div>
-          <h3 class="school-name">MetaMusic Crash</h3>
-          <div class="school-tagline">Philosophy of music</div>
-          <ul class="school-courses">
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Music and emotions</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>African musical intelligence</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Sound and consciousness</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Music as communication</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Artistic identity</li>
-          </ul>
-          <a href="apply?pathway=crash&discipline=metamusic" class="school-link">Apply <i class="fa-solid fa-arrow-right"></i></a>
-        </article>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <section>
-    <div class="container">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center" class="about-grid">
-        <div><img src="https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=900&q=80" alt="Crash programme outcomes" loading="lazy" style="width:100%;border-radius:var(--radius-lg);border:2px solid var(--border-gold);box-shadow:var(--shadow-lg)"></div>
-        <div>
-          <div class="section-eyebrow"><span class="line"></span>Why MAM Crash is Different</div>
-          <h2 class="section-title">Skills That <span class="highlight-gold">Hold</span> — Not Just Hype</h2>
-          <p class="section-desc">Most short music courses only teach songs and exercises. MAM Crash develops <strong>skill, confidence, intelligence, performance culture, artistic awareness</strong> and <strong>rhythm fluency</strong>.</p>
-          <ul class="school-courses" style="margin-top:18px">
-            <li class="school-course-item"><i class="fa-solid fa-circle-check" style="color:#34D399"></i>Measurable improvement</li>
-            <li class="school-course-item"><i class="fa-solid fa-circle-check" style="color:#34D399"></i>Stronger musical confidence</li>
-            <li class="school-course-item"><i class="fa-solid fa-circle-check" style="color:#34D399"></i>Improved timing</li>
-            <li class="school-course-item"><i class="fa-solid fa-circle-check" style="color:#34D399"></i>Better stage presentation</li>
-            <li class="school-course-item"><i class="fa-solid fa-circle-check" style="color:#34D399"></i>Greater artistic understanding</li>
-          </ul>
-          <div style="margin-top:28px"><a href="apply?pathway=crash" class="btn btn-primary btn-large"><i class="fa-solid fa-bolt"></i>Apply — <span data-cur-sym>$</span><span data-price="70">70</span></a></div>
+    <section aria-labelledby="why-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(64px, 8vw, 120px) clamp(20px, 4vw, 40px); box-sizing: border-box; display: flex; flex-wrap: wrap; gap: 32px clamp(40px, 6vw, 96px)">
+      <div style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 16px">
+        <p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Why MAM Crash is different</p>
+        <h2 id="why-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1">Skills that hold — not just hype</h2>
+      </div>
+      <div style="flex: 2 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 16px; font-size: 18px; line-height: 1.7; color: #3E342B">
+        <p class="read" style="margin: 0">Most short music courses only teach songs and exercises. MAM Crash develops <strong style="color: #211A13">skill, confidence, intelligence, performance culture, artistic awareness</strong> and <strong style="color: #211A13">rhythm fluency</strong>.</p>
+        <ul style="margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px">
+<?php foreach ($crOutcomes as $o): ?>
+          <li><?= site_h($o) ?></li>
+<?php endforeach; ?>
+        </ul>
+      </div>
+    </section>
+
+    <section aria-labelledby="go-h" style="padding: 0 clamp(8px, 1vw, 14px) clamp(8px, 1vw, 14px)">
+      <div style="max-width: 1440px; margin: 0 auto; border-radius: clamp(14px, 1.6vw, 22px); background: radial-gradient(120% 140% at 80% 0%, #5A3815 0%, #24160B 45%, #140D08 100%); color: #FCF8F3; padding: clamp(56px, 7vw, 112px) clamp(20px, 4vw, 40px); box-sizing: border-box; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 20px">
+        <p style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #F2A93B">Ready to begin · 6 weeks</p>
+        <h2 id="go-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05">Apply for a Crash Programme</h2>
+        <p style="margin: 0; max-width: 560px; font-size: 18px; line-height: 1.6; color: #D8CEC1">Pick your instrument or stream. Online or onsite. <?= $crPrice ?> covers the full 6-week intensive — no extra fees.</p>
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px">
+          <a href="/apply?pathway=crash" class="btn arrow" style="display: inline-flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 26px; border-radius: 999px; background: #F2A93B; color: #211A13; font-weight: 600; text-decoration: none">Apply — <?= $crPrice ?> <span aria-hidden="true">→</span></a>
+          <a href="/pathways" style="display: inline-flex; align-items: center; min-height: 52px; padding: 0 25px; border-radius: 999px; border: 1px solid rgba(252,248,243,.6); color: #FCF8F3; font-weight: 600; text-decoration: none">All term-based programmes</a>
         </div>
       </div>
-    </div>
-  </section>
-
-  <section id="next-step" aria-label="Continue your journey">
-    <div class="next-step-wrap">
-      <a class="next-step-back" href="pathways">
-        <i class="fa-solid fa-arrow-left"></i>
-        <div><div class="next-step-back-label">Back to full pathways</div><strong>All term-based programmes</strong></div>
-      </a>
-      <a class="next-step-card" href="apply?pathway=crash" style="border-color:var(--gold-bright);background:linear-gradient(135deg,rgba(224,138,26,0.12),var(--bg-surface))">
-        <div class="next-step-eyebrow"><span class="num">→</span>Ready to begin · 6 weeks</div>
-        <div class="next-step-title">Apply for a Crash Programme <i class="fa-solid fa-arrow-right"></i></div>
-        <p class="next-step-desc">Pick your instrument or stream. Online or onsite. <span data-amt-usd="70">$70</span> covers the full 6-week intensive — no extra fees.</p>
-        <div class="next-step-meta">
-          <span><i class="fa-solid fa-bolt"></i>6 weeks</span>
-          <span><i class="fa-solid fa-globe"></i>Online or onsite</span>
-        </div>
-      </a>
-    </div>
-  </section>
+    </section>
 </main>
-
-<?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20261120a"></script>
-<script src="assets/js/main.js?v=20260920"></script>
-</body>
-</html>
+<?php
+echo (string) ob_get_clean();
+site_footer();

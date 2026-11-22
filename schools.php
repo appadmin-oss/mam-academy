@@ -1,159 +1,81 @@
-<?php require __DIR__ . '/partials/site/shell.php'; ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="dark">
-<title>The Four Signature Schools — MAM Academy</title>
-<meta name="description" content="Instrumental Intelligence, Performance Intelligence, Rhythm Intelligence and MetaMusic &amp; Creative Consciousness — the four signature schools of MAM Academy.">
-<link rel="canonical" href="https://academy.mamcentre.org/schools">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="MAM Academy">
-<meta property="og:title" content="The Four Signature Schools — MAM Academy">
-<meta property="og:description" content="Instrumental Intelligence, Performance Intelligence, Rhythm Intelligence and MetaMusic &amp; Creative Consciousness — the four signature schools of MAM Academy.">
-<meta property="og:url" content="https://academy.mamcentre.org/schools">
-<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=The+Schools+of+MAM&amp;s=Instrument%2C+voice%2C+rhythm+and+thought+-+four+schools%2C+one+method.&amp;e=Our+Schools">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta property="og:image:type" content="image/png">
-<meta property="og:locale" content="en_US">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="The Four Signature Schools — MAM Academy">
-<meta name="twitter:description" content="Instrumental Intelligence, Performance Intelligence, Rhythm Intelligence and MetaMusic &amp; Creative Consciousness — the four signature schools of MAM Academy.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/api/og?t=The+Schools+of+MAM&amp;s=Instrument%2C+voice%2C+rhythm+and+thought+-+four+schools%2C+one+method.&amp;e=Our+Schools">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Schools","item":"https://academy.mamcentre.org/schools"}]}</script>
-<link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260920">
-</head>
-<body>
-<a href="#main" class="skip-link">Skip to main content</a>
-<div id="preloader" role="status"><div class="preloader-logo"><img src="mam-academy-logo.svg" alt="" onerror="this.style.display='none'"><div class="preloader-name">MAM ACADEMY</div><div class="preloader-tag">Four Signature Schools</div></div><div class="waves"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+<?php
+/**
+ * The four signature schools, on the 2026-11 redesign shell (partials/site/), in
+ * the About page's alternating text-and-photo blocks. The old page's stock photos
+ * are gone (handoff §9: real MAM photos, no stock); each block keeps a photo slot
+ * that site_photos() fills the day assets/img/site/<slug>.webp exists.
+ * The section ids (#instrumental, #performance, #rhythm, #metamusic) are linked
+ * from elsewhere and are kept.
+ */
+declare(strict_types=1);
+require __DIR__ . '/partials/site/shell.php';
 
-<?php include __DIR__ . '/partials/header.html'; ?>
+$scSchools = [
+    ['instrumental', 'School A', 'Instrumental Intelligence School',
+     'Focused on technical and practical mastery of instruments — the foundation of every musical journey.',
+     ['<strong>Piano &amp; Keyboard</strong> — classical, gospel &amp; contemporary', '<strong>Strings</strong> — Violin, Viola, Cello, Guitar',
+      '<strong>Wind Instruments</strong> — Flute, Clarinet, Saxophone', '<strong>Brass Instruments</strong> — Trumpet, Trombone, Tuba',
+      'Scales, technical drills, performance pieces', 'Accompaniment systems &amp; ensemble repertoire'],
+     ['/apply?discipline=piano', 'Apply for Piano'], ['/apply', 'Choose another instrument'], 'a piano lesson'],
+    ['performance', 'School B', 'Performance Intelligence School',
+     'Focused on stagecraft, presentation, confidence and performance psychology. What most music schools never teach.',
+     ['<strong>Stage Intelligence</strong> — entrance, posture, movement', '<strong>Microphone Discipline</strong> — control &amp; projection',
+      '<strong>Performance Psychology</strong> — fear, confidence, energy', '<strong>Audience Communication</strong> &amp; engagement',
+      '<strong>Rehearsal Culture</strong> — discipline &amp; ethics', '<strong>Live Presentation Systems</strong>'],
+     ['/apply?discipline=performance', 'Apply for Performance'], ['/crash', 'Crash Course'], 'a live performance'],
+    ['rhythm', 'School C', 'Rhythm Intelligence School',
+     'Home of the <strong>MAM Rapid Rhythm Intelligence System</strong> — a signature structured method for sight singing, rhythm mastery, ear training, fluency and timing intelligence.',
+     ['<strong>Sight Singing &amp; Sight Reading</strong>', '<strong>Ear Training Systems</strong>', '<strong>Rhythm Cognition</strong> &amp; coordination',
+      '<strong>Tonal Recognition</strong>', '<strong>Ensemble Synchronization</strong>', '<strong>Polyrhythm Mastery</strong> (advanced)'],
+     ['/apply?discipline=rhythm', 'Apply for Rhythm'], ['/crash', 'Rhythm Crash Course'], 'a rhythm class'],
+    ['metamusic', 'School D', 'MetaMusic & Creative Consciousness',
+     'Potentially MAM’s most revolutionary school. Beyond skill — into philosophy, consciousness, civilization and the spirituality of art.',
+     ['<strong>Philosophy of Music</strong>', '<strong>Sound &amp; Civilization</strong>', '<strong>African Creative Intelligence</strong>',
+      '<strong>Music &amp; Human Consciousness</strong>', '<strong>Timeless Creative Systems</strong>', '<strong>Cultural Artistry &amp; Leadership</strong>'],
+     ['/apply?discipline=metamusic', 'Apply for MetaMusic'], ['/metamusic-order', 'The MetaMusic Order'], 'a MetaMusic seminar'],
+];
 
+site_head([
+    'title' => 'The four signature schools — MAM Academy',
+    'description' => 'Instrumental Intelligence, Performance Intelligence, Rhythm Intelligence and MetaMusic & Creative Consciousness — the four signature schools of MAM Academy.',
+    'path' => '/schools',
+]);
+site_header('inner', '/about');
+ob_start();
+?>
 <main id="main">
-  <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1519892300165-cb5542fb47c7?w=1920&q=80')">
-    <div class="page-hero-inner">
-      <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Schools</span></nav>
-      <div class="page-hero-eyebrow"><i class="fa-solid fa-school"></i>Four Signature Schools</div>
-      <h1 class="page-hero-title">A Structure No Ordinary<br><span class="highlight-gold">Music School Offers</span></h1>
-      <p class="page-hero-lede">Craft, performance, rhythm cognition and artistic philosophy — united under one academy. Each school is anchored to a specific intelligence the modern musician needs.</p>
-    </div>
-  </header>
-
-  <section id="instrumental" style="background:var(--bg)">
-    <div class="container">
-      <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:64px;align-items:center" class="about-grid">
-        <div>
-          <div class="section-eyebrow"><span class="line"></span>School A</div>
-          <h2 class="section-title">Instrumental <span class="highlight-gold">Intelligence School</span></h2>
-          <p class="section-desc">Focused on technical and practical mastery of instruments — the foundation of every musical journey.</p>
-          <ul class="school-courses" style="margin-top:24px">
-            <li class="school-course-item"><i class="fa-solid fa-check"></i><strong>Piano &amp; Keyboard</strong> — classical, gospel &amp; contemporary</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i><strong>Strings</strong> — Violin, Viola, Cello, Guitar</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i><strong>Wind Instruments</strong> — Flute, Clarinet, Saxophone</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i><strong>Brass Instruments</strong> — Trumpet, Trombone, Tuba</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Scales, technical drills, performance pieces</li>
-            <li class="school-course-item"><i class="fa-solid fa-check"></i>Accompaniment systems &amp; ensemble repertoire</li>
+<?php
+site_doc_open('The four schools', 'A structure no ordinary music school offers',
+    'Craft, performance, rhythm cognition and artistic philosophy — united under one academy. Each school is anchored to a specific intelligence the modern musician needs.');
+foreach ($scSchools as $i => [$id, $eyebrow, $name, $lede, $items, $primary, $secondary, $photo]):
+?>
+    <section id="<?= $id ?>" aria-labelledby="<?= $id ?>-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(48px, 6vw, 88px) clamp(20px, 4vw, 40px); box-sizing: border-box; border-top: 1px solid #E6DED2">
+      <div style="display: flex; flex-wrap: wrap; gap: 40px clamp(40px, 6vw, 96px); align-items: center; flex-direction: <?= $i % 2 ? 'row-reverse' : 'row' ?>">
+        <div style="flex: 1 1 440px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208"><?= site_h($eyebrow) ?></p>
+          <h2 id="<?= $id ?>-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1"><?= site_h($name) ?></h2>
+          <p class="read" style="margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B"><?= $lede ?></p>
+          <ul style="list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column">
+<?php foreach ($items as $k => $it): ?>
+            <li style="display: flex; gap: 12px; padding: 10px 0; <?= $k ? 'border-top: 1px solid #ECE5DA; ' : '' ?>font-size: 16px; line-height: 1.6; color: #3E342B"><span aria-hidden="true" style="color: #C27A12">—</span><span><?= $it ?></span></li>
+<?php endforeach; ?>
           </ul>
-          <div style="margin-top:28px;display:flex;gap:12px;flex-wrap:wrap"><a href="apply?discipline=piano" class="btn btn-primary">Apply for Piano</a><a href="apply" class="btn btn-secondary">Choose Other Instrument</a></div>
+          <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px">
+            <a href="<?= site_h($primary[0]) ?>" class="btn" style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 24px; border-radius: 999px; background: #F2A93B; color: #211A13; font-weight: 600; text-decoration: none"><?= site_h($primary[1]) ?></a>
+            <a href="<?= site_h($secondary[0]) ?>" class="btn arrow" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; border: 1px solid #CFC3B3; color: #211A13; font-weight: 600; text-decoration: none"><?= site_h($secondary[1]) ?> <span aria-hidden="true">→</span></a>
+          </div>
         </div>
-        <div><img src="https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=900&q=80" alt="Piano lessons" loading="lazy" style="width:100%;border-radius:var(--radius-lg);border:2px solid var(--border-gold);box-shadow:var(--shadow-lg)"></div>
+        <div class="reveal" style="flex: 1 1 440px; min-width: 0"><div data-photo="<?= site_h($photo) ?>" aria-hidden="true" style="position: relative; overflow: hidden; aspect-ratio: 3 / 2; border-radius: 14px; background: linear-gradient(135deg, #E8DECF, #CDB89C)"></div></div>
       </div>
-    </div>
-  </section>
+    </section>
+<?php endforeach; ?>
 
-  <section id="performance" style="background:var(--bg-surface)">
-    <div class="container">
-      <div style="display:grid;grid-template-columns:1fr 1.1fr;gap:64px;align-items:center" class="about-grid">
-        <div><img src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=900&q=80" alt="Live performance" loading="lazy" style="width:100%;border-radius:var(--radius-lg);border:2px solid rgba(225,29,72,0.4);box-shadow:var(--shadow-lg)"></div>
-        <div>
-          <div class="section-eyebrow" style="color:#FB7185"><span class="line" style="background:linear-gradient(90deg,#FB7185,transparent)"></span>School B</div>
-          <h2 class="section-title">Performance <span class="highlight-red">Intelligence School</span></h2>
-          <p class="section-desc">Focused on stagecraft, presentation, confidence and performance psychology. What most music schools never teach.</p>
-          <ul class="school-courses" style="margin-top:24px">
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#FB7185"></i><strong>Stage Intelligence</strong> — entrance, posture, movement</li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#FB7185"></i><strong>Microphone Discipline</strong> — control &amp; projection</li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#FB7185"></i><strong>Performance Psychology</strong> — fear, confidence, energy</li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#FB7185"></i><strong>Audience Communication</strong> &amp; engagement</li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#FB7185"></i><strong>Rehearsal Culture</strong> — discipline &amp; ethics</li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#FB7185"></i><strong>Live Presentation Systems</strong></li>
-          </ul>
-          <div style="margin-top:28px;display:flex;gap:12px;flex-wrap:wrap"><a href="apply?discipline=performance" class="btn btn-primary">Apply for Performance</a><a href="crash" class="btn btn-secondary">Crash Course</a></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="rhythm" style="background:var(--bg)">
-    <div class="container">
-      <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:64px;align-items:center" class="about-grid">
-        <div>
-          <div class="section-eyebrow" style="color:#34D399"><span class="line" style="background:linear-gradient(90deg,#34D399,transparent)"></span>School C</div>
-          <h2 class="section-title">Rhythm <span style="background:linear-gradient(135deg,#10B981,#34D399);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">Intelligence School</span></h2>
-          <p class="section-desc">Home of the <strong>MAM Rapid Rhythm Intelligence System</strong> — a signature structured method for sight singing, rhythm mastery, ear training, fluency and timing intelligence.</p>
-          <ul class="school-courses" style="margin-top:24px">
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#34D399"></i><strong>Sight Singing &amp; Sight Reading</strong></li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#34D399"></i><strong>Ear Training Systems</strong></li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#34D399"></i><strong>Rhythm Cognition</strong> &amp; coordination</li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#34D399"></i><strong>Tonal Recognition</strong></li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#34D399"></i><strong>Ensemble Synchronization</strong></li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#34D399"></i><strong>Polyrhythm Mastery</strong> (advanced)</li>
-          </ul>
-          <div style="margin-top:28px;display:flex;gap:12px;flex-wrap:wrap"><a href="apply?discipline=rhythm" class="btn btn-primary">Apply for Rhythm</a><a href="crash" class="btn btn-secondary">Rhythm Crash Course</a></div>
-        </div>
-        <div><img src="https://images.unsplash.com/photo-1519892300165-cb5542fb47c7?w=900&q=80" alt="Rhythm intelligence" loading="lazy" style="width:100%;border-radius:var(--radius-lg);border:2px solid rgba(16,185,129,0.4);box-shadow:var(--shadow-lg)"></div>
-      </div>
-    </div>
-  </section>
-
-  <section id="metamusic" style="background:linear-gradient(180deg,var(--bg-surface),var(--bg))">
-    <div class="container">
-      <div style="display:grid;grid-template-columns:1fr 1.1fr;gap:64px;align-items:center" class="about-grid">
-        <div><img src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=900&q=80" alt="MetaMusic" loading="lazy" style="width:100%;border-radius:var(--radius-lg);border:2px solid rgba(165,180,252,0.4);box-shadow:var(--shadow-lg)"></div>
-        <div>
-          <div class="section-eyebrow" style="color:#A5B4FC"><span class="line" style="background:linear-gradient(90deg,#A5B4FC,transparent)"></span>School D</div>
-          <h2 class="section-title">MetaMusic &amp; <span class="highlight-purple">Creative Consciousness</span></h2>
-          <p class="section-desc">Potentially MAM's most revolutionary school. Beyond skill — into philosophy, consciousness, civilization and the spirituality of art.</p>
-          <ul class="school-courses" style="margin-top:24px">
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#A5B4FC"></i><strong>Philosophy of Music</strong></li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#A5B4FC"></i><strong>Sound &amp; Civilization</strong></li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#A5B4FC"></i><strong>African Creative Intelligence</strong></li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#A5B4FC"></i><strong>Music &amp; Human Consciousness</strong></li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#A5B4FC"></i><strong>Timeless Creative Systems</strong></li>
-            <li class="school-course-item"><i class="fa-solid fa-check" style="color:#A5B4FC"></i><strong>Cultural Artistry &amp; Leadership</strong></li>
-          </ul>
-          <div style="margin-top:28px;display:flex;gap:12px;flex-wrap:wrap"><a href="apply?discipline=metamusic" class="btn btn-primary">Apply for MetaMusic</a><a href="metamusic-order" class="btn btn-secondary">The MetaMusic Order →</a></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section id="next-step" aria-label="Continue your journey">
-    <div class="next-step-wrap">
-      <a class="next-step-back" href="about">
-        <i class="fa-solid fa-arrow-left"></i>
-        <div><div class="next-step-back-label">Previous · Step 1</div><strong>About MAM Academy</strong></div>
-      </a>
-      <a class="next-step-card" href="faculty">
-        <div class="next-step-eyebrow"><span class="num">03</span>Up next · Continue your journey</div>
-        <div class="next-step-title">Meet the Faculty <i class="fa-solid fa-arrow-right"></i></div>
-        <p class="next-step-desc">Every MAM class is led by a working musician, performer or composer — not someone repeating textbooks. Meet who'll teach you.</p>
-        <div class="next-step-meta">
-          <span><i class="fa-solid fa-chalkboard-user"></i>Active practitioners</span>
-          <span><i class="fa-solid fa-clipboard-check"></i>Matched via Auditer</span>
-        </div>
-      </a>
-    </div>
-  </section>
+    <section aria-labelledby="sc-next-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(48px, 6vw, 88px) clamp(20px, 4vw, 40px); box-sizing: border-box; border-top: 1px solid #E6DED2; display: flex; flex-wrap: wrap; gap: 16px">
+      <h2 id="sc-next-h" class="sr">Continue your journey</h2>
+      <a href="/about" class="lift" style="flex: 1 1 280px; display: flex; flex-direction: column; gap: 8px; padding: 28px; border-radius: 16px; background: #FFFFFF; border: 1px solid #E6DED2; color: #211A13; text-decoration: none"><span style="font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Previous</span><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 28px; line-height: 1.1">About MAM Academy</span></a>
+      <a href="/faculty" class="lift" style="flex: 2 1 380px; display: flex; flex-direction: column; gap: 8px; padding: 28px; border-radius: 16px; background: #FFFFFF; border: 1px solid #E6DED2; color: #211A13; text-decoration: none"><span style="font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Up next</span><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 28px; line-height: 1.1">Meet the faculty <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 16px; line-height: 1.6; color: #3E342B">Every MAM class is led by a working musician, performer or composer — not someone repeating textbooks. Meet who’ll teach you.</span></a>
+    </section>
 </main>
-
-<?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20261120a"></script>
-<script src="assets/js/main.js?v=20260920"></script>
-</body>
-</html>
+<?php
+echo site_photos((string) ob_get_clean());
+site_footer();

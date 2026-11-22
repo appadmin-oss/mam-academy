@@ -1,194 +1,129 @@
-<?php require __DIR__ . '/partials/site/shell.php'; ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="dark">
-<title>Store &amp; Library — MAM Academy</title>
-<meta name="description" content="The MAM Academy Store — sheet music, handouts, fakebooks, recordings and learning bundles, plus instructor add-ons and physical merch. Region-aware delivery.">
-<link rel="canonical" href="https://academy.mamcentre.org/store">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Store &amp; Library — MAM Academy">
-<meta name="twitter:description" content="The MAM Academy Store — sheet music, handouts, fakebooks, recordings and learning bundles, plus instructor add-ons and physical merch. Region-aware delivery.">
-<meta name="twitter:image" content="https://academy.mamcentre.org/mam-academy-logo.svg">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://academy.mamcentre.org/"},{"@type":"ListItem","position":2,"name":"Store","item":"https://academy.mamcentre.org/store"}]}</script>
-<link rel="icon" type="image/svg+xml" href="mam-academy-logo.svg">
-<meta property="og:title" content="MAM Academy Store">
-<meta property="og:description" content="Sheet music, handouts, recordings and add-ons from the MAM Centre.">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260920">
+<?php
+/**
+ * Store & Library — on the 2026-11 redesign shell (partials/site/). The handoff did
+ * not draw it; it is built from the handoff's own parts (the About page's breadcrumb
+ * and serif H1, the Programmes cards, the Apply flow's fields).
+ *
+ * Behaviour is the previous page's, unchanged: the catalogue from GET /api/store/items,
+ * a localStorage cart ("mam.store.cart") that sends only {sku, qty} — the server
+ * recomputes every price at checkout — and the drawer hands the buyer to /checkout.
+ * config.js is loaded for MAM_CCY (prices in the visitor's currency, at the server's
+ * rates) and MAM_CONFIG.storeShippingUsd; because MAM_CCY then exists, site.js leaves
+ * the footer's currency switch alone and this page wires it to the same key.
+ */
+declare(strict_types=1);
+require __DIR__ . '/partials/site/shell.php';
+
+$stCrumbs = ['@context' => 'https://schema.org', '@type' => 'BreadcrumbList', 'itemListElement' => [
+    ['@type' => 'ListItem', 'position' => 1, 'name' => 'Home', 'item' => 'https://academy.mamcentre.org/'],
+    ['@type' => 'ListItem', 'position' => 2, 'name' => 'Store', 'item' => 'https://academy.mamcentre.org/store'],
+]];
+site_head([
+    'title' => 'Store & Library — MAM Academy',
+    'description' => 'The MAM Academy Store — sheet music, handouts, fakebooks, recordings and learning bundles, plus instructor add-ons and physical merch. Region-aware delivery.',
+    'path' => '/store',
+    'jsonld' => '<script type="application/ld+json">' . json_encode($stCrumbs, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) . '</script>',
+]);
+site_header('inner');
+ob_start();
+?>
 <style>
-/* ── Shell + layout ───────────────────────────────────────────── */
-.store-shell{max-width:1240px;margin:0 auto;padding:36px 22px 96px}
-
-/* ── Toolbar: search + categories + region ──────────────────────
-   Reorganised so search is primary on desktop AND mobile. Category
-   pills stay scrollable horizontally so the toolbar can never break
-   the layout on narrow screens. */
-.store-toolbar{display:grid;grid-template-columns:minmax(0,1.4fr) auto;gap:14px;align-items:center;margin:24px 0 22px}
-@media (max-width:700px){.store-toolbar{grid-template-columns:1fr}}
-.st-search{position:relative}
-.st-search input{width:100%;padding:14px 16px 14px 44px;background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:0.96rem;font-family:inherit;min-height:48px;outline:none}
-.st-search input:focus{border-color:var(--gold-bright);box-shadow:0 0 0 4px rgba(252,198,71,0.22)}
-.st-search input::placeholder{color:var(--text-muted)}
-.st-search .icn{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.95rem}
-.st-region{display:inline-flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text-muted);padding:0 4px;white-space:nowrap}
-.st-region b{color:var(--text)}
-.st-region i{color:var(--gold-bright)}
-
-/* Category pills — scroll horizontally if they overflow */
-.st-categories{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:2px 0;margin-bottom:28px}
-.st-categories::-webkit-scrollbar{display:none}
-.st-categories button{flex-shrink:0;padding:8px 14px;border-radius:100px;font-size:0.84rem;font-weight:700;color:var(--text-muted);background:var(--bg-surface);border:1px solid var(--border);cursor:pointer;letter-spacing:0.01em;transition:all .15s var(--ease);min-height:36px}
-.st-categories button:hover{border-color:var(--border-gold);color:var(--text)}
-@media (pointer:coarse){.st-categories button{min-height:44px}}
-.st-categories button.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;border-color:transparent}
-.st-categories .count{margin-left:6px;font-size:0.75rem;opacity:0.7}
-.st-categories button.active .count{opacity:0.7}
-
-/* ── Grid + cards ──────────────────────────────────────────────
-   Cards are flex-column so the foot (price + CTA) always sits at the
-   bottom regardless of description length. */
-.store-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:22px}
-.item-card{position:relative;background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transition:transform .2s var(--ease),border-color .2s var(--ease),box-shadow .2s var(--ease)}
-.item-card:hover{transform:translateY(-3px);border-color:var(--border-gold);box-shadow:0 14px 36px rgba(0,0,0,0.35)}
-.item-card.unavailable{opacity:0.55;filter:saturate(0.6)}
-.item-card.unavailable:hover{transform:none;border-color:var(--border);box-shadow:none}
-.item-thumb{aspect-ratio:4/3;background:linear-gradient(135deg,rgba(252,198,71,0.16),var(--bg-raised));display:flex;align-items:center;justify-content:center;color:var(--gold-bright);font-size:2.2rem;position:relative;overflow:hidden}
+.store-shell{max-width:1200px;margin:0 auto;padding:0 clamp(20px,4vw,40px) clamp(64px,8vw,120px);box-sizing:border-box}
+.store-toolbar{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;margin:0 0 20px}
+.st-search{position:relative;flex:1 1 360px;max-width:640px}
+.st-search svg{position:absolute;left:16px;top:50%;transform:translateY(-50%);color:#574B40;pointer-events:none}
+.st-search input{box-sizing:border-box;width:100%;min-height:52px;padding:12px 16px 12px 48px;border-radius:12px;border:1px solid #CFC3B3;background:#FFFFFF;font:inherit;font-size:16px;color:#211A13}
+.st-search input:focus{outline:2px solid #8A5208;outline-offset:2px;border-color:#8A5208}
+.st-region{font-size:15px;color:#574B40}
+.st-region b{color:#211A13;font-weight:600}
+.st-categories{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 32px}
+.st-categories button{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid #CFC3B3;background:#FFFFFF;color:#211A13;font:inherit;font-size:15px;cursor:pointer}
+.st-categories button.active{background:#211A13;border-color:#211A13;color:#FAF8F4}
+.st-categories .st-count{font-size:13px;color:#574B40}
+.st-categories button.active .st-count{color:#D8CEC1}
+.store-grid,.skeleton-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:16px}
+.item-card{display:flex;flex-direction:column;border-radius:16px;background:#FFFFFF;border:1px solid #E6DED2;overflow:hidden;transition:transform .75s var(--out),box-shadow .75s var(--out)}
+.item-card:hover{transform:translateY(-4px);box-shadow:0 30px 60px -36px rgba(33,26,19,.4)}
+.item-card.unavailable{opacity:.7}
+.item-thumb{position:relative;aspect-ratio:4/3;background:linear-gradient(135deg,#E8DECF,#CDB89C);display:flex;align-items:center;justify-content:center;color:#574B40}
 .item-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-
-/* Goods-type chip in the upper corner of the thumb */
-.item-chip{position:absolute;top:10px;left:10px;font-size:0.66rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;padding:4px 9px;border-radius:100px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-.item-chip.gd-digital{background:rgba(99,102,241,0.85);color:#fff}
-.item-chip.gd-physical{background:rgba(52,211,153,0.85);color:#fff}
-.item-chip.gd-service{background:rgba(251,191,36,0.85);color:#1A120B}
-
-/* Availability ribbon top-right */
-.item-ribbon{position:absolute;top:10px;right:10px;font-size:0.66rem;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;padding:4px 9px;border-radius:100px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-.item-ribbon.avail-sold_out{background:rgba(244,63,94,0.9);color:#fff}
-.item-ribbon.avail-preorder{background:rgba(252,198,71,0.9);color:#1A120B}
-.item-ribbon.not-here{background:rgba(0,0,0,0.65);color:#fff}
-
-.item-body{padding:18px 20px 14px;display:flex;flex-direction:column;gap:6px;flex:1}
-.item-cat{font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold-bright);font-weight:800}
-.item-name{font-family:var(--font-serif);font-size:1.15rem;font-weight:700;color:var(--text);line-height:1.28;margin:0}
-.item-desc{font-size:0.86rem;color:var(--text-soft);line-height:1.55;margin:4px 0 0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-
-.item-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 20px;border-top:1px solid var(--border);background:rgba(0,0,0,0.12)}
-.item-price{font-family:var(--font-display);font-size:1.65rem;color:var(--text);line-height:1;letter-spacing:0.02em}
-.item-price small{font-size:0.5em;color:var(--text-muted);font-family:var(--font-body);font-weight:500;letter-spacing:0;margin-left:3px}
-.item-buy{display:inline-flex;align-items:center;gap:7px;padding:10px 16px;border-radius:10px;background:#1A120B;color:#FBBF24;font-weight:700;font-size:0.82rem;letter-spacing:0.08em;text-transform:uppercase;border:0;cursor:pointer;min-height:42px;transition:all .15s var(--ease)}
-.item-buy:hover:not(:disabled){background:#000;transform:translateY(-1px)}
-.item-buy:disabled{opacity:0.45;cursor:not-allowed;background:var(--bg-raised);color:var(--text-muted)}
-.item-buy i{font-size:0.86em}
-
-/* ── Skeleton loader (replaces the spinner) ────────────────────
-   Renders the card outline + animated shimmer so users see structure
-   while the catalogue loads. Much better perceived performance. */
-.skeleton-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:22px}
-.skel-card{background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;overflow:hidden}
-.skel{background:linear-gradient(90deg,var(--bg-raised) 0,rgba(255,255,255,0.05) 50%,var(--bg-raised) 100%);background-size:200% 100%;animation:shimmer 1.4s linear infinite}
-@keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
-.skel-thumb{aspect-ratio:4/3}
-.skel-body{padding:18px 20px 14px}
-.skel-line{height:12px;border-radius:8px;margin-bottom:10px}
-.skel-line.short{width:38%}
-.skel-line.tall{height:22px;width:78%}
-.skel-foot{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-top:1px solid var(--border)}
-.skel-foot .skel-line{margin:0;height:24px;border-radius:8px}
-
-/* ── Empty states ──────────────────────────────────────────────── */
-.store-empty{padding:64px 24px;text-align:center;color:var(--text-soft);background:var(--bg-surface);border:1px dashed var(--border);border-radius:16px;max-width:520px;margin:0 auto}
-.store-empty .icn{font-size:2.4rem;color:var(--gold-bright);opacity:0.65;margin-bottom:14px}
-.store-empty h3{font-family:var(--font-serif);color:var(--text);font-size:1.4rem;margin:0 0 8px}
-.store-empty p{margin:0 0 6px;line-height:1.7}
-
-/* The cart drawer's close button. (The checkout dialog these rules came
-   with was removed: checkout is its own page, /checkout.) */
-.modal-close{flex-shrink:0;width:36px;height:36px;border-radius:50%;background:var(--bg-raised);border:1px solid var(--border);color:var(--text-muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:0.95rem;transition:all .15s var(--ease)}
-.modal-close:hover{background:var(--bg-elevated);color:var(--text);border-color:var(--border-strong)}
-
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* ── Cart: floating button, slide-in drawer, toast ───────────── */
-.cart-fab{position:fixed;right:20px;bottom:20px;z-index:980;display:inline-flex;align-items:center;gap:9px;padding:13px 18px;border-radius:100px;border:0;cursor:pointer;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;font-size:0.9rem;letter-spacing:0.03em;box-shadow:0 10px 30px rgba(224,138,26,0.42);transition:transform .18s var(--ease-bounce),box-shadow .2s var(--ease)}
-.cart-fab:hover{transform:translateY(-2px)}
-.cart-fab .cart-count{background:#1A120B;color:var(--gold-bright);min-width:22px;height:22px;border-radius:100px;display:inline-flex;align-items:center;justify-content:center;font-size:0.78rem;padding:0 6px}
+.item-chip{position:absolute;left:12px;top:12px;padding:4px 10px;border-radius:999px;background:rgba(250,248,244,.92);font-size:13px;font-weight:600;color:#211A13}
+.item-ribbon{position:absolute;right:12px;top:12px;padding:4px 10px;border-radius:999px;background:#211A13;color:#FCF8F3;font-size:13px;font-weight:600}
+.item-ribbon.avail-preorder{background:#F2A93B;color:#211A13}
+.item-body{flex:1;display:flex;flex-direction:column;gap:6px;padding:20px 20px 12px}
+.item-cat{font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#8A5208}
+.item-name{margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-size:24px;line-height:1.15;color:#211A13}
+.item-desc{margin:0;font-size:15px;line-height:1.6;color:#3E342B;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.item-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px 20px}
+.item-price{font-size:19px;font-weight:600;color:#211A13;font-variant-numeric:tabular-nums}
+.item-price small{margin-left:6px;font-size:13px;font-weight:400;color:#574B40}
+.item-buy{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 18px;border-radius:999px;border:0;background:#F2A93B;color:#211A13;font:inherit;font-size:15px;font-weight:600;cursor:pointer}
+.item-buy:disabled{background:#ECE5DA;color:#574B40;cursor:default}
+.item-buy.added{background:#211A13;color:#FAF8F4}
+.store-empty{text-align:center;padding:64px 20px;color:#3E342B}
+.store-empty .icn{color:#C27A12;margin-bottom:12px}
+.store-empty h3{margin:0 0 8px;font-family:'Cormorant Garamond',Georgia,serif;font-weight:500;font-size:32px;color:#211A13}
+.store-empty p{margin:0;font-size:16px}
+.store-empty .store-empty-note{margin-top:14px;font-size:14px;color:#574B40}
+.store-empty a{color:#8A5208}
+.ic-lg{width:40px;height:40px}
+.skel-card{border-radius:16px;background:#FFFFFF;border:1px solid #E6DED2;overflow:hidden}
+.skel{background:linear-gradient(90deg,#F3EEE6,#ECE5DA,#F3EEE6);background-size:200% 100%;animation:skel 1.4s linear infinite;border-radius:8px}
+.skel-thumb{aspect-ratio:4/3;border-radius:0}
+.skel-body{padding:20px;display:flex;flex-direction:column;gap:10px}
+.skel-line{height:12px}.skel-line.short{width:40%}.skel-line.tall{height:22px;width:80%}
+.skel-foot{display:flex;justify-content:space-between;padding:0 20px 20px}
+@keyframes skel{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.skel{animation:none}.item-card{transition:none}}
+.cart-fab{position:fixed;right:16px;bottom:16px;z-index:1050;display:inline-flex;align-items:center;gap:10px;min-height:52px;padding:0 20px;border-radius:999px;border:0;background:#211A13;color:#FCF8F3;font:inherit;font-size:16px;font-weight:600;cursor:pointer;box-shadow:0 18px 40px -20px rgba(33,26,19,.6)}
 .cart-fab[hidden]{display:none}
-.cart-fab.bump{animation:cartBump .42s var(--ease-bounce)}
-@keyframes cartBump{0%{transform:scale(1)}40%{transform:scale(1.13)}100%{transform:scale(1)}}
-
-.cart-drawer{position:fixed;inset:0;z-index:1001;display:flex;justify-content:flex-end;opacity:0;visibility:hidden;transition:opacity .22s var(--ease),visibility .22s var(--ease)}
-.cart-drawer.is-open{opacity:1;visibility:visible}
-.cart-drawer .cd-backdrop{position:absolute;inset:0;background:rgba(10,7,4,0.7);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-.cart-panel{position:relative;width:min(420px,100%);background:var(--bg-surface);border-left:1px solid var(--border-gold);display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(0,0,0,0.5);transform:translateX(28px);transition:transform .26s var(--ease)}
-.cart-drawer.is-open .cart-panel{transform:translateX(0)}
-.cart-panel-head{display:flex;align-items:center;justify-content:space-between;padding:22px 24px;border-bottom:1px solid var(--border)}
-.cart-panel-head h2{font-family:var(--font-serif);font-size:1.3rem;margin:0;color:var(--text)}
-.cart-panel-body{flex:1;overflow-y:auto;padding:4px 24px}
-.cart-line{display:flex;gap:14px;padding:16px 0;border-bottom:1px solid var(--border)}
-.cart-line-thumb{width:58px;height:58px;border-radius:12px;flex-shrink:0;background:linear-gradient(135deg,rgba(252,198,71,0.16),var(--bg-raised));display:flex;align-items:center;justify-content:center;color:var(--gold-bright);overflow:hidden}
+.cart-fab.bump{animation:bump .45s var(--out)}
+@keyframes bump{40%{transform:scale(1.08)}}
+.cart-count{min-width:24px;height:24px;padding:0 6px;box-sizing:border-box;border-radius:999px;background:#F2A93B;color:#211A13;font-size:14px;display:inline-flex;align-items:center;justify-content:center}
+html.ck-on .cart-fab{bottom:calc(var(--ck-h,0px) + 12px)}
+.cart-drawer{position:fixed;inset:0;z-index:1150;visibility:hidden;pointer-events:none}
+.cart-drawer.is-open{visibility:visible;pointer-events:auto}
+.cd-backdrop{position:absolute;inset:0;background:rgba(18,12,7,.45);opacity:0;transition:opacity .4s ease}
+.cart-drawer.is-open .cd-backdrop{opacity:1}
+.cart-panel{position:absolute;top:0;right:0;bottom:0;width:min(440px,100%);display:flex;flex-direction:column;background:#FAF8F4;color:#211A13;box-shadow:-30px 0 60px -36px rgba(33,26,19,.4);transform:translateX(100%);transition:transform .6s var(--out)}
+.cart-drawer.is-open .cart-panel{transform:none}
+.cart-panel-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid #E6DED2}
+.cart-panel-head h2{margin:0;font-family:'Cormorant Garamond',Georgia,serif;font-weight:500;font-size:32px}
+.modal-close{width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:10px;background:none;color:#211A13;cursor:pointer}
+.modal-close:hover{background:#F3EEE6}
+.cart-panel-body{flex:1;overflow-y:auto;padding:8px 24px}
+.cart-empty{text-align:center;padding:48px 8px;color:#574B40;font-size:16px;line-height:1.6}
+.cart-empty svg{display:block;margin:0 auto 12px;color:#C27A12}
+.cart-line{display:flex;gap:14px;padding:16px 0;border-bottom:1px solid #E6DED2}
+.cart-line-thumb{flex:none;width:64px;height:64px;border-radius:12px;overflow:hidden;background:linear-gradient(135deg,#E8DECF,#CDB89C);display:flex;align-items:center;justify-content:center;color:#574B40}
 .cart-line-thumb img{width:100%;height:100%;object-fit:cover}
+.cart-line-thumb .ic-lg{width:24px;height:24px}
 .cart-line-main{flex:1;min-width:0}
-.cart-line-name{font-weight:700;color:var(--text);font-size:0.94rem;margin:0 0 2px;line-height:1.3}
-.cart-line-price{color:var(--text-muted);font-size:0.82rem}
-.cart-line-foot{display:flex;align-items:center;justify-content:space-between;margin-top:9px}
-.qty{display:inline-flex;align-items:center;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden}
-.qty button{width:30px;height:30px;background:var(--bg-raised);border:0;color:var(--text);cursor:pointer;font-size:1rem;line-height:1;transition:background .12s var(--ease)}
-.qty button:hover{background:var(--bg-card);color:var(--gold-bright)}
-.qty span{min-width:34px;text-align:center;font-weight:700;color:var(--text);font-size:0.9rem}
-.cart-line-rm{background:none;border:0;color:var(--text-muted);cursor:pointer;font-size:0.8rem;display:inline-flex;align-items:center;gap:4px}
-.cart-line-rm:hover{color:#FCA5A5}
-.cart-panel-foot{padding:18px 24px 24px;border-top:1px solid var(--border);background:rgba(0,0,0,0.14)}
-.cart-panel-foot .sub{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;font-size:0.88rem;color:var(--text-soft)}
-.cart-panel-foot .sub.grand{margin:8px 0 14px;font-size:1rem;color:var(--text);font-weight:700}
-.cart-panel-foot .sub.grand b{font-family:var(--font-display);font-size:1.5rem;color:var(--gold-bright);font-weight:normal;letter-spacing:0.02em}
-.cart-checkout{width:100%;padding:15px;border-radius:12px;border:0;cursor:pointer;background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B;font-weight:800;font-size:0.96rem;letter-spacing:0.04em;text-transform:uppercase;transition:transform .15s var(--ease),box-shadow .2s var(--ease)}
-.cart-checkout:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(224,138,26,0.4)}
-.cart-empty{text-align:center;color:var(--text-muted);padding:54px 16px;line-height:1.6}
-.cart-empty i{font-size:2.1rem;color:var(--gold-bright);opacity:0.6;display:block;margin-bottom:12px}
-
-.toast{position:fixed;left:50%;bottom:92px;transform:translate(-50%,16px);z-index:1002;background:var(--bg-card);border:1px solid var(--border-gold);color:var(--text);padding:12px 18px;border-radius:100px;font-size:0.88rem;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,0.45);opacity:0;visibility:hidden;transition:all .25s var(--ease);display:inline-flex;align-items:center;gap:12px}
-.toast.show{opacity:1;visibility:visible;transform:translate(-50%,0)}
-.toast i{color:#34D399}
-.toast button{background:none;border:0;color:var(--gold-bright);font-weight:800;cursor:pointer;font-size:0.86rem;white-space:nowrap}
-
-.item-buy.added{background:#10B981;color:#fff}
-
-@media (max-width:600px){
-  .store-shell{padding:24px 16px 80px}
-  .item-name{font-size:1.05rem}
-  .item-foot{padding:12px 16px}
-  .item-body{padding:14px 16px 12px}
-  .cart-fab{right:14px;bottom:14px}
-}
+.cart-line-name{margin:0 0 4px;font-weight:600;font-size:16px;line-height:1.3}
+.cart-line-price{font-size:14px;color:#574B40;font-variant-numeric:tabular-nums}
+.cart-line-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px}
+.qty{display:inline-flex;align-items:center;border:1px solid #CFC3B3;border-radius:999px;background:#FFFFFF}
+.qty button{width:40px;height:40px;border:0;background:none;font:inherit;font-size:18px;color:#211A13;cursor:pointer;border-radius:999px}
+.qty span{min-width:24px;text-align:center;font-size:15px;font-weight:600}
+.cart-line-rm{min-height:40px;border:0;background:none;font:inherit;font-size:14px;color:#8A5208;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.cart-panel-foot{padding:20px 24px calc(20px + env(safe-area-inset-bottom,0px));border-top:1px solid #E6DED2;display:flex;flex-direction:column;gap:8px}
+.cart-panel-foot .sub{display:flex;justify-content:space-between;font-size:15px;color:#3E342B;font-variant-numeric:tabular-nums}
+.cart-panel-foot .sub.grand{padding-top:8px;font-size:18px;color:#211A13}
+.cart-checkout{margin-top:8px;min-height:52px;border:0;border-radius:999px;background:#F2A93B;color:#211A13;font:inherit;font-size:16px;font-weight:600;cursor:pointer}
+.toast{position:fixed;left:50%;bottom:24px;z-index:1100;display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:16px;background:#211A13;color:#FCF8F3;font-size:15px;box-shadow:0 18px 40px -20px rgba(33,26,19,.6);transform:translate(-50%,24px);opacity:0;pointer-events:none;transition:opacity .3s ease,transform .45s var(--out)}
+.toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast button{min-height:40px;padding:0 14px;border:0;border-radius:999px;background:#F2A93B;color:#211A13;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 </style>
-</head>
-<body>
-<a href="#main" class="skip-link">Skip to main content</a>
-<?php include __DIR__ . '/partials/header.html'; ?>
-
 <main id="main">
-  <header class="page-hero" style="--page-hero-img:url('https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=1920&q=80');padding:84px 22px 44px">
-    <div class="page-hero-inner">
-      <nav class="breadcrumb"><a href="/">Home</a><i class="fa-solid fa-chevron-right"></i><span>Store</span></nav>
-      <div class="page-hero-eyebrow"><i class="fa-solid fa-bag-shopping"></i>The MAM Library</div>
-      <h1 class="page-hero-title">Store &amp; <span class="highlight-gold">Library</span></h1>
-      <p class="page-hero-lede">Curated handouts, sheet music, recordings, learning bundles and physical merch from the MAM Centre. Built for our students &mdash; open to everyone.</p>
-    </div>
-  </header>
-
+<?php site_doc_open('Store', 'Store & Library', 'Curated handouts, sheet music, recordings, learning bundles and physical merch from MAM Centre. Built for our students — open to everyone.'); ?>
   <section class="store-shell" aria-label="Store catalogue">
     <div class="store-toolbar">
       <div class="st-search">
-        <i class="fa-solid fa-magnifying-glass icn" aria-hidden="true"></i>
-        <input type="search" id="storeSearch" placeholder="Search the library — sheet music, handouts, recordings…" aria-label="Search the store">
+        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="search" id="storeSearch" placeholder="Search sheet music, handouts, recordings…" aria-label="Search the store">
       </div>
-      <div class="st-region"><i class="fa-solid fa-earth-africa"></i> Shipping to <b id="regionName">your region</b></div>
+      <div class="st-region">Shipping to <b id="regionName">your region</b></div>
     </div>
 
     <h2 class="sr-only">Browse the store</h2>
@@ -202,7 +137,7 @@
 
 <!-- Floating cart button — hidden while the basket is empty -->
 <button type="button" class="cart-fab" id="cartFab" hidden aria-label="Open cart">
-  <i class="fa-solid fa-bag-shopping" aria-hidden="true"></i>
+  <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/></svg>
   <span>Cart</span>
   <span class="cart-count" id="cartCount">0</span>
 </button>
@@ -213,13 +148,13 @@
   <aside class="cart-panel" role="dialog" aria-modal="true" aria-labelledby="cartTitle">
     <div class="cart-panel-head">
       <h2 id="cartTitle">Your cart</h2>
-      <button type="button" class="modal-close" id="cartClose" aria-label="Close cart"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+      <button type="button" class="modal-close" id="cartClose" aria-label="Close cart"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="cart-panel-body" id="cartBody"></div>
     <div class="cart-panel-foot" id="cartFoot" hidden>
-      <div class="sub"><span>Subtotal</span><span id="cartSubtotal">$0</span></div>
-      <div class="sub" id="cartShipRow" hidden><span>Shipping (physical goods)</span><span id="cartShip">$0</span></div>
-      <div class="sub grand"><span>Total</span><b id="cartTotal">$0</b></div>
+      <div class="sub"><span>Subtotal</span><span id="cartSubtotal">—</span></div>
+      <div class="sub" id="cartShipRow" hidden><span>Shipping (physical goods)</span><span id="cartShip">—</span></div>
+      <div class="sub grand"><span>Total</span><b id="cartTotal">—</b></div>
       <button type="button" class="cart-checkout" id="cartCheckout">Checkout &rarr;</button>
     </div>
   </aside>
@@ -227,18 +162,32 @@
 
 <!-- Add-to-cart toast -->
 <div class="toast" id="toast" role="status" aria-live="polite">
-  <i class="fa-solid fa-check" aria-hidden="true"></i><span id="toastMsg">Added to cart</span>
+  <span id="toastMsg">Added to cart</span>
   <button type="button" id="toastView">View cart</button>
 </div>
 
 
-<?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20261120a"></script>
-<script src="assets/js/main.js?v=20260920"></script>
+<?php
+echo (string) ob_get_clean();
+// config.js before site.js (deferred): MAM_CCY and MAM_CONFIG are the store's formatter and settings.
+echo '<script src="/assets/js/config.js?v=20261121"></script>' . "\n";
+site_footer_chrome();
+?>
 <script>
 (function(){
   'use strict';
   var GOODS = { digital:'Digital', physical:'Physical', service:'Service' };
+  // Icons as inline SVG (the redesign carries no icon font).
+  var SV = function (d, extra) { return '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"' + (extra || '') + '>' + d + '</svg>'; };
+  var ICON = {
+    music:  SV('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>', ' class="ic-lg"'),
+    plus:   SV('<path d="M12 5v14M5 12h14"/>'),
+    check:  SV('<path d="M20 6 9 17l-5-5"/>'),
+    bag:    SV('<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18M16 10a4 4 0 0 1-8 0"/>', ' class="ic-lg"'),
+    alert:  SV('<circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>', ' class="ic-lg"'),
+    search: SV('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>', ' class="ic-lg"')
+  };
+
   var $ = function(s){ return document.querySelector(s); };
   var $$ = function(s){ return Array.prototype.slice.call(document.querySelectorAll(s)); };
 
@@ -254,7 +203,12 @@
   // on load (drop vanished/sold-out items, refresh names/prices).
   var CART_KEY = 'mam.store.cart';
   var cart = loadCart();
-  function loadCart(){ try { return JSON.parse(localStorage.getItem(CART_KEY)) || []; } catch(e){ return []; } }
+  // A line always carries a whole quantity of at least 1. New lines were pushed with
+  // none (so "+1" made NaN and the cart read "NaN"); a saved cart is repaired on load.
+  function loadCart(){
+    var c; try { c = JSON.parse(localStorage.getItem(CART_KEY)) || []; } catch(e){ c = []; }
+    return (Array.isArray(c) ? c : []).filter(function(l){ return l && l.sku; }).map(function(l){ var q = parseInt(l.qty, 10); l.qty = q > 0 ? q : 1; return l; });
+  }
   function saveCart(){ try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch(e){} }
   function cartCount(){ return cart.reduce(function(n,l){ return n + l.qty; }, 0); }
   function cartHasPhysical(){ return cart.some(function(l){ return l.goods_type === 'physical'; }); }
@@ -285,10 +239,10 @@
         try { console.error('[MAM_STORE] failed to load', err); } catch (e) {}
         $('#storeBody').innerHTML = ''
           + '<div class="store-empty">'
-          +   '<div class="icn"><i class="fa-solid fa-circle-exclamation"></i></div>'
+          +   '<div class="icn">' + ICON.alert + '</div>'
           +   '<h3>The library can\'t open right now</h3>'
           +   '<p>This usually means the server is being updated. Refresh in a moment.</p>'
-          +   '<p style="font-size:0.84rem;color:var(--text-muted);margin-top:14px">Need it urgently? Email <a href="mailto:academy@mamcentre.org" style="color:var(--gold-bright)">academy@mamcentre.org</a>.</p>'
+          +   '<p class="store-empty-note">Need it urgently? Email <a href="mailto:academy@mamcentre.org">academy@mamcentre.org</a>.</p>'
           + '</div>';
       });
   }
@@ -317,9 +271,9 @@
     var counts = { '': allItems.length };
     allItems.forEach(function(i){ if (i.category) counts[i.category] = (counts[i.category] || 0) + 1; });
 
-    var html = '<button data-cat="" type="button" aria-pressed="' + (activeCat === '' ? 'true' : 'false') + '" class="' + (activeCat === '' ? 'active' : '') + '">All <span class="count">' + counts[''] + '</span></button>';
+    var html = '<button data-cat="" type="button" aria-pressed="' + (activeCat === '' ? 'true' : 'false') + '" class="' + (activeCat === '' ? 'active' : '') + '">All <span class="st-count">' + counts[''] + '</span></button>';
     Object.keys(counts).filter(function(k){ return k !== ''; }).sort().forEach(function(c){
-      html += '<button data-cat="' + escAttr(c) + '" type="button" aria-pressed="' + (activeCat === c ? 'true' : 'false') + '" class="' + (activeCat === c ? 'active' : '') + '">' + escapeHtml(c) + ' <span class="count">' + counts[c] + '</span></button>';
+      html += '<button data-cat="' + escAttr(c) + '" type="button" aria-pressed="' + (activeCat === c ? 'true' : 'false') + '" class="' + (activeCat === c ? 'active' : '') + '">' + escapeHtml(c) + ' <span class="st-count">' + counts[c] + '</span></button>';
     });
     tabs.innerHTML = html;
   }
@@ -358,7 +312,7 @@
         : (activeCat ? 'No items in ' + escapeHtml(activeCat) + ' yet' : 'Nothing here yet');
       body.innerHTML = ''
         + '<div class="store-empty">'
-        +   '<div class="icn"><i class="fa-solid fa-magnifying-glass"></i></div>'
+        +   '<div class="icn">' + ICON.search + '</div>'
         +   '<h3>' + msg + '</h3>'
         +   '<p>' + (activeSearch ? 'Try a different search, or clear it to see everything.' : 'We\'re still curating the library — check back soon.') + '</p>'
         + '</div>';
@@ -378,8 +332,8 @@
 
     var firstImg = (item.images && item.images.length) ? item.images[0] : '';
     var thumb = firstImg
-      ? '<img src="' + escAttr(firstImg) + '" alt="' + escAttr(item.name || '') + '" loading="lazy" onerror="this.parentNode.innerHTML=\'<i class=&quot;fa-solid fa-music&quot;></i>\'">'
-      : '<i class="fa-solid fa-music"></i>';
+      ? '<img src="' + escAttr(firstImg) + '" alt="' + escAttr(item.name || '') + '" loading="lazy" onerror="this.parentNode.classList.add(\'no-img\');this.remove()">'
+      : ICON.music;
     var chip = item.goods_type ? '<span class="item-chip gd-' + escAttr(item.goods_type) + '">' + (GOODS[item.goods_type] || item.goods_type) + '</span>' : '';
     var ribbon = '';
     if (!item.available_here) ribbon = '<span class="item-ribbon not-here">Not in ' + ($('#regionName').textContent || 'your region') + '</span>';
@@ -398,7 +352,7 @@
       + '<div class="item-foot">'
       +   '<span class="item-price">' + fmtPrice(item.price_usd) + '<small>' + curCode() + '</small></span>'
       +   '<button type="button" class="item-buy"' + (canBuy ? '' : ' disabled') + '>'
-      +     (canBuy ? '<i class="fa-solid fa-cart-plus"></i> Add' : 'Unavailable')
+      +     (canBuy ? '' + ICON.plus + ' Add' : 'Unavailable')
       +   '</button>'
       + '</div>';
 
@@ -408,8 +362,8 @@
         addToCart(item);
         // Tasteful confirmation: button flips to "Added" briefly, badge bumps.
         btn.classList.add('added');
-        btn.innerHTML = '<i class="fa-solid fa-check"></i> Added';
-        setTimeout(function(){ btn.classList.remove('added'); btn.innerHTML = '<i class="fa-solid fa-cart-plus"></i> Add'; }, 1100);
+        btn.innerHTML = '' + ICON.check + ' Added';
+        setTimeout(function(){ btn.classList.remove('added'); btn.innerHTML = '' + ICON.plus + ' Add'; }, 1100);
       });
     }
     return card;
@@ -432,7 +386,7 @@
   function addToCart(item){
     var line = findInCart(item.sku);
     if (line) { line.qty += 1; }
-    else cart.push({ sku:item.sku, name:item.name, price_usd:Number(item.price_usd)||0, goods_type:item.goods_type, image:(item.images && item.images[0]) || '' });
+    else cart.push({ sku:item.sku, name:item.name, price_usd:Number(item.price_usd)||0, goods_type:item.goods_type, image:(item.images && item.images[0]) || '', qty:1 });
     saveCart(); updateCartUI(); bumpFab(); showToast('Added to cart');
   }
   function setQty(sku, qty){
@@ -474,12 +428,12 @@
     $('#cartFab').hidden = (count === 0);
     var body = $('#cartBody'), foot = $('#cartFoot');
     if (!cart.length) {
-      body.innerHTML = '<div class="cart-empty"><i class="fa-solid fa-bag-shopping"></i>Your cart is empty.<br>Browse the library and add something you love.</div>';
+      body.innerHTML = '<div class="cart-empty">' + ICON.bag + 'Your cart is empty.<br>Browse the library and add something you love.</div>';
       foot.hidden = true; return;
     }
     foot.hidden = false;
     body.innerHTML = cart.map(function(l){
-      var thumb = l.image ? '<img src="' + escAttr(l.image) + '" alt="">' : '<i class="fa-solid fa-music"></i>';
+      var thumb = l.image ? '<img src="' + escAttr(l.image) + '" alt="">' : ICON.music;
       return '<div class="cart-line" data-sku="' + escAttr(l.sku) + '">'
         + '<div class="cart-line-thumb">' + thumb + '</div>'
         + '<div class="cart-line-main">'
@@ -487,7 +441,7 @@
         +   '<div class="cart-line-price">' + fmt(l.price_usd) + ' each · ' + fmt(l.price_usd * l.qty) + '</div>'
         +   '<div class="cart-line-foot">'
         +     '<div class="qty"><button type="button" data-act="dec" aria-label="Decrease quantity">&minus;</button><span>' + l.qty + '</span><button type="button" data-act="inc" aria-label="Increase quantity">+</button></div>'
-        +     '<button type="button" class="cart-line-rm" data-act="rm"><i class="fa-solid fa-trash-can" aria-hidden="true"></i> Remove</button>'
+        +     '<button type="button" class="cart-line-rm" data-act="rm">Remove</button>'
         +   '</div>'
         + '</div></div>';
     }).join('');
@@ -529,6 +483,22 @@
   // Guard on a loaded catalogue so a config event can't flash an empty grid
   // before /api/store/items has resolved.
   document.addEventListener('mam:config', function(){ if (!allItems.length) { updateCartUI(); return; } reconcileCart(); render(); updateCartUI(); });
+
+  // The footer's currency switch. config.js (loaded for MAM_CCY, the formatter
+  // and rates the old store used) means site.js leaves the switch alone, so the
+  // page wires it to the same key ("mam.currency") and re-prices on change.
+  var ccyBtns = $$('.cur-sw [data-currency]');
+  function paintCcy(){ var c = curCode(); ccyBtns.forEach(function(b){ b.setAttribute('aria-pressed', b.getAttribute('data-currency') === c ? 'true' : 'false'); }); }
+  ccyBtns.forEach(function(b){
+    if (window.MAM_CCY && !MAM_CCY.known(b.getAttribute('data-currency'))) { b.hidden = true; return; }
+    b.addEventListener('click', function(){
+      try { localStorage.setItem('mam.currency', b.getAttribute('data-currency')); } catch (e) {}
+      paintCcy();
+      try { document.dispatchEvent(new CustomEvent('mam:currency', { detail: { currency: b.getAttribute('data-currency') } })); } catch (e) {}
+    });
+  });
+  paintCcy();
+  document.addEventListener('mam:currency', function(){ paintCcy(); if (allItems.length) render(); updateCartUI(); });
 
   load();
 })();

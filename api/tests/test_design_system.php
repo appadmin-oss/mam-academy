@@ -69,7 +69,6 @@ foreach ([
     ['assets/css/main.css', '.faq-answer-inner','a FAQ answer'],
     ['assets/css/site.css', '.doc p',          'legal prose (the redesign\'s doc column)'],
     ['how-it-works.php',    '.hiw-card p',      'a journey step'],
-    ['scholarship.php',     '.sch-note',        'the scholarship note'],
 ] as [$DS_file, $DS_sel, $DS_what]) {
     $DS_s = (string) file_get_contents($DS_root . '/' . $DS_file);
     /* A selector can carry several rules (.faq-answer-inner has its padding in
