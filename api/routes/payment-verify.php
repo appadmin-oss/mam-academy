@@ -81,13 +81,23 @@ try {
     }
 } catch (Throwable $e) {
     mam_log('error', 'verify_exception', ['err' => $e->getMessage(), 'ref' => $ref]);
-    mam_fail('upstream_error', 502, ['message' => $e->getMessage()]);
+    mam_fail('upstream_error', 502, ['message' => 'We could not check this payment just now. If you were charged, it will be confirmed automatically.']);
+}
+
+// A charge that is still in flight (the popup closed early, a transfer or USSD
+// payment not yet confirmed) has not FAILED. This endpoint needs only a reference
+// and a public CSRF token, so writing 'failed' here let anybody holding a reference
+// mark a live payment failed; and the family was told it failed when it had not.
+// Only a terminal answer, or a success that does not match, is recorded as failed.
+$terminal = in_array(strtolower((string) $status), ['failed', 'reversed', 'success', 'successful'], true);
+if (!$ok && !$terminal) {
+    mam_fail('payment_pending', 409, ['provider_status' => $status, 'message' => 'This payment is not complete yet. It will be confirmed automatically once it is.']);
 }
 
 if (!$ok) {
     mam_db_update('payments', [
         'status' => 'failed',
-        'provider_response' => json_encode($data),
+        'provider_response' => json_encode($provider === 'paystack' ? mam_paystack_redact($data) : $data),
         'updated_at' => date('Y-m-d H:i:s'),
     ], ['reference' => $ref]);
     mam_audit('verify_failed', 'payment', null, ['ref' => $ref, 'status' => $status]);
@@ -96,7 +106,7 @@ if (!$ok) {
 
 // Settle via the shared, purpose-aware, race-safe path used by the webhooks too,
 // so the interactive verify and the asynchronous webhook can never diverge.
-$settled = mam_payment_settle($payment, $data, json_encode($data), $providerRef ?? $ref);
+$settled = mam_payment_settle($payment, $data, json_encode($provider === 'paystack' ? mam_paystack_redact($data) : $data), $providerRef ?? $ref);
 
 mam_ok([
     'status'      => 'succeeded',

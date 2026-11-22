@@ -22,22 +22,32 @@ if (!$valid) {
 }
 
 $payload = json_decode($raw, true) ?: [];
-$eventId = (string)($payload['data']['id'] ?? $payload['event'] . '-' . ($payload['data']['reference'] ?? '') ?? '');
 $eventType = (string)($payload['event'] ?? '');
+// One row per (event, object): Paystack reuses an object's id across event types
+// (a charge and the dispute on it), and only a true repeat may be dropped.
+$eventId = $eventType . ':' . (string)($payload['data']['id'] ?? ($payload['data']['reference'] ?? ''));
+// What is kept carries no reusable card authorisation (mam_paystack_redact).
+$stored = json_encode(mam_paystack_redact($payload)) ?: '{}';
 
 try {
     mam_db_insert('webhook_events', [
         'provider'        => 'paystack',
         'event_id'        => $eventId,
         'event_type'      => $eventType,
-        'payload'         => $raw,
+        'payload'         => $stored,
         'signature_valid' => 1,
         'status'          => 'received',
     ]);
 } catch (Throwable $e) {
-    // Likely a duplicate event id — record but don't reprocess.
-    mam_log('info', 'paystack_webhook_duplicate', ['event_id' => $eventId]);
-    mam_ok(['received' => true, 'duplicate' => true]);
+    // A repeat is acknowledged and dropped. Any OTHER failure to record it (the
+    // database away for a moment) must not be acknowledged: a 200 tells Paystack
+    // to stop retrying, and a charge nobody else verifies would never settle.
+    if (mam_db_row('SELECT 1 FROM webhook_events WHERE provider = ? AND event_id = ?', ['paystack', $eventId])) {
+        mam_log('info', 'paystack_webhook_duplicate', ['event_id' => $eventId]);
+        mam_ok(['received' => true, 'duplicate' => true]);
+    }
+    mam_log('error', 'paystack_webhook_store_failed', ['event_id' => $eventId, 'err' => $e->getMessage()]);
+    mam_fail('retry_later', 503);
 }
 
 try {
@@ -56,7 +66,7 @@ try {
             // Settle via the shared, purpose-aware path (store delivery /
             // booking-fee stamp / tuition enrolment + provisioning) — identical
             // to the interactive verify endpoint, idempotent + race-safe.
-            mam_payment_settle($payment, $payload['data'] ?? null, $raw, (string)($payload['data']['reference'] ?? $ref));
+            mam_payment_settle($payment, $payload['data'] ?? null, json_encode(mam_paystack_redact($payload['data'] ?? [])) ?: '{}', (string)($payload['data']['reference'] ?? $ref));
             mam_audit('webhook_succeeded', 'payment', (int)$payment['id'], ['ref' => $ref, 'amount' => $amount]);
         }
     }

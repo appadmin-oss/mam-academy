@@ -23,6 +23,11 @@ $in = mam_json_input();
 $ref = preg_replace('/[^A-Za-z0-9\-]/', '', (string)($in['reference'] ?? ''));
 $provider = strtolower(trim((string)($in['provider'] ?? '')));
 $purpose  = strtolower(trim((string)($in['purpose']  ?? 'booking_fee')));
+// No key, no card payment: say so before writing a payments row, rather than
+// failing inside the gateway call with an internal message.
+if ($provider === 'paystack' && !mam_paystack_configured()) {
+    mam_fail('online_payment_unavailable', 503, ['message' => 'Card payment is not available right now. Please choose bank transfer.']);
+}
 if (!in_array($purpose, ['booking_fee', 'tuition', 'store'], true)) $purpose = 'booking_fee';
 
 // Resolve the "subject" record (application OR store order) based on purpose.
@@ -137,7 +142,22 @@ if (!$existing) {
         'fx_backfilled'    => 0,
     ]);
 } else {
-    mam_db_update('payments', ['provider' => $provider, 'updated_at' => date('Y-m-d H:i:s')], ['reference' => $payRef]);
+    $upd = ['provider' => $provider, 'updated_at' => date('Y-m-d H:i:s')];
+    // The price is recomputed on every press (the naira figure follows today's
+    // rate), so a retry can be charged a different amount from the one this row
+    // recorded. Verification and the webhook compare what was paid against THIS
+    // row, so a lower price today would make a genuine, complete payment read as an
+    // underpayment: money taken, nothing credited. The row therefore keeps the
+    // LOWER of the two figures. Both are the server's own prices, so a charge at
+    // either one settles, and a higher price never makes an earlier payment short.
+    if ((string) $existing['status'] !== 'succeeded') {
+        $was = (int) ($existing['amount_minor'] ?? 0) > 0 ? (int) $existing['amount_minor'] : (int) round((float) $existing['amount'] * 100);
+        if ($amountKobo < $was) {
+            $upd += ['amount' => $amountNgn, 'amount_minor' => $amountKobo,
+                     'amount_usd_cents' => mam_money_to_minor($totalUsd), 'fx_rate_usd_ngn' => $ngnRate];
+        }
+    }
+    mam_db_update('payments', $upd, ['reference' => $payRef]);
 }
 $ref = $payRef;
 
@@ -159,7 +179,11 @@ try {
     if ($provider === 'paystack') {
         $resp = mam_paystack_initialize($customerEmail, $amountKobo, $ref, $metadata);
         $body = $resp['data'];
-        if (!($body['status'] ?? false)) mam_fail('paystack_init_failed', 502, ['provider' => $body]);
+        if (!($body['status'] ?? false)) {
+            // Log what Paystack said; never hand the gateway's raw answer to the caller.
+            mam_log('error', 'paystack_init_rejected', ['ref' => $ref, 'http' => $resp['code'] ?? 0, 'message' => (string) ($body['message'] ?? '')]);
+            mam_fail('paystack_init_failed', 502, ['message' => 'Card payment could not be started. Please try again or choose bank transfer.']);
+        }
         mam_audit('init', 'payment', null, ['ref' => $ref, 'provider' => $provider]);
         mam_ok([
             'provider' => 'paystack',
@@ -224,5 +248,5 @@ try {
     }
 } catch (Throwable $e) {
     mam_log('error', 'payment_init_failed', ['err' => $e->getMessage(), 'ref' => $ref, 'provider' => $provider]);
-    mam_fail('init_failed', 502, ['message' => $e->getMessage()]);
+    mam_fail('init_failed', 502, ['message' => 'Payment could not be started. Please try again.']);
 }
