@@ -1,6 +1,6 @@
 /*
  * MAM Academy public site (2026-11 redesign) — the behaviour every redesigned page
- * shares: the Programmes panel, the homepage film panel, the intake strip, the
+ * shares: the Programmes panel, the home header's two layers, the homepage film panel, the intake strip, the
  * question accordion, the newsletter form and the handoff's effects layer
  * (specs/effects.js: card spotlight, smart header, scroll-spy).
  *
@@ -45,6 +45,23 @@
     if (!panel || panel.hidden) return;
     if (!panel.contains(e.target) && !(e.target.closest && e.target.closest('[data-act="menu"]'))) setMenu(false);
   });
+
+  /* ---------- home: the minimal layer over the hero, the full bar once it has scrolled past ---------- */
+  var min = d.querySelector('[data-layer="min"]'), full = d.querySelector('[data-layer="full"]');
+  var MIN_ON = 'position: absolute; left: 0; right: 0; top: 0; transition: opacity .5s var(--out), transform .75s var(--out); opacity: 1; transform: none; animation: heroIn 1s .2s var(--soft) both';
+  var MIN_OFF = 'position: absolute; left: 0; right: 0; top: 0; transition: opacity .5s var(--out), transform .75s var(--out); opacity: 0; transform: translateY(-12px); pointer-events: none; visibility: hidden';
+  var FULL_ON = 'position: absolute; left: 0; right: 0; top: 0; background: #FAF8F4; transition: transform .75s var(--out), box-shadow .5s ease, visibility 0s 0s; transform: translateY(0); visibility: visible; box-shadow: 0 1px 0 rgba(33,26,19,.08)';
+  var FULL_OFF = 'position: absolute; left: 0; right: 0; top: 0; background: #FAF8F4; transition: transform .75s var(--out), box-shadow .5s ease, visibility 0s .75s; transform: translateY(-110%); visibility: hidden; box-shadow: none';
+  var solid = null;
+  function layers() {
+    if (!min || !full) return;
+    var hero = d.querySelector('[data-hero]'), past = hero ? hero.getBoundingClientRect().bottom < 88 : (window.scrollY || 0) > 560;
+    var s = past || (panel && !panel.hidden);
+    if (s === solid) return; solid = s;
+    min.setAttribute('style', s ? MIN_OFF : MIN_ON);
+    full.setAttribute('style', s ? FULL_ON : FULL_OFF);
+  }
+  if (min && full) { window.addEventListener('scroll', layers, { passive: true }); layers(); }
 
   /* ---------- inner pages: the bar's hairline once the page has moved ---------- */
   var bar = d.querySelector('header[data-smart]');

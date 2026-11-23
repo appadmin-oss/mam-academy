@@ -158,7 +158,7 @@ function site_head(array $p): void {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/site.css?v=20261121d">
+<link rel="stylesheet" href="/assets/css/site.css?v=20261123a">
 <?= site_a11y_head() ?>
 <?= site_org_jsonld() ?>
 <?= $p['jsonld'] ?? '' ?>
@@ -168,16 +168,20 @@ function site_head(array $p): void {
 }
 
 /**
- * The header. 'home' is the intake strip above the same sticky bar the inner pages
- * use: since the 2026-11-21 hero restyle the homepage opens on ivory (headline first,
- * the film panel under it), so there is no dark hero for a transparent layer to sit
- * over. 'inner' is the sticky bar that steps aside while reading. $current is the
+ * The header. 'home' is the design's claude.com model, restored on the owner's word
+ * (2026-11-23): only the wordmark, Menu and Apply while the hero is in view, the full
+ * bar sliding down once it has scrolled past, and the page curving up under the
+ * intake strip. 'inner' is the sticky bar that steps aside while reading. $current is the
  * path whose link is marked as the page you are on.
  */
 function site_header(string $variant, string $current = '', bool $skip = true): void {
     if ($skip) echo '<a href="#main" class="skip" style="position: absolute; left: 8px; top: -60px; z-index: 50; background: #FFFFFF; color: #211A13; padding: 12px 16px; border-radius: 6px">Skip to main content</a>' . "\n";
-    if ($variant === 'home') include __DIR__ . '/announce.php';
-    $html = (string) file_get_contents(__DIR__ . '/header-inner.php');
+    if ($variant === 'home') {
+        include __DIR__ . '/announce.php';
+        $html = (string) file_get_contents(__DIR__ . '/header-home.php');
+    } else {
+        $html = (string) file_get_contents(__DIR__ . '/header-inner.php');
+    }
     if ($current !== '') {
         $html = preg_replace(
             '#<a href="' . preg_quote($current, '#') . '" class="ul" style="([^"]*?)color: \#211A13#',
@@ -199,7 +203,7 @@ function site_footer_chrome(): void {
     include __DIR__ . '/footer.php';
     site_a11y_panel();
     echo "\n<script>window.MAM_SITE=" . json_encode(['fees' => site_fees(), 'intake' => site_intake()], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) . ";</script>\n";
-    echo '<script src="/assets/js/site.js?v=20261121d" defer></script>' . "\n";
+    echo '<script src="/assets/js/site.js?v=20261123a" defer></script>' . "\n";
 }
 
 /** The footer, and the end of the document. $scripts: page scripts beyond site.js. */

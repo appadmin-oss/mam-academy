@@ -11,7 +11,9 @@ ob_start();
 ?>
 <main id="main">
 
-    <section aria-labelledby="hero-h" data-hero style="max-width: 1360px; margin: 0 auto; padding: clamp(40px, 5vw, 72px) clamp(20px, 4vw, 40px) 0; box-sizing: border-box">
+    <div data-hero-wrap style="background: #120C07">
+    <div data-hero style="background: #FAF8F4; border-radius: clamp(14px, 1.6vw, 22px) clamp(14px, 1.6vw, 22px) 0 0; transition: border-radius .5s cubic-bezier(.19,1,.22,1)">
+    <section aria-labelledby="hero-h" style="max-width: 1360px; margin: 0 auto; padding: calc(88px + clamp(16px, 3vw, 40px)) clamp(20px, 4vw, 40px) 0; box-sizing: border-box">
       <h1 id="hero-h" aria-label="Where musicians become complete artists" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(47px, 5.83vw, 84px); line-height: 1.02; letter-spacing: -0.01em; max-width: 980px; color: #211A13"><span class="mask" aria-hidden="true"><span style="animation-delay: 0.200s" class="w">Where</span></span> <span class="mask" aria-hidden="true"><span style="animation-delay: 0.285s" class="w">musicians</span></span> <span class="mask" aria-hidden="true"><span style="animation-delay: 0.370s" class="w">become</span></span> <span class="mask" aria-hidden="true"><span style="font-style: italic; color: #8A5208; animation-delay: 0.455s" class="w">complete</span></span> <span class="mask" aria-hidden="true"><span style="animation-delay: 0.540s" class="w">artists</span></span></h1>
       <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 48px; margin-top: clamp(20px, 2.4vw, 32px)">
         <p class="fade-in" style="animation-delay: .7s; margin: 0; font-size: 19px; line-height: 1.6; color: #3E342B; max-width: 560px">Graded music education from age 4 to diploma — online or in person at our studios.</p>
@@ -21,6 +23,8 @@ ob_start();
         </div>
       </div>
     </section>
+    </div>
+    </div>
     <div class="film-wrap fade-in" style="animation-delay: .5s">
       <?php $heroMedia = site_hero_media(); ?>
       <div class="film<?= $heroMedia['poster'] !== '' ? ' has-poster' : '' ?>" data-film data-src="<?= site_h($heroMedia['mp4']) ?>" data-webm="<?= site_h($heroMedia['webm']) ?>" data-mobile="<?= site_h($heroMedia['mobile']) ?>">
