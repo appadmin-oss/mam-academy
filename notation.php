@@ -1,101 +1,70 @@
-<?php require __DIR__ . '/partials/site/shell.php'; ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="dark">
-<meta http-equiv="Permissions-Policy" content="microphone=(self), camera=(), geolocation=(), interest-cohort=()">
-<title>Music Notation Showcase — Classical, Contemporary &amp; African 6-line | MAM Academy</title>
-<meta name="description" content="See one melody written three ways — a Classical 5-line staff, a contemporary piano-roll, and the MAM African 6-line tone grid — and play it back in your browser, watching each system light up in time.">
-<meta name="robots" content="index, follow, max-image-preview:large">
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://academy.mamcentre.org/notation">
-<meta property="og:site_name" content="MAM Academy">
-<meta property="og:title" content="Music Notation Showcase — three systems, one melody">
-<meta property="og:description" content="Classical staff, contemporary piano-roll and the African 6-line tone grid — interactive, with realistic playback. From MAM Academy.">
-<meta property="og:image" content="https://academy.mamcentre.org/api/og?t=Notation+Showcase&amp;s=Classical%2C+Contemporary+%26+African+6-line+-+one+melody%2C+three+ways.&amp;e=Notation">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
-<meta name="twitter:card" content="summary_large_image">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Cinzel:wght@600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="assets/css/main.css?v=20260920">
-<style>
-.nt-shell{max-width:1100px;margin:0 auto;padding:30px 22px 96px}
-.nt-hero{text-align:center;margin:8px 0 26px}
-.nt-hero h1{font-family:'Cinzel',serif;font-size:clamp(1.9rem,4vw,2.9rem);margin:0 0 10px;color:var(--text)}
-.nt-hero p{color:var(--text-muted);max-width:640px;margin:0 auto;line-height:1.6}
-.nt-controls{display:flex;flex-wrap:wrap;gap:14px;justify-content:space-between;align-items:center;margin-bottom:16px}
-.nt-systems{display:inline-flex;gap:6px;padding:6px;background:var(--bg-surface);border:1px solid var(--border);border-radius:12px}
-.nt-sys{padding:9px 16px;border:0;border-radius:10px;font-weight:700;font-size:0.86rem;color:var(--text-muted);background:transparent;cursor:pointer;min-height:42px}
-.nt-sys:hover{color:var(--text)}
-.nt-sys.active{background:linear-gradient(135deg,var(--gold),var(--gold-light));color:#1A120B}
-.nt-transport{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.nt-tempo{display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text-muted)}
-.nt-tempo-val{font-variant-numeric:var(--num);color:var(--gold-bright);font-weight:800;min-width:2.2em;text-align:right}
-.nt-tempo-range{accent-color:var(--gold);min-height:24px}
-.nt-stage{background:var(--bg-surface);border:1px solid var(--border);border-radius:16px;padding:18px 8px 12px;box-shadow:0 20px 50px rgba(0,0,0,.28)}
-.nt-title{text-align:center;color:var(--text-soft);font-family:'Cormorant Garamond',serif;font-size:1.3rem;font-weight:600;margin:0 0 8px}
-.nt-render{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.nt-svg{display:block;min-width:520px;width:100%;height:auto;max-height:280px}
-/* ── shared note colours ── */
-.nt-staffline,.nt-sixline{stroke:var(--text-faint);stroke-width:1}
-.nt-ledger{stroke:var(--text-faint);stroke-width:1}
-.nt-clef{font-size:52px;fill:var(--gold-bright)}
-.nt-rest{font-size:24px;fill:var(--text-muted)}
-.nt-acc{font-size:16px;fill:var(--gold-bright)}
-.nt-head{fill:var(--text);stroke:var(--text);stroke-width:1}
-.nt-head.open{fill:transparent}
-.nt-stem{stroke:var(--text);stroke-width:1.6}
-.nt-flag{fill:none;stroke:var(--text);stroke-width:1.6}
-.nt-roll-row{stroke:var(--border);stroke-width:1}
-.nt-roll-row.c{stroke:var(--border-strong);stroke-dasharray:2 3}
-.nt-roll-label{font-size:11px;fill:var(--text-faint)}
-.nt-bar{opacity:.92;stroke:rgba(0,0,0,.25);stroke-width:1}
-.nt-6label{font-size:11px;letter-spacing:.1em;text-transform:uppercase;fill:var(--gold-bright);opacity:.8}
-.nt-tone{stroke:rgba(0,0,0,.3);stroke-width:1}
-.nt-tone-label{font-size:8.5px;font-weight:800;fill:#1A120B}
-/* ── playing highlight ── */
-.nt-note{transition:transform .08s ease}
-.nt-note.playing .nt-head,.nt-note.playing .nt-tone{fill:var(--gold-bright);stroke:var(--gold)}
-.nt-note.playing .nt-bar{fill:var(--gold-bright)!important;filter:drop-shadow(0 0 6px rgba(252,198,71,.7))}
-.nt-note.playing{transform:translateY(-2px)}
-.nt-examples{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:22px 0 0}
-.nt-ex-label{color:var(--text-muted);font-size:0.85rem;margin-right:4px}
-.nt-ex{display:flex;flex-direction:column;gap:2px;text-align:left;padding:9px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg-surface);color:var(--text);cursor:pointer;min-height:46px}
-.nt-ex:hover{border-color:var(--border-gold)}
-.nt-ex.active{border-color:var(--gold);background:var(--bg-raised)}
-.nt-ex strong{font-size:0.9rem}
-.nt-ex span{font-size:0.75rem;color:var(--text-muted)}
-.nt-note{}
-.nt-render+.nt-note,p.nt-note{color:var(--text-muted);font-size:0.88rem;line-height:1.6;margin:20px auto 0;max-width:680px;text-align:center}
-.nt-empty{display:flex;align-items:center;justify-content:center;gap:10px;min-height:160px;color:var(--text-muted);font-size:0.95rem;text-align:center;padding:0 16px}
-.nt-empty i{color:var(--gold-bright);font-size:1.3rem}
-.nt-capture{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:16px 0 0;padding:14px 16px;background:rgba(224,138,26,0.06);border:1px solid var(--border-gold);border-radius:12px}
-.nt-rec{min-height:44px}
-.nt-rec.recording{background:rgba(244,63,94,0.16);border:1px solid rgba(244,63,94,0.5);color:#FCA5A5;animation:nt-pulse 1.1s ease-in-out infinite}
-@keyframes nt-pulse{0%,100%{box-shadow:0 0 0 0 rgba(244,63,94,.4)}50%{box-shadow:0 0 0 6px rgba(244,63,94,0)}}
-.nt-rec-status{color:var(--text-muted);font-size:0.86rem}
-@media (max-width:640px){.nt-controls{justify-content:center}.nt-svg{min-width:460px}}
-</style>
-</head>
-<body>
-<a href="#main" class="skip-link">Skip to main content</a>
-<?php include __DIR__ . '/partials/header.html'; ?>
+<?php
+/**
+ * One song, three expressions — the full showcase (2026-11 rebuild; the owner
+ * judged the earlier "one melody in three notations" page ineffective).
+ *
+ * A song is arranged, not re-skinned: assets/js/expressions-engine.js reads its key,
+ * beat and phrases, then harmonises and arranges it as a Classical, a
+ * Contemporary and an African musician would; expressions-audio.js plays it;
+ * expressions.js engraves it — a grand staff, a five-line lead sheet, and the
+ * MAM 6-line staff (six lines, five spaces, doh on the bottom line) with bell,
+ * shekere and dùndún staves. Songs are traditional or public domain; a visitor can
+ * also sing or play one in (assets/js/notation.js supplies the pitch detector).
+ * The compact version sits in /programmes beside the three expressions.
+ */
+declare(strict_types=1);
+require __DIR__ . '/partials/site/shell.php';
+site_head([
+    'title' => 'One song, three expressions — MAM Academy',
+    'description' => 'Hear one song arranged three ways — African, Contemporary and Classical — and see each one written out, including the MAM 6-line staff. Sing or play your own tune in.',
+    'path' => '/notation',
+    'jsonld' => '<link rel="stylesheet" href="/assets/css/expressions.css?v=20261123">',
+]);
+site_header('inner', '/programmes');
+ob_start();
+?>
 <main id="main">
-  <div class="nt-shell">
-    <div class="nt-hero">
-      <h1>One melody, three notations</h1>
-      <p>At MAM we read music in more than one language. Here is a single melody written as a
-         <strong>Classical</strong> staff, a <strong>Contemporary</strong> piano-roll, and the
-         <strong>African&nbsp;6-line</strong> tone grid — press play and watch each system light up in time.</p>
-    </div>
-    <div id="ntApp" aria-live="polite"></div>
-  </div>
+    <section aria-labelledby="page-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(40px, 5vw, 72px) clamp(20px, 4vw, 40px) clamp(24px, 3vw, 40px); box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+      <nav aria-label="Breadcrumb" class="fade-in" style="font-size: 14px; color: #574B40; display: flex; gap: 8px; flex-wrap: wrap"><a href="/" class="ul" style="color: #574B40; text-decoration: none">Home</a><span aria-hidden="true">/</span><a href="/programmes" class="ul" style="color: #574B40; text-decoration: none">Programmes</a><span aria-hidden="true">/</span><span aria-current="page">Three expressions</span></nav>
+      <h1 id="page-h" class="fade-in" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(46px, 5.6vw, 84px); line-height: 1.02; letter-spacing: -.01em">One song, <em style="font-style: italic; color: #8A5208">three</em> expressions</h1>
+      <p class="fade-in" style="margin: 0; max-width: 760px; font-size: 19px; line-height: 1.7; color: #3E342B">Every MAM student learns music through three expressions: African, Contemporary and Classical. Choose a song, or sing or play your own, and hear it arranged each way — with the harmony, rhythm and instruments each tradition would bring — then read it written out.</p>
+    </section>
+
+    <section aria-label="The showcase" style="max-width: 1200px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px) clamp(48px, 6vw, 88px); box-sizing: border-box">
+      <div class="xs" data-expressions data-style="african">
+        <noscript><p style="font-size: 17px">The showcase needs JavaScript to arrange and play the songs.</p></noscript>
+      </div>
+    </section>
+
+    <section id="how" aria-labelledby="how-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(48px, 6vw, 88px) clamp(20px, 4vw, 40px); box-sizing: border-box; border-top: 1px solid #E6DED2; display: flex; flex-wrap: wrap; gap: 24px clamp(40px, 6vw, 96px)">
+      <h2 id="how-h" style="flex: 1 1 280px; margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1">What changes in each expression</h2>
+      <div class="doc" style="flex: 2 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 16px; font-size: 18px; line-height: 1.7; color: #3E342B">
+        <p><strong>African.</strong> The tune is moved onto the twelve-pulse cycle the bell keeps, so it swings in twelve-eight. It is sung as call and response: a lead voice, then the chorus answering in thirds and fourths. The standard seven-stroke bell, the shekere and the talking drum (dùndún) play with it, the drum answering the call in the gaps, over a highlife guitar and bass. Fa and ti that carry weight lean toward the five-note scale most African songs use.</p>
+        <p><strong>Contemporary.</strong> The harmony is opened up with added ninths and thirteenths, a suspended chord that resolves, a two-five into each cadence, and passing chords where the melody allows. The melody anticipates the beat the way singers do, over drums, bass and electric piano.</p>
+        <p><strong>Classical.</strong> Four-part harmony on the piano, written for the hands: broken chords in the left hand through the phrase and full chords at the cadences, moving by the smallest steps, with a cadential six-four into the last chord and a slowing at the close.</p>
+      </div>
+    </section>
+
+    <section id="six-line" aria-labelledby="six-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(48px, 6vw, 88px) clamp(20px, 4vw, 40px); box-sizing: border-box; border-top: 1px solid #E6DED2; display: flex; flex-wrap: wrap; gap: 24px clamp(40px, 6vw, 96px)">
+      <h2 id="six-h" style="flex: 1 1 280px; margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1">Reading the MAM 6-line staff</h2>
+      <div class="doc" style="flex: 2 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 16px; font-size: 18px; line-height: 1.7; color: #3E342B">
+        <p>The African expression is written on MAM's own staff: six lines and five spaces, read in solfa. Doh is always the bottom line, whatever the key, and the key is named beside the clef (“doh = G”).</p>
+        <ul><li>Lines, bottom to top: d, m, s, t, r', f'.</li><li>Spaces, bottom to top: r, f, l, d', m'.</li><li>Notes beyond the staff take short ledger lines; the solfa syllable is written under every note.</li></ul>
+        <p>Time is the bell's: a bar is one twelve-pulse cycle in twelve-eight, beamed in dotted-quarter beats. The bell, shekere and dùndún are written on their own one-line staves beneath the voice. The lead's call is in gold, the chorus's response in black.</p>
+      </div>
+    </section>
+
+    <section aria-labelledby="cta-h" style="padding: 0 clamp(8px, 1vw, 14px) clamp(8px, 1vw, 14px)">
+      <div style="max-width: 1440px; margin: 0 auto; border-radius: clamp(14px, 1.6vw, 22px); background: radial-gradient(120% 140% at 80% 0%, #5A3815 0%, #24160B 45%, #140D08 100%); color: #FCF8F3; padding: clamp(56px, 7vw, 112px) clamp(20px, 4vw, 40px); box-sizing: border-box; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 20px">
+        <h2 id="cta-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05">Learn all <em style="font-style: italic; color: #F2A93B">three</em></h2>
+        <p style="margin: 0; max-width: 560px; font-size: 18px; line-height: 1.6; color: #D8CEC1">Every MAM programme teaches the African, Contemporary and Classical expressions, from a first lesson to diploma.</p>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap; justify-content: center">
+          <a href="/apply" class="btn arrow" style="display: inline-flex; align-items: center; gap: 8px; min-height: 52px; padding: 0 26px; border-radius: 999px; background: #F2A93B; color: #211A13; font-weight: 600; text-decoration: none">Apply now <span aria-hidden="true">→</span></a>
+          <a href="/programmes" style="display: inline-flex; align-items: center; min-height: 52px; padding: 0 25px; border-radius: 999px; border: 1px solid rgba(252,248,243,0.6); color: #FCF8F3; font-weight: 600; text-decoration: none">See the programmes</a>
+        </div>
+      </div>
+    </section>
 </main>
-<?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/notation.js?v=20261120a" defer></script>
-</body>
-</html>
+<?php
+echo (string) ob_get_clean();
+site_footer(['notation.js', 'expressions-engine.js', 'expressions-audio.js', 'expressions.js']);

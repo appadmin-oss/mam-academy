@@ -1,0 +1,42 @@
+/* "One song, three expressions" (assets/js/expressions.js) — on /notation and /programmes.
+   The 2026-11 site language: ivory panels, serif names, gold for the lead's call.
+   Every colour, radius and type size here is one the design sources use
+   (api/tests/test_site_redesign.php checks this file with the pages). */
+.xs{display:flex;flex-direction:column;gap:16px;color:#211A13;font-family:Inter,system-ui,sans-serif}
+.xs-top{display:flex;flex-direction:column;gap:8px}
+.xs-songs{display:flex;flex-wrap:wrap;gap:8px}
+.xs-chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid #CFC3B3;background:#FFFFFF;color:#211A13;font:inherit;font-size:15px;font-weight:500;cursor:pointer}
+.xs-chip:hover{border-color:#8A5208}
+.xs-chip[aria-pressed=true]{background:#211A13;border-color:#211A13;color:#FCF8F3}
+.xs-chip:focus-visible,.xs-style:focus-visible,.xs-play:focus-visible{outline:3px solid #2563EB;outline-offset:2px}
+.xs-rec{border-style:dashed}
+.xs-dot{width:10px;height:10px;border-radius:999px;background:#B0361C;display:inline-block}
+.xs-rec[aria-pressed=true]{background:#B0361C;border-color:#B0361C;color:#FCF8F3}
+.xs-rec[aria-pressed=true] .xs-dot{background:#FCF8F3;animation:xsPulse 1.2s ease-in-out infinite}
+@keyframes xsPulse{50%{opacity:.35}}
+.xs-rec-msg{margin:0;font-size:14px;color:#574B40}
+.xs-styles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.xs-style{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-height:56px;padding:12px 16px;border-radius:14px;border:1px solid #E3DACD;background:#F3EEE6;color:#211A13;font:inherit;text-align:left;cursor:pointer}
+.xs-style[aria-pressed=true]{background:#FFFFFF;border-color:#211A13;box-shadow:0 1px 0 #211A13}
+.xs-style-name{font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;font-weight:600;line-height:1}
+.xs-style-sub{font-size:13px;color:#574B40}
+.xs-stage{background:#FFFFFF;border:1px solid #ECE5DA;border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:16px}
+.xs-bar{display:flex;align-items:flex-start;gap:16px}
+.xs-play{flex:none;display:inline-flex;align-items:center;gap:10px;min-height:48px;padding:0 22px;border-radius:999px;border:0;background:#F2A93B;color:#211A13;font:inherit;font-size:16px;font-weight:600;cursor:pointer}
+.xs-play-ico{width:0;height:0;border-left:12px solid #211A13;border-top:8px solid transparent;border-bottom:8px solid transparent}
+.xs-play[aria-pressed=true] .xs-play-ico{width:12px;height:12px;border:0;background:#211A13}
+.xs-caption{margin:0;font-size:15px;line-height:1.55;color:#3E342B;padding-top:2px}
+.xs-score{width:100%;overflow:hidden}
+.xs-svg{display:block;height:auto}
+.xs-svg .xn{transition:fill .12s ease}
+.xs-svg .xn.on{fill:#F2A93B;stroke:#F2A93B}
+.xs-svg g.xn.on line{stroke:#F2A93B}
+.xs-key{margin:0;font-size:14px;line-height:1.6;color:#574B40;border-top:1px solid #ECE5DA;padding-top:12px}
+.xs-call{color:#C27A12;font-weight:600}
+@media (max-width: 720px){
+  .xs-styles{grid-template-columns:1fr}
+  .xs-style{min-height:48px}
+  .xs-stage{padding:16px 12px}
+  .xs-bar{flex-direction:column;gap:10px}
+}
+@media (prefers-reduced-motion: reduce){.xs-rec[aria-pressed=true] .xs-dot{animation:none}.xs-svg .xn{transition:none}}

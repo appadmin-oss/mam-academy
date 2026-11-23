@@ -18,13 +18,13 @@ $SR_root = dirname(dirname(__DIR__));
 $SR_pages = array_values(array_filter(glob($SR_root . '/*.php') ?: [],
     static fn($f) => str_contains($c = (string) file_get_contents($f), "partials/site/shell.php") && !str_contains($c, "partials/header.html")));
 $SR_parts = glob($SR_root . '/partials/site/*.php') ?: [];
-$SR_all = array_merge($SR_pages, $SR_parts, [$SR_root . '/assets/css/site.css']);
+$SR_all = array_merge($SR_pages, $SR_parts, [$SR_root . '/assets/css/site.css', $SR_root . '/assets/css/expressions.css']);
 $SR_src = static fn(array $files) => implode("\n", array_map(static fn($f) => (string) file_get_contents($f), $files));
 $SR_design = $SR_src(glob($SR_root . '/docs/design/2026-11-site/source/pages/*.dc.html') ?: []);
 
 t_group('site redesign — the pages are the ones the design describes');
 
-t_eq(array_map('basename', $SR_pages), ['404.php', 'about.php', 'accessibility.php', 'apply.php', 'auditer.php', 'book.php', 'checkout.php', 'compare.php', 'contact.php', 'crash.php', 'faculty.php', 'faq.php', 'how-it-works.php', 'index.php', 'life.php', 'metamusic-order.php', 'pathways.php', 'policies.php', 'power-play.php', 'privacy.php', 'programmes.php', 'safeguarding.php', 'scholarship.php', 'schools.php', 'status.php', 'store.php', 'summer.php', 'terms.php', 'thank-you.php', 'tuition.php', 'verify.php'],
+t_eq(array_map('basename', $SR_pages), ['404.php', 'about.php', 'accessibility.php', 'apply.php', 'auditer.php', 'book.php', 'checkout.php', 'compare.php', 'contact.php', 'crash.php', 'faculty.php', 'faq.php', 'how-it-works.php', 'index.php', 'life.php', 'metamusic-order.php', 'notation.php', 'pathways.php', 'policies.php', 'power-play.php', 'privacy.php', 'programmes.php', 'safeguarding.php', 'scholarship.php', 'schools.php', 'status.php', 'store.php', 'summer.php', 'terms.php', 'thank-you.php', 'tuition.php', 'verify.php'],
     'the redesigned pages are the ones on the shell and not on the legacy header');
 t_ok(strlen($SR_design) > 100000, 'the design sources are committed beside the build, so the check can be repeated');
 

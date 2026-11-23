@@ -5,7 +5,7 @@
  */
 declare(strict_types=1);
 require __DIR__ . '/partials/site/shell.php';
-site_head(['title' => 'Programmes & fees — MAM Academy', 'description' => 'Compare MAM Academy programmes, see the four levels and estimate your fee for in-person or online study.', 'path' => '/programmes']);
+site_head(['title' => 'Programmes & fees — MAM Academy', 'description' => 'Compare MAM Academy programmes, see the four levels and estimate your fee for in-person or online study.', 'path' => '/programmes', 'jsonld' => '<link rel="stylesheet" href="/assets/css/expressions.css?v=20261123">']);
 site_header('inner', '/programmes');
 ob_start();
 ?>
@@ -140,6 +140,19 @@ ob_start();
         </div></div>
       </div>
     </section>
+    <section id="expressions" aria-labelledby="expressions-h">
+      <div style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-bottom: clamp(72px, 10vw, 144px); display: flex; flex-direction: column; gap: 24px; color: #211A13">
+        <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 40px">
+          <div style="max-width: 720px; display: flex; flex-direction: column; gap: 12px">
+            <p class="reveal" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: #8A5208">Hear the difference</p>
+            <h2 id="expressions-h" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(34px, 4.17vw, 60px); line-height: 1.05">One song, three expressions</h2>
+            <p class="read" style="margin: 0; font-size: 17px; line-height: 1.6; color: #574B40">Choose a song and an expression to hear it arranged the way an African, a Contemporary and a Classical musician would — and see it written out, the African version on the MAM 6-line staff.</p>
+          </div>
+          <a href="/notation" class="lrow" style="display: inline-flex; flex-direction: column; gap: 2px; color: #211A13; text-decoration: none"><span style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 17px"><span class="ul">Open the full showcase</span> <span aria-hidden="true" style="color: #8A5208">→</span></span><span style="font-size: 14px; color: #574B40">Sing or play your own tune in</span></a>
+        </div>
+        <div class="xs" data-expressions data-compact data-style="african"><noscript><p style="font-size: 15px">The showcase needs JavaScript. <a href="/notation">Read about the three expressions</a>.</p></noscript></div>
+      </div>
+    </section>
     <section id="intensives" aria-labelledby="intensives-h" style="background: #F3EEE6">
       <div style="max-width: 1360px; margin: 0 auto; padding-left: clamp(20px, 4vw, 40px); padding-right: clamp(20px, 4vw, 40px); box-sizing: border-box; padding-top: clamp(72px, 10vw, 144px); padding-bottom: clamp(72px, 10vw, 144px); display: flex; flex-wrap: wrap; gap: 48px clamp(40px, 6vw, 112px); color: #211A13">
         <div style="flex: 1 1 320px; max-width: 440px">
@@ -162,4 +175,4 @@ ob_start();
 
 <?php
 echo site_photos((string) ob_get_clean());
-site_footer(['site-programmes.js']);
+site_footer(['site-programmes.js', 'notation.js', 'expressions-engine.js', 'expressions-audio.js', 'expressions.js']);

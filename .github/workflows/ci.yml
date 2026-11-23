@@ -142,6 +142,8 @@ jobs:
         run: node .github/scripts/check-inline-js.cjs
       - name: Notation capture self-test (pitch detector + segmenter)
         run: node assets/js/notation.selftest.cjs
+      - name: Three-expressions arrangement engine self-test (key, harmony, voice-leading, 6-line staff, note values)
+        run: node assets/js/expressions-engine.selftest.cjs
       - name: ID card imposition + cut guides self-test
         run: node assets/js/card-export.selftest.cjs
       - name: Headshot quality + downscale self-test
