@@ -2618,3 +2618,140 @@ main.css, not hidden).
   its June security/admin/portal commits (rewritten or retired since).
 - **Still open:** the Stripe flow on claude/nifty-clarke-FcCy9 (payments; needs a rewrite
   against today's payment-init and live test keys).
+
+## 4z20. 2026-11-23 — classes, scheduling, admin UX; community, uploads and live classes NEXT
+
+**Shipped this session** (scheduling, enrolment, student management and the
+admin fixes went in as one commit, since they share files; schema at **v107**,
+suite green at 7,803):
+
+- **Hero and header:** the design's two-layer home header is restored. Only the
+  wordmark, Menu and Apply show over the ivory hero; the full bar slides in once
+  the hero scrolls past, and the page curves up under the intake strip. The film
+  panel widens to a full-width band on scroll on desktop only. The hero video
+  has no audio track.
+- **Notation showcase** moved into Programmes → MAM Method (`/programmes#expressions`,
+  `assets/js/expressions-*.js`). It arranges a song in African, Contemporary and
+  Classical styles, and the arrangement must keep every note of the tune (the
+  selftest asserts it). The **MAM 6-line staff (6 lines, 5 spaces) is for the
+  African style only**; the other two styles use standard notation.
+- **Paystack audit + guards** (`payment-guards.php`, v106): attempt and event
+  ledgers, a per-charge cap, a reconcile automation.
+- **Scheduling** (Teaching → Timetable & rooms): series, clashes across both
+  enrolment models, move and cancel with reasons, free make-up credits, a slot
+  finder (`slot-finder.php`), calendar feeds with hashed revocable tokens
+  (`calendar-feeds.php`), and WhatsApp via Kapso (`kapso.php`, opt-in,
+  idempotent; templates in `docs/whatsapp-templates.md`).
+- **Meeting links are generated per session, never pasted** (`meeting-links.php`).
+  The order is **JaaS** (8x8.vc; the stored link is `/portal/live.html?session=N`,
+  and each person gets a token valid only for the class window, staff as
+  moderators), then Meet, then Zoom. ⚠️ **There is no public meet.jit.si
+  fallback, by the owner's decision** ("It's JaaS, not meet.jitsi"): without
+  JaaS keys, the class page and the console say live classes are not set up.
+- **Enrolment** (`cohort-admin.php`, Enrol & staffing) and **student management**
+  (profile, guardian scopes, honest invite reporting).
+- **Admin UX fixes** from a walkthrough of all 34 screens (the report is not in
+  the repo):
+  - **Application decisions never saved before this.** The form posted `app`,
+    the handler read `id`, and the status list named values the state machine
+    rejects. `mam_console_status_vocabulary()` now uses the stored statuses, the
+    select offers only legal moves, and a test pins both.
+  - Complete the enrolment is pre-filled from `mam_enrol_resolve()`.
+  - ⌘K matches task words (`$taskWords` in `admin/console.php`).
+  - The bulk-action button stays disabled until a row is ticked.
+  - Smaller fixes: pending courses are counted, and the no-guardian invoice
+    warning links to the student's guardian section.
+
+**Owner must set (Integrations card / `api/.env`):** `jaas_app_id`, `jaas_kid`,
+`jaas_private_key` (PEM) — required for ANY live class; optional
+`jaas_webhook_secret`. Meet: `google_meet_sa_json` + `google_workspace_admin`
+(calendar.events, domain-wide delegation). Zoom: `ZOOM_ACCOUNT_ID/CLIENT_ID/CLIENT_SECRET`
+(Server-to-Server, meeting:write). Kapso: `KAPSO_API_KEY`, `kapso_phone_number_id`,
+four Meta-approved templates. Mail: `MAIL_HOST/USERNAME/PASSWORD`.
+
+**Known gaps:**
+- Meet and Zoom have only been tested with a fake transport, never live.
+- A single new session is not announced (a series is).
+- The make-up suggestions' preference for the class's usual hour has not been
+  rechecked in a browser.
+- The legacy `lms2.php` calendar feed stores its tokens in the clear.
+- Two admin quick wins remain:
+  - sortable columns;
+  - Invoices & payments should put the invoice list above the settings forms.
+
+### NEXT, in the owner's order (both were stopped before any file was changed)
+
+**1. Community + student uploads — "the community must feel like a standard
+community".** Build on what exists; don't rebuild it:
+- **What exists:**
+  - `spaces.php`: class spaces, posts, comments with `atSec`, reactions, report,
+    moderate, review queue, `mam_space_screen()`, the minor media-consent rule,
+    no private messages.
+  - `media-store.php`: a private bucket or the local store, read only through
+    `/api/media/object`.
+  - `mam_sg_auto()` for safeguarding routing.
+- **To build in the three v2 portals:**
+  - A Community destination: a home feed across spaces, academy-wide spaces an
+    admin creates with defaults seeded, and class spaces created per cohort.
+  - On posts: attachments, one-level replies, @mentions with notifications,
+    pinned posts, author edit and delete, unread markers, member directories
+    with no student contact details, and helpful empty states.
+  - A moderation screen in the console.
+- **Keep:** no DMs ever; every write screened; concerns go to the DSO, never
+  refused; guardians read-only within their access scope.
+- **Student "My work":**
+  - Upload by drag-drop, picker or in-browser MediaRecorder, with progress,
+    resume and retry.
+  - Attach work to a lesson submission, a space post, or later a recital entry.
+  - Instructors give timestamped feedback.
+  - Every URL is first-party `/api/media/...`, access-gated the way takes are,
+    and accepted by every downstream guard.
+- **Migration:** reserve **v108** for this.
+
+**2. JaaS live classes — "upgrade the features and accountability" and "we also
+need to know what goes on in the class".** Extend `live-classes.php` (JWT,
+webhook, beats, intervals, reconcile) and `live-class.js`; reserve **v109**.
+- **Features:**
+  - Teacher controls: lobby admit, mute-all, lock, raise-hand queue, polls,
+    breakouts, whiteboard. Screen-share is staff-only by default. **Private chat
+    is always disabled**, and chat is off for minors by default.
+  - Recording and transcription only when the academy has enabled them AND every
+    minor present has media consent. Recordings go to the private media store.
+  - Music mode (no noise suppression, AGC or echo cancellation), a pre-join
+    device check, low-bandwidth mode, and not-open-yet and post-class states.
+- **Accountability:**
+  - Attendance from webhooks and beats into `session_attendance`
+    (`method='live'`: present, late with minutes, left_early, technical_failure,
+    absent), never overwriting `method='instructor'`, durations stored,
+    idempotent.
+  - Instructor auto clock-in reconciled with `meetings.php`, with
+    late-start / early-end / no-show flags. Fines go only through the existing
+    gated functions, off by default, and the student and instructor gates stay
+    separate.
+  - Engagement shown as facts, never a score of a child.
+- **Class record:**
+  - A timeline of opens and closes, joins and leaves with reasons, moderator
+    actions, screen shares, recording, polls (aggregates only), hands, breakouts
+    and quality drops.
+  - Public chat is captured and screened, and anything concerning goes to the
+    DSO.
+  - A transcript plus summary only with consent; an AI summary only if a
+    provider is configured. Otherwise the teacher's post-class note (covered vs
+    the lesson, practice set) is required within the progress-report deadline.
+  - A **visible, named Observer** role lets an admin, the DSO or a head of
+    department join and watch live attendance and the timeline. There is no
+    hidden monitoring.
+  - Who sees what: admins and the DSO see everything; an instructor sees their
+    own classes; guardians and students get a family-safe summary with no other
+    children's names, chat or poll answers.
+  - A console report with exception filters.
+  - Chat and transcripts are personal data and go under the NDPA retention
+    rules.
+
+**3. Then:** restore the Recital Hall — its console buttons (`recital_*` handlers
+still exist), student-portal access, and the public `/recital` page on the new
+design.
+
+Open questions for the owner:
+- Should "Admissions" point to `/programmes#fees` everywhere?
+- Should work move to an `afv/` branch, as CLAUDE.md asks?
