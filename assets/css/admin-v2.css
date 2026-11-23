@@ -1209,3 +1209,33 @@
 [data-admin="v2"] .ac-qset > legend { padding: 0 6px; }
 [data-admin="v2"] .ac-matrow { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--ac-line); }
 [data-admin="v2"] .ac-matrow:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+
+/* ── Student management: People & access "Manage" panel ──
+   It opens inside the right-aligned actions cell; its form reads left to right. */
+[data-admin="v2"] .ac-manage[open] { text-align: left; }
+/* ── end student management ── */
+
+/* ── Scheduling (Teaching → Timetable & rooms, 2026-11-23) ───────────────── */
+[data-admin="v2"] .ac-h3 { margin: 0 0 10px; font-size: 14px; font-weight: 800; color: var(--ac-ink); }
+[data-admin="v2"] .ac-week--named { grid-template-columns: 132px repeat(7, minmax(0, 1fr)); }
+[data-admin="v2"] .ac-week--named .ac-wk-t { text-align: left; overflow-wrap: anywhere; }
+[data-admin="v2"] .ac-wk-ev + .ac-wk-ev { margin-top: 4px; }
+[data-admin="v2"] .ac-wk-ev.is-off { opacity: 0.55; background: var(--ac-sunken); border-left-color: var(--ac-line-4); }
+[data-admin="v2"] .ac-wk-ev.is-off strong { text-decoration: line-through; }
+[data-admin="v2"] .ac-wk-ev.is-sel { outline: 2px solid var(--ac-ink); outline-offset: 1px; }
+[data-admin="v2"] .ac-wk-ev:focus-visible { outline: 2px solid var(--ac-accent); outline-offset: 1px; }
+[data-admin="v2"] .ac-tt-days, [data-admin="v2"] .ac-tt-radios { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+[data-admin="v2"] .ac-tt-days > legend, [data-admin="v2"] .ac-tt-radios > legend { width: 100%; padding: 0; }
+[data-admin="v2"] .ac-tt-radios { flex-direction: column; gap: 8px; }
+[data-admin="v2"] .ac-tt-suggest { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+[data-admin="v2"] .ac-tt-suggest > li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px;
+  border: 1px solid var(--ac-line); border-radius: var(--ac-r-md); font-size: 13px; }
+[data-admin="v2"] .ac-tt-suggest .ac-sub { display: block; }
+[data-admin="v2"] .ac-tt-agenda { display: none; }
+@media (max-width: 720px) {
+  /* A seven-day grid is unreadable at phone width; the same week as a list stacks like every table. */
+  [data-admin="v2"] .ac-tt-grid { display: none; }
+  [data-admin="v2"] .ac-tt-agenda { display: block; }
+  [data-admin="v2"] .ac-tt-filters .ac-seg { width: 100%; }
+  [data-admin="v2"] .ac-tt-suggest > li { flex-direction: column; align-items: stretch; }
+}

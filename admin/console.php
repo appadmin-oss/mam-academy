@@ -84,6 +84,8 @@ $railState = (($_COOKIE['mam_ac_rail'] ?? '') === 'collapsed') ? 'collapsed' : '
 /* Flash. The legacy dispatcher redirects with ?ok=/?err= and the string value
    carries the message, which is the convention every other screen uses. */
 $flashOk  = isset($_GET['ok'])  ? (is_string($_GET['ok'])  ? $_GET['ok']  : 'Saved.') : null;
+// The older handlers redirect with a bare ok=1; print a word, not the digit.
+if ($flashOk === '1') $flashOk = 'Saved.';
 $flashErr = isset($_GET['err']) ? (is_string($_GET['err']) ? $_GET['err'] : 'That did not work.') : null;
 
 /* ── The screen's own data. One provider, called once. ──────────────────── */
@@ -146,7 +148,7 @@ foreach ($nav as $g) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=Cormorant+Garamond:wght@600;700&amp;family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="/assets/css/admin-v2.css?v=2026.11.20b">
+<link rel="stylesheet" href="/assets/css/admin-v2.css?v=2026.11.23s">
 </head>
 <body>
 <a class="ac-skip" href="#ac-main">Skip to the screen</a>
@@ -352,7 +354,7 @@ foreach ($nav as $g) {
              works. Row selection is deliberately not built and not claimed. */ ?>
     <div class="ac-palettefoot">
       <span><strong>↑↓</strong> move</span><span><strong>↵</strong> open</span>
-      <span><strong>G</strong> then <strong>D A S T C F P R G</strong> jumps to an area</span>
+      <span title="D Dashboard · A Admissions · S Students · T Teaching · C Curriculum · F Finance · P People · R Reports · G Governance"><strong>G</strong> then an area's first letter jumps there</span>
       <span class="ac-spacer"></span><span>Searches only what your role can see</span>
     </div>
   </div>
@@ -381,14 +383,52 @@ window.MAM_CONSOLE = {
            the palette is the compensation. The handoff requires each to be
            findable by SECTION or by AREA name ("finance" should surface Price
            books), so the area travels with the row. */ ?>
+  <?php /* Task words: what an office administrator TYPES ("refund", "record
+           payment", "enrol") rather than what a screen is CALLED. Without
+           them ⌘K answered "Nothing matched" to the commonest jobs. */
+    $taskWords = [
+      'admissions' => 'application applicant decide decision accept offer reject waitlist enrol new student',
+      'auditions' => 'audition placement interview slot book',
+      'bursaries' => 'bursary scholarship award aid discount hardship',
+      'students' => 'student member pupil suspend reactivate profile onboarding duplicate bulk',
+      'guardians' => 'parent guardian consent family link',
+      'files' => 'id card photo headshot file upload recording document',
+      'comms' => 'email message whatsapp announcement send notify reminder',
+      'support' => 'ticket help question contact enquiry',
+      'cohorts' => 'class group intake capacity',
+      'roster' => 'enrol enroll enrolment assign teacher instructor move withdraw approve waitlist roster',
+      'timetable' => 'schedule session lesson time room meeting link reschedule cancel series calendar zoom meet jaas',
+      'attendance' => 'register present absent late check in',
+      'calendar' => 'term dates holiday refund deadline census',
+      'events' => 'recital concert performance showcase',
+      'curriculum' => 'syllabus lesson week module course publish',
+      'assessment' => 'grade mark exam appeal report moderation board',
+      'invoices' => 'invoice bill fee payment pay record payment receipt refund transfer bank discount owed balance plan instalment',
+      'ledger' => 'ledger exchange rate fx naira dollar suspense reconcile',
+      'pricebooks' => 'price tuition fee cost',
+      'charges' => 'charge fine late punctuality waive exception',
+      'store' => 'shop order product stock merchandise',
+      'access' => 'user staff admin role permission password create account',
+      'vetting' => 'dbs police check clearance safeguarding vetting',
+      'earnings' => 'pay salary earnings payout instructor wallet',
+      'deductions' => 'deduction fine instructor pay',
+      'account' => 'my password profile device sign out',
+      'reports' => 'report export download csv analytics numbers',
+      'governance' => 'audit log history who changed',
+      'safeguarding' => 'concern dso child protection incident',
+      'dataprotection' => 'privacy ndpa erase export data request breach retention',
+      'system' => 'health migrate migration backup cron logs status integration',
+      'settings' => 'setting configuration automation toggle',
+    ]; ?>
   destinations: <?= json_encode(array_map(fn($k) => [
       'key'   => $k,
       'label' => $labels[$k] ?? $k,
       'area'  => $areaOf[$k] ?? '',
+      'words' => $taskWords[$k] ?? '',
   ], $screens)) ?>,
   csrf: <?= json_encode($MAM_CONSOLE_CSRF) ?>
 };
 </script>
-<script src="/assets/js/admin-console.js?v=2026.11.20a"></script>
+<script src="/assets/js/admin-console.js?v=2026.11.23a"></script>
 </body>
 </html>

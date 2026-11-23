@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 106;
+const MAM_SCHEMA_TARGET = 107;
 
 /**
  * Open (and cache) the PDO connection.
@@ -4241,6 +4241,37 @@ function mam_db_migrate(PDO $db): void {
             );
             CREATE INDEX IF NOT EXISTS idx_payev_payment ON payment_events(payment_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_pay_gateway_state ON payments(gateway_state);
+        ",
+        /* v107 — scheduling integrations (api/lib/meeting-links.php, kapso.php).
+         * meeting_external_id: the provider's own id for a generated meeting
+         * (a Google Calendar event, a Zoom meeting) so a reschedule can move it
+         * and a cancellation can withdraw it. whatsapp_outbound: one row per
+         * (event, recipient) — UNIQUE idem_key is what makes a retry or a double
+         * press send nothing twice. whatsapp_inbound: the last message each
+         * number sent US, which opens WhatsApp's 24-hour free-form window. */
+        107 => "
+            ALTER TABLE class_sessions ADD COLUMN meeting_external_id TEXT;
+            CREATE TABLE IF NOT EXISTS whatsapp_outbound (
+              id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+              idem_key            TEXT    NOT NULL UNIQUE,
+              user_id             INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              session_id          INTEGER REFERENCES class_sessions(id) ON DELETE SET NULL,
+              to_number           TEXT    NOT NULL,
+              kind                TEXT    NOT NULL DEFAULT 'template' CHECK(kind IN ('template','text')),
+              template            TEXT,
+              params              TEXT,
+              status              TEXT    NOT NULL DEFAULT 'queued' CHECK(status IN ('queued','sent','delivered','read','failed')),
+              provider_message_id TEXT,
+              error               TEXT,
+              created_at          TEXT    NOT NULL DEFAULT (datetime('now')),
+              updated_at          TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_waout_msg ON whatsapp_outbound(provider_message_id);
+            CREATE INDEX IF NOT EXISTS idx_waout_session ON whatsapp_outbound(session_id);
+            CREATE TABLE IF NOT EXISTS whatsapp_inbound (
+              wa_number       TEXT PRIMARY KEY,
+              last_inbound_at TEXT NOT NULL
+            );
         ",
     ];
 

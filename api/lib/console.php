@@ -743,6 +743,25 @@ function mam_console_application(int $id): ?array {
            FROM payments WHERE application_id = ? ORDER BY created_at DESC", [$id]);
     $a['readiness'] = mam_console_try('adm.readiness',
         fn() => mam_application_readiness($a), null);
+    /* ── Student management: what the assign / placement forms offer ──
+       Staff an application can be assigned to (admins and instructors who can
+       sign in), and the course × level catalogue an Auditer placement is
+       recorded against — both handlers (app_assign, record_placement) check
+       again; these are only the choices. */
+    $a['staff'] = mam_console_rows('adm.staff',
+        "SELECT id, name, role FROM users WHERE role IN ('admin','instructor') AND status = 'active' ORDER BY name LIMIT 200");
+    $a['courses'] = mam_console_rows('adm.courses', "SELECT code, name FROM courses WHERE active = 1 ORDER BY sort_order, name");
+    $a['levels'] = mam_console_rows('adm.levels', "SELECT code, name FROM levels ORDER BY sort_order, name");
+    // What "Complete the enrolment" would do with no overrides: the form opens
+    // pre-filled with it, so a registrar confirms rather than retypes codes.
+    $a['programmes'] = mam_console_rows('adm.progs', "SELECT code, name FROM programs ORDER BY sort_order, name");
+    $a['resolved'] = mam_console_try('adm.resolve', fn() => mam_enrol_resolve((int) $a['id']), null);
+    // The latest placement already on file for this applicant's student account, if any.
+    $a['auditer'] = mam_console_row('adm.auditer',
+        "SELECT r.recommended_pathway, r.audited_at FROM auditer_results r
+           JOIN users su ON su.id = r.student_id
+          WHERE su.customer_id = ? ORDER BY r.id DESC LIMIT 1", [(int) ($a['customer_id'] ?? 0)]);
+    /* ── end student management ── */
     return $a;
 }
 
@@ -836,6 +855,7 @@ function mam_console_invoice_detail(int $id): ?array {
     $inv['plan_row'] = mam_db_row("SELECT * FROM fee_payment_plans WHERE invoice_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1", [$id]);
     $inv['editable'] = mam_fee_editable(['status' => $row['status']]);
     $inv['has_guardian'] = $row['guardian_id'] !== null;
+    $inv['student_id'] = (int) $row['student_id'];
     $full = mam_db_row('SELECT * FROM fee_invoices WHERE id = ?', [$id]);
     $inv['review'] = ['checks' => mam_fee_review_checks($id), 'reviewed' => mam_fee_is_reviewed($full),
         'reviewed_at' => $full['reviewed_at'] ?? null,
@@ -982,6 +1002,7 @@ function mam_console_students(array $q = []): array {
     $rows = mam_console_rows('stu.rows',
         "SELECT u.id, u.name, u.email, u.status, u.enrollment_ref, u.student_type, u.avatar_url, u.last_login, u.created_at,
                 (SELECT COUNT(*) FROM course_enrollments ce WHERE ce.student_id = u.id AND ce.status = 'active') courses,
+                (SELECT COUNT(*) FROM course_enrollments ce WHERE ce.student_id = u.id AND ce.status = 'pending') courses_pending,
                 (SELECT COUNT(*) FROM enrollments e WHERE e.student_id = u.id AND e.status = 'active') classes,
                 (SELECT COUNT(*) FROM parent_links pl WHERE pl.student_id = u.id) guardians,
                 (SELECT COALESCE(SUM(i.total_usd_cents - CAST(i.paid_minor AS INTEGER)), 0) FROM fee_invoices i
@@ -1045,8 +1066,112 @@ function mam_console_member(int $id): ?array {
             JOIN users g ON g.id = pl.parent_id WHERE pl.student_id = ? ORDER BY g.name', [$id]),
         'is_staff' => mam_member_is_staff($u),
         'onboarding' => function_exists('mam_onboarding_checklist') ? mam_console_try('mem.onb', fn() => mam_onboarding_checklist($id), null) : null,
+    ] + mam_console_member_profile($id);
+}
+
+/* ── Student management: one student's whole picture ─────────────────────────
+   The rest of what Students → a student shows, read in one place so the page is
+   a single record rather than eight screens. Four rules, each a promise made
+   elsewhere in this codebase and kept here by construction:
+   • BOTH enrolment models (gotcha #2): the course/cohort rows AND the legacy
+     classes, each tagged with which model it came from, so a course-only or a
+     class-only student is never shown as enrolled in nothing.
+   • The mastery BAND only, via mam_mastery_publishable() — `raw_score` is
+     stripped there and is never put in this payload.
+   • The week's timetable is READ from class_sessions; nothing here schedules.
+   • Safeguarding: only a COUNT of open concerns, and only for a viewer holding
+     the safeguarding capability. No category, no body, no reporter — the
+     concern itself lives on the safeguarding screen, behind its own guard.
+   ───────────────────────────────────────────────────────────────────────── */
+function mam_console_member_profile(int $id, ?array $viewer = null): array {
+    $courses = mam_console_rows('mem.courses',
+        "SELECT ce.id, ce.status, ce.cohort_id, c.code AS course_code, c.name AS course,
+                l.code AS level_code, l.name AS level, co.title AS cohort, co.term,
+                co.schedule_days, co.schedule_time, iu.name AS instructor
+           FROM course_enrollments ce
+           JOIN courses c ON c.id = ce.course_id
+           LEFT JOIN levels l ON l.id = ce.level_id
+           LEFT JOIN cohorts co ON co.id = ce.cohort_id
+           LEFT JOIN users iu ON iu.id = COALESCE(ce.instructor_id, co.instructor_id)
+          WHERE ce.student_id = ?
+          ORDER BY CASE ce.status WHEN 'active' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, c.name", [$id]);
+    $classes = mam_console_rows('mem.classes',
+        "SELECT e.id, e.status, cl.id AS class_id, cl.title, cl.discipline, cl.schedule, iu.name AS instructor
+           FROM enrollments e
+           JOIN classes cl ON cl.id = e.class_id
+           LEFT JOIN users iu ON iu.id = cl.instructor_id
+          WHERE e.student_id = ?
+          ORDER BY CASE e.status WHEN 'active' THEN 0 ELSE 1 END, cl.title", [$id]);
+
+    // This week, Monday to Sunday in the academy's own zone (never the server clock).
+    $today = function_exists('mam_calendar_today') ? (string) mam_console_try('mem.today', fn() => mam_calendar_today(), gmdate('Y-m-d')) : gmdate('Y-m-d');
+    $mon = date('Y-m-d', strtotime($today . ' -' . ((int) date('N', strtotime($today)) - 1) . ' days'));
+    $sun = date('Y-m-d', strtotime($mon . ' +7 days'));
+    $week = mam_console_rows('mem.week',
+        "SELECT s.id, s.title, s.scheduled_at, s.duration_min, s.status, s.room, s.mode, co.title AS cohort,
+                sa.status AS attended
+           FROM class_sessions s
+           JOIN cohorts co ON co.id = s.cohort_id
+           LEFT JOIN session_attendance sa ON sa.session_id = s.id AND sa.student_id = ?
+          WHERE s.cohort_id IN (SELECT cohort_id FROM course_enrollments
+                                 WHERE student_id = ? AND cohort_id IS NOT NULL AND status IN ('active','pending'))
+            AND s.scheduled_at >= ? AND s.scheduled_at < ?
+          ORDER BY s.scheduled_at", [$id, $id, $mon, $sun]);
+
+    $att = mam_console_row('mem.att',
+        "SELECT COUNT(*) AS total,
+                SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) AS present,
+                SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late,
+                SUM(CASE WHEN status IN ('absent','left_early') THEN 1 ELSE 0 END) AS absent,
+                SUM(CASE WHEN status IN ('excused','technical_failure','rescheduled') THEN 1 ELSE 0 END) AS excused
+           FROM session_attendance WHERE student_id = ?", [$id]) ?: [];
+    $legacyAtt = mam_console_row('mem.att.legacy',
+        "SELECT COUNT(*) AS total, SUM(CASE WHEN a.status IN ('present','late') THEN 1 ELSE 0 END) AS present
+           FROM attendance a JOIN enrollments e ON e.id = a.enrollment_id WHERE e.student_id = ?", [$id]) ?: [];
+    $tot = (int) ($att['total'] ?? 0) + (int) ($legacyAtt['total'] ?? 0);
+    $came = (int) ($att['present'] ?? 0) + (int) ($att['late'] ?? 0) + (int) ($legacyAtt['present'] ?? 0);
+    $attendance = [
+        'total' => $tot, 'present' => (int) ($att['present'] ?? 0), 'late' => (int) ($att['late'] ?? 0),
+        'absent' => (int) ($att['absent'] ?? 0), 'excused' => (int) ($att['excused'] ?? 0),
+        'legacy' => (int) ($legacyAtt['total'] ?? 0),
+        'pct' => $tot > 0 ? mam_console_pct($came, $tot) : null,
+    ];
+
+    // Band only: publishable() strips raw_score; we then keep just what a band needs.
+    $pub = mam_console_try('mem.mastery', fn() => mam_mastery_publishable(mam_mastery_score_cached($id)), null);
+    $mastery = is_array($pub) ? [
+        'band' => !empty($pub['band']) ? $pub['band'] : null,
+        'withheld_reason' => $pub['withheld_reason'] ?? null,
+        'coverage_pct' => isset($pub['coverage_pct']) ? (int) round((float) $pub['coverage_pct']) : null,
+    ] : null;
+
+    $invoices = mam_console_rows('mem.inv',
+        "SELECT id, public_ref, term_label, currency, status, due_on, total_minor, paid_minor, total_usd_cents
+           FROM fee_invoices WHERE student_id = ? AND status <> 'void'
+          ORDER BY COALESCE(issued_on, created_at) DESC LIMIT 12", [$id]);
+    $owedMinor = [];
+    foreach ($invoices as $iv) {
+        if (!in_array($iv['status'], ['issued', 'part_paid'], true)) continue;
+        $cur = (string) $iv['currency'];
+        $owedMinor[$cur] = ($owedMinor[$cur] ?? 0) + max(0, (int) $iv['total_minor'] - (int) $iv['paid_minor']);
+    }
+
+    $viewer = $viewer ?? (function_exists('mam_current_user') ? mam_current_user() : null);
+    // A Basic-Auth break-glass operator has no session user and is treated as super.
+    $mayConcerns = $viewer === null || mam_admin_can($viewer, 'safeguarding');
+    $concerns = $mayConcerns ? mam_console_int('mem.sg',
+        "SELECT COUNT(*) FROM safeguarding_concerns WHERE about_id = ? AND status NOT IN ('closed')", [$id]) : null;
+
+    return [
+        'courses' => $courses, 'classes' => $classes,
+        'week' => $week, 'week_from' => $mon,
+        'attendance' => $attendance, 'mastery' => $mastery,
+        'invoices' => $invoices, 'owed_minor' => $owedMinor,
+        'concerns' => $concerns,
+        'scopes' => defined('MAM_PARENT_SCOPES') ? array_keys(MAM_PARENT_SCOPES) : ['billing', 'standard', 'full'],
     ];
 }
+/* ── end student management ── */
 
 /* ─────────────────────────────────────────────────────────────────────────────
    6. Cohorts & enrolments
@@ -1101,14 +1226,18 @@ function mam_console_roster(array $q = []): array {
     if ($sel > 0) {
         foreach ($data['rows'] as $r) if ((int) $r['id'] === $sel) { $cohort = $r; break; }
         $roster = mam_console_rows('ros.roster',
-            "SELECT ce.id, ce.status, u.id student_id, u.name, u.email, u.avatar_url
+            "SELECT ce.id, ce.status, u.id student_id, u.name, u.email, u.avatar_url,
+                    u.enrollment_ref, ce.instructor_id, l.code level_code, 'course' model
                FROM course_enrollments ce JOIN users u ON u.id = ce.student_id
-              WHERE ce.cohort_id = ? ORDER BY u.name", [$sel]);
+               LEFT JOIN levels l ON l.id = ce.level_id
+              WHERE ce.cohort_id = ?
+              ORDER BY (ce.status IN ('active','pending')) DESC, u.name", [$sel]);
         if ($cohort && (int) ($cohort['legacy_class_id'] ?? 0) > 0) {
             // Dual-read: a backfilled cohort's legacy roster is real students who
             // are not (yet) in course_enrollments. Showing 0 there would be a lie.
             $roster = array_merge($roster, mam_console_rows('ros.legacy',
-                "SELECT e.id, e.status, u.id student_id, u.name, u.email, u.avatar_url
+                "SELECT e.id, e.status, u.id student_id, u.name, u.email, u.avatar_url,
+                        u.enrollment_ref, NULL instructor_id, NULL level_code, 'legacy' model
                    FROM enrollments e JOIN users u ON u.id = e.student_id
                   WHERE e.class_id = ? AND e.status = 'active'
                     AND NOT EXISTS (SELECT 1 FROM course_enrollments ce
@@ -1129,7 +1258,18 @@ function mam_console_roster(array $q = []): array {
               WHERE cohort_id = ? ORDER BY scheduled_at DESC LIMIT 20", [$sel]);
     }
 
-    return [
+    /* ── Classes & enrolment (api/lib/cohort-admin.php) ───────────────────────
+       What the office needs beside the roster to act on it: each student's
+       attendance and mastery BAND (never raw_score — mam_mastery_publishable()
+       strips it, CLAUDE.md #12), the waitlist in order, the sessions still to
+       come, the search behind "Enrol a student" with each hit's predicted
+       outcome, the safeguarding gate's verdict on a proposed instructor BEFORE
+       it is saved, today's withdrawal outcome, and the legacy classes. */
+    $extra = mam_console_roster_extra($q, $sel, $cohort, $roster, $data['rows']);
+    $roster = $extra['roster'];
+    unset($extra['roster']);
+
+    return $extra + [
         'cohorts' => $data['rows'],
         'selected' => $sel,
         'cohort' => $cohort,
@@ -1145,72 +1285,299 @@ function mam_console_roster(array $q = []): array {
     ];
 }
 
+/** Classes & enrolment: the parts of the Enrol & staffing screen beyond the
+ *  roster itself. Its own function so the block above stays readable. */
+function mam_console_roster_extra(array $q, int $sel, ?array $cohort, array $roster, array $cohorts): array {
+    $out = ['waitlist' => [], 'upcoming' => [], 'find' => '', 'found' => [], 'instr_preview' => null,
+            'transfer_to' => [], 'outcome' => null, 'outcome_line' => '', 'classes' => [], 'class' => null,
+            'class_roster' => [], 'class_sel' => 0];
+
+    if ($sel > 0 && $cohort) {
+        // Attendance over this cohort's sessions. Excused and rescheduled marks
+        // are not absences, so they leave the denominator rather than lower the
+        // figure. One grouped query for the whole roster.
+        $att = [];
+        foreach (mam_console_rows('ros.att',
+            "SELECT sa.student_id,
+                    SUM(CASE WHEN sa.status IN ('present','late','left_early') THEN 1 ELSE 0 END) came,
+                    COUNT(*) n
+               FROM session_attendance sa JOIN class_sessions cs ON cs.id = sa.session_id
+              WHERE cs.cohort_id = ? AND sa.status NOT IN ('excused','rescheduled')
+              GROUP BY sa.student_id", [$sel]) as $a) {
+            $att[(int) $a['student_id']] = $a;
+        }
+        foreach ($roster as &$r) {
+            $a = $att[(int) $r['student_id']] ?? null;
+            $r['att_pct'] = ($a && (int) $a['n'] > 0) ? mam_console_pct((int) $a['came'], (int) $a['n']) : null;
+            $r['att_n'] = $a ? (int) $a['n'] : 0;
+            $m = mam_console_try('ros.mastery', fn() => mam_mastery_publishable(mam_mastery_score((int) $r['student_id'])), null);
+            $r['band'] = is_array($m) && !empty($m['band']['label']) ? (string) $m['band']['label'] : null;
+            $r['band_why'] = is_array($m) && empty($m['band'])
+                ? (($m['withheld_reason'] ?? '') === 'below_coverage_floor' ? 'Too little evidence yet' : 'Not assessed')
+                : '';
+            $r['changes'] = ($r['model'] ?? '') === 'course' ? mam_cohort_status_changes((string) $r['status']) : [];
+            $r['live'] = in_array((string) $r['status'], MAM_COHORT_LIVE, true);
+        }
+        unset($r);
+
+        $out['waitlist'] = mam_console_rows('ros.wait',
+            "SELECT w.position, w.created_at, u.id student_id, u.name, u.email
+               FROM class_waitlist w JOIN users u ON u.id = w.student_id
+              WHERE w.cohort_id = ? AND w.status = 'waiting' ORDER BY w.position", [$sel]);
+        $out['upcoming'] = mam_console_rows('ros.upcoming',
+            "SELECT id, title, scheduled_at, duration_min, status, room, mode FROM class_sessions
+              WHERE cohort_id = ? AND scheduled_at >= ? AND status <> 'cancelled'
+              ORDER BY scheduled_at LIMIT 8", [$sel, date('Y-m-d H:i:s')]);
+
+        $find = trim((string) ($q['find'] ?? ''));
+        $out['find'] = mb_substr($find, 0, 80);
+        if (mb_strlen($find) >= 2) {
+            $hits = mam_console_try('ros.find', fn() => mam_cohort_find_students($find, 12), []);
+            foreach ($hits as &$h) $h['preview'] = mam_cohort_enrol_preview($sel, (int) $h['id']);
+            unset($h);
+            $out['found'] = $hits;
+        }
+
+        $iid = (int) ($q['instr'] ?? 0);
+        if ($iid > 0) {
+            $who = mam_console_rows('ros.instr1', "SELECT id, name FROM users WHERE id = ?", [$iid]);
+            if ($who) {
+                $chk = mam_console_try('ros.instrchk', fn() => mam_cohort_instructor_check($sel, $iid), null);
+                if (is_array($chk)) $out['instr_preview'] = $chk + ['id' => $iid, 'name' => (string) $who[0]['name']];
+            }
+        }
+
+        foreach ($cohorts as $c) {
+            if ((int) $c['id'] === $sel || ($c['status'] ?? '') !== 'active') continue;
+            $out['transfer_to'][] = ['id' => (int) $c['id'], 'title' => (string) $c['title'],
+                'full' => !empty($c['is_full']), 'same_course' => ($c['course_code'] ?? '') === ($cohort['course_code'] ?? '')];
+        }
+        // Same course first — the commonest move is another time slot of one class.
+        usort($out['transfer_to'], fn($a, $b) => [(int) !$a['same_course'], $a['title']] <=> [(int) !$b['same_course'], $b['title']]);
+
+        $out['outcome'] = mam_cohort_outcome_now();
+        $out['outcome_line'] = mam_cohort_outcome_line($out['outcome']);
+    }
+
+    // Legacy classes (enrollments + classes, gotcha #2). Dual-read: a class that
+    // is backfilled into a cohort says so, because enrolling there and in the
+    // cohort are two different records of one student.
+    $out['classes'] = mam_console_rows('ros.classes',
+        "SELECT cl.id, cl.title, cl.discipline, cl.status, cl.capacity, cl.schedule, cl.mode, cl.starts_on,
+                cl.instructor_id, cl.meeting_link, u.name instructor,
+                (SELECT COUNT(*) FROM enrollments e WHERE e.class_id = cl.id AND e.status = 'active') enrolled,
+                (SELECT c.id FROM cohorts c WHERE c.legacy_class_id = cl.id) cohort_id
+           FROM classes cl LEFT JOIN users u ON u.id = cl.instructor_id
+          ORDER BY (cl.status = 'active') DESC, cl.title LIMIT 200");
+    $cs = (int) ($q['class'] ?? 0);
+    if ($cs > 0) {
+        foreach ($out['classes'] as $cl) if ((int) $cl['id'] === $cs) { $out['class'] = $cl; break; }
+        if ($out['class']) {
+            $out['class_sel'] = $cs;
+            $out['class_roster'] = mam_console_rows('ros.classroster',
+                "SELECT e.id, e.status, e.enrolled_at, u.id student_id, u.name, u.email
+                   FROM enrollments e JOIN users u ON u.id = e.student_id
+                  WHERE e.class_id = ? ORDER BY (e.status = 'active') DESC, u.name", [$cs]);
+        }
+    }
+
+    $out['roster'] = $roster;
+    return $out;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    8. Timetable & rooms
    ───────────────────────────────────────────────────────────────────────── */
 
 /**
- * A week of sessions, plus the room clashes in it. A clash is two sessions in
- * one room whose intervals overlap — computed here rather than trusted from a
- * flag, because nothing in v1 writes such a flag.
+ * A week of sessions, plus the clashes in it. A clash is two sessions in one
+ * room, or with one teacher, whose intervals overlap — computed here rather
+ * than trusted from a flag, because nothing in v1 writes such a flag.
  */
+/* ── Scheduling (Teaching → Timetable & rooms) ─────────────────────────────
+   2026-11-23: the timetable became the office's scheduling desk. The writes
+   are api/lib/scheduling.php, posted through admin/index.php; this reads.
+   Clashes are computed over the WHOLE week before any filter is applied — a
+   filter that hid a clash's other half would make the clash invisible. */
 function mam_console_timetable(array $q = []): array {
-    $offset = (int) ($q['w'] ?? 0);
+    $offset = max(-104, min(104, (int) ($q['w'] ?? 0)));
     $monday = strtotime('monday this week', time() + $offset * 7 * 86400);
     $from = date('Y-m-d', $monday);
     $to   = date('Y-m-d', $monday + 7 * 86400);
+    $by   = in_array((string) ($q['by'] ?? ''), ['time', 'room', 'instructor'], true) ? (string) $q['by'] : 'time';
+    $fCohort = (int) ($q['cohort'] ?? 0);
+    $fInstr  = (int) ($q['instructor'] ?? 0);
+    $fRoom   = (int) ($q['room'] ?? 0);
 
-    $rows = mam_console_rows('tt.rows',
-        "SELECT cs.id, cs.title, cs.scheduled_at, cs.duration_min, cs.status, cs.mode,
-                cs.room, cs.room_id, r.name room_name, r.capacity room_cap,
-                c.title cohort, u.name instructor,
+    $all = mam_console_rows('tt.rows',
+        "SELECT cs.id, cs.cohort_id, cs.title, cs.scheduled_at, cs.duration_min, cs.status, cs.mode, cs.kind,
+                cs.room, cs.room_id, cs.substitute_id, cs.cancellation_reason, r.name room_name, r.capacity room_cap,
+                c.title cohort, c.instructor_id, u.name instructor, su.name substitute,
                 (SELECT COUNT(DISTINCT ce.student_id) FROM course_enrollments ce
                   WHERE ce.cohort_id = cs.cohort_id AND ce.status = 'active') enrolled
            FROM class_sessions cs
            LEFT JOIN cohorts c ON c.id = cs.cohort_id
            LEFT JOIN rooms r ON r.id = cs.room_id
            LEFT JOIN users u ON u.id = c.instructor_id
+           LEFT JOIN users su ON su.id = cs.substitute_id
           WHERE cs.scheduled_at >= ? AND cs.scheduled_at < ?
-          ORDER BY cs.scheduled_at", [$from . ' 00:00:00', $to . ' 00:00:00']);
+          ORDER BY cs.scheduled_at, cs.id", [$from . ' 00:00:00', $to . ' 00:00:00']);
 
-    // Clash detection. Only sessions with a physical room can clash; an online
-    // session shares no walls with anything.
+    // Clash detection: the same physical room, or the same teacher (the
+    // cohort's own or a substitute standing in), at overlapping times. A
+    // cancelled session occupies nothing; an online one shares no walls.
     $clashes = [];
-    $byRoom = [];
-    foreach ($rows as $r) {
-        $room = trim((string) ($r['room_name'] ?? $r['room'] ?? ''));
-        if ($room === '' || ($r['mode'] ?? '') === 'online') continue;
-        $byRoom[$room][] = $r;
-    }
-    foreach ($byRoom as $room => $list) {
-        usort($list, fn($a, $b) => strcmp((string) $a['scheduled_at'], (string) $b['scheduled_at']));
-        for ($i = 1; $i < count($list); $i++) {
-            $prev = $list[$i - 1]; $cur = $list[$i];
-            $prevEnd = strtotime((string) $prev['scheduled_at']) + max(30, (int) ($prev['duration_min'] ?: 60)) * 60;
-            if (strtotime((string) $cur['scheduled_at']) < $prevEnd) {
-                $clashes[] = ['room' => $room, 'a' => $prev, 'b' => $cur,
-                    'overlap_min' => (int) round(($prevEnd - strtotime((string) $cur['scheduled_at'])) / 60)];
+    $live = array_values(array_filter($all, fn($r) => ($r['status'] ?? '') !== 'cancelled'));
+    $end = fn($r) => strtotime((string) $r['scheduled_at']) + max(15, (int) ($r['duration_min'] ?: 60)) * 60;
+    $teacher = fn($r) => (int) ($r['substitute_id'] ?: $r['instructor_id'] ?: 0);
+    for ($i = 0; $i < count($live); $i++) {
+        for ($j = $i + 1; $j < count($live); $j++) {
+            $a = $live[$i]; $b = $live[$j];
+            if (strtotime((string) $b['scheduled_at']) >= $end($a)) break;  // sorted by start
+            $overlap = (int) round((min($end($a), $end($b)) - strtotime((string) $b['scheduled_at'])) / 60);
+            $roomA = ($a['mode'] ?? '') === 'online' ? '' : trim((string) ($a['room_name'] ?: $a['room'] ?: ''));
+            $roomB = ($b['mode'] ?? '') === 'online' ? '' : trim((string) ($b['room_name'] ?: $b['room'] ?: ''));
+            if ($roomA !== '' && strcasecmp($roomA, $roomB) === 0) {
+                $clashes[] = ['kind' => 'room', 'room' => $roomA, 'who' => $roomA, 'a' => $a, 'b' => $b, 'overlap_min' => $overlap];
+            }
+            if ($teacher($a) > 0 && $teacher($a) === $teacher($b)) {
+                $clashes[] = ['kind' => 'instructor', 'room' => '', 'who' => (string) ($a['substitute'] ?: $a['instructor'] ?: 'A teacher'), 'a' => $a, 'b' => $b, 'overlap_min' => $overlap];
             }
         }
     }
-    foreach ($clashes as $c) {
-        foreach ($rows as &$r) if ((int) $r['id'] === (int) $c['a']['id'] || (int) $r['id'] === (int) $c['b']['id']) $r['clash'] = true;
-        unset($r);
+    // Learners: two classes of DIFFERENT cohorts that share an active learner.
+    $cohortIds = array_values(array_unique(array_map(fn($r) => (int) $r['cohort_id'], $live)));
+    $members = [];
+    if ($cohortIds) {
+        $in = implode(',', array_fill(0, count($cohortIds), '?'));
+        foreach (mam_console_rows('tt.members', "SELECT cohort_id, student_id FROM course_enrollments WHERE status = 'active' AND cohort_id IN ($in)", $cohortIds) as $m) {
+            $members[(int) $m['cohort_id']][(int) $m['student_id']] = true;
+        }
     }
+    for ($i = 0; $i < count($live); $i++) {
+        for ($j = $i + 1; $j < count($live); $j++) {
+            $a = $live[$i]; $b = $live[$j];
+            if (strtotime((string) $b['scheduled_at']) >= $end($a)) break;
+            if ((int) $a['cohort_id'] === (int) $b['cohort_id']) continue;
+            $shared = count(array_intersect_key($members[(int) $a['cohort_id']] ?? [], $members[(int) $b['cohort_id']] ?? []));
+            if ($shared) $clashes[] = ['kind' => 'learner', 'room' => '', 'who' => $shared . ' learner' . ($shared === 1 ? '' : 's'), 'a' => $a, 'b' => $b,
+                'overlap_min' => (int) round((min($end($a), $end($b)) - strtotime((string) $b['scheduled_at'])) / 60)];
+        }
+    }
+    // Teacher load this week, beside the rooms' utilisation.
+    $load = [];
+    foreach ($live as $r) {
+        $t = $teacher($r); if (!$t) continue;
+        $load[$t] = $load[$t] ?? ['name' => (string) ($r['substitute'] ?: $r['instructor']), 'min' => 0, 'sessions' => 0];
+        $load[$t]['min'] += max(15, (int) ($r['duration_min'] ?: 60)); $load[$t]['sessions']++;
+    }
+    uasort($load, fn($x, $y) => [$y['min'], $x['name']] <=> [$x['min'], $y['name']]);
+    $clashIds = [];
+    foreach ($clashes as $c) { $clashIds[(int) $c['a']['id']] = $c['kind']; $clashIds[(int) $c['b']['id']] = $c['kind']; }
+    foreach ($all as &$r) { $r['clash'] = isset($clashIds[(int) $r['id']]); $r['clash_kind'] = $clashIds[(int) $r['id']] ?? ''; }
+    unset($r);
+
+    // The filters narrow what is SHOWN, after the clashes are known.
+    $rows = array_values(array_filter($all, function ($r) use ($fCohort, $fInstr, $fRoom) {
+        if ($fCohort && (int) $r['cohort_id'] !== $fCohort) return false;
+        if ($fInstr && (int) ($r['instructor_id'] ?? 0) !== $fInstr && (int) ($r['substitute_id'] ?? 0) !== $fInstr) return false;
+        if ($fRoom && (int) ($r['room_id'] ?? 0) !== $fRoom) return false;
+        return true;
+    }));
 
     $rooms = mam_console_rows('tt.rooms', "SELECT id, name, capacity, location, active FROM rooms ORDER BY name");
     foreach ($rooms as &$rm) {
         $used = 0;
-        foreach ($rows as $r) if ((int) ($r['room_id'] ?? 0) === (int) $rm['id']) $used += max(30, (int) ($r['duration_min'] ?: 60));
+        foreach ($live as $r) if ((int) ($r['room_id'] ?? 0) === (int) $rm['id']) $used += max(30, (int) ($r['duration_min'] ?: 60));
         // Against a nominal 8-hour teaching day, six days a week.
         $rm['used_min'] = $used;
         $rm['util'] = mam_console_pct($used, 8 * 60 * 6);
     }
     unset($rm);
 
-    return ['from' => $from, 'to' => $to, 'offset' => $offset, 'rows' => $rows,
-        'clashes' => $clashes, 'rooms' => $rooms, 'term' => mam_console_term()];
+    $cohorts = mam_console_rows('tt.cohorts',
+        "SELECT c.id, c.title, c.instructor_id, c.starts_on, c.ends_on, c.schedule_days, c.schedule_time, c.session_duration, u.name instructor
+           FROM cohorts c LEFT JOIN users u ON u.id = c.instructor_id
+          WHERE c.status = 'active' ORDER BY c.title");
+    $instructors = mam_console_rows('tt.instructors',
+        "SELECT DISTINCT u.id, u.name FROM users u
+          WHERE u.id IN (SELECT instructor_id FROM cohorts WHERE instructor_id IS NOT NULL)
+             OR u.role = 'instructor' OR u.id IN (SELECT user_id FROM user_roles WHERE role = 'instructor')
+          ORDER BY u.name");
+
+    // The session the operator opened, with what is needed to move or cancel it.
+    $sel = null;
+    $sid = (int) ($q['s'] ?? 0);
+    if ($sid > 0) {
+        $sel = mam_console_row('tt.session',
+            "SELECT cs.*, c.title cohort, c.instructor_id, u.name instructor, r.name room_name, su.name substitute
+               FROM class_sessions cs
+               LEFT JOIN cohorts c ON c.id = cs.cohort_id
+               LEFT JOIN users u ON u.id = c.instructor_id
+               LEFT JOIN rooms r ON r.id = cs.room_id
+               LEFT JOIN users su ON su.id = cs.substitute_id
+              WHERE cs.id = ?", [$sid]);
+        if ($sel) {
+            $sel['history'] = mam_console_rows('tt.history',
+                "SELECT h.field_changed, h.old_value, h.new_value, h.reason, h.changed_at, u.name who
+                   FROM session_history h LEFT JOIN users u ON u.id = h.changed_by
+                  WHERE h.session_id = ? ORDER BY h.id DESC LIMIT 10", [$sid]);
+            $aud = mam_console_try('tt.audience', fn() => mam_sched_audience($sid), ['students' => [], 'guardians' => [], 'staff' => []]);
+            $sel['audience'] = ['students' => count($aud['students']), 'guardians' => count($aud['guardians']), 'staff' => count($aud['staff'])];
+            $sel['credits'] = (int) mam_console_scalar('tt.credits', 'SELECT COUNT(*) FROM makeup_credits WHERE source_session_id = ?', [$sid]);
+            $sel['clashes_now'] = $sel['status'] === 'scheduled'
+                ? mam_console_try('tt.clashnow', fn() => mam_sched_conflicts((int) ($sel['instructor_id'] ?? 0), (string) $sel['scheduled_at'],
+                    (int) ($sel['duration_min'] ?: 60), ($sel['mode'] ?? '') === 'online' ? '' : trim((string) ($sel['room'] ?: $sel['room_name'] ?: '')), $sid, (int) $sel['cohort_id']), [])
+                : [];
+            $sel['cohort_title'] = $sel['cohort'];
+            $sel['links'] = mam_cal_event_links($sel);
+            // Where it could go instead: the slot finder, for a move or a make-up.
+            $sel['suggest'] = in_array($sel['status'], ['scheduled', 'cancelled'], true)
+                ? mam_console_try('tt.makeup', fn() => mam_slot_suggest_makeup($sid, 3), []) : [];
+        }
+    }
+
+    // A series being planned: a pure read, shown before anything is written.
+    $plan = null; $planErr = null; $planIn = [];
+    if (!empty($q['plan']) && (int) ($q['pc'] ?? 0) > 0) {
+        $planIn = [
+            'cohort_id' => (int) $q['pc'], 'days' => array_map('intval', (array) ($q['days'] ?? [])),
+            'time' => (string) ($q['time'] ?? ''), 'duration' => (int) ($q['dur'] ?? 0) ?: null,
+            'room_id' => (int) ($q['room_id'] ?? 0), 'mode' => (string) ($q['mode'] ?? 'onsite'),
+            'from' => (string) ($q['from'] ?? ''), 'to' => (string) ($q['to'] ?? ''),
+        ];
+        $in = $planIn; if ($in['duration'] === null) unset($in['duration']);
+        if ($in['time'] === '') unset($in['time']);
+        try { $plan = mam_sched_plan_series((int) $q['pc'], $in); }
+        catch (InvalidArgumentException $e) { $planErr = $e->getMessage(); }
+        catch (\Throwable $e) { mam_console_fail('tt.plan', $e); }
+    }
+
+    // The slot finder, when asked: the best weekly slots for the class being planned.
+    $suggest = null;
+    if (!empty($q['suggest']) && (int) ($q['pc'] ?? 0) > 0) {
+        $so = ['mode' => (string) ($q['mode'] ?? 'onsite'), 'limit' => 5];
+        if ((int) ($q['dur'] ?? 0) > 0) $so['duration'] = (int) $q['dur'];
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($q['from'] ?? ''))) $so['from'] = (string) $q['from'];
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($q['to'] ?? ''))) $so['to'] = (string) $q['to'];
+        $suggest = mam_console_try('tt.suggest', fn() => mam_slot_suggest_series((int) $q['pc'], $so), []);
+    }
+    // A room's or a class's calendar feed, when one is filtered and one has been issued.
+    $feeds = [];
+    foreach (['room' => $fRoom, 'cohort' => $fCohort] as $k => $id) {
+        if ($id) { $row = mam_console_try('tt.feed', fn() => mam_cal_feed_row($k, $id)); $feeds[$k] = ['id' => $id, 'links' => $row ? mam_cal_subscribe_links(mam_cal_feed_url($row)) : null]; }
+    }
+
+    return ['from' => $from, 'to' => $to, 'offset' => $offset, 'by' => $by,
+        'load' => array_values($load), 'suggest' => $suggest, 'feeds' => $feeds,
+        'integrations' => mam_console_try('tt.integrations', fn() => mam_sched_integrations(), null),
+        'filters' => ['cohort' => $fCohort, 'instructor' => $fInstr, 'room' => $fRoom],
+        'rows' => $rows, 'total' => count($all), 'clashes' => $clashes, 'rooms' => $rooms,
+        'cohorts' => $cohorts, 'instructors' => $instructors, 'session' => $sel,
+        'plan' => $plan, 'plan_error' => $planErr, 'plan_in' => $planIn,
+        'term' => mam_console_term()];
 }
+/* ── end scheduling ── */
 
 /* ─────────────────────────────────────────────────────────────────────────────
    9. Curriculum
@@ -1745,7 +2112,7 @@ function mam_console_pricebooks(): array {
 
 function mam_console_access(): array {
     $rows = mam_console_rows('ac.rows',
-        "SELECT u.id, u.name, u.email, u.role, u.status, u.admin_tier, u.last_login, u.created_at,
+        "SELECT u.id, u.name, u.email, u.phone, u.role, u.status, u.admin_tier, u.last_login, u.created_at,
                 (SELECT COUNT(*) FROM sessions s WHERE s.user_id = u.id AND s.expires_at > ?) sessions
            FROM users u WHERE u.role IN ('admin','instructor') OR u.status = 'system'
           ORDER BY (u.role = 'admin') DESC, u.name LIMIT 200", [gmdate('Y-m-d H:i:s')]);
@@ -1763,8 +2130,25 @@ function mam_console_access(): array {
             'full' => 'Adds consents and the ability to act for the child.'],
         'never' => defined('MAM_PARENT_NEVER') ? MAM_PARENT_NEVER : [],
         'break_glass' => mam_console_row('ac.bg',
-            "SELECT id, email, status, created_at FROM users WHERE email = 'break-glass@mam.invalid'")];
+            "SELECT id, email, status, created_at FROM users WHERE email = 'break-glass@mam.invalid'")]
+        + mam_console_access_viewer();
 }
+
+/* ── Student management: who is looking at People & access ──
+   Admin tiers are the `rbac` capability; the console shows the tier control
+   only to a viewer who holds it, and the handler (set_admin_tier) re-checks.
+   `me` lets the screen say "this is you" rather than offering a lockout the
+   handler would refuse (own_account / last_super_admin). Break-glass has no
+   session user and is treated as super, as everywhere else. */
+function mam_console_access_viewer(): array {
+    $me = function_exists('mam_current_user') ? mam_current_user() : null;
+    return [
+        'me' => $me ? (int) $me['id'] : 0,
+        'can_tier' => $me === null || mam_admin_can($me, 'rbac'),
+        'can_users' => $me === null || mam_admin_can($me, 'users'),
+    ];
+}
+/* ── end student management ── */
 
 /* ─────────────────────────────────────────────────────────────────────────────
    23. Governance & audit
@@ -1942,22 +2326,34 @@ function mam_console_settings(): array {
  * the code that produces the statuses.
  */
 function mam_console_status_vocabulary(): array {
+    // The STORED values are applications.status as mam_admissions_transitions()
+    // knows them. An earlier list named design-only values (under_review,
+    // offered, rejected) the state machine never accepts, so every decision
+    // saved from the console silently did nothing.
     return [
-        ['stored' => 'pending', 'shown' => 'Received',
+        ['stored' => 'submitted', 'shown' => 'Received',
          'next' => 'We have your application. You will hear from us within ten working days.', 'action' => false],
-        ['stored' => 'under_review', 'shown' => 'Under review',
+        ['stored' => 'in_review', 'shown' => 'Under review',
          'next' => 'We are reading your application. You will hear within ten working days.', 'action' => false],
-        ['stored' => 'interview_scheduled', 'shown' => 'Audition scheduled',
-         'next' => 'Your slot is confirmed. Bring two contrasting pieces.', 'action' => true],
-        ['stored' => 'offered', 'shown' => 'Offer — conditional',
-         'next' => 'Accept to hold the place. The deposit comes off your first session.', 'action' => true],
-        ['stored' => 'accepted', 'shown' => 'Place confirmed',
-         'next' => 'You are enrolled. Your timetable appears in the portal before the session starts.', 'action' => false],
         ['stored' => 'waitlisted', 'shown' => 'Waitlist',
          'next' => 'You are in line for a seat. We will call the moment one frees.', 'action' => false],
-        ['stored' => 'rejected', 'shown' => 'Not this intake',
-         'next' => 'This decision cannot be saved without a reason the family can read.', 'action' => false],
+        ['stored' => 'accepted', 'shown' => 'Offer made',
+         'next' => 'Your place is offered. Pay the fee to hold it; your timetable follows.', 'action' => true],
+        ['stored' => 'paid', 'shown' => 'Paid',
+         'next' => 'Payment received. We are placing you in a class and will confirm your timetable.', 'action' => false],
+        ['stored' => 'enrolled', 'shown' => 'Enrolled',
+         'next' => 'You are enrolled. Your timetable appears in the portal before the session starts.', 'action' => false],
+        ['stored' => 'cancelled', 'shown' => 'Not this intake',
+         'next' => 'This application is closed. The reason we gave is on your status page.', 'action' => false],
+        ['stored' => 'expired', 'shown' => 'Expired',
+         'next' => 'This application lapsed without payment. You are welcome to apply again.', 'action' => false],
     ];
+}
+
+/** The phrase a person reads for a stored application status (unknown → the value, tidied). */
+function mam_console_status_label(string $stored): string {
+    foreach (mam_console_status_vocabulary() as $v) if ($v['stored'] === $stored) return $v['shown'];
+    return ucfirst(str_replace('_', ' ', $stored));
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

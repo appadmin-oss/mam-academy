@@ -99,7 +99,7 @@ $open = array_values(array_filter($d['requests'] ?? [], fn($r) => empty($r['clos
           <?php ac_action_btn('dp_retention_preview', 'dataprotection', [], 'Preview · changes nothing', 'ac-btn'); ?>
           <?php ac_form('dp_retention_mode', 'dataprotection'); ?>
             <div class="ac-inline">
-              <select class="ac-select ac-select--sm ac-w-sm" name="mode">
+              <select class="ac-select ac-select--sm ac-w-sm" name="mode" aria-label="Retention sweep mode">
                 <option value="report" <?= $mode === 'report' ? 'selected' : '' ?>>Report only</option>
                 <option value="enforce" <?= $mode === 'enforce' ? 'selected' : '' ?>>Enforce</option>
               </select>

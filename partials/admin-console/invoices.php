@@ -31,7 +31,8 @@ $a = $d['aging'] ?? [];
       ac_status((string) $det['status']) . ' <a class="ac-btn ac-btn--sm" href="' . ac_h(ac_url('invoices')) . '">Close</a>'); ?>
     <div class="ac-cardbody">
       <?php if (!$det['has_guardian']): ?>
-        <?php ac_banner('warn', 'fa-user-slash', 'No billing guardian is linked to this student, so the family cannot see this invoice and reminders have nobody to go to. Link a guardian first.'); ?>
+        <?php ac_banner('warn', 'fa-user-slash', 'No billing guardian is linked to this student, so the family cannot see this invoice and reminders have nobody to go to.',
+            '<a class="ac-btn ac-btn--sm" href="' . ac_h(ac_url('students', ['id' => (int) ($det['student_id'] ?? 0)])) . '#guardians">Link a guardian</a>'); ?>
       <?php endif; ?>
       <div class="ac-defs">
         <?php

@@ -116,10 +116,72 @@ function mam_admin_console_return(string $screen): void {
         foreach (['lesson', 'course', 'program', 'concern', 't'] as $k) {
             if (isset($q[$k]) && is_string($q[$k]) && preg_match('/^[a-z0-9_-]{1,20}$/i', $q[$k])) $keep[$k] = $q[$k];
         }
+        /* ── Student management (console Students → a student, People & access,
+           Admissions) ─────────────────────────────────────────────────────────
+           A form on a record's own page names that record in `_console_id`, so
+           an action whose handler knows nothing of the console (user_edit,
+           user_reset, guardian_link…) still lands the operator back on the
+           record they acted on, with the verdict beside it. Digits only. */
+        // The application a handler names (app_assign, record_placement…), digits only.
+        if (isset($q['app']) && is_string($q['app']) && preg_match('/^[1-9][0-9]{0,9}$/', $q['app'])) $keep['app'] = $q['app'];
+        $cid = (string) ($_POST['_console_id'] ?? '');
+        if (!isset($keep['id']) && preg_match('/^[1-9][0-9]{0,9}$/', $cid)) $keep['id'] = $cid;
+        /* ── end student management ── */
+        /* ── Scheduling (console Teaching → Timetable & rooms) ──
+           The timetable's week, view and filters, and the session just acted
+           on, survive the round trip — rescheduling a class on next week's
+           room grid must not drop the operator back on this week's. Short
+           plain values only, and only for that screen. */
+        if ($screen === 'timetable') {
+            foreach (['s', 'w', 'by', 'cohort', 'instructor', 'room'] as $k) {
+                if (isset($q[$k]) && is_string($q[$k]) && preg_match('/^-?[a-z0-9_]{1,12}$/i', $q[$k])) $keep[$k] = $q[$k];
+            }
+        }
+        /* ── end scheduling ── */
+        /* ── Classes & enrolment (console Teaching → Enrol & staffing) ──
+           The cohort (or legacy class) the form was posted from, so an action
+           lands back on the record it was taken on rather than on the first
+           cohort in the list. From the handler's query, else the form's own
+           `_cohort` / `_class` field — the legacy class handlers predate the
+           console and name no record in their redirect. Digits only. */
+        if ($screen === 'roster') {
+            foreach (['cohort', 'class'] as $k) {
+                $v = $q[$k] ?? ($_POST['_' . $k] ?? null);
+                if (is_string($v) && preg_match('/^[1-9][0-9]{0,8}$/', $v)) $keep[$k] = $v;
+            }
+        }
+        /* ── end classes & enrolment ── */
         header_remove('Location');
         header('Location: ' . $base . http_build_query($keep));
     });
 }
+
+/* ── Scheduling helpers (console Teaching → Timetable & rooms) ──
+   Defined above the dispatch, never inside a branch (gotcha #9). */
+
+/** Where a scheduling handler returns: the timetable, with its week, view,
+ *  filters and the session acted on carried from the posting form. */
+function mam_admin_sched_back(array $extra): string {
+    $q = ['v' => 'timetable'];
+    foreach (['w', 'by', 'cohort', 'instructor', 'room'] as $k) {
+        $v = (string) ($_POST['_tt_' . $k] ?? '');
+        if ($v !== '' && preg_match('/^-?[a-z0-9_]{1,12}$/i', $v)) $q[$k] = $v;
+    }
+    return '?' . http_build_query($q + $extra);
+}
+
+/** A scheduling refusal in words (the map lives in scheduling.php, shared with the console). */
+function mam_admin_sched_error(\Throwable $e): string { return mam_sched_error_text($e->getMessage()); }
+
+/** "Sat 14 Feb 16:00 (Piano A)" for the first few clashes, for a refusal message. */
+function mam_admin_sched_clash_text(array $clashes): string {
+    $out = [];
+    foreach (array_slice($clashes, 0, 3) as $c) {
+        $out[] = date('D j M H:i', strtotime((string) ($c['scheduled_at'] ?? 'now'))) . ' (' . ($c['cohort_title'] ?? ($c['title'] ?? 'another class')) . ')';
+    }
+    return implode(', ', $out) . (count($clashes) > 3 ? ' and ' . (count($clashes) - 3) . ' more' : '');
+}
+/* ── end scheduling helpers ── */
 
 if ($view === 'export') {
     $type = $_GET['type'] ?? 'applications.csv';
@@ -590,6 +652,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'program_create' => 'curriculum', 'program_update' => 'curriculum',
         'link_course' => 'curriculum', 'unlink_course' => 'curriculum',
         'cohort_converge' => 'settings', 'cohort_create' => 'curriculum', 'cohort_edit' => 'curriculum',
+        // Classes & enrolment from the console (api/lib/cohort-admin.php): placing,
+        // moving and withdrawing a student is enrolment work; who teaches a cohort
+        // and whether it is open is curriculum work, like cohort_edit beside it.
+        'cohort_enrol' => 'enrollments', 'cohort_transfer' => 'enrollments', 'cohort_withdraw' => 'enrollments',
+        'cohort_enrolment_status' => 'enrollments', 'cohort_waitlist_remove' => 'enrollments',
+        'cohort_instructor_set' => 'curriculum', 'cohort_archive' => 'curriculum', 'cohort_reopen' => 'curriculum',
+        // Scheduling (console Timetable): the same capability that edits a class.
+        'sched_series' => 'curriculum', 'sched_session_add' => 'curriculum', 'sched_reschedule' => 'curriculum', 'sched_cancel' => 'curriculum',
+        'sched_meeting_backfill' => 'curriculum', 'sched_feed' => 'curriculum', 'sched_integrations_save' => 'settings', 'sched_kapso_test' => 'settings',
         'bridge_legacy_enrollments' => 'settings',
         'module_save' => 'curriculum', 'module_delete' => 'curriculum',
         // Lessons (api/lib/lessons.php): writing one, and publishing or retiring in bulk.
@@ -602,6 +673,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'acct_exception' => 'enrollments',
         'set_student_type' => 'users',
         'acct_resolve' => 'enrollments', 'fine_resolve' => 'enrollments', 'guardian_link' => 'enrollments', 'guardian_unlink' => 'enrollments',
+        'guardian_scope_set' => 'enrollments', // student management: change a guardian's access scope
         'resource_add' => 'media', 'resource_delete' => 'media', 'avatar_clear' => 'media',
         'datarights_erase' => 'users',
         'save_settings' => 'settings',
@@ -745,11 +817,38 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         catch (\Throwable $e) { header('Location: ?v=guardians&err=' . urlencode('Could not link this guardian.')); exit; }
         // A guardian account made just now is sent an invitation. It used to be
         // made with a password nobody was given, so the guardian could never sign in.
-        $gInv = !empty($gl['account_created']) ? mam_auth_send_invite((int) $gl['parent_id'], 'parent', 'guardian_invite') : null;
+        $gInv = !empty($gl['account_created']) ? !empty(mam_auth_send_invite((int) $gl['parent_id'], 'parent', 'guardian_invite')['sent']) : null;
+        /* Student management: the student profile states the access scope at
+           the moment of linking. mam_parent_scope_set() is the only writer and
+           refuses a scope it does not know; with none posted the link keeps
+           MAM_PARENT_SCOPE_DEFAULT, exactly as before. */
+        $gScope = (string) ($_POST['access_scope'] ?? '');
+        if ($gScope !== '' && !empty($gl['parent_id'])) {
+            try { mam_parent_scope_set((int) $gl['parent_id'], $sid, $gScope, $me ? (int) $me['id'] : null); }
+            catch (\Throwable $e) { header('Location: ?v=guardians&student=' . $sid . '&err=' . urlencode('Linked, but that access scope was refused — it was left at standard.')); exit; }
+        }
         header('Location: ?v=guardians&student=' . $sid . '&ok=' . urlencode(!empty($gl['account_created'])
             ? ($gInv ? 'Linked. The guardian was emailed an invitation to set a password.' : 'Linked, but the invitation could not be sent.')
             : 'Linked to their existing account.')); exit;
     }
+    /* ── Student management: change what a linked guardian may see ──
+       billing / standard / full. MAM_PARENT_NEVER is enforced by
+       mam_parent_scope_allows() before any scope is read, so no value set here
+       can open it; mam_parent_scope_set() refuses an unknown scope and a pair
+       that is not linked, and records who set it. */
+    if ($action === 'guardian_scope_set') {
+        $pid = (int)($_POST['parent_id'] ?? 0);
+        $sid = (int)($_POST['student_id'] ?? 0);
+        $me  = mam_current_user();
+        try {
+            mam_parent_scope_set($pid, $sid, (string)($_POST['access_scope'] ?? ''), $me ? (int)$me['id'] : null);
+            header('Location: ?v=guardians&student=' . $sid . '&ok=' . urlencode('Access scope changed.')); exit;
+        } catch (\Throwable $e) {
+            $why = ['bad_scope' => 'That is not an access scope.', 'not_linked' => 'That guardian is not linked to this student.'];
+            header('Location: ?v=guardians&student=' . $sid . '&err=' . urlencode($why[$e->getMessage()] ?? 'The scope was not changed.')); exit;
+        }
+    }
+    /* ── end student management ── */
     if ($action === 'guardian_unlink') {
         $pid = (int)($_POST['parent_id'] ?? 0);
         $sid = (int)($_POST['student_id'] ?? 0);
@@ -831,8 +930,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 
     if ($action === 'app_status') {
-        $id = (int)($_POST['id'] ?? 0);
-        $status = $_POST['status'] ?? '';
+        // The console's decision card posts `app`; older forms posted `id`.
+        $id = (int)($_POST['id'] ?? 0) ?: (int)($_POST['app'] ?? 0);
+        $status = (string)($_POST['status'] ?? '');
         // Preserve the detail-card context when the change came from it.
         $back = ((int)($_POST['app'] ?? 0)) ? '&app=' . (int)$_POST['app'] : '';
         if ($id && in_array($status, ['submitted', 'in_review', 'accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'], true)) {
@@ -875,8 +975,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 }
             }
             $flash = ['ok', 'Application updated.'];
+            $label = $status;
+            foreach (mam_console_status_vocabulary() as $v) { if ($v['stored'] === $status) { $label = $v['shown']; break; } }
+            header('Location: ?v=applications' . $back . '&ok=' . urlencode('Decision saved: ' . $label . '.'));
+            exit;
         }
-        header('Location: ?v=applications' . $back . '&ok=1');
+        // Never a bare "Saved." for a decision that did not happen.
+        header('Location: ?v=applications' . $back . '&err=' . urlencode($id ? 'Choose a status to move this application to.' : 'Application not found.'));
         exit;
     }
 
@@ -925,8 +1030,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $aid = (int)($_POST['app_id'] ?? 0);
         $uid = (int)($_POST['assignee_id'] ?? 0);
         try { mam_admissions_assign($aid, $uid ?: null, (int)($adminUser['id'] ?? 0) ?: null); }
-        catch (Throwable $e) { mam_log('warn', 'app_assign_failed', ['app_id' => $aid, 'err' => $e->getMessage()]); }
-        header('Location: ?v=applications&app=' . $aid . '&ok=1'); exit;
+        catch (Throwable $e) {
+            mam_log('warn', 'app_assign_failed', ['app_id' => $aid, 'err' => $e->getMessage()]);
+            // Student management: a failed assignment used to answer ok=1.
+            header('Location: ?v=applications&app=' . $aid . '&err=' . urlencode('The application was not assigned.')); exit;
+        }
+        header('Location: ?v=applications&app=' . $aid . '&ok=' . urlencode($uid ? 'Assigned.' : 'Unassigned.')); exit;
     }
 
     // Data-subject erasure (NDPA/GDPR). Super-only (gated above). Requires a
@@ -999,12 +1108,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             }
             mam_audit('create', 'user', $uid, ['role' => $role, 'email' => $email]);
             // An account isn't useful if nobody tells its owner it exists.
-            $mailed = (bool) mam_auth_send_invite($uid, $role, 'account_invite');
+            // Student management: `sent` is whether the email LEFT; a minted link
+            // that failed to send is not an invitation anybody received.
+            $mailed = !empty(mam_auth_send_invite($uid, $role, 'account_invite')['sent']);
             $flash = ['ok', 'User created · #' . $uid . ($mailed ? ' · an invitation to set a password was emailed'
                 : ' · ⚠ the invitation could not be sent — send one again from the member record')];
         }
         $_SESSION_FLASH = $flash;
-        header('Location: ?v=users' . ($flash[0] === 'ok' ? '&ok=1' : '&err=' . urlencode($flash[1])));
+        /* Student management: the success sentence is carried, not `ok=1`, so the
+           console reports whether the invitation was actually SENT — "created"
+           and "created, but nobody was told" are different outcomes. */
+        header('Location: ?v=users&' . ($flash[0] === 'ok' ? 'ok=' : 'err=') . urlencode($flash[1]));
         exit;
     }
 
@@ -1016,8 +1130,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $sent = $uid ? mam_auth_send_invite($uid, 'portal', 'admin_password_reset') : null;
         if ($sent) {
             mam_member_revoke_sessions($uid);
-            mam_audit('admin_reset_password', 'user', $uid, ['link' => true]);
-            header('Location: ?v=users&ok=' . urlencode('A link to set a new password was emailed. Their sessions have ended.'));
+            mam_audit('admin_reset_password', 'user', $uid, ['link' => true, 'sent' => !empty($sent['sent'])]);
+            /* Student management: report whether the email actually left
+               (mam_auth_send_invite()'s `sent`), not merely that a link exists. */
+            if (!empty($sent['sent'])) {
+                header('Location: ?v=users&ok=' . urlencode('A link to set a new password was emailed. Their sessions have ended.'));
+            } else {
+                header('Location: ?v=users&err=' . urlencode('A link was made but the email could not be sent — check Mail on System health. Their sessions have ended.'));
+            }
         } else {
             header('Location: ?v=users&err=' . urlencode('No link was sent: the account must be active and have an email address.'));
         }
@@ -1062,7 +1182,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($action === 'user_status' || $action === 'user_delete' || $action === 'member_status_set') {
         $uid = (int)($_POST['user_id'] ?? 0);
         $status = $action === 'user_delete' ? 'suspended' : (string)($_POST['status'] ?? '');
-        $r = mam_member_set_status($uid, $status, (string)($_POST['reason'] ?? ''), $adminUser ? (int)$adminUser['id'] : null);
+        /* Student management: from the members list (member_status_set) a staff
+           account is refused (staff_account) — staff are administered from
+           People & access, which posts user_status. The template hiding the
+           control is not the refusal; this is. */
+        $r = mam_member_set_status($uid, $status, (string)($_POST['reason'] ?? ''), $adminUser ? (int)$adminUser['id'] : null,
+            ['members_only' => $action === 'member_status_set']);
         $words = mam_member_verdict_words();
         $memberBack($uid, $r['result'] === 'refused' ? 'err' : 'ok', $words[$r['code']] ?? ('Not changed (' . $r['code'] . ').'));
     }
@@ -1593,10 +1718,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
         // Instructor assignment can accompany any status change — do it first so
         // subsequent lifecycle functions see the updated instructor.
-        if ($iid) mam_db_update('course_enrollments', ['instructor_id' => $iid], ['id' => $ceid]);
+        /* Classes & enrolment (console): an approval assigns its instructor
+           INSIDE mam_lms_approve(), after the safeguarding gate. Writing it here
+           first put an uncleared instructor on the enrolment before the gate
+           could refuse — and the refusal then escaped as a blank 500. */
+        if ($iid && $status !== 'active') mam_db_update('course_enrollments', ['instructor_id' => $iid], ['id' => $ceid]);
 
         if ($status === 'active') {
-            mam_lms_approve($ceid, $iid ?: null, $actorId);
+            try { mam_lms_approve($ceid, $iid ?: null, $actorId); }
+            catch (RuntimeException $e) {
+                if (strncmp($e->getMessage(), 'vetting_required', 16) !== 0) throw $e;
+                header('Location: ?v=courseenroll&err=' . urlencode('The safeguarding gate refused that instructor: ' . trim(substr($e->getMessage(), 17)))); exit;
+            }
         } elseif ($status === 'withdrawn') {
             // Route through the state machine so the transition is logged to
             // enrolment_events and illegal moves are rejected rather than silently
@@ -2164,6 +2297,199 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
         header('Location: ?v=courseenroll&ok=' . urlencode('Cohort #' . $cohortId . ' updated.')); exit;
     }
+
+    /* ─── Classes & enrolment from the console (api/lib/cohort-admin.php) ─────
+       The console's Enrol & staffing screen. Each handler is a thin call into
+       the lib, which owns the rules (capacity, the level-aware duplicate guard,
+       the safeguarding gate, the calendar's withdrawal outcome) and throws a
+       CODE that mam_cohort_error_words() turns into the sentence shown here.
+       Every write is audited inside the lib. */
+    if (in_array($action, ['cohort_enrol', 'cohort_transfer', 'cohort_withdraw', 'cohort_enrolment_status',
+                           'cohort_waitlist_remove', 'cohort_instructor_set', 'cohort_archive', 'cohort_reopen'], true)) {
+        $cohortId = (int)($_POST['cohort_id'] ?? 0);
+        $back = function (string $kind, string $msg) use (&$cohortId) {
+            header('Location: ?v=roster' . ($cohortId > 0 ? '&cohort=' . $cohortId : '') . '&' . $kind . '=' . urlencode($msg)); exit;
+        };
+        $actor = ((int)($adminUser['id'] ?? 0)) ?: null;
+        try {
+            if ($action === 'cohort_enrol') {
+                $sid = (int)($_POST['student_id'] ?? 0);
+                $r = mam_cohort_enrol($cohortId, $sid, $actor, true);
+                $name = (string)(mam_db_row('SELECT name FROM users WHERE id = ?', [$sid])['name'] ?? 'The student');
+                if ($r['status'] === 'waitlisted') $back('ok', $name . ' joined the waitlist at position ' . (int)$r['position'] . ' — the cohort is full.');
+                $msg = $name . ' is enrolled' . ($r['instructor'] ? ' with ' . $r['instructor'] . '.' : '.');
+                if ($r['instructor_withheld']) $msg .= ' No instructor was attached: the safeguarding gate refused (' . $r['instructor_withheld'] . ').';
+                elseif (!$r['instructor']) $msg .= ' The cohort has no instructor yet — assign one so somebody can open this roster.';
+                $back('ok', $msg);
+            }
+            if ($action === 'cohort_transfer') {
+                $r = mam_cohort_transfer((int)($_POST['enrollment_id'] ?? 0), (int)($_POST['to_cohort_id'] ?? 0),
+                                         $actor, (string)($_POST['reason'] ?? ''));
+                $cohortId = (int)($_POST['to_cohort_id'] ?? 0);
+                $msg = 'Moved to ' . $r['to_title'] . '. The old enrolment: ' . $r['line'] . '.';
+                if ($r['instructor_withheld']) $msg .= ' No instructor attached in the new cohort: the safeguarding gate refused.';
+                $back('ok', $msg);
+            }
+            if ($action === 'cohort_withdraw') {
+                $r = mam_cohort_withdraw((int)($_POST['enrollment_id'] ?? 0), $actor, (string)($_POST['reason'] ?? ''));
+                $back('ok', 'Withdrawn. ' . $r['line'] . '. The seat is free, and the next person waiting is offered it if automatic promotion is on.');
+            }
+            if ($action === 'cohort_enrolment_status') {
+                $r = mam_cohort_set_status((int)($_POST['enrollment_id'] ?? 0), (string)($_POST['to'] ?? ''), $actor);
+                $back('ok', 'Enrolment is now ' . $r['to'] . '.');
+            }
+            if ($action === 'cohort_waitlist_remove') {
+                $sid = (int)($_POST['student_id'] ?? 0);
+                mam_lms_waitlist_remove($cohortId, $sid);
+                mam_audit('console_waitlist_remove', 'cohort', $cohortId, ['student' => $sid]);
+                $back('ok', 'Removed from the waitlist; everybody behind moved up one.');
+            }
+            if ($action === 'cohort_instructor_set') {
+                $iid = (int)($_POST['instructor_id'] ?? 0);
+                $r = mam_cohort_set_instructor($cohortId, $iid > 0 ? $iid : null, $actor);
+                if (!$r['changed']) $back('ok', 'No change — that is already who teaches this cohort.');
+                $msg = $r['to'] ? 'Instructor saved; ' . (int)$r['moved'] . ' enrolment' . ((int)$r['moved'] === 1 ? '' : 's') . ' followed the cohort.'
+                                : 'Instructor removed. Nobody can open this roster until somebody is assigned.';
+                if ($r['warning'] !== '') $msg .= ' Recorded as a safeguarding gap: ' . $r['warning'];
+                $back('ok', $msg);
+            }
+            if ($action === 'cohort_archive') {
+                mam_cohort_archive($cohortId, $actor);
+                $back('ok', 'Cohort closed. It keeps its history and can be reopened.');
+            }
+            if ($action === 'cohort_reopen') {
+                mam_cohort_reopen($cohortId, $actor);
+                $back('ok', 'Cohort reopened.');
+            }
+        } catch (\Throwable $e) {
+            $back('err', mam_cohort_error_words($e));
+        }
+    }
+
+    /* ── Scheduling (console Teaching → Timetable & rooms) ─────────────────
+       Four writes, all through api/lib/scheduling.php, which builds on the
+       lms.php session primitives rather than beside them. Each is audited in
+       the lib. A clash refuses unless the operator chose otherwise; a
+       cancellation credits free make-ups and never touches money. */
+    if ($action === 'sched_series') {
+        $me = mam_admin_require_actor();
+        $cohortId = (int) ($_POST['cohort_id'] ?? 0);
+        try {
+            $r = mam_sched_create_series($cohortId, [
+                'days' => (array) ($_POST['days'] ?? []), 'time' => (string) ($_POST['time'] ?? ''),
+                'duration' => (int) ($_POST['duration'] ?? 0), 'room_id' => (int) ($_POST['room_id'] ?? 0),
+                'mode' => (string) ($_POST['mode'] ?? 'onsite'), 'from' => (string) ($_POST['from'] ?? ''), 'to' => (string) ($_POST['to'] ?? ''),
+            ], (int) $me['id'], (string) ($_POST['on_clash'] ?? 'refuse'));
+        } catch (\Throwable $e) {
+            if (!$e instanceof InvalidArgumentException) mam_log('error', 'sched_series_failed', ['cohort' => $cohortId, 'err' => $e->getMessage()]);
+            header('Location: ' . mam_admin_sched_back(['err' => mam_admin_sched_error($e)])); exit;
+        }
+        $c = $r['count'];
+        if ($r['refused']) {
+            header('Location: ' . mam_admin_sched_back(['err' => $c['clash'] . ' of the dates clash with another class, so nothing was created. Preview the series again and choose whether to create the rest.'])); exit;
+        }
+        $closures = [];
+        foreach ($r['slots'] as $s) if ($s['status'] === 'closed') $closures[(string) $s['closure']['label']] = true;
+        $msg = 'Created ' . count($r['created']) . ' session' . (count($r['created']) === 1 ? '' : 's') . ' for ' . $r['rule']['cohort_title'] . '.';
+        if ($c['closed'])  $msg .= ' Skipped ' . $c['closed'] . ' date' . ($c['closed'] === 1 ? '' : 's') . ' the academy is closed (' . implode(', ', array_keys($closures)) . ').';
+        if ($c['exists'])  $msg .= ' ' . $c['exists'] . ' already on the timetable, left as they were.';
+        if ($c['clash'])   $msg .= ' ' . $c['clash'] . ' clashing date' . ($c['clash'] === 1 ? ' was' : 's were') . ((($_POST['on_clash'] ?? '') === 'create') ? ' created anyway.' : ' left out.');
+        header('Location: ' . mam_admin_sched_back(['ok' => $msg])); exit;
+    }
+
+    if ($action === 'sched_session_add') {
+        $me = mam_admin_require_actor();
+        try {
+            $r = mam_sched_add_session((int) ($_POST['cohort_id'] ?? 0), [
+                'at' => (string) ($_POST['at'] ?? ''), 'duration' => (int) ($_POST['duration'] ?? 60),
+                'room_id' => (int) ($_POST['room_id'] ?? 0), 'mode' => (string) ($_POST['mode'] ?? 'onsite'),
+                'kind' => (string) ($_POST['kind'] ?? 'class'), 'title' => (string) ($_POST['title'] ?? ''),
+            ], (int) $me['id'], !empty($_POST['force']));
+        } catch (\Throwable $e) {
+            if (!$e instanceof InvalidArgumentException) mam_log('error', 'sched_add_failed', ['err' => $e->getMessage()]);
+            header('Location: ' . mam_admin_sched_back(['err' => mam_admin_sched_error($e)])); exit;
+        }
+        if (!$r['id']) {
+            header('Location: ' . mam_admin_sched_back(['err' => 'Not added: it clashes with ' . mam_admin_sched_clash_text($r['clashes']) . '. Tick "Add it anyway" to keep both.'])); exit;
+        }
+        header('Location: ' . mam_admin_sched_back(['s' => (string) $r['id'], 'ok' => 'Session added' . ($r['clashes'] ? ', despite the clash.' : '.')])); exit;
+    }
+
+    if ($action === 'sched_reschedule') {
+        $me = mam_admin_require_actor();
+        $sid = (int) ($_POST['session_id'] ?? 0);
+        try {
+            $r = mam_sched_reschedule($sid, (string) ($_POST['at'] ?? ''), (string) ($_POST['reason'] ?? ''), (int) $me['id'], !empty($_POST['force']));
+        } catch (\Throwable $e) {
+            if (!$e instanceof InvalidArgumentException) mam_log('error', 'sched_reschedule_failed', ['session' => $sid, 'err' => $e->getMessage()]);
+            header('Location: ' . mam_admin_sched_back(['s' => (string) $sid, 'err' => mam_admin_sched_error($e)])); exit;
+        }
+        if (!$r['moved']) {
+            header('Location: ' . mam_admin_sched_back(['s' => (string) $sid, 'err' => 'Not moved: the new time clashes with ' . mam_admin_sched_clash_text($r['clashes']) . '. Tick "Move it anyway" to keep both.'])); exit;
+        }
+        header('Location: ' . mam_admin_sched_back(['s' => (string) $sid, 'ok' => 'Session moved. ' . $r['told'] . ' ' . ($r['told'] === 1 ? 'person was' : 'people were') . ' told.'])); exit;
+    }
+
+    if ($action === 'sched_cancel') {
+        $me = mam_admin_require_actor();
+        $sid = (int) ($_POST['session_id'] ?? 0);
+        try {
+            $r = mam_sched_cancel($sid, (string) ($_POST['cause'] ?? ''), (string) ($_POST['reason'] ?? ''), (int) $me['id']);
+        } catch (\Throwable $e) {
+            if (!$e instanceof InvalidArgumentException) mam_log('error', 'sched_cancel_failed', ['session' => $sid, 'err' => $e->getMessage()]);
+            header('Location: ' . mam_admin_sched_back(['s' => (string) $sid, 'err' => mam_admin_sched_error($e)])); exit;
+        }
+        $msg = 'Session cancelled. ' . $r['credited'] . ' free make-up credit' . ($r['credited'] === 1 ? '' : 's') . ' granted; ' . $r['told'] . ' ' . ($r['told'] === 1 ? 'person' : 'people') . ' told.';
+        if ($r['failed']) $msg .= ' ' . $r['failed'] . ' credit' . ($r['failed'] === 1 ? '' : 's') . ' could not be granted — see the make-up screen.';
+        header('Location: ' . mam_admin_sched_back(['s' => (string) $sid, 'ok' => $msg])); exit;
+    }
+    if ($action === 'sched_meeting_backfill') {
+        $me = mam_admin_require_actor();
+        $r = mam_meeting_backfill();
+        mam_audit('sched_meeting_backfill', 'class_session', 0, $r + ['by' => (int) $me['id']]);
+        $by = []; foreach ($r['by'] as $p => $n) $by[] = $n . ' ' . $p;
+        header('Location: ' . mam_admin_sched_back(['ok' => $r['done'] ? 'Generated ' . $r['done'] . ' meeting link' . ($r['done'] === 1 ? '' : 's') . ' (' . implode(', ', $by) . ').' : 'Every upcoming online session already has a link.'])); exit;
+    }
+
+    if ($action === 'sched_feed') {
+        $me = mam_admin_require_actor();
+        $kind = (string) ($_POST['kind'] ?? ''); $id = (int) ($_POST['subject'] ?? 0);
+        if (!in_array($kind, ['room', 'cohort'], true) || $id <= 0) { header('Location: ' . mam_admin_sched_back(['err' => 'That calendar could not be issued.'])); exit; }
+        if (!empty($_POST['revoke'])) { mam_cal_feed_revoke($kind, $id, (int) $me['id']); $msg = 'Calendar link withdrawn. Anyone subscribed stops receiving updates.'; }
+        elseif (!empty($_POST['rotate'])) { mam_cal_feed_rotate($kind, $id, (int) $me['id']); $msg = 'New calendar link issued; the old one no longer works.'; }
+        else { mam_cal_feed_mint($kind, $id, (int) $me['id']); $msg = 'Calendar link ready — subscribe from the buttons below.'; }
+        header('Location: ' . mam_admin_sched_back(['ok' => $msg])); exit;
+    }
+
+    if ($action === 'sched_integrations_save') {
+        $me = mam_admin_require_actor();
+        $prov = (string) ($_POST['meeting_link_provider'] ?? 'auto');
+        mam_setting_set('meeting_link_provider', in_array($prov, MAM_MEETING_PROVIDERS, true) ? $prov : 'auto');
+        $pn = preg_replace('/\D+/', '', (string) ($_POST['kapso_phone_number_id'] ?? ''));
+        mam_setting_set('kapso_phone_number_id', $pn);
+        mam_setting_set('kapso_message_students', !empty($_POST['kapso_message_students']) ? '1' : '0');
+        // Secrets are write-only: a blank box keeps what is stored; nothing is ever echoed back.
+        $jaasApp = trim((string) ($_POST['jaas_app_id'] ?? ''));
+        if ($jaasApp !== '') mam_setting_set('jaas_app_id', mb_substr($jaasApp, 0, 200));
+        foreach (['kapso_api_key', 'kapso_webhook_secret', 'zoom_account_id', 'zoom_client_id', 'zoom_client_secret', 'jaas_kid'] as $k) {
+            $v = trim((string) ($_POST[$k] ?? ''));
+            if ($v !== '') mam_setting_set($k, mb_substr($v, 0, 500));
+        }
+        $pem = trim((string) ($_POST['jaas_private_key'] ?? ''));
+        if ($pem !== '') {
+            if (!str_contains($pem, 'PRIVATE KEY') || openssl_pkey_get_private($pem) === false) { header('Location: ' . mam_admin_sched_back(['err' => 'That JaaS private key could not be read. Paste the whole PEM, including the BEGIN and END lines.'])); exit; }
+            mam_setting_set('jaas_private_key', $pem);
+        }
+        mam_audit('sched_integrations_save', 'settings', 0, ['provider' => $prov, 'phone_number_id_set' => $pn !== '', 'by' => (int) $me['id']]);
+        header('Location: ' . mam_admin_sched_back(['ok' => 'Integration settings saved.'])); exit;
+    }
+
+    if ($action === 'sched_kapso_test') {
+        $me = mam_admin_require_actor();
+        $r = mam_kapso_send_test((string) ($_POST['number'] ?? ''), (int) $me['id']);
+        header('Location: ' . mam_admin_sched_back([$r['ok'] ? 'ok' : 'err' => $r['detail']])); exit;
+    }
+    /* ── end scheduling ── */
 
     if ($action === 'module_proposal_review') {
         $pid = (int)($_POST['proposal_id'] ?? 0);
@@ -2991,15 +3317,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $invNo = 'INV-MAM-' . date('y', strtotime((string)$app['created_at'])) . '-' . str_pad((string)$aid, 4, '0', STR_PAD_LEFT);
         // No .html attachment — the email body links to /api/invoice/{ref}
         // (renders properly in any browser, prints clean as PDF).
-        mam_send(
+        $sentCopy = mam_send(
             (string)$cust['email'],
             'MAM Academy — Application copy (' . $app['reference'] . ')',
             mam_email_application_confirmation($app, $cust, $tier, $invNo),
             'application_confirmation_resend',
             true
         );
-        mam_audit('resend_confirmation', 'application', $aid, ['to' => $cust['email']]);
-        header('Location: ?v=applications&ok=1'); exit;
+        mam_audit('resend_confirmation', 'application', $aid, ['to' => $cust['email'], 'sent' => $sentCopy]);
+        /* Student management: return to THIS application, and say whether the
+           mailer accepted the copy — an "ok" for a message that never left is
+           the silent failure the console exists to stop. */
+        header('Location: ?v=applications&app=' . $aid . '&' . ($sentCopy
+            ? 'ok=' . urlencode('A copy of the application was emailed to the applicant.')
+            : 'err=' . urlencode('The copy could not be sent — check Mail on System health.'))); exit;
     }
 
     if ($action === 'run_migrations') {

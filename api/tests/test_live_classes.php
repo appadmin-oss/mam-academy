@@ -25,7 +25,9 @@ t_eq(mam_live_role(mam_live_session($LV_sid), $LV_user($LV_kid1)), 'student', 'a
 t_eq(mam_live_role(mam_live_session($LV_sid), $LV_user($LV_t)), 'teacher', 'the cohort\'s teacher leads it');
 t_eq($LV_code(fn() => mam_live_join($LV_sid, $LV_user($LV_out))), 'not_yours', 'somebody from another class is refused');
 t_eq($LV_code(fn() => mam_live_join($LV_sid, $LV_user($LV_kid1), $LV_start - 3600)), 'not_open_yet', 'a student cannot get in an hour early');
-t_eq(mam_live_join($LV_sid, $LV_user($LV_t), $LV_start - 3600)['role'], 'teacher', 'a teacher can open the room early to set up');
+// With no JaaS keys there is NO room — never a public meet.jit.si one (2026-11-23):
+// the teacher passes every check and is told live classes are not set up.
+t_eq($LV_code(fn() => mam_live_join($LV_sid, $LV_user($LV_t), $LV_start - 3600)), 'live_not_set_up', 'with no JaaS keys a teacher gets a setup notice, not a public room');
 t_eq($LV_code(fn() => mam_live_join($LV_sid, $LV_user($LV_kid1), $LV_start + 3 * 3600)), 'over', 'nobody joins a class that has finished');
 
 t_group('live classes — the JaaS token');
@@ -37,6 +39,7 @@ mam_setting_set('jaas_app_id', 'vpaas-magic-cookie-test');
 mam_setting_set('jaas_kid', 'vpaas-magic-cookie-test/abc123');
 mam_setting_set('jaas_private_key', $LV_pem);
 mam_setting_set('meeting_default_provider', 'jaas');
+t_eq(mam_live_join($LV_sid, $LV_user($LV_t), $LV_start - 3600)['role'], 'teacher', 'a teacher can open the room early to set up');
 $LV_j = mam_live_join($LV_sid, $LV_user($LV_kid1), $LV_start);
 t_eq($LV_j['provider'], 'jaas', 'with JaaS set up, the class is embedded');
 [$LV_h, $LV_b, $LV_s] = explode('.', $LV_j['jwt']);

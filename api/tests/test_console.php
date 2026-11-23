@@ -259,6 +259,19 @@ foreach (mam_console_status_vocabulary() as $v) {
     t_ok(array_key_exists('action', $v), "'{$v['stored']}' says whether it needs an action");
 }
 
+/* Every stored value must be one the admissions state machine knows. The list
+   once named design-only values (under_review, offered, rejected), so every
+   decision saved from the console was silently dropped by the handler. */
+$CN_states = array_keys(mam_admissions_transitions());
+foreach (mam_console_status_vocabulary() as $v) {
+    t_ok(in_array($v['stored'], $CN_states, true), "'{$v['stored']}' is a status the state machine knows");
+}
+foreach ($CN_states as $st) {
+    t_ok(mam_console_status_label($st) !== '' && mam_console_status_label($st) !== $st, "'{$st}' has a phrase, not its stored value");
+}
+$CN_adm = (string) file_get_contents(dirname(__DIR__, 2) . '/admin/index.php');
+t_ok(strpos($CN_adm, "(int)(\$_POST['app'] ?? 0)") !== false, 'app_status reads the `app` field the console decision card posts');
+
 t_group('console — the return hook is bound to the real screen list');
 
 /* admin/index.php rewrites a console POST's redirect at shutdown. The hook must

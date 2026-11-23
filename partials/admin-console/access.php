@@ -6,6 +6,25 @@ declare(strict_types=1);
 <?php ac_head('People & access',
     'Money and the academic record are deliberately separate hands'); ?>
 
+<?php /* ── Student management: create an account (an invitation, never a password) ── */ ?>
+<?php if (!empty($d['can_users'])): ?>
+  <?php ac_card_open('Add a person', 'They are emailed a link to choose their own password'); ?>
+    <?php ac_form('user_create', 'access', [], 'class="ac-cardbody ac-row"'); ?>
+      <input class="ac-input ac-input--sm ac-grow" name="name" maxlength="120" required aria-label="Full name" placeholder="Full name">
+      <input class="ac-input ac-input--sm ac-grow" type="email" name="email" maxlength="190" required aria-label="Email" placeholder="Email">
+      <input class="ac-input ac-input--sm" name="phone" maxlength="40" aria-label="Phone (optional)" placeholder="Phone (optional)">
+      <select class="ac-select ac-input--sm" name="role" aria-label="Role" required>
+        <option value="instructor">Instructor</option>
+        <option value="admin">Admin</option>
+        <option value="student">Student</option>
+        <option value="parent">Guardian</option>
+      </select>
+      <button type="submit" class="ac-btn ac-btn--sm ac-btn--primary">Create and invite</button>
+    <?php ac_form_end(); ?>
+  <?php ac_card_close('No password is typed, generated or emailed. The confirmation says whether the invitation was actually sent; if it was not, use "Email a set-password link" on their row.'); ?>
+<?php endif; ?>
+<?php /* ── end student management ── */ ?>
+
 <?php ac_card_open('Staff and instructors', count($d['rows'] ?? []) . ''); ?>
   <div class="ac-tablewrap">
     <table class="ac-table">
@@ -40,7 +59,58 @@ declare(strict_types=1);
                 <?php endif; ?></td>
             <td class="ac-num">
               <div class="ac-row">
-                
+                <?php /* ── Student management: manage one person ──
+                   Each control posts to the existing handler, which re-checks the
+                   capability and the lockouts (own_account, last_super_admin, the
+                   role-change refusal). The break-glass row is never offered any. */ ?>
+                <?php if (!empty($d['can_users']) && (string) $r['status'] !== 'system'):
+                  $isMe = (int) $r['id'] === (int) ($d['me'] ?? 0); ?>
+                  <details class="ac-manage"><summary class="ac-btn ac-btn--sm">Manage</summary>
+                    <?php ac_form('user_edit', 'access', ['user_id' => (int) $r['id']], 'class="ac-grid ac-grid--2 ac-mt-sm"'); ?>
+                      <label><span class="ac-label">Name</span><input class="ac-input ac-input--sm" name="name" maxlength="120" required value="<?= ac_h((string) $r['name']) ?>"></label>
+                      <label><span class="ac-label">Email</span><input class="ac-input ac-input--sm" type="email" name="email" maxlength="190" required value="<?= ac_h((string) $r['email']) ?>"></label>
+                      <label><span class="ac-label">Phone</span><input class="ac-input ac-input--sm" name="phone" maxlength="40" value="<?= ac_h((string) ($r['phone'] ?? '')) ?>"></label>
+                      <label><span class="ac-label">Main role</span>
+                        <select class="ac-select ac-input--sm" name="role">
+                          <?php foreach (['instructor' => 'Instructor', 'admin' => 'Admin', 'student' => 'Student'] as $rk => $rl): ?>
+                            <option value="<?= $rk ?>"<?= (string) $r['role'] === $rk ? ' selected' : '' ?>><?= $rl ?></option>
+                          <?php endforeach; ?>
+                        </select></label>
+                      <fieldset class="ac-row"><legend class="ac-label">Also has portal access as</legend>
+                        <?php foreach (['student' => 'Student', 'instructor' => 'Instructor'] as $rk => $rl): ?>
+                          <label class="ac-row"><input type="checkbox" name="extra_roles[]" value="<?= $rk ?>"<?= in_array($rk, (array) ($r['extra_roles'] ?? []), true) ? ' checked' : '' ?>> <?= $rl ?></label>
+                        <?php endforeach; ?>
+                      </fieldset>
+                      <div class="ac-row"><button type="submit" class="ac-btn ac-btn--sm">Save details</button></div>
+                    <?php ac_form_end(); ?>
+                    <?php if ($isMe): ?>
+                      <p class="ac-note ac-mt-sm">This is you. Your own status and tier are not changed here — <a href="<?= ac_h(ac_url('account')) ?>">My account</a>.</p>
+                    <?php else: ?>
+                      <?php ac_form('user_status', 'access', ['user_id' => (int) $r['id']], 'class="ac-row ac-mt-sm"'); ?>
+                        <select class="ac-select ac-input--sm" name="status" aria-label="Status for <?= ac_h((string) $r['name']) ?>">
+                          <option value="active"<?= (string) $r['status'] === 'active' ? ' selected' : '' ?>>Active</option>
+                          <option value="suspended"<?= (string) $r['status'] === 'suspended' ? ' selected' : '' ?>>Suspended</option>
+                        </select>
+                        <input class="ac-input ac-input--sm ac-grow" name="reason" maxlength="500" aria-label="Reason" placeholder="Why — needed to suspend">
+                        <button type="submit" class="ac-btn ac-btn--sm">Set status</button>
+                      <?php ac_form_end(); ?>
+                      <?php if (!empty($d['can_tier']) && in_array('admin', $roles, true)): ?>
+                        <?php ac_form('set_admin_tier', 'access', ['user_id' => (int) $r['id']], 'class="ac-row ac-mt-sm"'); ?>
+                          <select class="ac-select ac-input--sm" name="tier" aria-label="Admin tier for <?= ac_h((string) $r['name']) ?>">
+                            <option value="manager"<?= (string) ($r['admin_tier'] ?? '') !== 'super' ? ' selected' : '' ?>>Manager — day-to-day work</option>
+                            <option value="super"<?= (string) ($r['admin_tier'] ?? '') === 'super' ? ' selected' : '' ?>>Super — money, settings, people</option>
+                          </select>
+                          <button type="submit" class="ac-btn ac-btn--sm">Set tier</button>
+                        <?php ac_form_end(); ?>
+                      <?php endif; ?>
+                    <?php endif; ?>
+                    <div class="ac-mt-sm">
+                      <?php ac_action_btn('user_reset', 'access', ['user_id' => (int) $r['id']], 'Email a set-password link',
+                          'ac-btn ac-btn--sm', 'Email a link to set a password? Their sessions end. No password is sent.'); ?>
+                    </div>
+                  </details>
+                <?php endif; ?>
+                <?php /* ── end student management ── */ ?>
                 <?php if ((int) ($r['sessions'] ?? 0) > 0): ?>
                   <?php ac_action_btn('member_signout', 'access', ['user_id' => (int) $r['id']],
                       'Sign out', 'ac-btn ac-btn--sm ac-btn--danger', 'Revoke every session this person holds?'); ?>

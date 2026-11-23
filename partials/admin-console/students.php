@@ -112,22 +112,50 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
   <?php ac_card_close('Shown, never merged: brothers and sisters share a parent\'s phone. Decide from the records.'); ?>
 <?php endif; ?>
 
-<?php if ($m): $u = $m['user']; ?>
+<?php if ($m): $u = $m['user']; $sid = (int) $u['id']; $back = ['_console_id' => $sid]; ?>
+  <?php /* ── Student management: the student profile (Students → a student) ──
+     One record, every action. Each form carries `_console_id` so whichever
+     handler runs, the operator lands back here with its verdict. Nothing on
+     this card computes a score: the band is the publishable one, the timetable
+     is read-only, and safeguarding is a count shown only to a viewer with that
+     capability (the provider decides; the template cannot widen it). */ ?>
   <?php ac_card_open((string) ($u['name'] ?: $u['email']), (string) ($u['enrollment_ref'] ?: 'No member number yet'),
-      '<a class="ac-btn ac-btn--sm" href="' . ac_h(ac_url('students', $filters)) . '">Close</a>'); ?>
+      '<a class="ac-btn ac-btn--sm ac-btn--primary" href="' . ac_h(ac_url('roster', ['student' => $sid])) . '">Enrol in a class</a>'
+      . '<a class="ac-btn ac-btn--sm" href="' . ac_h(ac_url('students', $filters)) . '">Close</a>'); ?>
     <div class="ac-cardbody ac-memgrid">
      <div>
-      <div class="ac-defs">
+      <div class="ac-row">
+        <?= ac_avatar((string) ($u['name'] ?: $u['email']), (string) ($u['avatar_url'] ?? '')) ?>
+        <div class="ac-grow">
+          <div class="ac-strong"><?= ac_h((string) $u['name']) ?></div>
+          <div class="ac-sub"><?= ac_h((string) ($u['enrollment_ref'] ?: 'No member number yet')) ?><?= empty($u['avatar_url']) ? ' · no photo' : '' ?></div>
+        </div>
+        <?php if (($m['concerns'] ?? null) !== null && (int) $m['concerns'] > 0): ?>
+          <a class="ac-pill ac-pill--bad" href="<?= ac_h(ac_url('safeguarding')) ?>"><?= (int) $m['concerns'] ?> open safeguarding concern<?= (int) $m['concerns'] === 1 ? '' : 's' ?></a>
+        <?php endif; ?>
+      </div>
+      <div class="ac-defs ac-mt">
         <?php ac_def('Email', ac_h((string) $u['email'])); ?>
+        <?php ac_def('Phone', ($u['phone'] ?? '') !== '' && $u['phone'] !== null ? ac_h((string) $u['phone']) : '<span class="ac-sub">None given</span>'); ?>
         <?php ac_def('Status', ac_status((string) $u['status'])); ?>
         <?php ac_def('Fee type', ($u['student_type'] ?? '') === 'scholarship' ? ac_pill('Scholarship', 'accent') : 'Fee-paying'); ?>
         <?php ac_def('Signed in', $u['last_login'] ? ac_h(mam_console_age((string) $u['last_login'])) . ' ago' : 'Never'); ?>
-        <?php ac_def('Guardians', $m['guardians'] ? ac_h(implode(', ', array_map(fn($g) => $g['name'] . ' (' . $g['access_scope'] . ')', $m['guardians']))) : 'None linked'); ?>
       </div>
+
       <?php if ($m['is_staff']): ?>
-        <p class="ac-note ac-mt">This person is also staff. Their status is changed from People &amp; access, not from the members list.</p>
+        <p class="ac-note ac-mt">This person is also staff. Their details, status and sign-in are changed from
+          <a href="<?= ac_h(ac_url('access')) ?>">People &amp; access</a>, not from the members list.</p>
       <?php else: ?>
-        <?php ac_form('member_status_set', 'students', ['user_id' => (int) $u['id']], 'class="ac-row ac-mt"'); ?>
+        <details class="ac-mt"><summary class="ac-btn ac-btn--sm">Edit details</summary>
+          <?php ac_form('user_edit', 'students', ['user_id' => $sid, 'role' => 'student'] + $back, 'class="ac-grid ac-grid--2 ac-mt-sm"'); ?>
+            <label><span class="ac-label">Name</span><input class="ac-input" name="name" maxlength="120" required value="<?= ac_h((string) $u['name']) ?>"></label>
+            <label><span class="ac-label">Email</span><input class="ac-input" type="email" name="email" maxlength="190" required value="<?= ac_h((string) $u['email']) ?>"></label>
+            <label><span class="ac-label">Phone</span><input class="ac-input" name="phone" maxlength="40" value="<?= ac_h((string) ($u['phone'] ?? '')) ?>"></label>
+            <div class="ac-row"><button type="submit" class="ac-btn ac-btn--sm">Save details</button></div>
+          <?php ac_form_end(); ?>
+        </details>
+
+        <?php ac_form('member_status_set', 'students', ['user_id' => $sid] + $back, 'class="ac-row ac-mt"'); ?>
           <select class="ac-select ac-input--sm" name="status" aria-label="Status">
             <option value="active"<?= $u['status'] === 'active' ? ' selected' : '' ?>>Active</option>
             <option value="suspended"<?= $u['status'] === 'suspended' ? ' selected' : '' ?>>Suspended</option>
@@ -138,16 +166,60 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
         <?php ac_form_end(); ?>
       <?php endif; ?>
       <div class="ac-row ac-mt">
+        <?php if (!$m['is_staff']): ?>
+          <?php ac_action_btn('user_reset', 'students', ['user_id' => $sid] + $back, 'Email a link to set a password',
+              'ac-btn ac-btn--sm', 'Email this student a link to set a password? Their current sessions end. No password is sent.'); ?>
+        <?php endif; ?>
         <?php if ((int) $m['sessions'] > 0): ?>
-          <?php ac_action_btn('member_signout', 'students', ['user_id' => (int) $u['id']], 'Sign out everywhere (' . (int) $m['sessions'] . ')',
+          <?php ac_action_btn('member_signout', 'students', ['user_id' => $sid] + $back, 'Sign out everywhere (' . (int) $m['sessions'] . ')',
               'ac-btn ac-btn--sm ac-btn--danger', 'End every session this person holds?'); ?>
         <?php endif; ?>
-        
-        
       </div>
 
+      <h3 class="ac-label ac-mt" id="guardians">Guardians</h3>
+      <?php if ($m['guardians']): ?>
+        <div class="ac-defs">
+          <?php foreach ($m['guardians'] as $g): ?>
+            <div class="ac-def">
+              <div><?= ac_h((string) ($g['name'] ?: $g['email'])) ?><div class="ac-sub"><?= ac_h((string) $g['email']) ?></div></div>
+              <div class="ac-row">
+                <?php ac_form('guardian_scope_set', 'students', ['parent_id' => (int) $g['id'], 'student_id' => $sid] + $back, 'class="ac-row"'); ?>
+                  <select class="ac-select ac-input--sm" name="access_scope" aria-label="What <?= ac_h((string) $g['name']) ?> may see">
+                    <?php foreach ($m['scopes'] as $sc): ?>
+                      <option value="<?= ac_h($sc) ?>"<?= (string) $g['access_scope'] === $sc ? ' selected' : '' ?>><?= ac_h(ucfirst($sc)) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                  <button type="submit" class="ac-btn ac-btn--sm">Set</button>
+                <?php ac_form_end(); ?>
+                <?php ac_action_btn('guardian_unlink', 'students', ['parent_id' => (int) $g['id'], 'student_id' => $sid] + $back, 'Unlink',
+                    'ac-btn ac-btn--sm ac-btn--danger', 'Unlink this guardian? Their account stays; they stop seeing this student.'); ?>
+              </div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      <?php else: ?>
+        <p class="ac-note">No guardian linked.</p>
+      <?php endif; ?>
+      <?php ac_form('guardian_link', 'students', ['student_id' => $sid] + $back, 'class="ac-row ac-mt-sm"'); ?>
+        <input class="ac-input ac-input--sm ac-grow" type="email" name="parent_email" maxlength="190" required aria-label="Guardian email" placeholder="Guardian's email">
+        <select class="ac-select ac-input--sm" name="relationship" aria-label="Relationship">
+          <?php foreach (['guardian' => 'Guardian', 'mother' => 'Mother', 'father' => 'Father', 'other' => 'Other'] as $k => $label): ?>
+            <option value="<?= $k ?>"><?= $label ?></option>
+          <?php endforeach; ?>
+        </select>
+        <select class="ac-select ac-input--sm" name="access_scope" aria-label="What they may see">
+          <?php foreach ($m['scopes'] as $sc): ?>
+            <option value="<?= ac_h($sc) ?>"<?= $sc === 'standard' ? ' selected' : '' ?>><?= ac_h(ucfirst($sc)) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <button type="submit" class="ac-btn ac-btn--sm">Link guardian</button>
+      <?php ac_form_end(); ?>
+      <p class="ac-sub ac-mt-xs"><strong>Billing</strong>: invoices and receipts. <strong>Standard</strong>: adds reports, attendance, timetable.
+        <strong>Full</strong>: adds consents. Practice logs, recordings and a student's own messages are never shown to a guardian, at any scope.
+        A new guardian is emailed an invitation to set their own password.</p>
+
       <h3 class="ac-label ac-mt">Notes</h3>
-      <?php ac_form('member_note_add', 'students', ['user_id' => (int) $u['id']], 'class="ac-row"'); ?>
+      <?php ac_form('member_note_add', 'students', ['user_id' => $sid] + $back, 'class="ac-row"'); ?>
         <input class="ac-input ac-input--sm ac-grow" name="body" maxlength="2000" required aria-label="New note" placeholder="Something staff should know">
         <button type="submit" class="ac-btn ac-btn--sm">Add note</button>
       <?php ac_form_end(); ?>
@@ -170,8 +242,78 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
       <?php endif; ?>
      </div>
      <div>
+      <h3 class="ac-label">Learning</h3>
+      <?php if (!$m['courses'] && !$m['classes']): ?>
+        <p class="ac-note">Not enrolled in anything yet. <a href="<?= ac_h(ac_url('roster', ['student' => $sid])) ?>">Enrol in a class</a>.</p>
+      <?php else: ?>
+        <div class="ac-defs">
+          <?php foreach ($m['courses'] as $c): ?>
+            <?php ac_def(trim((string) $c['course'] . ' ' . (string) ($c['level'] ?? '')),
+                ac_status((string) $c['status'])
+                . ' <span class="ac-sub">' . ac_h(ac_join(array_filter([
+                    $c['cohort'] ? (string) $c['cohort'] : 'no class yet',
+                    trim((string) ($c['schedule_days'] ?? '') . ' ' . (string) ($c['schedule_time'] ?? '')),
+                    $c['instructor'] ? (string) $c['instructor'] : 'no teacher yet']))) . '</span>'); ?>
+          <?php endforeach; ?>
+          <?php foreach ($m['classes'] as $c): ?>
+            <?php ac_def((string) $c['title'] . ' · legacy class',
+                ac_status((string) $c['status'])
+                . ' <span class="ac-sub">' . ac_h(ac_join(array_filter([(string) ($c['schedule'] ?? ''), (string) ($c['instructor'] ?? '')]))) . '</span>'); ?>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+
+      <h3 class="ac-label ac-mt">This week · from <?= ac_h((string) $m['week_from']) ?></h3>
+      <?php if (!$m['week']): ?>
+        <p class="ac-note">No sessions scheduled this week.</p>
+      <?php else: ?>
+        <div class="ac-defs">
+          <?php foreach ($m['week'] as $w): ?>
+            <?php ac_def(date('D j M, H:i', strtotime((string) $w['scheduled_at'])),
+                ac_h((string) ($w['title'] ?: $w['cohort'])) . ' <span class="ac-sub">' . ac_h(ac_join(array_filter([(string) $w['cohort'], (string) ($w['room'] ?? ''), (int) $w['duration_min'] . ' min']))) . '</span>'
+                . ((string) $w['status'] === 'cancelled' ? ' ' . ac_status('cancelled') : '')
+                . ($w['attended'] ? ' ' . ac_status((string) $w['attended']) : '')); ?>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+
+      <h3 class="ac-label ac-mt">Attendance</h3>
+      <?php $at = $m['attendance']; ?>
+      <?php if ((int) $at['total'] === 0): ?>
+        <p class="ac-note">No attendance recorded yet.</p>
+      <?php else: ?>
+        <div class="ac-defs">
+          <?php ac_def('Came', (int) $at['pct'] . '% of ' . (int) $at['total'] . ' marked'); ?>
+          <?php ac_def('Breakdown', (int) $at['present'] . ' present · ' . (int) $at['late'] . ' late · ' . (int) $at['absent'] . ' absent · ' . (int) $at['excused'] . ' excused'
+              . ((int) $at['legacy'] > 0 ? ' <span class="ac-sub">+ ' . (int) $at['legacy'] . ' from legacy classes</span>' : '')); ?>
+        </div>
+      <?php endif; ?>
+
+      <h3 class="ac-label ac-mt">Mastery</h3>
+      <?php $ms = $m['mastery']; ?>
+      <?php if (is_array($ms) && is_array($ms['band'])): ?>
+        <p><?= ac_pill((int) ($ms['band'][0] ?? 0) . '–' . (int) ($ms['band'][1] ?? 0)) ?> <span class="ac-sub">a band, never a single figure</span></p>
+      <?php else: ?>
+        <p class="ac-note"><?= is_array($ms) && ($ms['withheld_reason'] ?? '') === 'below_coverage_floor' ? 'Not enough assessed yet to state a band.' : 'Not assessed yet — a different statement from a low score.' ?></p>
+      <?php endif; ?>
+
+      <h3 class="ac-label ac-mt">Fees</h3>
+      <?php if (!$m['invoices']): ?>
+        <p class="ac-note">No invoices.</p>
+      <?php else: ?>
+        <div class="ac-defs">
+          <?php foreach ($m['invoices'] as $iv): ?>
+            <?php ac_def((string) ($iv['term_label'] ?: $iv['public_ref']),
+                '<a href="' . ac_h(ac_url('invoices', ['id' => (int) $iv['id']])) . '">' . ac_h((string) $iv['public_ref']) . '</a> '
+                . ac_status((string) $iv['status'])
+                . ' <span class="ac-sub">' . ac_h((string) $iv['currency']) . ' ' . number_format(((int) $iv['total_minor'] - (int) $iv['paid_minor']) / 100, 2) . ' to pay'
+                . ($iv['due_on'] ? ' · due ' . ac_h((string) $iv['due_on']) : '') . '</span>'); ?>
+          <?php endforeach; ?>
+        </div>
+      <?php endif; ?>
+
       <?php if (!empty($m['onboarding'])): $ob = $m['onboarding']; ?>
-        <h3 class="ac-label">Onboarding · <?= (int) $ob['done'] ?> of <?= (int) $ob['total'] ?></h3>
+        <h3 class="ac-label ac-mt">Onboarding · <?= (int) $ob['done'] ?> of <?= (int) $ob['total'] ?></h3>
         <div class="ac-defs">
           <?php foreach ($ob['items'] as $it): ?>
             <?php ac_def((string) $it['label'], ($it['done'] ? ac_status('recorded', 'Done') : ac_pill('To do', 'warn')) . ($it['hint'] ? ' <span class="ac-sub">' . ac_h((string) $it['hint']) . '</span>' : '')); ?>
@@ -180,7 +322,8 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
       <?php endif; ?>
      </div>
     </div>
-  <?php ac_card_close('Notes and status history are kept; nothing here is edited after the fact.'); ?>
+  <?php ac_card_close('Notes and status history are kept; nothing here is edited after the fact. The timetable is read-only here — sessions are scheduled from Timetable.'); ?>
+  <?php /* ── end student management ── */ ?>
 <?php endif; ?>
 
 <?php ac_form('member_bulk', 'students', $filters); ?>
@@ -192,7 +335,7 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
     </select>
     <input class="ac-input ac-input--sm ac-grow" name="reason" maxlength="500" aria-label="Reason for the bulk action"
            placeholder="Reason — needed to suspend, kept on each record">
-    <button type="submit" class="ac-btn ac-btn--sm">To the ticked members</button>
+    <button type="submit" class="ac-btn ac-btn--sm" data-ac-needs-tick="ids[]">To the ticked members</button>
     <?php if ((int) ($d['total'] ?? 0) > 0): ?>
       <button type="submit" class="ac-btn ac-btn--sm" name="all_matching" value="1"
               <?= (int) $d['total'] > (int) $d['bulk_max'] ? 'disabled' : '' ?>>To all <?= (int) $d['total'] ?> matching</button>
@@ -230,6 +373,9 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
             </td>
             <td class="ac-num">
               <?= (int) $r['courses'] ?> course<?= (int) $r['courses'] === 1 ? '' : 's' ?>
+              <?php if ((int) ($r['courses_pending'] ?? 0) > 0): /* Enrol & staffing counts these as enrolled-awaiting-approval; saying 0 here contradicted it */ ?>
+                <div class="ac-sub"><?= (int) $r['courses_pending'] ?> awaiting approval</div>
+              <?php endif; ?>
               <?php if ((int) $r['classes'] > 0): ?>
                 <div class="ac-sub"><?= (int) $r['classes'] ?> legacy class<?= (int) $r['classes'] === 1 ? '' : 'es' ?></div>
               <?php endif; ?>

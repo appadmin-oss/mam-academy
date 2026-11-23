@@ -3973,3 +3973,33 @@ CREATE TABLE IF NOT EXISTS payment_events (
   CONSTRAINT fk_payev_payment FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (106) ON DUPLICATE KEY UPDATE version = version;
+
+-- v107 — scheduling integrations (meeting-links.php, kapso.php). See db.php v107.
+ALTER TABLE class_sessions ADD COLUMN meeting_external_id VARCHAR(255) NULL;
+CREATE TABLE IF NOT EXISTS whatsapp_outbound (
+  id                  INT AUTO_INCREMENT PRIMARY KEY,
+  idem_key            VARCHAR(191) NOT NULL,
+  user_id             INT NULL,
+  session_id          INT NULL,
+  to_number           VARCHAR(20) NOT NULL,
+  kind                VARCHAR(10) NOT NULL DEFAULT 'template',
+  template            VARCHAR(120) NULL,
+  params              TEXT NULL,
+  status              VARCHAR(12) NOT NULL DEFAULT 'queued',
+  provider_message_id VARCHAR(191) NULL,
+  error               VARCHAR(500) NULL,
+  created_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at          DATETIME NULL,
+  UNIQUE KEY uq_waout_idem (idem_key),
+  KEY idx_waout_msg (provider_message_id),
+  KEY idx_waout_session (session_id),
+  CONSTRAINT chk_waout_kind CHECK (kind IN ('template','text')),
+  CONSTRAINT chk_waout_status CHECK (status IN ('queued','sent','delivered','read','failed')),
+  CONSTRAINT fk_waout_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_waout_session FOREIGN KEY (session_id) REFERENCES class_sessions(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS whatsapp_inbound (
+  wa_number       VARCHAR(20) NOT NULL PRIMARY KEY,
+  last_inbound_at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (107) ON DUPLICATE KEY UPDATE version = version;

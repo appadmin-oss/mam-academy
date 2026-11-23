@@ -31,7 +31,7 @@ $type   = (string) ($d['type'] ?? '');
   <form method="get" class="ac-row ac-push">
     <input type="hidden" name="v" value="admissions">
     <?php if ($stage !== ''): ?><input type="hidden" name="stage" value="<?= ac_h($stage) ?>"><?php endif; ?>
-    <input class="ac-input ac-input--sm ac-searchbox" type="search" name="q"
+    <input class="ac-input ac-input--sm ac-searchbox" type="search" name="q" aria-label="Search applications by name or reference"
            value="<?= ac_h($d['q'] ?? '') ?>" placeholder="Name or reference…">
     <button type="submit" class="ac-btn ac-btn--sm">Find</button>
   </form>
@@ -135,13 +135,23 @@ $type   = (string) ($d['type'] ?? '');
             <div class="ac-grid">
               <label class="ac-field">
                 <span class="ac-label">Move to</span>
-                <select class="ac-select" name="status">
-                  <?php foreach (mam_console_status_vocabulary() as $v): ?>
-                    <option value="<?= ac_h($v['stored']) ?>" <?= (string) $detail['status'] === $v['stored'] ? 'selected' : '' ?>>
-                      <?= ac_h($v['shown']) ?> · <?= ac_h($v['stored']) ?>
-                    </option>
+                <?php
+                  // Offer only the moves the state machine allows from here, so a
+                  // choice that would be refused is never on the list. `expired`
+                  // is the sweep's to set, not a person's.
+                  $cur = (string) $detail['status'];
+                  $legal = array_diff(mam_admissions_transitions()[$cur] ?? [], ['expired']);
+                ?>
+                <?php if (!$legal): ?>
+                  <span class="ac-sub">Final — <?= ac_h(mam_console_status_label($cur)) ?>. Nothing further to decide.</span>
+                <?php else: ?>
+                <select class="ac-select" name="status" required>
+                  <option value="">Choose the next step…</option>
+                  <?php foreach (mam_console_status_vocabulary() as $v): if (!in_array($v['stored'], $legal, true)) continue; ?>
+                    <option value="<?= ac_h($v['stored']) ?>"><?= ac_h($v['shown']) ?></option>
                   <?php endforeach; ?>
                 </select>
+                <?php endif; ?>
               </label>
               <label class="ac-field">
                 <span class="ac-label">Reason the family can read</span>
@@ -151,27 +161,91 @@ $type   = (string) ($d['type'] ?? '');
             </div>
             <div class="ac-row ac-mt">
               <button type="submit" class="ac-btn ac-btn--primary">Save the decision</button>
-              <span class="ac-hint">The state machine refuses an illegal move and logs the attempt.</span>
+              <span class="ac-hint">Now: <?= ac_h(mam_console_status_label((string) $detail['status'])) ?>. Only the moves allowed from this stage are listed.</span>
             </div>
           <?php ac_form_end(); ?>
         </div>
       <?php ac_card_close(); ?>
 
+      <?php /* ── Student management: owner, Auditer placement, confirmation copy ──
+         Three forms on the existing handlers (app_assign, record_placement,
+         resend_confirmation). Each re-checks; these only offer the choices. */ ?>
+      <?php ac_card_open('Owner and follow-up', $detail['assignee'] ? 'With ' . (string) $detail['assignee'] : 'Nobody owns this yet'); ?>
+        <div class="ac-cardbody">
+          <?php ac_form('app_assign', 'admissions', ['app_id' => (int) $detail['id']], 'class="ac-row"'); ?>
+            <select class="ac-select ac-input--sm ac-grow" name="assignee_id" aria-label="Assign this application to">
+              <option value="0">Nobody</option>
+              <?php foreach ($detail['staff'] ?? [] as $st): ?>
+                <option value="<?= (int) $st['id'] ?>"<?= (int) ($detail['assignee_id'] ?? 0) === (int) $st['id'] ? ' selected' : '' ?>><?= ac_h((string) $st['name']) ?> · <?= ac_h((string) $st['role']) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <button type="submit" class="ac-btn ac-btn--sm">Assign</button>
+          <?php ac_form_end(); ?>
+
+          <h3 class="ac-label ac-mt">Record an Auditer placement</h3>
+          <?php if (!empty($detail['auditer'])): ?>
+            <p class="ac-sub">Last placement on file: <?= ac_h((string) ($detail['auditer']['recommended_pathway'] ?? '')) ?>
+              · <?= ac_h(mam_console_date((string) $detail['auditer']['audited_at'], 'j M Y')) ?></p>
+          <?php endif; ?>
+          <?php ac_form('record_placement', 'admissions', ['app_id' => (int) $detail['id']], 'class="ac-grid ac-grid--2"'); ?>
+            <label class="ac-field"><span class="ac-label">Course</span>
+              <select class="ac-select" name="course_code" required>
+                <option value="">Choose…</option>
+                <?php foreach ($detail['courses'] ?? [] as $c): ?><option value="<?= ac_h((string) $c['code']) ?>"><?= ac_h((string) $c['name']) ?></option><?php endforeach; ?>
+              </select></label>
+            <label class="ac-field"><span class="ac-label">Level</span>
+              <select class="ac-select" name="level_code" required>
+                <option value="">Choose…</option>
+                <?php foreach ($detail['levels'] ?? [] as $l): ?><option value="<?= ac_h((string) $l['code']) ?>"><?= ac_h((string) $l['name']) ?></option><?php endforeach; ?>
+              </select></label>
+            <label class="ac-field"><span class="ac-label">Notes</span>
+              <input class="ac-input" name="notes" maxlength="1000" placeholder="What the audition showed"></label>
+            <div class="ac-row"><button type="submit" class="ac-btn ac-btn--sm">Record placement</button></div>
+          <?php ac_form_end(); ?>
+
+          <div class="ac-row ac-mt">
+            <?php ac_action_btn('resend_confirmation', 'admissions', ['app_id' => (int) $detail['id']], 'Email the applicant a copy of their application',
+                'ac-btn ac-btn--sm', 'Email the applicant a copy of their application?'); ?>
+          </div>
+        </div>
+      <?php ac_card_close('With the Auditer automation on, recording a placement also opens the student account and enrols them at that level; with it off, the placement is recorded and nothing else happens. The confirmation says which.'); ?>
+      <?php /* ── end student management ── */ ?>
+
       <?php ac_card_open('Complete the enrolment'); ?>
         <div class="ac-cardbody">
           <?php ac_form('enrol_complete', 'admissions', ['app_id' => (int) $detail['id']]); ?>
+            <?php
+              $rz = $detail['resolved'] ?? null;
+              $pick = static fn($k) => (string) ($rz[$k]['code'] ?? '');
+              $pickInstr = (int) ($rz['instructor']['id'] ?? 0);
+            ?>
+            <?php foreach ($rz['blockers'] ?? [] as $bk): ?>
+              <p class="ac-sub">⚠ <?= ac_h(is_array($bk) ? (string) ($bk['why'] ?? '') : (string) $bk) ?></p>
+            <?php endforeach; ?>
             <div class="ac-grid ac-grid--2">
-              <label class="ac-field"><span class="ac-label">Course code</span>
-                <input class="ac-input" name="course" placeholder="e.g. CF-202" required></label>
-              <label class="ac-field"><span class="ac-label">Level code</span>
-                <input class="ac-input" name="level" placeholder="e.g. L2"></label>
-              <label class="ac-field"><span class="ac-label">Programme code</span>
-                <input class="ac-input" name="programme" value="<?= ac_h((string) ($detail['program'] ?? '')) ?>"></label>
+              <label class="ac-field"><span class="ac-label">Course</span>
+                <select class="ac-select" name="course" required>
+                  <option value="">Choose…</option>
+                  <?php foreach ($detail['courses'] ?? [] as $c): ?><option value="<?= ac_h((string) $c['code']) ?>"<?= $pick('course') === (string) $c['code'] ? ' selected' : '' ?>><?= ac_h((string) $c['name']) ?></option><?php endforeach; ?>
+                </select></label>
+              <label class="ac-field"><span class="ac-label">Level</span>
+                <select class="ac-select" name="level">
+                  <option value="">No level yet</option>
+                  <?php foreach ($detail['levels'] ?? [] as $l): ?><option value="<?= ac_h((string) $l['code']) ?>"<?= $pick('level') === (string) $l['code'] ? ' selected' : '' ?>><?= ac_h((string) $l['name']) ?></option><?php endforeach; ?>
+                </select></label>
+              <label class="ac-field"><span class="ac-label">Programme</span>
+                <select class="ac-select" name="programme">
+                  <?php foreach ($detail['programmes'] ?? [] as $pg): ?><option value="<?= ac_h((string) $pg['code']) ?>"<?= $pick('programme') === (string) $pg['code'] ? ' selected' : '' ?>><?= ac_h((string) $pg['name']) ?></option><?php endforeach; ?>
+                </select></label>
               <label class="ac-field"><span class="ac-label">Instructor</span>
-                <input class="ac-input" name="instructor" placeholder="user id or email"></label>
+                <select class="ac-select" name="instructor">
+                  <option value="">The class's usual teacher</option>
+                  <?php foreach ($detail['staff'] ?? [] as $st): if (($st['role'] ?? '') !== 'instructor') continue; ?><option value="<?= (int) $st['id'] ?>"<?= $pickInstr === (int) $st['id'] ? ' selected' : '' ?>><?= ac_h((string) $st['name']) ?></option><?php endforeach; ?>
+                </select></label>
             </div>
+            <p class="ac-hint">Filled in from the application. Change anything that is wrong, then confirm.</p>
             <div class="ac-row ac-mt">
-              <button type="submit" class="ac-btn">Account → course → cohort → instructor</button>
+              <button type="submit" class="ac-btn ac-btn--primary">Enrol this student</button>
             </div>
           <?php ac_form_end(); ?>
         </div>

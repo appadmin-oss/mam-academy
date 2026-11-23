@@ -137,13 +137,19 @@
      somebody looks for Price books when they cannot remember what it is
      called. */
   function destinationMatches(q) {
-    var needle = q.toLowerCase();
-    return (CFG.destinations || []).filter(function (d) {
-      if (!needle) return true;
-      return d.label.toLowerCase().indexOf(needle) >= 0
-        || d.key.indexOf(needle) === 0
-        || (d.area || '').toLowerCase().indexOf(needle) >= 0;
-    }).slice(0, 6);
+    var needle = q.toLowerCase().trim();
+    var terms = needle.split(/\s+/).filter(Boolean);
+    return (CFG.destinations || []).map(function (d) {
+      if (!needle) return { d: d, s: 0 };
+      var name = d.label.toLowerCase(), area = (d.area || '').toLowerCase(), words = ' ' + (d.words || '').toLowerCase();
+      var s = name.indexOf(needle) >= 0 || d.key.indexOf(needle) === 0 ? 3 : area.indexOf(needle) >= 0 ? 2 : 0;
+      /* Task words: every typed word must start a word in the section's list
+         ("record pay" finds Invoices & payments, "refund" finds it too). */
+      if (!s && terms.every(function (t) { return words.indexOf(' ' + t) >= 0 || name.indexOf(t) >= 0; })) s = 1;
+      return { d: d, s: s };
+    }).filter(function (x) { return !needle || x.s > 0; })
+      .sort(function (a, b) { return b.s - a.s; })
+      .map(function (x) { return x.d; }).slice(0, 6);
   }
 
   function render(results, q) {
@@ -316,6 +322,21 @@
      only: without it rows are ticked one by one, and "all N matching" is a
      server-side button that never needed a tick at all. The header box goes
      half-ticked when some rows are, which has to be set as a property. */
+  /* A "to the ticked rows" button stays disabled until a row is ticked, and
+     says how many it will act on, rather than failing after the click. */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-ac-needs-tick]'), function (btn) {
+    var form = btn.form; if (!form) return;
+    var name = btn.getAttribute('data-ac-needs-tick'), base = btn.textContent;
+    function upd() {
+      var n = Array.prototype.filter.call(form.elements, function (el) { return el.name === name && el.checked; }).length;
+      btn.disabled = n === 0;
+      btn.textContent = n ? 'To the ' + n + ' ticked' : base;
+      btn.title = n ? '' : 'Tick at least one row first';
+    }
+    form.addEventListener('change', upd); form.addEventListener('click', function () { setTimeout(upd, 0); });
+    upd();
+  });
+
   Array.prototype.forEach.call(document.querySelectorAll('[data-ac-checkall]'), function (all) {
     var form = all.form; if (!form) return;
     var name = all.getAttribute('data-ac-checkall');

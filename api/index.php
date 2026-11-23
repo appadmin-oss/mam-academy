@@ -105,6 +105,14 @@ $r->get ('/media/object', $f('media/object.php'), [mw_rate_limit('media_object',
 $r->get ('/live/join',     $f('live/live.php'), [mw_user(), mw_rate_limit('live_join', 60, 600)]);
 $r->post('/live/beat',     function () use ($f) { $GLOBALS['mam_live_step'] = 'beat'; ($f('live/live.php'))(); }, [mw_csrf(), mw_user(), mw_rate_limit('live_beat', 400, 3600)]);
 $r->post('/live/register', function () use ($f) { $GLOBALS['mam_live_step'] = 'register'; ($f('live/live.php'))(); }, [mw_csrf(), mw_user(), mw_rate_limit('live_reg', 60, 600)]);
+// Scheduling integrations (calendar-feeds.php, kapso.php): subscribed calendars
+// (the hashed token is the credential), one session's .ics, a person's own feeds,
+// and Kapso's signed WhatsApp delivery webhook.
+$r->get ('/calendar/feed',    $f('calendar/feed.php'),    [mw_rate_limit('cal_feed', 240, 600)]);
+$r->get ('/calendar/session', $f('calendar/session.php'), [mw_user(), mw_rate_limit('cal_session', 120, 600)]);
+$r->get ('/calendar/mine',    $f('calendar/mine.php'),    [mw_user(), mw_rate_limit('cal_mine', 120, 600)]);
+$r->post('/calendar/mine',    $f('calendar/mine.php'),    [mw_csrf(), mw_user(), mw_rate_limit('cal_mine_w', 20, 600)]);
+$r->post('/whatsapp/kapso-webhook', $f('whatsapp/kapso-hook.php'), [mw_rate_limit('wh_kapso', 600, 60)]);
 // JaaS webhooks: signed with the webhook secret, not a CSRF cookie.
 $r->post('/hooks/jaas',    $f('live/hook.php'), [mw_rate_limit('wh_jaas', 600, 60)]);
 // Growth timeline and goals (v102, api/lib/growth.php) — the library decides who may see whom.

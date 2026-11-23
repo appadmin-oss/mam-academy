@@ -67,7 +67,7 @@
       document.head.appendChild(s);
     } else {
       main.innerHTML = head() + '<section class="p-card"><p class="p-body">This class runs in '
-        + (live.provider === 'meet' ? 'Google Meet' : 'a Jitsi room') + '. Keep this page open while you are in it — it is how your time in class is counted.</p>'
+        + (live.provider === 'meet' ? 'Google Meet' : 'Zoom') + '. Keep this page open while you are in it — it is how your time in class is counted.</p>'
         + '<a class="p-action" href="' + esc(/^https:\/\//.test(live.link || '') ? live.link : '#') + '" target="_blank" rel="noopener" id="lvOpen">Join the class</a></section><div id="lvReg"></div>';
       document.getElementById('lvOpen').addEventListener('click', startBeats);
     }

@@ -11,7 +11,8 @@ $u = mam_require_user();
 $step = (string) ($GLOBALS['mam_live_step'] ?? 'join');
 $say = ['not_found' => [404, 'That class was not found.'], 'not_yours' => [403, 'That is not one of your classes.'],
         'cancelled' => [409, 'That class was cancelled.'], 'not_open_yet' => [409, 'The class opens 15 minutes before it starts.'],
-        'over' => [409, 'That class has finished.'], 'jaas_key_invalid' => [500, 'The online class service is not set up correctly. Tell the office.']];
+        'over' => [409, 'That class has finished.'], 'jaas_key_invalid' => [500, 'The online class service is not set up correctly. Tell the office.'],
+        'live_not_set_up' => [503, 'Live classes are not set up yet. The office adds JaaS keys in the console (Timetable & rooms → Integrations).']];
 try {
     if ($step === 'join') mam_ok(['live' => mam_live_join((int) ($_GET['session'] ?? 0), $u)]);
     $in = mam_json_input();

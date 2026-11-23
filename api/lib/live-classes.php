@@ -56,9 +56,10 @@ function mam_live_jaas_ready(): bool {
 /** Which provider a session uses: its own, else the academy's default; JaaS only when it is set up. */
 function mam_live_provider(array $sess): string {
     $p = (string) ($sess['meeting_provider'] ?? '');
-    if ($p === '') $p = (string) mam_setting_or_default('meeting_default_provider', mam_live_jaas_ready() ? 'jaas' : 'none');
-    if ($p === 'jaas' && !mam_live_jaas_ready()) return 'jitsi';
-    return in_array($p, ['jaas', 'jitsi', 'meet', 'none'], true) ? $p : 'none';
+    if ($p === '' || $p === 'jitsi') $p = 'jaas';   // no public meet.jit.si: a room anyone with the link can enter is not for children
+    if ($p === 'jaas' && !mam_live_jaas_ready()) return 'none';
+    // 'zoom' (meeting-links.php) joins by its generated link, exactly as 'meet' does.
+    return in_array($p, ['jaas', 'meet', 'zoom'], true) ? $p : 'none';
 }
 
 /* ─── Tokens (RS256) ─────────────────────────────────────────────────────── */
@@ -69,13 +70,15 @@ function mam_live_provider(array $sess): string {
  * recording is off for everybody unless the academy turns it on — recording
  * children needs a consent and a retention period first.
  */
-function mam_live_jwt(array $cfg, string $room, array $who, bool $moderator, int $now, int $ttl = 4 * 3600): string {
+function mam_live_jwt(array $cfg, string $room, array $who, bool $moderator, int $now, int $ttl = 4 * 3600, ?int $nbf = null, ?int $exp = null): string {
     $head = ['alg' => 'RS256', 'kid' => $cfg['kid'], 'typ' => 'JWT'];
     $rec = $moderator && (int) mam_setting_num('live_recording_enabled', 0) === 1;
     $body = ['aud' => 'jitsi', 'iss' => 'chat', 'sub' => $cfg['app_id'], 'room' => $room,
-             'iat' => $now, 'nbf' => $now - 30, 'exp' => $now + $ttl,
+             // nbf/exp from the session's own window when given: a token cannot open the room outside its class.
+             'iat' => $now, 'nbf' => $nbf ?? ($now - 30), 'exp' => $exp ?? ($now + $ttl),
              'context' => ['user' => ['id' => 'u' . (int) $who['id'], 'name' => (string) $who['name'],
-                                      'avatar' => '', 'moderator' => $moderator ? 'true' : 'false'],
+                                      'avatar' => preg_match('~^https://~', (string) ($who['avatar_url'] ?? '')) ? (string) $who['avatar_url'] : '',
+                                      'moderator' => $moderator ? 'true' : 'false'],
                            'features' => ['livestreaming' => 'false', 'recording' => $rec ? 'true' : 'false',
                                           'transcription' => 'false', 'outbound-call' => 'false', 'sip-outbound-call' => 'false']]];
     $input = mam_b64url_encode(json_encode($head)) . '.' . mam_b64url_encode(json_encode($body, JSON_UNESCAPED_SLASHES));
@@ -132,17 +135,19 @@ function mam_live_join(int $sid, array $user, ?int $now = null): array {
         $cfg = mam_live_cfg();
         $out += ['domain' => '8x8.vc', 'room' => $cfg['app_id'] . '/' . $room,
                  'script' => 'https://8x8.vc/' . rawurlencode($cfg['app_id']) . '/external_api.js',
-                 'jwt' => mam_live_jwt($cfg, $room, $user, $staff, $now),
+                 // Valid from the check-in window opening to the end + grace, for this person only.
+                 'jwt' => mam_live_jwt($cfg, $room, $user, $staff, $now, 0,
+                     $start - max(MAM_LIVE_OPEN_BEFORE_MIN, (int) mam_setting_num('checkin_open_before_min', 30)) * 60, $close),
                  // Students arrive in the lobby when a child is in the class; a teacher lets them in.
                  'lobby' => $minors,
                  'config' => ['prejoinConfig' => ['enabled' => true], 'disablePrivateChat' => true, 'disableDeepLinking' => true,
                               'startWithAudioMuted' => !$staff, 'startWithVideoMuted' => false,
                               'remoteVideoMenu' => ['disableKick' => !$staff, 'disableGrantModerator' => true],
                               'disableRemoteMute' => !$staff, 'fileRecordingsEnabled' => false, 'liveStreamingEnabled' => false]];
-    } elseif ($provider === 'meet' && !empty($sess['meeting_link'])) {
+    } elseif (in_array($provider, ['meet', 'zoom'], true) && !empty($sess['meeting_link'])) {
         $out['link'] = (string) $sess['meeting_link'];
     } else {
-        $out['link'] = mam_meeting_jitsi_url($sid);
+        throw new RuntimeException('live_not_set_up');
     }
     mam_live_event($sid, (int) $user['id'], 'opened', $now, 'page', 'open:' . $sid . ':' . (int) $user['id'] . ':' . gmdate('YmdHi', $now));
     return $out;
