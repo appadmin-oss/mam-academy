@@ -3945,3 +3945,31 @@ ALTER TABLE `authorised_collectors` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf
 ALTER TABLE `collections` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 SET FOREIGN_KEY_CHECKS = 1;
 INSERT INTO schema_version (version) VALUES (105) ON DUPLICATE KEY UPDATE version = version;
+
+-- v106 — Paystack scenario guards (api/lib/payment-guards.php): one row per
+-- gateway reference opened for a payment, the events beyond settling, and the
+-- payment's gateway state (refund due / refunded / disputed …; NULL normally).
+ALTER TABLE payments ADD COLUMN gateway_state VARCHAR(24) NULL;
+CREATE INDEX idx_pay_gateway_state ON payments(gateway_state);
+CREATE TABLE IF NOT EXISTS payment_attempts (
+  id                INT AUTO_INCREMENT PRIMARY KEY,
+  payment_id        INT NOT NULL,
+  reference         VARCHAR(80) NOT NULL,
+  authorization_url VARCHAR(500) NULL,
+  access_code       VARCHAR(120) NULL,
+  created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_payatt_ref (reference),
+  KEY idx_payatt_payment (payment_id, created_at),
+  CONSTRAINT fk_payatt_payment FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS payment_events (
+  id         INT AUTO_INCREMENT PRIMARY KEY,
+  payment_id INT NULL,
+  reference  VARCHAR(80) NULL,
+  kind       VARCHAR(40) NOT NULL,
+  detail     TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_payev_payment (payment_id, created_at),
+  CONSTRAINT fk_payev_payment FOREIGN KEY (payment_id) REFERENCES payments(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO schema_version (version) VALUES (106) ON DUPLICATE KEY UPDATE version = version;

@@ -87,8 +87,13 @@ t_ok(mam_payment_amount_ok(['amount' => '1234.56', 'amount_minor' => 123456], 12
 t_ok(!mam_payment_amount_ok(['amount' => '1234.56', 'amount_minor' => 123456], 123455, 'NGN'), 'a kobo short fails');
 t_ok(!mam_payment_amount_ok(['amount' => '1234.56', 'amount_minor' => 123456], 123456, 'USD'), 'and so does another currency');
 t_ok(mam_payment_amount_ok(['amount' => '5000', 'amount_minor' => null], 500000, 'NGN'), 'a row from before v61 falls back to its naira figure');
+// Paystack reaches it through mam_paystack_apply_tx() → mam_paystack_tx_check()
+// (payment-guards.php), the one decision verify, the webhook and the sweep share.
+$FN_guards = (string) file_get_contents(dirname(__DIR__) . '/lib/payment-guards.php');
+t_ok(str_contains($FN_guards, 'mam_payment_amount_ok('), 'the shared Paystack check uses the one comparison');
 foreach (['payment-verify.php', 'webhook-paystack.php', 'webhook-flutterwave.php'] as $FN_f) {
-    t_ok(str_contains((string) file_get_contents(dirname(__DIR__) . '/routes/' . $FN_f), 'mam_payment_amount_ok('), "$FN_f uses the one comparison");
+    $FN_s = (string) file_get_contents(dirname(__DIR__) . '/routes/' . $FN_f);
+    t_ok(str_contains($FN_s, 'mam_payment_amount_ok(') || str_contains($FN_s, 'mam_paystack_apply_tx('), "$FN_f uses the one comparison");
 }
 
 t_group('fee online — the console counts money that was actually settled');

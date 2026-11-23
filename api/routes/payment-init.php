@@ -43,6 +43,10 @@ if ($purpose === 'store') {
     if (in_array($order['status'] ?? '', ['paid', 'delivered', 'oversold'], true)) {
         mam_ok(['already_paid' => true, 'purpose' => 'store', 'reference' => $ref]);
     }
+    // A cancelled or refunded order can no longer be paid (payment-guards.php, guard 4).
+    if ($why = mam_payment_target_closed(['purpose' => 'store', 'reference' => $ref])) {
+        if (!str_ends_with($why, '_not_found')) mam_fail('not_payable', 409, ['reason' => $why, 'message' => mam_payment_closed_message($why)]);
+    }
     $payRef = $ref;
     $app = null; // not academy-bound
     // Customer details for the provider payload come from the order row.
@@ -58,6 +62,11 @@ if ($purpose === 'store') {
     // applicant must start a fresh application (full processing fee applies).
     if (($app['status'] ?? '') === 'expired') {
         mam_fail('application_expired', 409, ['message' => 'This application has expired. Please start a new application — the processing fee applies afresh.']);
+    }
+    // Cancelled, rejected, declined, withdrawn or erased: no charge is opened
+    // (payment-guards.php, guard 4). Expired keeps its own message above.
+    if ($why = mam_payment_target_closed(['purpose' => $purpose, 'application_id' => (int) $app['id']])) {
+        mam_fail('not_payable', 409, ['reason' => $why, 'message' => mam_payment_closed_message($why)]);
     }
     $payRef = $purpose === 'booking_fee' ? ($ref . '-BK') : $ref;
     if ($purpose === 'booking_fee' && !empty($app['booking_fee_paid_at'])) {
@@ -118,6 +127,14 @@ if ($purpose === 'booking_fee') {
 }
 if ($totalUsd <= 0) mam_fail('zero_amount', 400);
 $amountKobo = $amountNgn * 100;
+// A card charge must be a positive naira amount under the ceiling
+// (setting paystack_max_charge_ngn; payment-guards.php, guard 5). A price that
+// computes to nothing, or to far more than anything the academy sells, is a bug
+// or a broken exchange rate, not something to open a checkout for.
+if (in_array($provider, ['paystack', 'flutterwave'], true) && ($amtProblem = mam_paystack_amount_problem($amountKobo, 'NGN'))) {
+    mam_log('error', 'payment_amount_refused', ['ref' => $payRef, 'kobo' => $amountKobo, 'problem' => $amtProblem]);
+    mam_fail('amount_not_allowed', 422, ['reason' => $amtProblem, 'message' => 'This amount cannot be paid by card. Please contact the academy.']);
+}
 
 // Persist a payment row (idempotent via the per-purpose reference). Store
 // orders aren't tied to an application, so application_id stays NULL there.
@@ -177,25 +194,34 @@ $metadata = $app
 
 try {
     if ($provider === 'paystack') {
-        $resp = mam_paystack_initialize($customerEmail, $amountKobo, $ref, $metadata);
-        $body = $resp['data'];
-        if (!($body['status'] ?? false)) {
-            // Log what Paystack said; never hand the gateway's raw answer to the caller.
-            mam_log('error', 'paystack_init_rejected', ['ref' => $ref, 'http' => $resp['code'] ?? 0, 'message' => (string) ($body['message'] ?? '')]);
+        // One payment, a fresh gateway reference per attempt (Paystack refuses one it
+        // has seen, which broke a retry after closing the checkout), and a press
+        // within a couple of minutes reuses the open checkout instead of opening a
+        // second charge (payment-guards.php, guards 2 and 3). The callback keeps the
+        // payment's own reference, which is what the pages look up.
+        $payRow = mam_db_row('SELECT * FROM payments WHERE reference = ?', [$ref]);
+        $att = mam_paystack_start_attempt($payRow, $customerEmail, $amountKobo, $metadata, '/thank-you?ref=' . urlencode($ref));
+        if (!empty($att['settled'])) {
+            mam_ok(['already_paid' => true, 'purpose' => $purpose, 'reference' => $ref]);
+        }
+        if (!empty($att['error'])) {
+            // Never hand the gateway's raw answer to the caller; it is logged.
             mam_fail('paystack_init_failed', 502, ['message' => 'Card payment could not be started. Please try again or choose bank transfer.']);
         }
-        mam_audit('init', 'payment', null, ['ref' => $ref, 'provider' => $provider]);
+        mam_audit('init', 'payment', (int) $payRow['id'], ['ref' => $ref, 'attempt' => $att['reference'], 'reused' => $att['reused'], 'provider' => $provider]);
         mam_ok([
             'provider' => 'paystack',
-            'reference' => $ref,
+            'reference' => $att['reference'],
+            'payment_reference' => $ref,
+            'reused'   => (bool) $att['reused'],
             'amount_ngn'   => $amountNgn,
             'amount_usd'   => $totalUsd,
             'display_label'    => $displayLabel,
             'display_currency' => $displayCur,
             'display_amount'   => $displayAmount,
             'public_key' => mam_env('PAYSTACK_PUBLIC_KEY'),
-            'access_code' => $body['data']['access_code'] ?? null,
-            'authorization_url' => $body['data']['authorization_url'] ?? null,
+            'access_code' => $att['access_code'],
+            'authorization_url' => $att['authorization_url'],
         ]);
     } elseif ($provider === 'flutterwave') {
         // Flutterwave inline: build the payload the frontend will hand

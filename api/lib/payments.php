@@ -100,6 +100,21 @@ function mam_payment_settle(array $payment, ?array $providerData, string $rawRes
 
     mam_audit('payment_settled', 'payment', (int)($payment['id'] ?? 0), ['ref' => $ref, 'purpose' => $purpose]);
 
+    // Money for a target that can no longer take it (an application cancelled,
+    // expired or erased; an order cancelled): the payment is recorded as received,
+    // because it was, but NOTHING is credited, enrolled or fulfilled. It is marked
+    // refund due for the office (payment-guards.php, guard 4). Fees decide this
+    // themselves: a void or already-paid invoice turns the money into a
+    // fee_online_unapplied row in mam_payment_settle_fee().
+    if ($purpose !== 'fee' && function_exists('mam_payment_target_closed')) {
+        $why = mam_payment_target_closed($payment);
+        if ($why !== null && !str_ends_with($why, '_not_found')) {
+            mam_payment_flag_refund_due($payment, 'paid after it closed (' . $why . ')', ['provider_ref' => (string) $providerRef]);
+            $out['refund_due'] = $why;
+            return $out;
+        }
+    }
+
     if ($purpose === 'store') {
         mam_payment_settle_store($ref);
     } elseif ($purpose === 'fee') {

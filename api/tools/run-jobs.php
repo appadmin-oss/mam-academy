@@ -55,6 +55,12 @@ if (function_exists('mam_automation_card_expiry_sweep')) {
     printf("id cards   : expiry warnings %d, lapsed cards retired %d
 ", $ce['warned'], $ce['retired']);
 }
+if (function_exists('mam_paystack_reconcile_sweep')) {
+    // Card payments a webhook never reached (payment-guards.php, guard 7).
+    $pr = mam_paystack_reconcile_sweep();
+    printf("payments   : pending card payments checked %d, settled %d, abandoned %d%s\n",
+        $pr['checked'], $pr['settled'], $pr['abandoned'], $pr['skipped'] ? ' (' . $pr['skipped'] . ')' : ($pr['errors'] ? ', errors ' . $pr['errors'] : ''));
+}
 if (function_exists('mam_fee_dunning_sweep')) {
     printf("fees       : overdue reminders sent %d\n", mam_fee_dunning_sweep());
 }

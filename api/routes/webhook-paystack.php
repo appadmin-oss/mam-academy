@@ -51,24 +51,28 @@ try {
 }
 
 try {
+    $data = is_array($payload['data'] ?? null) ? $payload['data'] : [];
     if ($eventType === 'charge.success') {
-        $ref = $payload['data']['reference'] ?? '';
-        $amount = (float)($payload['data']['amount'] ?? 0) / 100;
-        $currency = strtoupper((string)($payload['data']['currency'] ?? 'NGN'));
-        $payment = mam_db_row('SELECT * FROM payments WHERE reference = ?', [$ref]);
-        // Never credit an underpayment or a different currency, even from a
-        // signature-valid webhook.
-        $amountOk = $payment && mam_payment_amount_ok($payment, (float)($payload['data']['amount'] ?? 0), $currency);
-        if ($payment && !$amountOk) {
-            mam_log('warn', 'paystack_webhook_amount_mismatch', ['ref' => $ref, 'paid' => $amount, 'expected' => $payment['amount'], 'currency' => $currency]);
+        // The charge may be under an attempt reference (a retry after the checkout
+        // was closed); it resolves to the one payment. The decision is the same as
+        // verify's: amount in kobo, NGN, reference ownership, test/live mode,
+        // closed target, paid twice (mam_paystack_apply_tx, payment-guards.php).
+        $ref = (string) ($data['reference'] ?? '');
+        $payment = mam_payment_resolve_ref($ref);
+        if (!$payment) {
+            mam_log('warn', 'paystack_webhook_unmatched', ['ref' => $ref]);
+        } else {
+            $r = mam_paystack_apply_tx($payment, $data, 'webhook');
+            if ($r['outcome'] === 'refused') {
+                mam_log('warn', 'paystack_webhook_refused', ['ref' => $ref, 'reason' => $r['reason'], 'paid' => $data['amount'] ?? null, 'currency' => $data['currency'] ?? null]);
+            } elseif ($r['outcome'] === 'settled') {
+                mam_audit('webhook_succeeded', 'payment', (int) $payment['id'], ['ref' => $ref, 'amount' => (float) ($data['amount'] ?? 0) / 100]);
+            }
         }
-        if ($payment && $amountOk && $payment['status'] !== 'succeeded') {
-            // Settle via the shared, purpose-aware path (store delivery /
-            // booking-fee stamp / tuition enrolment + provisioning) — identical
-            // to the interactive verify endpoint, idempotent + race-safe.
-            mam_payment_settle($payment, $payload['data'] ?? null, json_encode(mam_paystack_redact($payload['data'] ?? [])) ?: '{}', (string)($payload['data']['reference'] ?? $ref));
-            mam_audit('webhook_succeeded', 'payment', (int)$payment['id'], ['ref' => $ref, 'amount' => $amount]);
-        }
+    } elseif (str_starts_with($eventType, 'refund.') || str_starts_with($eventType, 'charge.dispute.')) {
+        // Refunds and disputes: recorded against the payment, the office told.
+        // Nothing is unenrolled or cancelled automatically.
+        mam_paystack_handle_gateway_event($eventType, $data);
     }
     mam_db_update('webhook_events', ['status' => 'processed'], ['provider' => 'paystack', 'event_id' => $eventId]);
 } catch (Throwable $e) {

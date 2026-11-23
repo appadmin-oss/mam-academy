@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 105;
+const MAM_SCHEMA_TARGET = 106;
 
 /**
  * Open (and cache) the PDO connection.
@@ -4211,6 +4211,37 @@ function mam_db_migrate(PDO $db): void {
          * has no collations, so there is nothing to do here: the version moves so
          * both engines agree on the target. */
         105 => "SELECT 1;",
+        // v106 — Paystack scenario guards (api/lib/payment-guards.php).
+        // payment_attempts: one row per gateway reference opened for a payment, so
+        //   a retry after closing the checkout gets a fresh reference (Paystack
+        //   refuses one it has seen) and every attempt resolves to the ONE payment.
+        // payment_events: what happened to a payment beyond settling (test/live
+        //   mismatch, a refund, a dispute, money for a closed target), for the office.
+        // payments.gateway_state: NULL in the normal case; refund_due, refund_pending,
+        //   refunded, refund_failed, disputed, dispute_won, dispute_lost otherwise
+        //   (MAM_PAY_GATEWAY_STATES; SQLite cannot add a CHECK by ALTER).
+        106 => "
+            ALTER TABLE payments ADD COLUMN gateway_state TEXT;
+            CREATE TABLE IF NOT EXISTS payment_attempts (
+              id                INTEGER PRIMARY KEY AUTOINCREMENT,
+              payment_id        INTEGER NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+              reference         TEXT    NOT NULL UNIQUE,
+              authorization_url TEXT,
+              access_code       TEXT,
+              created_at        TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_payatt_payment ON payment_attempts(payment_id, created_at);
+            CREATE TABLE IF NOT EXISTS payment_events (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              payment_id INTEGER REFERENCES payments(id) ON DELETE SET NULL,
+              reference  TEXT,
+              kind       TEXT    NOT NULL,
+              detail     TEXT,
+              created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_payev_payment ON payment_events(payment_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_pay_gateway_state ON payments(gateway_state);
+        ",
     ];
 
     foreach ($migrations as $version => $sql) {

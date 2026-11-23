@@ -457,6 +457,13 @@ function mam_console_decisions(): array {
     if ($claims > 0) $q[] = ['screen' => 'invoices', 'blocking' => true, 'age' => '24h',
         'title' => $claims . ' bank transfer' . ($claims === 1 ? '' : 's') . ' reported by families, waiting to be checked',
         'why' => 'The bank instructions promise confirmation within 24 hours. Check each against the statement.'];
+    /* Card payments the gateway layer flagged (payment-guards.php): money that
+       arrived for something already closed, a family that paid twice, a refund
+       that failed, a dispute. Each is a person's decision, not the software's. */
+    $gw = mam_console_int('dec.paygw', "SELECT COUNT(*) FROM payments WHERE gateway_state IN ('refund_due','refund_failed','disputed')");
+    if ($gw > 0) $q[] = ['screen' => 'invoices', 'blocking' => true, 'age' => 'now',
+        'title' => $gw . ' card payment' . ($gw === 1 ? '' : 's') . ' to refund or answer',
+        'why' => 'Paid after it closed, paid twice, a refund that failed, or a disputed charge. Nothing was undone automatically.'];
     $unap = mam_console_int('dec.feeunap', "SELECT COUNT(*) FROM fee_online_unapplied WHERE status = 'open'");
     if ($unap > 0) $q[] = ['screen' => 'invoices', 'blocking' => false, 'age' => 'now',
         'title' => $unap . ' online overpayment' . ($unap === 1 ? '' : 's') . ' to refund or move',

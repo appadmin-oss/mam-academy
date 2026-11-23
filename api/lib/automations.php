@@ -67,6 +67,18 @@ function mam_automations_registry(): array {
             'default' => true,
             'live'    => true,
         ],
+        /* Paystack can fail to deliver a webhook, and a family can close the
+           browser before verify runs. Without this a paid charge sits pending
+           until somebody notices; with it the job asks Paystack and settles
+           through the same path verify and the webhook use. */
+        'payment_reconcile' => [
+            'group' => 'Admissions & payments',
+            'trigger' => 'A card payment is still pending 30 minutes after it started',
+            'action'  => 'Ask Paystack, settle it if it was paid, mark it abandoned after 24 hours',
+            'icon'    => 'arrows-rotate',
+            'default' => true,
+            'live'    => true,
+        ],
         'fee_reminders' => [
             'group' => 'Admissions & payments',
             'trigger' => 'A fee invoice reaches its due date, or is 3 or 7 days late',

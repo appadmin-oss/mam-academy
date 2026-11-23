@@ -91,6 +91,7 @@ return [
     'backup',
     'reports',
     'fees',
+    'payment-guards',
     'fee-review',
     'members',
     'lessons',
