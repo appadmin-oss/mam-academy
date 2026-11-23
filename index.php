@@ -31,7 +31,7 @@ ob_start();
         <?php if ($heroMedia['poster'] !== ''): ?><img class="film-poster" src="<?= site_h($heroMedia['poster']) ?>" alt="" decoding="async" fetchpriority="high"><?php endif; ?>
         <div class="film-light" aria-hidden="true"><span></span><span></span><span></span></div>
         <div class="film-grain" aria-hidden="true"></div>
-        <button type="button" class="film-pause" data-film-toggle aria-pressed="false" aria-label="Pause the moving background"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14"><rect class="i-pause" x="3" y="2" width="3" height="10" rx="1"/><rect class="i-pause" x="8" y="2" width="3" height="10" rx="1"/><path class="i-play" d="M4 2.5v9l7.5-4.5z"/></svg></button>
+        <button type="button" class="film-pause" data-film-toggle aria-pressed="false" aria-label="Pause the film"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14"><rect class="i-pause" x="3" y="2" width="3" height="10" rx="1"/><rect class="i-pause" x="8" y="2" width="3" height="10" rx="1"/><path class="i-play" d="M4 2.5v9l7.5-4.5z"/></svg></button>
       </div>
     </div>
 

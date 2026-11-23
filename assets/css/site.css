@@ -201,4 +201,4 @@ header .navlinks{display:none!important}header .menubtn{display:inline-flex!impo
 .film-pause svg{fill:currentColor}
 .film-pause .i-play,.film.is-paused .film-pause .i-pause{display:none}
 .film.is-paused .film-pause .i-play{display:inline}
-@media (prefers-reduced-motion: reduce){.film *{animation:none!important}.film-pause{display:none}}
+@media (prefers-reduced-motion: reduce){.film-light *,.film-grain{animation:none!important}}

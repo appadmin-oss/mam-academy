@@ -165,26 +165,54 @@
      scrolling back does not undo it. */
   var film = d.querySelector('[data-film]');
   if (film) {
+    /* Autoplay where it is allowed. Under reduced motion or Save-Data the film
+       waits for the visitor to press Play; where the browser refuses autoplay
+       (iPhone Low Power Mode, battery savers) the button offers Play and the
+       first tap anywhere starts it. The button always works: it used to do
+       nothing whenever the video had been skipped, which read as broken. */
     var toggle = film.querySelector('[data-film-toggle]'), vid = null, held = false, seen = true;
     var saveData = !!(navigator.connection && navigator.connection.saveData);
     var small = window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
-    var src = small ? film.getAttribute('data-mobile') : film.getAttribute('data-src');
+    var src = small ? (film.getAttribute('data-mobile') || film.getAttribute('data-src')) : film.getAttribute('data-src');
     var webm = small ? '' : film.getAttribute('data-webm');
-    var run = function () { if (!vid) return; if (held || !seen) vid.pause(); else { var p = vid.play(); if (p && p.catch) p.catch(function () {}); } };
-    if (src && !reduce && !saveData) {
+    var setHeld = function (h) {
+      held = h;
+      film.classList.toggle('is-paused', held);
+      if (toggle) {
+        toggle.setAttribute('aria-pressed', held ? 'true' : 'false');
+        toggle.setAttribute('aria-label', held ? 'Play the film' : 'Pause the film');
+      }
+    };
+    var build = function () {
+      if (vid || !src) return vid;
       vid = d.createElement('video');
-      vid.muted = true; vid.loop = true; vid.playsInline = true; vid.autoplay = true;
-      vid.setAttribute('muted', ''); vid.setAttribute('playsinline', ''); vid.setAttribute('aria-hidden', 'true'); vid.setAttribute('preload', 'auto');
+      vid.muted = true; vid.defaultMuted = true; vid.loop = true; vid.playsInline = true;
+      vid.setAttribute('muted', ''); vid.setAttribute('playsinline', ''); vid.setAttribute('webkit-playsinline', '');
+      vid.setAttribute('aria-hidden', 'true'); vid.setAttribute('preload', 'auto');
       [[webm, 'video/webm'], [src, 'video/mp4']].forEach(function (s) { if (!s[0]) return; var el = d.createElement('source'); el.src = s[0]; el.type = s[1]; vid.appendChild(el); });
       vid.addEventListener('playing', function () { film.classList.add('is-video'); });
       film.insertBefore(vid, film.firstChild);
       if ('IntersectionObserver' in window) new IntersectionObserver(function (es) { seen = es[0].isIntersecting; run(); }).observe(film);
-    }
-    if (toggle) toggle.addEventListener('click', function () {
-      held = !held;
-      film.classList.toggle('is-paused', held);
-      toggle.setAttribute('aria-pressed', held ? 'true' : 'false');
-      toggle.setAttribute('aria-label', held ? 'Play the moving background' : 'Pause the moving background');
+      return vid;
+    };
+    var run = function () {
+      if (!vid) return;
+      if (held || !seen) { vid.pause(); return; }
+      var p = vid.play();
+      if (p && p.catch) p.catch(function () {
+        // Refused (no gesture yet): show Play, and start on the first tap anywhere.
+        setHeld(true);
+        var go = function (ev) { if (toggle && ev && toggle.contains(ev.target)) return; d.removeEventListener('pointerdown', go, true); d.removeEventListener('keydown', go, true); if (held && vid) { setHeld(false); run(); } };
+        d.addEventListener('pointerdown', go, true); d.addEventListener('keydown', go, true);
+      });
+    };
+    if (src && !reduce && !saveData) { build(); run(); }
+    else setHeld(true);
+    if (toggle) toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (!src) return;
+      build();
+      setHeld(!held);
       run();
     });
   }
