@@ -150,6 +150,13 @@ header,main{container-type:inline-size}
 @container (max-width: 1080px){
 header .navlinks{display:none!important}header .menubtn{display:inline-flex!important}header .mobileonly{display:flex!important}
 .stick{position:static!important}.bento{grid-template-columns:1fr!important}.bento>*{grid-column:auto!important}.tgrid{grid-template-columns:1fr!important}.tgrid>*{grid-column:auto!important;grid-row:auto!important}}
+/* The homepage header on a phone (owner, 24 Nov 2026: no nav effect on mobile). Over the hero
+   and past it the two layers hold the same things there (the wordmark and Menu), so the swap
+   was motion that said nothing: the full bar shows from the start and stays. The layers carry
+   their state as inline styles (site.js), hence !important. A container query, as above. */
+@container (max-width: 720px){
+header [data-layer="min"]{display:none!important}
+header [data-layer="full"]{transform:none!important;visibility:visible!important;transition:none!important;box-shadow:0 1px 0 rgba(33,26,19,.08)!important}}
 /* ---- the homepage film panel (2026-11-21 hero restyle) ----
    A rounded frame under the headline. A real loop (assets/video/hero.mp4, see
    site_hero_media) plays in it on desktop; until one exists, and for anybody it is
