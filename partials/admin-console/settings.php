@@ -31,14 +31,25 @@ $t = $d['tenant'] ?? [];
             $pre = in_array($f['suffix'], ['$', '₦', '£', '€'], true) ? $f['suffix'] : '';
             $post = $pre === '' ? $f['suffix'] : '';
             $hint = trim($f['hint'] . ($isChanged ? ($f['hint'] !== '' ? ' · ' : '') . 'Default: ' . ($f['default'] === '' ? '(blank)' : $f['default']) : '')); ?>
+            <?php if ($f['kind'] === 'bool'): ?>
+            <?php /* An on/off setting is a row with its switch on the right. The hidden 0 comes
+                     FIRST so an unticked switch still posts a value (PHP keeps the last of two
+                     same-named fields): the handler resets a key it is not sent to its default. */ ?>
+            <div class="ac-cfg-row is-switch">
+              <div class="ac-cfg-text">
+                <label class="ac-label" for="<?= ac_h($id) ?>"><?= ac_h($f['title']) ?></label>
+                <?php if ($hint !== ''): ?><p class="ac-hint" id="<?= ac_h($id) ?>-hint"><?= ac_h($hint) ?></p><?php endif; ?>
+              </div>
+              <span class="ac-toggle">
+                <input type="hidden" name="<?= ac_h($k) ?>" value="0">
+                <input type="checkbox" role="switch" id="<?= ac_h($id) ?>" name="<?= ac_h($k) ?>" value="1"<?= $val === '1' ? ' checked' : '' ?><?= $hint !== '' ? ' aria-describedby="' . ac_h($id) . '-hint"' : '' ?>>
+                <label class="ac-switch" for="<?= ac_h($id) ?>" aria-hidden="true"></label>
+              </span>
+            </div>
+            <?php continue; endif; ?>
             <div class="ac-cfg-row">
               <label class="ac-label" for="<?= ac_h($id) ?>"><?= ac_h($f['title']) ?></label>
-              <?php if ($f['kind'] === 'bool'): ?>
-                <select class="ac-select ac-w-fit" id="<?= ac_h($id) ?>" name="<?= ac_h($k) ?>">
-                  <option value="1"<?= $val === '1' ? ' selected' : '' ?>><?= ac_h($f['choices']['1']) ?></option>
-                  <option value="0"<?= $val !== '1' ? ' selected' : '' ?>><?= ac_h($f['choices']['0']) ?></option>
-                </select>
-              <?php elseif ($f['kind'] === 'enum'): ?>
+              <?php if ($f['kind'] === 'enum'): ?>
                 <select class="ac-select ac-w-fit" id="<?= ac_h($id) ?>" name="<?= ac_h($k) ?>">
                   <?php foreach ($f['options'] as $o): ?>
                     <option value="<?= ac_h($o) ?>"<?= $val === $o ? ' selected' : '' ?>><?= ac_h(ucfirst(str_replace('_', ' ', $o))) ?></option>

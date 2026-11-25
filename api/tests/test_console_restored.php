@@ -92,8 +92,8 @@ foreach (mam_settings_schema() as $row) {
     if (!preg_match('/name="' . preg_quote($row[1], '/') . '"/', $CR_form)) $CR_missing[] = $row[1];
 }
 t_eq($CR_missing, [], 'the form carries EVERY schema key — the handler resets any key it is not sent');
-t_ok((bool) preg_match('/<select[^>]*name="scholarship_enabled".*?value="0"/s', $CR_form),
-    'an on/off setting is a Yes/No choice that always posts a value (an unticked checkbox posts nothing, which reads as "the default")');
+t_ok((bool) preg_match('/<input type="hidden" name="scholarship_enabled" value="0">\s*<input type="checkbox" role="switch"[^>]*name="scholarship_enabled" value="1"/', $CR_form),
+    'an on/off setting is a switch that always posts a value: a hidden 0 BEFORE the box, because an unticked checkbox posts nothing, which the handler reads as "the default"');
 t_ok((bool) preg_match('/<input[^>]*type="text"[^>]*name="invoice_account_number"/', $CR_form),
     'the bank account number is a text field, not a number field');
 t_ok((bool) preg_match('/<select[^>]*name="safeguarding_gate_mode"/', $CR_form),
