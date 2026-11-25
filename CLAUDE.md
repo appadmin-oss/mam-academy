@@ -149,7 +149,16 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
      and tests have it).
    - `test_migrations.php` asserts the version equals `MAM_SCHEMA_TARGET` — keep it
      dynamic, don't hardcode the number.
-2. **Two parallel enrollment models exist.** Legacy `enrollments`+`classes`+`attendance`
+2. ⛔ **The old class model is RETIRED (25 Nov 2026, owner's call): one model, cohorts.**
+   `api/lib/legacy-carry.php` carries every class into its cohort, every enrolment (with its
+   state) into `course_enrollments`, every attendance mark into a held `class_sessions` row +
+   `session_attendance` (method `legacy`), and notices, files and homework by `cohort_id`
+   (`assignments.cohort_id` is v108). Nothing in the product reads `classes`/`enrollments`/
+   `attendance` any more; the TABLES STAY, unread — on SQLite `DROP TABLE classes` cascades into
+   every notice and file. A class whose subject names no course waits on Cohorts ("Old classes to
+   bring across"); the nightly job carries the rest. Don't add a read of the old tables. The
+   history below is kept because it explains code that still exists.
+   Formerly: **Two parallel enrollment models exist.** Legacy `enrollments`+`classes`+`attendance`
    (what the student dashboard "Classes"/attendance + instructor roster read) vs newer
    `course_enrollments`+cohorts (Courses/Gradebook/Sessions). They are NOT reconciled —
    a student/instructor can appear in one and not the other. Converging them is a known

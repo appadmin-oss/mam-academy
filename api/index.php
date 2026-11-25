@@ -183,7 +183,6 @@ $r->group('/auth', function (MamRouter $r) use ($f) {
 });
 
 /* ─── Attendance QR self-check-in (student scans the instructor's session QR; #9/#10) ─── */
-$r->post('/attendance/checkin', $f('attendance-checkin.php'), [mw_csrf(), mw_role('student'), mw_rate_limit('attendance_checkin', 30, 600)]);
 // Cohort-model twin: self-check-in against a class_session → session_attendance (P2).
 $r->post('/attendance/session-checkin', $f('attendance-session-checkin.php'), [mw_csrf(), mw_role('student'), mw_rate_limit('attendance_checkin', 30, 600)]);
 
@@ -339,9 +338,7 @@ $r->group('/parent', function (MamRouter $r) use ($f) {
 $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->get ('/dashboard',        $f('instructor/dashboard.php'),       [mw_role('instructor', 'admin')]);
     $r->get ('/student',          $f('instructor/student.php'),         [mw_role('instructor', 'admin')]);
-    $r->post('/mark-attendance',  $f('instructor/mark-attendance.php'), [mw_csrf(), mw_role('instructor', 'admin')]);
     // Per-session QR check-in token for a class the instructor teaches (#9/#10).
-    $r->get ('/attendance-qr',    $f('instructor/attendance-qr.php'),   [mw_role('instructor', 'admin')]);
     // The Grade entry sheet. The SERVER decides whether video travels with a
     // criterion — see the route file and api/lib/marking.php.
     $r->get ('/marking-sheet',    $f('instructor/marking-sheet.php'),   [mw_role('instructor', 'admin')]);

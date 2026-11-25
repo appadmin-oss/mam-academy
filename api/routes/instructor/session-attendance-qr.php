@@ -5,7 +5,7 @@
  * Returns a signed, day-scoped check-in token + scannable URL for a cohort
  * session the caller teaches (admins: any). The instructor UI renders the URL as
  * a QR; enrolled students scan it to self-check-in against session_attendance.
- * This is the cohort-model twin of /api/instructor/attendance-qr.
+ * The class QR (/api/instructor/attendance-qr) it once stood beside is retired with the old class model.
  */
 declare(strict_types=1);
 

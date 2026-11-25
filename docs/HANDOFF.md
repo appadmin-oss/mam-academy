@@ -2755,3 +2755,22 @@ design.
 Open questions for the owner:
 - Should "Admissions" point to `/programmes#fees` everywhere?
 - Should work move to an `afv/` branch, as CLAUDE.md asks?
+
+## 4z21. 2026-11-25 — the old class model retired; the console modelled on NGG's Control Room
+
+**One class model.** The owner retired the legacy `classes` + `enrollments` + `attendance`
+model ("it is confusing"). `mam_legacy_carry()` (api/lib/legacy-carry.php, v108) carries it
+all into cohorts, idempotently: enrolments keep their state, attendance becomes held sessions,
+notices/files/homework follow by `cohort_id`, and a class's meeting link goes onto the
+cohort's sessions to come. Every reader — console, instructor portal and routes, student and
+guardian portals, progress report, onboarding, analytics, media access, join links — reads the
+cohort model only. Removed: nine admin handlers, five routes (create-class, enroll-student,
+attendance/checkin, instructor mark-attendance and attendance-qr), the class-token functions.
+The old tables are kept, unread. **Deploying:** after the deploy, open Teaching → Cohorts; if
+"Old classes to bring across" shows, pick a course for any class whose subject names none and
+press "Bring them across". The nightly job does the rest on its own.
+
+**The console's look** is modelled on NextGenGen's Control Room, measured with Faithful's new
+`faithful model` (type was already 100% on it; colour 26–38%): NGG's neutral tokens, a light
+rail, sans page titles, one KPI strip, 14px corners, a bulk bar that appears when a row is ticked.
+
