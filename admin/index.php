@@ -142,13 +142,11 @@ function mam_admin_console_return(string $screen): void {
         }
         /* ── end scheduling ── */
         /* ── Classes & enrolment (console Teaching → Enrol & staffing) ──
-           The cohort (or legacy class) the form was posted from, so an action
-           lands back on the record it was taken on rather than on the first
-           cohort in the list. From the handler's query, else the form's own
-           `_cohort` / `_class` field — the legacy class handlers predate the
-           console and name no record in their redirect. Digits only. */
+           The cohort the form was posted from, so an action lands back on the
+           record it was taken on rather than on the first cohort in the list.
+           From the handler's query, else the form's own `_cohort`. Digits only. */
         if ($screen === 'roster') {
-            foreach (['cohort', 'class'] as $k) {
+            foreach (['cohort'] as $k) {
                 $v = $q[$k] ?? ($_POST['_' . $k] ?? null);
                 if (is_string($v) && preg_match('/^[1-9][0-9]{0,8}$/', $v)) $keep[$k] = $v;
             }
@@ -654,7 +652,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'course_create' => 'curriculum', 'course_update' => 'curriculum', 'course_toggle' => 'curriculum',
         'program_create' => 'curriculum', 'program_update' => 'curriculum',
         'link_course' => 'curriculum', 'unlink_course' => 'curriculum',
-        'cohort_converge' => 'settings', 'cohort_create' => 'curriculum', 'cohort_edit' => 'curriculum',
+        'legacy_carry' => 'settings', 'cohort_create' => 'curriculum', 'cohort_edit' => 'curriculum',
         // Classes & enrolment from the console (api/lib/cohort-admin.php): placing,
         // moving and withdrawing a student is enrolment work; who teaches a cohort
         // and whether it is open is curriculum work, like cohort_edit beside it.
@@ -664,7 +662,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // Scheduling (console Timetable): the same capability that edits a class.
         'sched_series' => 'curriculum', 'sched_session_add' => 'curriculum', 'sched_reschedule' => 'curriculum', 'sched_cancel' => 'curriculum',
         'sched_meeting_backfill' => 'curriculum', 'sched_feed' => 'curriculum', 'sched_integrations_save' => 'settings', 'sched_kapso_test' => 'settings',
-        'bridge_legacy_enrollments' => 'settings',
         'module_save' => 'curriculum', 'module_delete' => 'curriculum',
         // Lessons (api/lib/lessons.php): writing one, and publishing or retiring in bulk.
         'lesson_save' => 'curriculum', 'lesson_status' => 'curriculum',
@@ -693,8 +690,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings',
         // Destructive record deletions + bulk seeding are super-only — a manager
         // must not be able to permanently remove applications/classes/enrolments.
-        'app_delete' => 'settings', 'class_delete' => 'settings',
-        'enrollment_delete' => 'settings', 'seed_starter' => 'settings',
+        'app_delete' => 'settings',
+        'seed_starter' => 'settings',
         'survey_create' => 'support', 'survey_status' => 'support',
         'ticket_reply' => 'support', 'ticket_assign' => 'support', 'ticket_resolve' => 'support',
     ];
@@ -862,17 +859,37 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // ── Media & Documents library (#media) ──────────────────────────────
     // Add a class resource (document/media link) from admin, delete any
     // resource, or clear a student's portal photo. All gated by the 'media' cap.
+    /* The old class model, carried into cohorts (api/lib/legacy-carry.php). One
+       press carries everything that can go; a class whose subject names no
+       course goes when the admin picks one (course_for[classId]). Idempotent. */
+    if ($action === 'legacy_carry') {
+        $for = [];
+        foreach ((array)($_POST['course_for'] ?? []) as $cls => $course) {
+            if ((int)$cls > 0 && (int)$course > 0) $for[(int)$cls] = (int)$course;
+        }
+        try {
+            $r = mam_legacy_carry((int)($adminUser['id'] ?? 0) ?: null, $for);
+        } catch (Throwable $e) {
+            mam_log('error', 'legacy_carry_failed', ['error' => $e->getMessage()]);
+            header('Location: ?v=cohorts&err=' . urlencode('The old classes could not be brought across: ' . $e->getMessage())); exit;
+        }
+        $said = sprintf('%d student%s, %d attendance mark%s, %d notice%s and file%s brought across.',
+            $r['enrolments'], $r['enrolments'] === 1 ? '' : 's', $r['marks'], $r['marks'] === 1 ? '' : 's',
+            $r['linked'], $r['linked'] === 1 ? '' : 's', $r['linked'] === 1 ? '' : 's');
+        if ($r['waiting']) $said .= ' ' . count($r['waiting']) . ' class' . (count($r['waiting']) === 1 ? '' : 'es') . ' still need a course.';
+        header('Location: ?v=cohorts&ok=' . urlencode($said)); exit;
+    }
     if ($action === 'resource_add') {
-        $classId = (int)($_POST['class_id'] ?? 0);
+        $cohortId = (int)($_POST['cohort_id'] ?? 0);
         $title = mam_str($_POST, 'title', 200);
         $url   = mam_str($_POST, 'url', 500);
         $type  = mam_str($_POST, 'type', 16);
         if (!in_array($type, ['link', 'sheet', 'video', 'doc'], true)) $type = 'link';
-        if ($classId <= 0 || $title === '' || !preg_match('#^https?://#i', $url)) { header('Location: ?v=media&err=' . urlencode('Pick a class and enter a title + a valid http(s) URL.')); exit; }
-        if (!mam_db_row('SELECT id FROM classes WHERE id = ?', [$classId])) { header('Location: ?v=media&err=' . urlencode('That class no longer exists.')); exit; }
+        if ($cohortId <= 0 || $title === '' || !preg_match('#^https?://#i', $url)) { header('Location: ?v=media&err=' . urlencode('Pick a class and enter a title and a web address (http or https).')); exit; }
+        if (!mam_db_row('SELECT id FROM cohorts WHERE id = ?', [$cohortId])) { header('Location: ?v=media&err=' . urlencode('That class no longer exists.')); exit; }
         $me = mam_current_user();
-        $newId = mam_db_insert('class_resources', ['class_id' => $classId, 'title' => $title, 'url' => $url, 'type' => $type, 'posted_by' => $me ? (int)$me['id'] : null]);
-        mam_audit('resource_add', 'class_resource', (int)$newId, ['class_id' => $classId, 'type' => $type]);
+        $newId = mam_db_insert('class_resources', ['cohort_id' => $cohortId, 'title' => $title, 'url' => $url, 'type' => $type, 'posted_by' => $me ? (int)$me['id'] : null]);
+        mam_audit('resource_add', 'class_resource', (int)$newId, ['cohort_id' => $cohortId, 'type' => $type]);
         header('Location: ?v=media&ok=1'); exit;
     }
     if ($action === 'resource_delete') {
@@ -1210,86 +1227,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $memberBack($uid, 'err', 'Write the note first.');
         }
         $memberBack($uid, 'ok', 'Note added.');
-    }
-
-    if ($action === 'class_create') {
-        $title       = trim((string)($_POST['title'] ?? ''));
-        $discipline  = trim((string)($_POST['discipline'] ?? ''));
-        $pathway     = trim((string)($_POST['pathway'] ?? '')) ?: null;
-        $instructor  = (int)($_POST['instructor_id'] ?? 0) ?: null;
-        $mode        = trim((string)($_POST['mode'] ?? '')) ?: null;
-        $schedule    = trim((string)($_POST['schedule'] ?? '')) ?: null;
-        $capacity    = max(1, (int)($_POST['capacity'] ?? 12));
-        $startsOn    = trim((string)($_POST['starts_on'] ?? '')) ?: null;
-        $rawLink     = trim((string)($_POST['meeting_link'] ?? ''));
-        $meetingLink = null;
-        if ($rawLink !== '') {
-            $validated = filter_var($rawLink, FILTER_VALIDATE_URL);
-            if ($validated && preg_match('#^https://#i', $validated)) {
-                $meetingLink = substr($validated, 0, 500);
-            }
-        }
-        if ($title === '' || $discipline === '') {
-            header('Location: ?v=classes&err=' . urlencode('Title and discipline are required.'));
-            exit;
-        }
-        $cid = mam_db_insert('classes', [
-            'title' => $title, 'discipline' => $discipline, 'pathway' => $pathway,
-            'instructor_id' => $instructor, 'mode' => $mode, 'schedule' => $schedule,
-            'capacity' => $capacity, 'starts_on' => $startsOn, 'meeting_link' => $meetingLink,
-        ]);
-        mam_audit('create', 'class', $cid, ['title' => $title]);
-        header('Location: ?v=classes&ok=1');
-        exit;
-    }
-
-    if ($action === 'class_status') {
-        $cid = (int)($_POST['class_id'] ?? 0);
-        $status = (string)($_POST['status'] ?? '');
-        if ($cid && in_array($status, ['active', 'paused', 'archived'], true)) {
-            mam_db_update('classes', ['status' => $status], ['id' => $cid]);
-            mam_audit('update_status', 'class', $cid, ['status' => $status]);
-        }
-        header('Location: ?v=classes&ok=1');
-        exit;
-    }
-
-    if ($action === 'enroll') {
-        $sid = (int)($_POST['student_id'] ?? 0);
-        $cid = (int)($_POST['class_id'] ?? 0);
-        if (!$sid || !$cid) {
-            header('Location: ?v=enrollments&err=' . urlencode('Pick a student and a class.'));
-            exit;
-        }
-        $student = mam_db_row("SELECT id FROM users WHERE id = ? AND role = 'student'", [$sid]);
-        $class   = mam_db_row('SELECT id FROM classes WHERE id = ?', [$cid]);
-        if (!$student || !$class) {
-            header('Location: ?v=enrollments&err=' . urlencode('Student or class not found.'));
-            exit;
-        }
-        try {
-            $eid = mam_db_insert('enrollments', [
-                'student_id' => $sid, 'class_id' => $cid, 'status' => 'active',
-            ]);
-            mam_audit('enroll', 'student', $sid, ['class_id' => $cid]);
-            header('Location: ?v=enrollments&ok=1');
-        } catch (PDOException $e) {
-            $m = $e->getMessage();
-            $dup = str_contains($m, 'UNIQUE') || str_contains($m, 'Duplicate') || $e->getCode() === '23000';
-            header('Location: ?v=enrollments&err=' . urlencode($dup ? 'Student already enrolled in this class.' : 'Enroll failed.'));
-        }
-        exit;
-    }
-
-    if ($action === 'enrollment_status') {
-        $eid = (int)($_POST['enrollment_id'] ?? 0);
-        $status = (string)($_POST['status'] ?? '');
-        if ($eid && in_array($status, ['active', 'completed', 'withdrawn', 'paused'], true)) {
-            mam_db_update('enrollments', ['status' => $status], ['id' => $eid]);
-            mam_audit('update_status', 'enrollment', $eid, ['status' => $status]);
-        }
-        header('Location: ?v=enrollments&ok=1');
-        exit;
     }
 
     /* ─── Academic calendar ───────────────────────────────────────────────
@@ -1765,46 +1702,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 
     // ─── Bridge all active legacy class enrollments into course_enrollments ─
-    if ($action === 'bridge_legacy_enrollments') {
-        $bridged = 0; $skipped = 0; $errors = [];
-        $rows = mam_db_all(
-            "SELECT e.student_id, cl.discipline, cl.instructor_id
-               FROM enrollments e
-               JOIN classes cl ON cl.id = e.class_id
-              WHERE e.status = 'active' AND cl.discipline IS NOT NULL AND cl.discipline <> ''
-              ORDER BY e.student_id"
-        );
-        $adminId = (int)($adminUser['id'] ?? 0);
-        foreach ($rows as $row) {
-            $sid   = (int)$row['student_id'];
-            $disc  = (string)$row['discipline'];
-            $iid   = (int)($row['instructor_id'] ?? 0);
-            $ceId  = 0;
-            try {
-                $ceRow = mam_lms_add_course($sid, $disc);
-                $ceId  = (int)($ceRow['id'] ?? 0);   // null when diverted to a full cohort's waitlist
-                $bridged++;
-            } catch (RuntimeException $e) {
-                if ($e->getMessage() === 'already_enrolled') {
-                    $ex = mam_lms_find_enrollment($sid, $disc);
-                    $ceId = $ex ? (int)$ex['id'] : 0;
-                    $skipped++;
-                } else {
-                    $errors[] = "student $sid / $disc: " . $e->getMessage();
-                }
-            } catch (\Throwable $e) {
-                $errors[] = "student $sid / $disc: " . $e->getMessage();
-            }
-            if ($ceId > 0) {
-                try { mam_lms_approve($ceId, $iid ?: null, $adminId); }
-                catch (\Throwable $e) { /* already active */ }
-            }
-        }
-        $msg = "Bridged $bridged" . ($skipped ? ", $skipped already linked" : '') . ($errors ? ', ' . count($errors) . ' failed (see logs)' : '') . ' legacy class enrollment' . ($bridged + $skipped + count($errors) !== 1 ? 's' : '') . '.';
-        foreach ($errors as $err) mam_log('warn', 'bridge_legacy_error', ['detail' => $err]);
-        mam_audit('bridge_legacy_enrollments', 'course_enrollments', 0, ['bridged' => $bridged, 'skipped' => $skipped, 'errors' => count($errors)]);
-        header('Location: ?v=courseenroll&ok=' . urlencode($msg)); exit;
-    }
 
     // ─── Assign / add a course to a student from the user-edit view ────
     if ($action === 'student_course_assign') {
@@ -2233,22 +2130,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             header('Location: ?v=courseenroll&err=' . urlencode('Could not promote waitlist student.')); exit;
         }
         header('Location: ?v=courseenroll&ok=' . urlencode($promoted ? 'Promoted student #' . $promoted . ' from the waitlist.' : 'Waitlist is empty.')); exit;
-    }
-
-    if ($action === 'cohort_converge') {
-        $cohortId = (int)($_POST['cohort_id'] ?? 0);
-        if ($cohortId <= 0) { header('Location: ?v=courseenroll&err=' . urlencode('Pick a cohort to converge.')); exit; }
-        try {
-            $r = mam_lms_converge_cohort_enrollments($cohortId, ((int)($adminUser['id'] ?? 0)) ?: null);
-        } catch (\Throwable $e) {
-            header('Location: ?v=courseenroll&err=' . urlencode('Could not converge that cohort.')); exit;
-        }
-        if ($r['reason'] === 'no_course_mapping') { header('Location: ?v=courseenroll&err=' . urlencode('Map this cohort to a course first — then converge its class roster.')); exit; }
-        if ($r['reason'] === 'not_backfilled')   { header('Location: ?v=courseenroll&err=' . urlencode('That cohort has no legacy class to converge.')); exit; }
-        $made = (int)$r['converged'] + (int)$r['linked'];
-        header('Location: ?v=courseenroll&ok=' . urlencode($made
-            ? ('Converged the legacy roster — ' . (int)$r['converged'] . ' enrolled, ' . (int)$r['linked'] . ' linked' . ($r['skipped'] ? ', ' . (int)$r['skipped'] . ' already enrolled' : '') . '.')
-            : 'Nothing to converge — the class roster is already enrolled.')); exit;
     }
 
     if ($action === 'cohort_create') {
@@ -3119,22 +3000,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // ─── Soft-delete / deactivation across core entities ─────────────
     // We never hard-delete user-visible records (audit + finance integrity);
     // these flip a status column instead so the row stays for history.
-    if ($action === 'class_delete') {
-        $cid = (int)($_POST['class_id'] ?? 0);
-        if ($cid) {
-            mam_db_update('classes', ['status' => 'archived'], ['id' => $cid]);
-            mam_audit('class_archive', 'class', $cid);
-        }
-        header('Location: ?v=classes&ok=1'); exit;
-    }
-    if ($action === 'enrollment_delete') {
-        $eid = (int)($_POST['enrollment_id'] ?? 0);
-        if ($eid) {
-            mam_db_update('enrollments', ['status' => 'withdrawn'], ['id' => $eid]);
-            mam_audit('enrollment_withdraw', 'enrollment', $eid);
-        }
-        header('Location: ?v=enrollments&ok=1'); exit;
-    }
     if ($action === 'app_delete') {
         $aid = (int)($_POST['app_id'] ?? 0);
         if ($aid) {
@@ -3192,35 +3057,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 
     // ─── Class editing (beyond status toggle) ────────────────────────
-    if ($action === 'class_edit') {
-        $cid = (int)($_POST['class_id'] ?? 0);
-        if (!$cid) { header('Location: ?v=classes&err=' . urlencode('Missing class_id')); exit; }
-        $rawLink2 = trim((string)($_POST['meeting_link'] ?? ''));
-        $meetingLink2 = null;
-        if ($rawLink2 !== '') {
-            $validated2 = filter_var($rawLink2, FILTER_VALIDATE_URL);
-            if ($validated2 && preg_match('#^https://#i', $validated2)) {
-                $meetingLink2 = substr($validated2, 0, 500);
-            }
-        }
-        $upd = [
-            'title'         => trim((string)($_POST['title'] ?? '')),
-            'discipline'    => trim((string)($_POST['discipline'] ?? '')),
-            'pathway'       => trim((string)($_POST['pathway'] ?? '')) ?: null,
-            'instructor_id' => $_POST['instructor_id'] === '' ? null : (int)($_POST['instructor_id'] ?? 0),
-            'mode'          => trim((string)($_POST['mode'] ?? '')) ?: null,
-            'capacity'      => (int)($_POST['capacity'] ?? 0),
-            'starts_on'     => trim((string)($_POST['starts_on'] ?? '')) ?: null,
-            'schedule'      => trim((string)($_POST['schedule'] ?? '')) ?: null,
-            'meeting_link'  => $meetingLink2,
-        ];
-        if ($upd['title'] === '' || $upd['discipline'] === '') {
-            header('Location: ?v=classes&edit=' . $cid . '&err=' . urlencode('Title and discipline are required.')); exit;
-        }
-        mam_db_update('classes', $upd, ['id' => $cid]);
-        mam_audit('class_edit', 'class', $cid);
-        header('Location: ?v=classes&ok=1'); exit;
-    }
 
     // ─── Payment refund (operational marker) ─────────────────────────
     // We don't push the refund through the provider API — most refunds at MAM

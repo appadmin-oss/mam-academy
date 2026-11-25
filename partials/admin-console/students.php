@@ -243,7 +243,7 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
      </div>
      <div>
       <h3 class="ac-label">Learning</h3>
-      <?php if (!$m['courses'] && !$m['classes']): ?>
+      <?php if (!$m['courses']): ?>
         <p class="ac-note">Not enrolled in anything yet. <a href="<?= ac_h(ac_url('roster', ['student' => $sid])) ?>">Enrol in a class</a>.</p>
       <?php else: ?>
         <div class="ac-defs">
@@ -254,11 +254,6 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
                     $c['cohort'] ? (string) $c['cohort'] : 'no class yet',
                     trim((string) ($c['schedule_days'] ?? '') . ' ' . (string) ($c['schedule_time'] ?? '')),
                     $c['instructor'] ? (string) $c['instructor'] : 'no teacher yet']))) . '</span>'); ?>
-          <?php endforeach; ?>
-          <?php foreach ($m['classes'] as $c): ?>
-            <?php ac_def((string) $c['title'] . ' · legacy class',
-                ac_status((string) $c['status'])
-                . ' <span class="ac-sub">' . ac_h(ac_join(array_filter([(string) ($c['schedule'] ?? ''), (string) ($c['instructor'] ?? '')]))) . '</span>'); ?>
           <?php endforeach; ?>
         </div>
       <?php endif; ?>
@@ -375,9 +370,6 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
               <?= (int) $r['courses'] ?> course<?= (int) $r['courses'] === 1 ? '' : 's' ?>
               <?php if ((int) ($r['courses_pending'] ?? 0) > 0): /* Enrol & staffing counts these as enrolled-awaiting-approval; saying 0 here contradicted it */ ?>
                 <div class="ac-sub"><?= (int) $r['courses_pending'] ?> awaiting approval</div>
-              <?php endif; ?>
-              <?php if ((int) $r['classes'] > 0): ?>
-                <div class="ac-sub"><?= (int) $r['classes'] ?> legacy class<?= (int) $r['classes'] === 1 ? '' : 'es' ?></div>
               <?php endif; ?>
             </td>
             <td class="ac-num"><?= $r['attendance'] !== null ? (int) $r['attendance'] . '%' : '<span class="ac-sub">—</span>' ?></td>

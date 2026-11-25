@@ -80,7 +80,7 @@ $by = $d['by_status'] ?? [];
                 <div class="ac-tlbody">
                   <div><?= ac_h((string) $a['title']) ?></div>
                   <div class="ac-sub"><?= ac_h(mam_console_date((string) $a['created_at'], 'j M')) ?>
-                    · <?= ac_h((string) (($a['cohort'] ?: $a['class']) ?: 'everyone')) ?></div>
+                    · <?= ac_h((string) ($a['cohort'] ?: 'everyone')) ?></div>
                 </div>
               </div>
             <?php endforeach; ?>

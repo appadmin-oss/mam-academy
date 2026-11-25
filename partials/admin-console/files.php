@@ -82,7 +82,7 @@ declare(strict_types=1);
               <tr>
                 <td><div class="ac-strong"><?= ac_h((string) $r['title']) ?></div>
                     <div class="ac-sub"><?= ac_tag((string) ($r['type'] ?: 'link')) ?></div></td>
-                <td><?= ac_h((string) (($r['cohort'] ?: $r['class']) ?: 'unattached')) ?></td>
+                <td><?= ac_h((string) ($r['cohort'] ?: 'unattached')) ?></td>
                 <td class="ac-num">
                   <?php ac_action_btn('resource_delete', 'files', ['resource_id' => (int) $r['id']],
                       'Remove', 'ac-btn ac-btn--sm ac-btn--danger', 'Remove this resource?'); ?>

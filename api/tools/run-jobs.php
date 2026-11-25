@@ -86,6 +86,19 @@ if (function_exists('mam_dp_retention_sweep') && (!function_exists('mam_automati
        footing as the tables above — and until this ran, nothing ever removed
        them. Same gate, same automation flag, so an academy that has not opted
        into enforcement gets a count and no deletion. */
+    /* The old class model is retired (legacy-carry.php). Carrying is idempotent,
+       so running it nightly costs nothing once done, and an install whose admin
+       never pressed "Bring them across" still ends up with one class model. */
+    if (function_exists('mam_legacy_carry')) {
+        try {
+            $lc = mam_legacy_carry(null);
+            printf("old classes: %d enrolments, %d marks carried; %d waiting for a course\n",
+                $lc['enrolments'], $lc['marks'], count($lc['waiting']));
+        } catch (Throwable $e) {
+            mam_log('error', 'legacy_carry_failed', ['error' => $e->getMessage()]);
+        }
+    }
+
     if (function_exists('mam_dp_prune_app_logs')) {
         $lp = mam_dp_prune_app_logs();
         printf("log prune  : mode %s, kept after %s, overdue %d, deleted %d (%d KB)\n",

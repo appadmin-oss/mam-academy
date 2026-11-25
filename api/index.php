@@ -420,8 +420,6 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     $r->get ('/search',          $f('admin/search.php'),         [mw_admin_cap('users')]);
     $r->post('/create-user',     $f('admin/create-user.php'),    [mw_csrf(), mw_admin_cap('users')]);
     $r->post('/reset-password',  $f('admin/reset-password.php'), [mw_csrf(), mw_admin_cap('users')]);
-    $r->post('/create-class',    $f('admin/create-class.php'),   [mw_csrf(), mw_admin_cap('enrollments')]);
-    $r->post('/enroll-student',  $f('admin/enroll-student.php'), [mw_csrf(), mw_admin_cap('enrollments')]);
     $r->post('/mail-test',       $f('admin/mail-test.php'),      [mw_csrf(), mw_admin_cap('mail'), mw_rate_limit('mail_test', 10, 600)]);
     // Outbound-mail outbox: viewing is operational; re-sending is super-only.
     $r->get ('/mail-log',        $f('admin/mail-log.php'),       [mw_admin_cap('view')]);

@@ -49,7 +49,7 @@ $CR_pending = [
     'datarights_erase', 'delete_promo_banner', 'dp_assessment_save', 'dp_breach_close',
     'dp_breach_ndpc', 'dp_breach_record', 'dp_breach_subjects', 'dp_note_save', 'dp_processor_save',
     'dp_request_ack', 'dp_request_close', 'dp_request_export', 'dp_request_open', 'dp_retention_run',
-    'enrollment_delete', 'module_save', 'rubric_update', 'faculty_app_status', 'faculty_assign_subjects', 'faculty_invite',
+    'module_save', 'rubric_update', 'faculty_app_status', 'faculty_assign_subjects', 'faculty_invite',
     'faculty_request_review', 'fee_aid_revoke', 'meet_reconcile', 'meet_sync', 'module_import',
     'module_proposal_review', 'module_scaffold', 'notif_read_all',
     'recital_add_item', 'recital_create', 'recital_email', 'recital_recording', 'recital_reorder',

@@ -30,11 +30,39 @@ $shown = array_values(array_filter($rows, $filters[$f][1]));
     . 'the instructor list keys off the cohort\'s teacher OR an enrolment\'s, so setting neither hides the class from everyone.'); ?>
 <?php endif; ?>
 
-<?php if ((int) ($d['legacy_only'] ?? 0) > 0): ?>
-  <?php ac_banner('flat', 'fa-code-branch',
-    '<strong>' . (int) $d['legacy_only'] . ' legacy class' . ((int) $d['legacy_only'] === 1 ? '' : 'es')
-    . ' with no cohort.</strong> This schema carries two enrolment models and they are not reconciled. '
-    . 'Every read in this console spans both; a purely-legacy class must be course-mapped before it can be converged.'); ?>
+<?php $old = $d['old_classes'] ?? []; if ($old): ?>
+  <?php ac_card_open('Old classes to bring across', count($old) . ' waiting'); ?>
+    <?php ac_form('legacy_carry', 'cohorts'); ?>
+      <div class="ac-tablewrap">
+        <table class="ac-table">
+          <thead><tr><th>Class</th><th class="ac-num">Students</th><th class="ac-num">Attendance marks</th><th>Course</th></tr></thead>
+          <tbody>
+            <?php foreach ($old as $o): $cid = (int) $o['class_id']; ?>
+              <tr>
+                <td class="ac-strong"><?= ac_h((string) $o['title']) ?><div class="ac-sub"><?= ac_h((string) ($o['discipline'] ?: 'no subject given')) ?></div></td>
+                <td class="ac-num"><?= (int) $o['students'] ?></td>
+                <td class="ac-num"><?= (int) $o['marks'] ?></td>
+                <td><?php if ((int) ($o['course_id'] ?? 0) > 0): ?>
+                    <span class="ac-sub">Matched</span>
+                  <?php else: ?>
+                    <label class="ac-sr" for="cf-<?= $cid ?>">Course for <?= ac_h((string) $o['title']) ?></label>
+                    <select class="ac-select ac-w-fit" id="cf-<?= $cid ?>" name="course_for[<?= $cid ?>]">
+                      <option value="">Match by subject</option>
+                      <?php foreach ($d['courses'] ?? [] as $c): ?>
+                        <option value="<?= (int) $c['id'] ?>"><?= ac_h((string) $c['name']) ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  <?php endif; ?></td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <div class="ac-cardbody ac-row">
+        <button type="submit" class="ac-btn ac-btn--primary">Bring them across</button>
+      </div>
+    <?php ac_form_end(); ?>
+  <?php ac_card_close('Students, attendance, notices and homework move into each class\'s cohort. Nothing is deleted, and pressing it twice changes nothing.'); ?>
 <?php endif; ?>
 
 <div class="ac-tabs">
@@ -72,10 +100,6 @@ $shown = array_values(array_filter($rows, $filters[$f][1]));
         <?php if ($cap !== null): ?>
           <div class="ac-mt-sm"><?= ac_meter((int) $r['pct'], !empty($r['is_full']) ? 'bad' : 'accent') ?></div>
         <?php endif; ?>
-        <?php if ((int) ($r['legacy_count'] ?? 0) > 0): ?>
-          <div class="ac-note ac-mt-sm">Plus <strong><?= (int) $r['legacy_count'] ?></strong>
-            on the backfilled class roster, who are not yet gradable.</div>
-        <?php endif; ?>
       </div>
       <div class="ac-cardfoot">
         <div class="ac-row">
@@ -83,11 +107,6 @@ $shown = array_values(array_filter($rows, $filters[$f][1]));
           <?php if ((int) $r['waiting'] > 0): ?>
             <?php ac_action_btn('waitlist_promote', 'cohorts', ['cohort_id' => (int) $r['id']],
                 'Promote next', 'ac-btn ac-btn--sm ac-btn--primary'); ?>
-          <?php endif; ?>
-          <?php if ((int) ($r['legacy_count'] ?? 0) > 0): ?>
-            <?php ac_action_btn('cohort_converge', 'cohorts', ['cohort_id' => (int) $r['id']],
-                'Converge', 'ac-btn ac-btn--sm',
-                'Bring this class\'s older roster into the cohort so its students can be marked? Nobody is removed, and pressing it twice changes nothing.'); ?>
           <?php endif; ?>
         </div>
       </div>

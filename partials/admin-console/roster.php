@@ -3,12 +3,12 @@
  * Enrol & staffing — pick a cohort and run it: who is in it and how they are
  * doing, who is waiting, who teaches it, what is coming up; enrol, move,
  * withdraw, approve; change the instructor with the safeguarding gate's verdict
- * shown BEFORE saving; close it. The legacy classes sit in their own panel
- * underneath, because they are a second record of the same students (gotcha #2).
+ * shown BEFORE saving; close it. There is one class model: the old classes were
+ * carried into cohorts (api/lib/legacy-carry.php; Enrol & staffing → Cohorts).
  *
  * Every write posts to /admin/ (admin/index.php); the rules live in
- * api/lib/cohort-admin.php and lms.php, never here. `_cohort` / `_class` on a
- * form tell the console's return hook which record to come back to.
+ * api/lib/cohort-admin.php and lms.php, never here. `_cohort` on a form
+ * tells the console's return hook which record to come back to.
  */
 declare(strict_types=1);
 /** @var array $d */
@@ -16,8 +16,6 @@ $c = $d['cohort'] ?? null;
 $sel = (int) ($d['selected'] ?? 0);
 $mode = (string) ($d['vetting_mode'] ?? 'warn');
 $back = ['_cohort' => $sel ?: ''];
-$cls = $d['class'] ?? null;
-$clsSel = (int) ($d['class_sel'] ?? 0);
 $live = array_values(array_filter($d['roster'] ?? [], fn($r) => !empty($r['live'])));
 $ended = array_values(array_filter($d['roster'] ?? [], fn($r) => empty($r['live'])));
 ?>
@@ -93,7 +91,7 @@ $ended = array_values(array_filter($d['roster'] ?? [], fn($r) => empty($r['live'
                     <div class="ac-grow"><div class="ac-strong"><?= ac_h((string) $s['name']) ?></div>
                     <div class="ac-sub"><?= ac_h(ac_join([(string) ($s['enrollment_ref'] ?? ''), (string) $s['email']])) ?></div></div></div></td>
                   <td><?= ac_status((string) $s['status']) ?>
-                    <?php if (!$isCourse): ?><div class="ac-sub">Legacy class record</div><?php endif; ?></td>
+                    </td>
                   <td><?php if (($s['att_pct'] ?? null) === null): ?><span class="ac-sub">No marks yet</span>
                     <?php else: ?><span class="ac-strong"><?= (int) $s['att_pct'] ?>%</span>
                       <div class="ac-sub">of <?= (int) $s['att_n'] ?> marked</div><?php endif; ?></td>
@@ -133,8 +131,6 @@ $ended = array_values(array_filter($d['roster'] ?? [], fn($r) => empty($r['live'
                       </details>
                     <?php elseif ($isCourse && (string) $s['status'] === 'completed'): ?>
                       <?php ac_action_btn('course_promote', 'roster', $back + ['enrollment_id' => (int) $s['id']], 'Next level'); ?>
-                    <?php elseif (!$isCourse): ?>
-                      <?php ac_action_btn('cohort_converge', 'roster', $back + ['cohort_id' => $sel], 'Bring across'); ?>
                     <?php endif; ?>
                   </td>
                 </tr>
@@ -142,7 +138,7 @@ $ended = array_values(array_filter($d['roster'] ?? [], fn($r) => empty($r['live'
             </tbody>
           </table>
         </div>
-      <?php ac_card_close('Attendance counts present, late and left-early against every mark except excused and rescheduled. Mastery is the published band, never a raw score, and blank until there is enough evidence. A legacy class record is the same student in the older class model; “Bring across” enrols the class roster into this cohort so they can be marked and moved.'); ?>
+      <?php ac_card_close('Attendance counts present, late and left-early against every mark except excused and rescheduled. Mastery is the published band, never a raw score, and blank until there is enough evidence.'); ?>
 
       <?php /* ── Enrol a student ─────────────────────────────────────── */ ?>
       <?php ac_card_open('Enrol a student', $isOpen ? ($cap !== null && $fill >= $cap ? 'full — new students join the waitlist' : ($cap === null ? 'uncapped' : ($cap - $fill) . ' seat' . ($cap - $fill === 1 ? '' : 's') . ' free')) : 'closed'); ?>
@@ -362,142 +358,3 @@ $ended = array_values(array_filter($d['roster'] ?? [], fn($r) => empty($r['live'
   </div>
 </div>
 
-<?php /* ── Legacy classes ─────────────────────────────────────────────────
-   The older class model (classes + enrollments) that the student dashboard's
-   classes and attendance still read. Every form posts the ORIGINAL handler. */ ?>
-<?php ac_card_open('Legacy classes', count($d['classes'] ?? []) . ' classes · the older class model',
-    (function () { ob_start();
-        ac_action_btn('bridge_legacy_enrollments', 'roster', [], 'Bridge all into courses', 'ac-btn ac-btn--sm',
-            'Enrol every active legacy class student into the matching course? Already-enrolled students are skipped.');
-        return (string) ob_get_clean(); })()); ?>
-  <div class="ac-tablewrap">
-    <table class="ac-table">
-      <thead><tr><th>Class</th><th>Status</th><th>Enrolled</th><th>Cohort</th><th class="ac-num"></th></tr></thead>
-      <tbody>
-        <?php if (!($d['classes'] ?? [])): ?>
-          <?php ac_table_empty(5, 'No legacy classes.'); ?>
-        <?php else: foreach ($d['classes'] as $cl): ?>
-          <tr>
-            <td><a class="ac-strong" href="<?= ac_h(ac_url('roster', ['cohort' => $sel ?: null, 'class' => (int) $cl['id']])) ?>#legacy"><?= ac_h((string) $cl['title']) ?></a>
-              <div class="ac-sub"><?= ac_h(ac_join([(string) $cl['discipline'], (string) ($cl['schedule'] ?? ''), (string) ($cl['instructor'] ?? '') ?: 'unassigned'])) ?></div></td>
-            <td><?= ac_status((string) $cl['status']) ?></td>
-            <td><?= (int) $cl['enrolled'] ?><?= $cl['capacity'] ? ' / ' . (int) $cl['capacity'] : '' ?></td>
-            <td><?php if ($cl['cohort_id']): ?><a href="<?= ac_h(ac_url('roster', ['cohort' => (int) $cl['cohort_id']])) ?>">Backfilled</a>
-              <?php else: ?><span class="ac-sub">None</span><?php endif; ?></td>
-            <td class="ac-num">
-              <?php if ((string) $cl['status'] === 'active'): ?>
-                <?php ac_action_btn('class_status', 'roster', $back + ['_class' => (int) $cl['id'], 'class_id' => (int) $cl['id'], 'status' => 'paused'], 'Pause'); ?>
-              <?php elseif ((string) $cl['status'] !== 'active'): ?>
-                <?php ac_action_btn('class_status', 'roster', $back + ['_class' => (int) $cl['id'], 'class_id' => (int) $cl['id'], 'status' => 'active'], 'Reactivate'); ?>
-              <?php endif; ?>
-              <?php if ((string) $cl['status'] !== 'archived'): ?>
-                <?php ac_action_btn('class_delete', 'roster', $back + ['class_id' => (int) $cl['id']], 'Archive', 'ac-btn ac-btn--sm',
-                    'Archive this class? Its enrolments and attendance stay on record.'); ?>
-              <?php endif; ?>
-            </td>
-          </tr>
-        <?php endforeach; endif; ?>
-      </tbody>
-    </table>
-  </div>
-<?php ac_card_close('“Bridge all into courses” enrols each active legacy student into the course named by the class\'s discipline; a discipline that is not a course is skipped and logged. Archiving keeps the record — nothing here deletes a class.'); ?>
-
-<div class="ac-cols ac-mt" id="legacy">
-  <?php if ($cls): ?>
-    <div class="ac-stack">
-      <?php ac_card_open((string) $cls['title'], 'legacy class · ' . (int) $cls['enrolled'] . ' active', ac_status((string) $cls['status'])); ?>
-        <div class="ac-tablewrap">
-          <table class="ac-table">
-            <thead><tr><th>Student</th><th>Status</th><th class="ac-num">Change</th></tr></thead>
-            <tbody>
-              <?php if (!($d['class_roster'] ?? [])): ?>
-                <?php ac_table_empty(3, 'Nobody enrolled in this class.'); ?>
-              <?php else: foreach ($d['class_roster'] as $e): ?>
-                <tr>
-                  <td><div class="ac-strong"><?= ac_h((string) $e['name']) ?></div><div class="ac-sub"><?= ac_h((string) $e['email']) ?></div></td>
-                  <td><?= ac_status((string) $e['status']) ?></td>
-                  <td class="ac-num">
-                    <?php ac_form('enrollment_status', 'roster', $back + ['_class' => $clsSel, 'enrollment_id' => (int) $e['id']], 'class="ac-row"'); ?>
-                      <label class="ac-sr" for="es<?= (int) $e['id'] ?>">Status for <?= ac_h((string) $e['name']) ?></label>
-                      <select class="ac-select" id="es<?= (int) $e['id'] ?>" name="status">
-                        <?php foreach (['active', 'paused', 'completed', 'withdrawn'] as $st): ?>
-                          <option value="<?= $st ?>"<?= (string) $e['status'] === $st ? ' selected' : '' ?>><?= ucfirst($st) ?></option>
-                        <?php endforeach; ?>
-                      </select>
-                      <button type="submit" class="ac-btn ac-btn--sm">Set</button>
-                    <?php ac_form_end(); ?>
-                  </td>
-                </tr>
-              <?php endforeach; endif; ?>
-            </tbody>
-          </table>
-        </div>
-        <div class="ac-cardbody">
-          <?php ac_form('enroll', 'roster', $back + ['_class' => $clsSel, 'class_id' => $clsSel]); ?>
-            <div class="ac-inline">
-              <label class="ac-field"><span class="ac-label">Enrol into this class</span>
-                <select class="ac-select" name="student_id" required>
-                  <option value="">— pick a student —</option>
-                  <?php foreach ($d['candidates'] ?? [] as $s): ?>
-                    <option value="<?= (int) $s['id'] ?>"><?= ac_h((string) $s['name']) ?> · <?= ac_h((string) $s['email']) ?></option>
-                  <?php endforeach; ?>
-                </select></label>
-              <button type="submit" class="ac-btn ac-btn--primary">Enrol</button>
-            </div>
-          <?php ac_form_end(); ?>
-          <div class="ac-hint">This writes the legacy record only. <?= $cls['cohort_id'] ? 'This class is backfilled into a cohort — enrol there instead so the student can be marked, or use “Bring across” afterwards.' : 'For a student who should be gradable, enrol them into a cohort above.' ?></div>
-        </div>
-      <?php ac_card_close(); ?>
-    </div>
-    <div class="ac-stack">
-      <?php ac_card_open('Edit class'); ?>
-        <div class="ac-cardbody">
-          <?php ac_form('class_edit', 'roster', $back + ['_class' => $clsSel, 'class_id' => $clsSel]); ?>
-            <div class="ac-grid ac-grid--2">
-              <label class="ac-field"><span class="ac-label">Title</span><input class="ac-input" name="title" required value="<?= ac_h((string) $cls['title']) ?>"></label>
-              <label class="ac-field"><span class="ac-label">Discipline</span><input class="ac-input" name="discipline" required value="<?= ac_h((string) $cls['discipline']) ?>"></label>
-              <label class="ac-field"><span class="ac-label">Instructor</span>
-                <select class="ac-select" name="instructor_id">
-                  <option value="">— nobody —</option>
-                  <?php foreach ($d['instructors'] ?? [] as $i): ?>
-                    <option value="<?= (int) $i['id'] ?>"<?= (int) ($cls['instructor_id'] ?? 0) === (int) $i['id'] ? ' selected' : '' ?>><?= ac_h((string) $i['name']) ?></option>
-                  <?php endforeach; ?>
-                </select></label>
-              <label class="ac-field"><span class="ac-label">Capacity</span><input class="ac-input" type="number" name="capacity" min="1" value="<?= (int) $cls['capacity'] ?>"></label>
-              <label class="ac-field"><span class="ac-label">Schedule</span><input class="ac-input" name="schedule" value="<?= ac_h((string) ($cls['schedule'] ?? '')) ?>"></label>
-              <label class="ac-field"><span class="ac-label">Mode</span><input class="ac-input" name="mode" value="<?= ac_h((string) ($cls['mode'] ?? '')) ?>" placeholder="onsite / online"></label>
-              <label class="ac-field"><span class="ac-label">Starts on</span><input class="ac-input" type="date" name="starts_on" value="<?= ac_h((string) ($cls['starts_on'] ?? '')) ?>"></label>
-              <label class="ac-field"><span class="ac-label">Meeting link</span><input class="ac-input" type="url" name="meeting_link" value="<?= ac_h((string) ($cls['meeting_link'] ?? '')) ?>" placeholder="https://…"></label>
-            </div>
-            <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Save class</button>
-              <a class="ac-btn" href="<?= ac_h(ac_url('roster', ['cohort' => $sel ?: null])) ?>">Close</a></div>
-          <?php ac_form_end(); ?>
-          <div class="ac-hint">The instructor here is the legacy class's only. Whoever teaches a cohort is set through the safeguarding gate above.</div>
-        </div>
-      <?php ac_card_close(); ?>
-    </div>
-  <?php else: ?>
-    <?php ac_card_open('New legacy class'); ?>
-      <div class="ac-cardbody">
-        <?php ac_form('class_create', 'roster', $back); ?>
-          <div class="ac-grid ac-grid--3">
-            <label class="ac-field"><span class="ac-label">Title</span><input class="ac-input" name="title" required></label>
-            <label class="ac-field"><span class="ac-label">Discipline</span><input class="ac-input" name="discipline" required placeholder="piano"></label>
-            <label class="ac-field"><span class="ac-label">Capacity</span><input class="ac-input" type="number" name="capacity" min="1" value="12"></label>
-            <label class="ac-field"><span class="ac-label">Schedule</span><input class="ac-input" name="schedule" placeholder="Sat 10:00"></label>
-            <label class="ac-field"><span class="ac-label">Starts on</span><input class="ac-input" type="date" name="starts_on"></label>
-            <label class="ac-field"><span class="ac-label">Instructor</span>
-              <select class="ac-select" name="instructor_id">
-                <option value="">— assign later —</option>
-                <?php foreach ($d['instructors'] ?? [] as $i): ?>
-                  <option value="<?= (int) $i['id'] ?>"><?= ac_h((string) $i['name']) ?></option>
-                <?php endforeach; ?>
-              </select></label>
-          </div>
-          <div class="ac-row ac-mt"><button type="submit" class="ac-btn">Create legacy class</button>
-            <span class="ac-hint">New teaching belongs in a cohort; this exists for the classes the older dashboards still read. Open a class above to see its roster and edit it.</span></div>
-        <?php ac_form_end(); ?>
-      </div>
-    <?php ac_card_close(); ?>
-  <?php endif; ?>
-</div>

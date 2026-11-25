@@ -13,9 +13,9 @@ declare(strict_types=1);
 mam_require_admin_cap('media');
 
 $resources = mam_db_all(
-    "SELECT r.id, r.title, r.url, r.type, r.created_at, r.class_id, c.title AS class_title, u.name AS poster
+    "SELECT r.id, r.title, r.url, r.type, r.created_at, r.cohort_id, c.title AS class_title, u.name AS poster
        FROM class_resources r
-       LEFT JOIN classes c ON c.id = r.class_id
+       LEFT JOIN cohorts c ON c.id = r.cohort_id
        LEFT JOIN users u ON u.id = r.posted_by
       ORDER BY r.id DESC LIMIT 200"
 );

@@ -554,11 +554,7 @@ function mam_console_dashboard(): array {
 
     $census = $termId ? mam_console_try('dash.census', fn() => mam_calendar_census($termId), null) : null;
     $activeNow = mam_console_int('dash.active',
-        "SELECT COUNT(DISTINCT student_id) FROM course_enrollments WHERE status = 'active'")
-      + mam_console_int('dash.activelegacy',
-        "SELECT COUNT(DISTINCT student_id) FROM enrollments e
-          WHERE e.status = 'active' AND NOT EXISTS (
-            SELECT 1 FROM course_enrollments ce WHERE ce.student_id = e.student_id AND ce.status = 'active')");
+        "SELECT COUNT(DISTINCT student_id) FROM course_enrollments WHERE status = 'active'");
 
     $present = mam_console_int('dash.present',
         "SELECT COUNT(*) FROM session_attendance WHERE status IN ('present','late')");
@@ -974,8 +970,7 @@ function mam_console_students_where(array $q): array {
         case 'number':   $where[] = "COALESCE(u.enrollment_ref, '') = ''"; break;
         case 'photo':    $where[] = "COALESCE(u.avatar_url, '') = ''"; break;
         case 'guardian': $where[] = 'NOT EXISTS (SELECT 1 FROM parent_links pl WHERE pl.student_id = u.id)'; break;
-        case 'learning': $where[] = "NOT EXISTS (SELECT 1 FROM course_enrollments ce WHERE ce.student_id = u.id AND ce.status = 'active')
-                                    AND NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.student_id = u.id AND e.status = 'active')"; break;
+        case 'learning': $where[] = "NOT EXISTS (SELECT 1 FROM course_enrollments ce WHERE ce.student_id = u.id AND ce.status = 'active')"; break;
         case 'login':    $where[] = 'u.last_login IS NULL'; break;
     }
     if (($s = trim((string) ($q['q'] ?? ''))) !== '') {
@@ -1003,7 +998,6 @@ function mam_console_students(array $q = []): array {
         "SELECT u.id, u.name, u.email, u.status, u.enrollment_ref, u.student_type, u.avatar_url, u.last_login, u.created_at,
                 (SELECT COUNT(*) FROM course_enrollments ce WHERE ce.student_id = u.id AND ce.status = 'active') courses,
                 (SELECT COUNT(*) FROM course_enrollments ce WHERE ce.student_id = u.id AND ce.status = 'pending') courses_pending,
-                (SELECT COUNT(*) FROM enrollments e WHERE e.student_id = u.id AND e.status = 'active') classes,
                 (SELECT COUNT(*) FROM parent_links pl WHERE pl.student_id = u.id) guardians,
                 (SELECT COALESCE(SUM(i.total_usd_cents - CAST(i.paid_minor AS INTEGER)), 0) FROM fee_invoices i
                    WHERE i.student_id = u.id AND i.status IN ('issued','part_paid')) owed
@@ -1073,9 +1067,8 @@ function mam_console_member(int $id): ?array {
    The rest of what Students → a student shows, read in one place so the page is
    a single record rather than eight screens. Four rules, each a promise made
    elsewhere in this codebase and kept here by construction:
-   • BOTH enrolment models (gotcha #2): the course/cohort rows AND the legacy
-     classes, each tagged with which model it came from, so a course-only or a
-     class-only student is never shown as enrolled in nothing.
+   • ONE enrolment model: the course/cohort rows. The old class model is retired
+     and carried into cohorts (legacy-carry.php), so nothing is missing here.
    • The mastery BAND only, via mam_mastery_publishable() — `raw_score` is
      stripped there and is never put in this payload.
    • The week's timetable is READ from class_sessions; nothing here schedules.
@@ -1095,13 +1088,6 @@ function mam_console_member_profile(int $id, ?array $viewer = null): array {
            LEFT JOIN users iu ON iu.id = COALESCE(ce.instructor_id, co.instructor_id)
           WHERE ce.student_id = ?
           ORDER BY CASE ce.status WHEN 'active' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, c.name", [$id]);
-    $classes = mam_console_rows('mem.classes',
-        "SELECT e.id, e.status, cl.id AS class_id, cl.title, cl.discipline, cl.schedule, iu.name AS instructor
-           FROM enrollments e
-           JOIN classes cl ON cl.id = e.class_id
-           LEFT JOIN users iu ON iu.id = cl.instructor_id
-          WHERE e.student_id = ?
-          ORDER BY CASE e.status WHEN 'active' THEN 0 ELSE 1 END, cl.title", [$id]);
 
     // This week, Monday to Sunday in the academy's own zone (never the server clock).
     $today = function_exists('mam_calendar_today') ? (string) mam_console_try('mem.today', fn() => mam_calendar_today(), gmdate('Y-m-d')) : gmdate('Y-m-d');
@@ -1125,15 +1111,11 @@ function mam_console_member_profile(int $id, ?array $viewer = null): array {
                 SUM(CASE WHEN status IN ('absent','left_early') THEN 1 ELSE 0 END) AS absent,
                 SUM(CASE WHEN status IN ('excused','technical_failure','rescheduled') THEN 1 ELSE 0 END) AS excused
            FROM session_attendance WHERE student_id = ?", [$id]) ?: [];
-    $legacyAtt = mam_console_row('mem.att.legacy',
-        "SELECT COUNT(*) AS total, SUM(CASE WHEN a.status IN ('present','late') THEN 1 ELSE 0 END) AS present
-           FROM attendance a JOIN enrollments e ON e.id = a.enrollment_id WHERE e.student_id = ?", [$id]) ?: [];
-    $tot = (int) ($att['total'] ?? 0) + (int) ($legacyAtt['total'] ?? 0);
-    $came = (int) ($att['present'] ?? 0) + (int) ($att['late'] ?? 0) + (int) ($legacyAtt['present'] ?? 0);
+    $tot = (int) ($att['total'] ?? 0);
+    $came = (int) ($att['present'] ?? 0) + (int) ($att['late'] ?? 0);
     $attendance = [
         'total' => $tot, 'present' => (int) ($att['present'] ?? 0), 'late' => (int) ($att['late'] ?? 0),
         'absent' => (int) ($att['absent'] ?? 0), 'excused' => (int) ($att['excused'] ?? 0),
-        'legacy' => (int) ($legacyAtt['total'] ?? 0),
         'pct' => $tot > 0 ? mam_console_pct($came, $tot) : null,
     ];
 
@@ -1163,7 +1145,7 @@ function mam_console_member_profile(int $id, ?array $viewer = null): array {
         "SELECT COUNT(*) FROM safeguarding_concerns WHERE about_id = ? AND status NOT IN ('closed')", [$id]) : null;
 
     return [
-        'courses' => $courses, 'classes' => $classes,
+        'courses' => $courses,
         'week' => $week, 'week_from' => $mon,
         'attendance' => $attendance, 'mastery' => $mastery,
         'invoices' => $invoices, 'owed_minor' => $owedMinor,
@@ -1189,9 +1171,7 @@ function mam_console_cohorts(): array {
                 p.code program_code, u.name instructor, c.instructor_id,
                 (SELECT COUNT(DISTINCT ce.student_id) FROM course_enrollments ce
                   WHERE ce.cohort_id = c.id AND ce.status IN ('active','pending')) fill,
-                (SELECT COUNT(*) FROM class_waitlist w WHERE w.cohort_id = c.id AND w.status = 'waiting') waiting,
-                (SELECT COUNT(DISTINCT e.student_id) FROM enrollments e
-                  WHERE e.class_id = c.legacy_class_id AND e.status = 'active') legacy_count
+                (SELECT COUNT(*) FROM class_waitlist w WHERE w.cohort_id = c.id AND w.status = 'waiting') waiting
            FROM cohorts c
            LEFT JOIN courses co ON co.id = c.course_id
            LEFT JOIN levels l ON l.id = c.level_id
@@ -1208,8 +1188,10 @@ function mam_console_cohorts(): array {
     unset($r);
     return [
         'rows' => $rows,
-        'legacy_only' => mam_console_int('coh.legacy',
-            "SELECT COUNT(*) FROM classes cl WHERE NOT EXISTS (SELECT 1 FROM cohorts c WHERE c.legacy_class_id = cl.id)"),
+        // The old class model is retired (legacy-carry.php): what has not been carried
+        // into a cohort yet, and the courses an admin can put a class's students in.
+        'old_classes' => mam_console_try('coh.old', fn() => mam_legacy_pending(), []),
+        'courses' => mam_console_rows('coh.courses', 'SELECT id, code, name FROM courses WHERE active = 1 ORDER BY sort_order, name'),
     ];
 }
 
@@ -1232,18 +1214,6 @@ function mam_console_roster(array $q = []): array {
                LEFT JOIN levels l ON l.id = ce.level_id
               WHERE ce.cohort_id = ?
               ORDER BY (ce.status IN ('active','pending')) DESC, u.name", [$sel]);
-        if ($cohort && (int) ($cohort['legacy_class_id'] ?? 0) > 0) {
-            // Dual-read: a backfilled cohort's legacy roster is real students who
-            // are not (yet) in course_enrollments. Showing 0 there would be a lie.
-            $roster = array_merge($roster, mam_console_rows('ros.legacy',
-                "SELECT e.id, e.status, u.id student_id, u.name, u.email, u.avatar_url,
-                        u.enrollment_ref, NULL instructor_id, NULL level_code, 'legacy' model
-                   FROM enrollments e JOIN users u ON u.id = e.student_id
-                  WHERE e.class_id = ? AND e.status = 'active'
-                    AND NOT EXISTS (SELECT 1 FROM course_enrollments ce
-                                     WHERE ce.cohort_id = ? AND ce.student_id = e.student_id)
-                  ORDER BY u.name", [(int) $cohort['legacy_class_id'], $sel]));
-        }
         $staff = mam_console_rows('ros.staff',
             "SELECT DISTINCT u.id, u.name, u.email FROM users u
               WHERE u.id = (SELECT instructor_id FROM cohorts WHERE id = ?)
@@ -1264,7 +1234,7 @@ function mam_console_roster(array $q = []): array {
        strips it, CLAUDE.md #12), the waitlist in order, the sessions still to
        come, the search behind "Enrol a student" with each hit's predicted
        outcome, the safeguarding gate's verdict on a proposed instructor BEFORE
-       it is saved, today's withdrawal outcome, and the legacy classes. */
+       it is saved, and today's withdrawal outcome. */
     $extra = mam_console_roster_extra($q, $sel, $cohort, $roster, $data['rows']);
     $roster = $extra['roster'];
     unset($extra['roster']);
@@ -1289,8 +1259,7 @@ function mam_console_roster(array $q = []): array {
  *  roster itself. Its own function so the block above stays readable. */
 function mam_console_roster_extra(array $q, int $sel, ?array $cohort, array $roster, array $cohorts): array {
     $out = ['waitlist' => [], 'upcoming' => [], 'find' => '', 'found' => [], 'instr_preview' => null,
-            'transfer_to' => [], 'outcome' => null, 'outcome_line' => '', 'classes' => [], 'class' => null,
-            'class_roster' => [], 'class_sel' => 0];
+            'transfer_to' => [], 'outcome' => null, 'outcome_line' => ''];
 
     if ($sel > 0 && $cohort) {
         // Attendance over this cohort's sessions. Excused and rescheduled marks
@@ -1357,28 +1326,6 @@ function mam_console_roster_extra(array $q, int $sel, ?array $cohort, array $ros
 
         $out['outcome'] = mam_cohort_outcome_now();
         $out['outcome_line'] = mam_cohort_outcome_line($out['outcome']);
-    }
-
-    // Legacy classes (enrollments + classes, gotcha #2). Dual-read: a class that
-    // is backfilled into a cohort says so, because enrolling there and in the
-    // cohort are two different records of one student.
-    $out['classes'] = mam_console_rows('ros.classes',
-        "SELECT cl.id, cl.title, cl.discipline, cl.status, cl.capacity, cl.schedule, cl.mode, cl.starts_on,
-                cl.instructor_id, cl.meeting_link, u.name instructor,
-                (SELECT COUNT(*) FROM enrollments e WHERE e.class_id = cl.id AND e.status = 'active') enrolled,
-                (SELECT c.id FROM cohorts c WHERE c.legacy_class_id = cl.id) cohort_id
-           FROM classes cl LEFT JOIN users u ON u.id = cl.instructor_id
-          ORDER BY (cl.status = 'active') DESC, cl.title LIMIT 200");
-    $cs = (int) ($q['class'] ?? 0);
-    if ($cs > 0) {
-        foreach ($out['classes'] as $cl) if ((int) $cl['id'] === $cs) { $out['class'] = $cl; break; }
-        if ($out['class']) {
-            $out['class_sel'] = $cs;
-            $out['class_roster'] = mam_console_rows('ros.classroster',
-                "SELECT e.id, e.status, e.enrolled_at, u.id student_id, u.name, u.email
-                   FROM enrollments e JOIN users u ON u.id = e.student_id
-                  WHERE e.class_id = ? ORDER BY (e.status = 'active') DESC, u.name", [$cs]);
-        }
     }
 
     $out['roster'] = $roster;
@@ -1959,10 +1906,9 @@ function mam_console_events(array $q = []): array {
 
 function mam_console_files(): array {
     $resources = mam_console_rows('fl.res',
-        "SELECT r.id, r.title, r.type, r.url, r.created_at, c.title cohort, cl.title class
+        "SELECT r.id, r.title, r.type, r.url, r.created_at, c.title cohort
            FROM class_resources r
            LEFT JOIN cohorts c ON c.id = r.cohort_id
-           LEFT JOIN classes cl ON cl.id = r.class_id
           ORDER BY r.created_at DESC LIMIT 60");
 
     $cards = mam_console_rows('fl.cards',
@@ -2264,10 +2210,9 @@ function mam_console_comms(): array {
             "SELECT id, to_email, subject, context, status, error, attempts, created_at, sent_at
                FROM mail_log ORDER BY id DESC LIMIT 30"),
         'announcements' => mam_console_rows('cm.ann',
-            "SELECT a.id, a.title, a.body, a.created_at, c.title cohort, cl.title class
+            "SELECT a.id, a.title, a.body, a.created_at, c.title cohort
                FROM announcements a
                LEFT JOIN cohorts c ON c.id = a.cohort_id
-               LEFT JOIN classes cl ON cl.id = a.class_id
               ORDER BY a.created_at DESC LIMIT 20"),
         'threads' => mam_console_int('cm.threads', "SELECT COUNT(*) FROM guardian_threads"),
         'sent_24h' => mam_console_int('cm.24', "SELECT COUNT(*) FROM mail_log WHERE status='sent' AND created_at >= ?",

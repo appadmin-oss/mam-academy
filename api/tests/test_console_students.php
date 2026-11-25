@@ -42,7 +42,7 @@ $CS_class = (int) mam_db_insert('classes', ['title' => 'Legacy ' . $CS_tag, 'dis
     'instructor_id' => $CS_teach, 'status' => 'active']);
 $CS_enr = (int) mam_db_insert('enrollments', ['student_id' => $CS_legacy, 'class_id' => $CS_class, 'status' => 'active']);
 
-t_group('student profile — one record across BOTH enrolment models (gotcha #2)');
+t_group('student profile — one class model (the old classes are carried into cohorts)');
 
 $CS_super   = ['id' => 0, 'role' => 'admin', 'admin_tier' => 'super'];
 $CS_manager = ['id' => 0, 'role' => 'admin', 'admin_tier' => 'manager'];
@@ -52,10 +52,12 @@ t_ok(is_array($CS_m), 'the member read resolves a student');
 t_eq(mam_console_failures(), [], 'and records no failed read — every column the profile names exists');
 t_eq(count($CS_m['courses'] ?? []), 1, 'a course-only student shows their course enrolment');
 t_eq((string) ($CS_m['courses'][0]['instructor'] ?? ''), 'Teacher ' . $CS_tag, '…with the teacher the cohort carries');
-t_eq(count($CS_m['classes'] ?? []), 0, '…and no legacy class they are not in');
+t_ok(!array_key_exists('classes', $CS_m), 'the profile has no second, old-class list: one model, one list');
+// A student who was only in an old class: once carried, the profile shows them in a course —
+// never "enrolled in nothing" (the reason the profile used to read both models).
+mam_legacy_carry(null);
 $CS_l = mam_console_member($CS_legacy);
-t_eq(count($CS_l['classes'] ?? []), 1, 'a legacy-only student shows their class — never "enrolled in nothing"');
-t_eq(count($CS_l['courses'] ?? []), 0, '…and no course enrolment');
+t_eq(count($CS_l['courses'] ?? []), 1, 'a student from an old class shows their course once it is carried across');
 
 t_group('student profile — the week, attendance, money');
 t_eq(array_column($CS_m['week'] ?? [], 'id'), [$CS_sess], 'this week lists the session of the cohort they are in, read from class_sessions');
