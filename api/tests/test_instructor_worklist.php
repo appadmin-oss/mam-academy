@@ -134,15 +134,17 @@ $iwNone = mam_lms2_instructor_worklist(999999);
 t_eq($iwNone['total'], 0, 'an unknown instructor gets an empty worklist rather than an error');
 t_ok(is_array($iwNone['reports_due']) && is_array($iwNone['unmarked']), 'with the shape callers expect');
 
-t_group('instructor worklist — the dashboard is wired, and dual-reads');
+t_group('instructor worklist — the dashboard is wired, and reads the cohort model only');
 
 $iwRoute = file_get_contents(__DIR__ . '/../routes/instructor/dashboard.php');
 t_ok(strpos($iwRoute, "'worklist' =>") !== false, 'the payload carries the worklist');
-t_ok(strpos($iwRoute, "'teaching' => \$teaching") !== false, 'and the dual-read teaching counts');
-t_ok(strpos($iwRoute, 'course_enrollments ce JOIN cohorts co') !== false,
-    'which reach the cohort model — the hello line counted legacy classes only, so a cohort-only instructor read "0 classes and 0 students"');
-t_ok(strpos($iwRoute, 'UNION') !== false,
-    'and count students DISTINCT across both, so a backfilled roster is not double-counted');
+t_ok(strpos($iwRoute, "'teaching' => \$teaching") !== false, 'and the teaching counts');
+t_ok(strpos($iwRoute, 'FROM course_enrollments ce') !== false && strpos($iwRoute, 'JOIN cohorts co') !== false,
+    'which reach the cohort model — the hello line once counted legacy classes only, so a cohort-only instructor read "0 classes and 0 students"');
+t_ok(strpos($iwRoute, 'array_unique') !== false,
+    'and count students DISTINCT, so a student in two of their cohorts is one person');
+t_ok(!preg_match('/\b(FROM|JOIN)\s+(classes|enrollments|attendance)\b/i', $iwRoute),
+    'and never read the retired class model (classes / enrollments / attendance)');
 
 /* ⚠️ The instructor portal was REDESIGNED (2026-09-19). `index.html` is now the
    v2 surface — class-only markup with its app in `assets/js/portal-instructor.js`
@@ -156,7 +158,7 @@ t_ok(strpos($iwHtml, 'function worklistPanel(w)') !== false, 'the panel exists')
 t_ok(strpos($iwHtml, "worklistPanel(data.worklist)") !== false, 'and renders on the overview');
 t_ok(strpos($iwHtml, 'byCohort') !== false,
     'reports are grouped by cohort — ungrouped, six sessions rendered six identical rows saying "1 progress report to write"');
-t_ok(strpos($iwHtml, 'function teachingLine(') !== false, 'the greeting is written from both models');
+t_ok(strpos($iwHtml, 'function teachingLine(') !== false, 'the greeting is written from the cohort model');
 t_ok(strpos($iwHtml, 'P.safeUrl') !== false, 'the meeting link goes through the scheme guard');
 
 $iwKit = file_get_contents(__DIR__ . '/../../assets/js/portal.js');

@@ -56,7 +56,6 @@
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
   function qp(k) { try { return new URLSearchParams(location.search).get(k) || ''; } catch (e) { return ''; } }
-  function token() { return qp('token'); }
   function sessionToken() { return qp('stoken'); }
 
   function render(kind, title, msg, meta, actions) {
@@ -82,11 +81,11 @@
   var manualBtn = '<a class="btn btn-primary" href="/checkin"><i class="fa-solid fa-hand-sparkles"></i> Check in without the code</a>';
 
   function boot() {
-    // A cohort-session QR uses ?stoken= (writes session_attendance); a legacy
-    // class QR uses ?token= (writes the class attendance table). Same UI.
-    var stok = sessionToken();
-    var tok = stok || token();
-    var endpoint = stok ? 'attendance/session-checkin' : 'attendance/checkin';
+    // A cohort-session QR carries ?stoken= and writes session_attendance. The
+    // legacy class QR (?token=) went with the class model; an old printed code
+    // lands on "nothing to check in to", whose recovery is the manual check-in.
+    var tok = sessionToken();
+    var endpoint = 'attendance/session-checkin';
     if (!tok) { render('err', 'Nothing to check in to', 'This link is missing its check-in code. Scan the QR your instructor is showing, or check in from your own page.', null, [manualBtn, portalBtn]); return; }
     if (!window.MAM_API || !window.MAM_AUTH) { render('err', 'Something went wrong', 'Please reload the page and try again.', null, []); return; }
 

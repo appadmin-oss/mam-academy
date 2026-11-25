@@ -25,21 +25,22 @@ $sheet = mam_marking_sheet($submissionId);
 if (!$sheet) mam_fail('not_found', 404);
 
 /* Ownership. An admin sees everything; an instructor sees a submission only
-   where they teach the student — dual-read across BOTH enrolment models
-   (gotcha #2), because a course-only student has no legacy class row and a
-   legacy-only student has no course enrolment. */
+   where they teach the student (the enrolment's instructor or its cohort's),
+   or where the work is on their own marking queue — the same predicate
+   mam_iportal_marking() lists by, so a row on the queue always opens. Cohort
+   model only: the legacy class roster is retired. */
 if (!mam_user_has_role($user, 'admin')) {
+    $uid = (int) $user['id'];
     $studentId = (int) (mam_db_row('SELECT student_id FROM submissions WHERE id = ?', [$submissionId])['student_id'] ?? 0);
     $teaches = mam_db_row(
-        "SELECT 1 AS ok FROM enrollments e
-           JOIN classes c ON c.id = e.class_id
-          WHERE e.student_id = ? AND c.instructor_id = ?
-          LIMIT 1", [$studentId, (int) $user['id']])
-        ?: mam_db_row(
         "SELECT 1 AS ok FROM course_enrollments ce
            LEFT JOIN cohorts co ON co.id = ce.cohort_id
           WHERE ce.student_id = ? AND (co.instructor_id = ? OR ce.instructor_id = ?)
-          LIMIT 1", [$studentId, (int) $user['id'], (int) $user['id']]);
+          LIMIT 1", [$studentId, $uid, $uid])
+        ?: mam_db_row(
+        "SELECT 1 AS ok FROM submissions s JOIN assignments a ON a.id = s.assignment_id
+          WHERE s.id = ? AND " . mam_iportal_assignment_mine_sql('a'),
+        array_merge([$submissionId], mam_iportal_assignment_mine_params($uid)));
     if (!$teaches) mam_fail('forbidden', 403);
 }
 

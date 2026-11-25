@@ -1,8 +1,8 @@
 <?php
 /**
  * Cohort SESSION QR self-check-in (P2 convergence) — signed session token +
- * enrolment-gated, idempotent marking against session_attendance. Twin of the
- * legacy class check-in (test_attendance.php), over the cohort model.
+ * enrolment-gated, idempotent marking against session_attendance. (The legacy
+ * class check-in it once twinned is retired; test_attendance.php guards that.)
  */
 declare(strict_types=1);
 t_group('cohort session QR check-in');
@@ -17,10 +17,12 @@ t_ok(mam_attendance_verify_session_token($tok . 'x') === null, 'a tampered sessi
 t_ok(mam_attendance_verify_session_token('') === null, 'empty is rejected');
 t_ok(mam_attendance_verify_session_token(mam_attendance_session_token(77, '2020-01-01')) === null, 'a past-date session token is expired');
 
-// ── The two token grammars never cross-verify (security isolation) ──
-$classTok = mam_attendance_token(77, $today);
+// ── An old printed CLASS QR (the retired grammar, `class:date:exp`, validly
+// signed) must not verify as a session token now that its minter is gone ──
+$exp = (int) strtotime($today . ' 23:59:59');
+$rawClass = '77:' . $today . ':' . $exp;
+$classTok = mam_b64url_encode($rawClass . '|' . hash_hmac('sha256', $rawClass, mam_app_key()));
 t_ok(mam_attendance_verify_session_token($classTok) === null, 'a legacy class token does NOT verify as a session token');
-t_ok(mam_attendance_verify_token($tok) === null, 'a session token does NOT verify as a legacy class token');
 
 // ── Self-check-in is enrolment-gated (course_enrollments), idempotent ──
 $insId = mam_db_insert('users', ['email' => 't_sck_ins@x.dev', 'password_hash' => 'x', 'role' => 'instructor', 'name' => 'Sky Ins', 'status' => 'active']);

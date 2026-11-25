@@ -164,7 +164,7 @@ function mam_analytics2_instructor_cohorts(int $instructorId): array {
             'title'          => $co['title'] ?: ('Cohort #' . $cid),
             'course_name'    => $co['course_name'] ?? null,
             'level_name'     => $co['level_name'] ?? null,
-            'students'       => (int) (($co['enrollment_count'] ?? 0) ?: ($co['legacy_count'] ?? 0)),
+            'students'       => (int) ($co['enrollment_count'] ?? 0),
             'attendance_pct' => $attTot > 0 ? (int) round($attGd / $attTot * 100) : null,
             'avg_mastery'    => $mastery >= 0 ? (int) round($mastery) : null,
             'completion_pct' => $lpTot > 0 ? (int) round($lpDone / $lpTot * 100) : null,

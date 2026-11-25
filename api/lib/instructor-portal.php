@@ -106,6 +106,28 @@ function mam_iportal_home(int $instructorId): array {
 }
 
 /**
+ * Whether assignment `a` is this instructor's to mark — the ONE predicate the
+ * action queue and the marking queue share, so the two counts cannot disagree.
+ *
+ * An assignment is theirs when they wrote it, when it was set to a cohort they
+ * teach, or when it belongs to a group set to such a cohort. Cohort model
+ * only: the legacy `classes` join is gone (mam_legacy_carry() copied every
+ * class's assignments onto its cohort), and it was why an assignment set to a
+ * COHORT never reached anybody's marking queue.
+ */
+function mam_iportal_assignment_mine_sql(string $a = 'a'): string {
+    return "({$a}.author_id = ?
+          OR EXISTS (SELECT 1 FROM cohorts mco WHERE mco.id = {$a}.cohort_id AND mco.instructor_id = ?)
+          OR EXISTS (SELECT 1 FROM assignment_groups mag JOIN cohorts mgc ON mgc.id = mag.cohort_id
+                      WHERE mag.id = {$a}.group_id AND mgc.instructor_id = ?))";
+}
+
+/** @return int[] the bound parameters for mam_iportal_assignment_mine_sql(). */
+function mam_iportal_assignment_mine_params(int $instructorId): array {
+    return [$instructorId, $instructorId, $instructorId];
+}
+
+/**
  * The "Action required" queue — things a person must decide, oldest first.
  *
  * ⚠️ Every row carries `overdue_days` measured from when the WORK arrived, not
@@ -121,11 +143,10 @@ function mam_iportal_actions(int $instructorId): array {
            FROM submissions s
            JOIN assignments a ON a.id = s.assignment_id
            JOIN users u ON u.id = s.student_id
-           JOIN classes c ON c.id = a.class_id
-          WHERE c.instructor_id = ? AND s.status = 'submitted'
+          WHERE " . mam_iportal_assignment_mine_sql() . " AND s.status = 'submitted'
             AND NOT EXISTS (SELECT 1 FROM submission_reviews sr WHERE sr.submission_id = s.id)
           ORDER BY s.submitted_at
-          LIMIT 50", [$instructorId]);
+          LIMIT 50", mam_iportal_assignment_mine_params($instructorId));
     if ($unmarked) {
         $out[] = [
             'kind'    => 'marking',
@@ -288,8 +309,8 @@ function mam_iportal_is_admin(): bool {
  * is about the child. `test_instructor_portal.php` asserts no key here matches
  * /risk|score|rating|flag/.
  *
- * Dual-read across both enrolment models (gotcha #2): an instructor teaching a
- * course-only student would otherwise see an empty list.
+ * Cohort model only: the legacy class roster was carried into
+ * course_enrollments by mam_legacy_carry() and is no longer read.
  */
 function mam_iportal_students(int $instructorId): array {
     $rows = mam_db_all(
@@ -299,13 +320,7 @@ function mam_iportal_students(int $instructorId): array {
            LEFT JOIN cohorts co ON co.id = ce.cohort_id
           WHERE (co.instructor_id = ? OR ce.instructor_id = ?)
             AND ce.status IN ('active','completed')
-          UNION
-         SELECT DISTINCT u2.id, u2.name, u2.avatar_url
-           FROM users u2
-           JOIN enrollments e ON e.student_id = u2.id
-           JOIN classes c ON c.id = e.class_id
-          WHERE c.instructor_id = ? AND e.status = 'active'
-          ORDER BY name", [$instructorId, $instructorId, $instructorId]);
+          ORDER BY u.name", [$instructorId, $instructorId]);
 
     $out = [];
     foreach ($rows as $r) {
@@ -442,11 +457,10 @@ function mam_iportal_marking(int $instructorId): array {
            FROM submissions s
            JOIN assignments a ON a.id = s.assignment_id
            JOIN users u ON u.id = s.student_id
-           JOIN classes c ON c.id = a.class_id
-          WHERE c.instructor_id = ? AND s.status = 'submitted'
+          WHERE " . mam_iportal_assignment_mine_sql() . " AND s.status = 'submitted'
             AND NOT EXISTS (SELECT 1 FROM submission_reviews sr WHERE sr.submission_id = s.id)
           ORDER BY s.submitted_at
-          LIMIT 50", [$instructorId]);
+          LIMIT 50", mam_iportal_assignment_mine_params($instructorId));
     foreach ($rows as &$r) {
         $r['days'] = mam_iportal_days_since((string) $r['submitted_at']);
         $r['second_marker'] = mam_marking_needs_second_marker((int) $r['id']);

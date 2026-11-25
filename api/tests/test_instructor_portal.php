@@ -148,6 +148,69 @@ t_ok(is_array($IP_mark['queue']), 'the queue reads');
 t_eq($IP_mark['audio_only_notice'], MAM_MARKING_AUDIO_NOTICE,
     'the audio-only explanation is the constant, not a string fetched with a row that may be missing');
 
+t_group('instructor portal — marking finds work set to a cohort the instructor teaches');
+
+/* It used to find work only through `JOIN classes ON classes.id = a.class_id`,
+   so an assignment set to a COHORT — by another member of staff, or by an
+   admin — never reached the cohort teacher's queue at all. The legacy class
+   model is retired; an assignment is the instructor's when they wrote it, when
+   it was set to a cohort they teach, or when its group was. */
+$IP_office = mam_db_insert('users', ['name' => 'Office Admin', 'email' => 'ip_office@test.local',
+    'role' => 'admin', 'password_hash' => 'x', 'status' => 'active']);
+$IP_ids = function (array $rows): array { return array_map(fn($r) => (int) $r['id'], $rows); };
+
+// 1. Set to the cohort directly, written by somebody else.
+$IP_aCoh = mam_db_insert('assignments', ['student_id' => $IP_s1, 'author_id' => $IP_office,
+    'cohort_id' => $IP_cohort, 'title' => 'IP cohort piece', 'status' => 'open']);
+$IP_subCoh = mam_db_insert('submissions', ['assignment_id' => $IP_aCoh, 'student_id' => $IP_s1,
+    'artifact_kind' => 'audio', 'status' => 'submitted']);
+// 2. Through a group set to the cohort.
+$IP_grp = mam_db_insert('assignment_groups', ['cohort_id' => $IP_cohort, 'author_id' => $IP_office, 'title' => 'IP group']);
+$IP_aGrp = mam_db_insert('assignments', ['student_id' => $IP_s2, 'author_id' => $IP_office,
+    'group_id' => $IP_grp, 'title' => 'IP group piece', 'status' => 'open']);
+$IP_subGrp = mam_db_insert('submissions', ['assignment_id' => $IP_aGrp, 'student_id' => $IP_s2,
+    'artifact_kind' => 'audio', 'status' => 'submitted']);
+// 3. Written by the instructor, no cohort at all.
+$IP_aOwn = mam_db_insert('assignments', ['student_id' => $IP_s1, 'author_id' => $IP_ins,
+    'title' => 'IP own piece', 'status' => 'open']);
+$IP_subOwn = mam_db_insert('submissions', ['assignment_id' => $IP_aOwn, 'student_id' => $IP_s1,
+    'artifact_kind' => 'audio', 'status' => 'submitted']);
+// 4. A cohort somebody ELSE teaches — must not appear.
+$IP_ins2 = mam_db_insert('users', ['name' => 'Other Teacher', 'email' => 'ip_ins2@test.local',
+    'role' => 'instructor', 'password_hash' => 'x', 'status' => 'active']);
+$IP_cohort2 = mam_db_insert('cohorts', ['course_id' => $IP_course, 'instructor_id' => $IP_ins2,
+    'title' => 'IP Other Cohort', 'status' => 'active', 'capacity' => 10]);
+$IP_aOther = mam_db_insert('assignments', ['student_id' => $IP_s2, 'author_id' => $IP_ins2,
+    'cohort_id' => $IP_cohort2, 'title' => 'IP not yours', 'status' => 'open']);
+$IP_subOther = mam_db_insert('submissions', ['assignment_id' => $IP_aOther, 'student_id' => $IP_s2,
+    'artifact_kind' => 'audio', 'status' => 'submitted']);
+
+$IP_q = $IP_ids(mam_iportal_marking($IP_ins)['queue']);
+t_ok(in_array($IP_subCoh, $IP_q, true), 'a submission to work set to the instructor\'s COHORT is on their marking queue');
+t_ok(in_array($IP_subGrp, $IP_q, true), '…and so is one to work set through a group for that cohort');
+t_ok(in_array($IP_subOwn, $IP_q, true), '…and one to work the instructor wrote themselves');
+t_ok(!in_array($IP_subOther, $IP_q, true), 'work set to a cohort somebody else teaches is not');
+t_ok(in_array($IP_subOther, $IP_ids(mam_iportal_marking($IP_ins2)['queue']), true),
+    '…it is on THAT teacher\'s queue');
+
+// The action queue counts with the same predicate, so the two cannot disagree.
+$IP_act = null;
+foreach (mam_iportal_actions($IP_ins) as $IP_a) if (($IP_a['kind'] ?? '') === 'marking') $IP_act = $IP_a;
+t_ok($IP_act !== null && (int) $IP_act['count'] === count($IP_q),
+    'the "to mark" action counts exactly what the marking queue lists');
+
+// Neither query, nor the routes that set and open the work, reads the retired class model.
+$IP_src = (string) file_get_contents(dirname(__DIR__) . '/lib/instructor-portal.php');
+foreach (['routes/instructor/assignment.php', 'routes/instructor/marking-sheet.php',
+          'routes/instructor/announce.php', 'routes/instructor/resource.php',
+          'routes/instructor/drive-upload.php', 'routes/instructor/student.php',
+          'routes/instructor/dashboard.php', 'routes/instructor/card-scan.php'] as $IP_rf) {
+    $IP_src .= (string) file_get_contents(dirname(__DIR__) . '/' . $IP_rf);
+}
+t_ok(!preg_match('/\b(FROM|JOIN|INTO)\s+(classes|enrollments|attendance)\b/i', $IP_src),
+    'the instructor portal and its write routes read no legacy class table');
+t_ok(!preg_match("/'class_id'\s*=>/", $IP_src), '…and write no class_id');
+
 t_group('instructor portal — a panel failure degrades, it does not 500');
 
 // mam_iportal_try is what stops one lib's exception emptying the whole screen.

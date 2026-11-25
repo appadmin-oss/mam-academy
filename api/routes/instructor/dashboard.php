@@ -16,75 +16,87 @@ $soft = function (callable $fn, $default) {
     catch (Throwable $e) { mam_log('warn', 'instructor_dashboard_section_failed', ['err' => $e->getMessage()]); return $default; }
 };
 
-$classes = $soft(fn () => mam_db_all(
-    "SELECT c.*, (SELECT COUNT(*) FROM enrollments e WHERE e.class_id = c.id AND e.status = 'active') AS enrolled_count FROM classes c WHERE c.instructor_id = ? AND c.status = 'active' ORDER BY c.starts_on DESC",
-    [$instructorId]
+/**
+ * Cohort model only. The legacy class model (classes + enrollments +
+ * attendance) is retired: mam_legacy_carry() carried every class into its
+ * cohort, every enrolment into course_enrollments and every mark into
+ * session_attendance, and nothing here reads the old tables.
+ *
+ * A cohort is this instructor's when it is assigned to them, or when they are
+ * the named instructor on an enrolment in it — the same rule as
+ * mam_lms_instructor_owns_cohort(), stated once here for the lists below.
+ */
+$mine = "(co.instructor_id = ? OR co.id IN (SELECT cohort_id FROM course_enrollments WHERE instructor_id = ? AND cohort_id IS NOT NULL))";
+$mineArgs = [$instructorId, $instructorId];
+
+$cohorts = $soft(fn () => mam_db_all(
+    "SELECT co.id, co.title, co.status, co.capacity, co.mode, co.starts_on, co.ends_on,
+            c.name AS course_name, l.name AS level_name,
+            (SELECT COUNT(DISTINCT ce.student_id) FROM course_enrollments ce
+              WHERE ce.cohort_id = co.id AND ce.status = 'active') AS enrolled_count
+       FROM cohorts co
+       LEFT JOIN courses c ON c.id = co.course_id
+       LEFT JOIN levels l  ON l.id = co.level_id
+      WHERE $mine AND co.status = 'active'
+      ORDER BY co.starts_on DESC, co.id DESC",
+    $mineArgs
 ), []);
 
+/* One row per enrolment, so a student in two cohorts appears under each. */
 $students = $soft(fn () => mam_db_all(
-    "SELECT u.id, u.name, u.enrollment_ref, e.id AS enrollment_id, e.class_id, c.title AS class_title FROM enrollments e JOIN classes c ON c.id = e.class_id JOIN users u ON u.id = e.student_id WHERE c.instructor_id = ? AND e.status = 'active' ORDER BY c.title, u.name",
-    [$instructorId]
+    "SELECT u.id, u.name, u.enrollment_ref, ce.id AS enrollment_id, ce.cohort_id, co.title AS cohort_title
+       FROM course_enrollments ce
+       JOIN cohorts co ON co.id = ce.cohort_id
+       JOIN users u ON u.id = ce.student_id
+      WHERE (co.instructor_id = ? OR ce.instructor_id = ?) AND ce.status = 'active'
+      ORDER BY co.title, u.name",
+    [$instructorId, $instructorId]
 ), []);
 
 /**
- * What this instructor teaches, counted across BOTH enrolment models.
- *
- * `$classes` and `$students` above read `classes` + `enrollments` only, so an
- * instructor whose teaching lives in cohorts saw "You teach 0 active classes
- * and 0 students right now" on the same screen as their outstanding progress
- * reports for a cohort. That is gotcha #2 showing through on the first line of
- * the page — dual-read everywhere was the rule and this line was missed.
- *
- * Students are counted DISTINCT across the two models: a student who is both in
- * a backfilled legacy class and its cohort is one person, and counting them
- * twice would overstate a roster on the instructor's own dashboard.
+ * What this instructor teaches: active cohorts and the DISTINCT students in
+ * them (a student in two of their cohorts is one person).
  */
 $teaching = $soft(fn () => [
-    'classes'  => count($classes),
-    'cohorts'  => (int) (mam_db_row(
-        "SELECT COUNT(*) c FROM cohorts WHERE instructor_id = ? AND status = 'active'",
-        [$instructorId]
-    )['c'] ?? 0),
-    'students' => (int) (mam_db_row(
-        "SELECT COUNT(*) c FROM (
-             SELECT e.student_id AS sid FROM enrollments e JOIN classes c ON c.id = e.class_id
-              WHERE c.instructor_id = ? AND e.status = 'active'
-             UNION
-             SELECT ce.student_id AS sid FROM course_enrollments ce JOIN cohorts co ON co.id = ce.cohort_id
-              WHERE co.instructor_id = ? AND ce.status = 'active'
-         ) x",
-        [$instructorId, $instructorId]
-    )['c'] ?? 0),
-], ['classes' => count($classes), 'cohorts' => 0, 'students' => 0]);
+    'cohorts'  => count($cohorts),
+    'students' => count(array_unique(array_map(static fn ($s) => (int) $s['id'], $students))),
+], ['cohorts' => 0, 'students' => 0]);
 
 $recent_attendance = $soft(fn () => mam_db_all(
-    'SELECT a.id, a.session_date, a.status, a.notes, u.name AS student_name, c.title AS class_title FROM attendance a JOIN enrollments e ON e.id = a.enrollment_id JOIN users u ON u.id = e.student_id JOIN classes c ON c.id = e.class_id WHERE c.instructor_id = ? ORDER BY a.created_at DESC LIMIT 20',
-    [$instructorId]
+    "SELECT sa.id, substr(cs.scheduled_at, 1, 10) AS session_date, sa.status, sa.notes,
+            u.name AS student_name, co.title AS cohort_title, cs.title AS session_title
+       FROM session_attendance sa
+       JOIN class_sessions cs ON cs.id = sa.session_id
+       JOIN cohorts co ON co.id = cs.cohort_id
+       JOIN users u ON u.id = sa.student_id
+      WHERE $mine
+      ORDER BY cs.scheduled_at DESC, sa.id DESC LIMIT 20",
+    $mineArgs
 ), []);
 
 $profile = $soft(fn () => mam_db_row('SELECT * FROM instructor_profiles WHERE user_id = ?', [$instructorId]), null);
 
 $announcements = $soft(fn () => mam_db_all(
-    "SELECT an.id, an.title, an.body, an.created_at, an.class_id, c.title AS class_title
-       FROM announcements an JOIN classes c ON c.id = an.class_id
-      WHERE c.instructor_id = ? ORDER BY an.created_at DESC LIMIT 30",
-    [$instructorId]
+    "SELECT an.id, an.title, an.body, an.created_at, an.cohort_id, co.title AS cohort_title
+       FROM announcements an JOIN cohorts co ON co.id = an.cohort_id
+      WHERE $mine ORDER BY an.created_at DESC LIMIT 30",
+    $mineArgs
 ), []);
 
 $resources = $soft(fn () => mam_db_all(
-    "SELECT r.id, r.title, r.url, r.type, r.created_at, r.class_id, c.title AS class_title
-       FROM class_resources r JOIN classes c ON c.id = r.class_id
-      WHERE c.instructor_id = ? ORDER BY r.created_at DESC LIMIT 50",
-    [$instructorId]
+    "SELECT r.id, r.title, r.url, r.type, r.created_at, r.cohort_id, co.title AS cohort_title
+       FROM class_resources r JOIN cohorts co ON co.id = r.cohort_id
+      WHERE $mine ORDER BY r.created_at DESC LIMIT 50",
+    $mineArgs
 ), []);
 
 // Assignments this instructor has set (most recent first, with the pupil + state).
 $assignments = $soft(fn () => mam_db_all(
-    "SELECT a.id, a.title, a.due_on, a.status, a.completed_at, a.created_at, a.class_id,
-            u.name AS student_name, c.title AS class_title
+    "SELECT a.id, a.title, a.due_on, a.status, a.completed_at, a.created_at, a.cohort_id,
+            u.name AS student_name, co.title AS cohort_title
        FROM assignments a
        JOIN users u ON u.id = a.student_id
-       LEFT JOIN classes c ON c.id = a.class_id
+       LEFT JOIN cohorts co ON co.id = a.cohort_id
       WHERE a.author_id = ? ORDER BY a.created_at DESC LIMIT 80",
     [$instructorId]
 ), []);
@@ -99,7 +111,7 @@ mam_ok([
         'must_change_password' => (int)($u['must_change_password'] ?? 0) === 1,
     ],
     'profile' => $profile,
-    'classes' => $classes,
+    'cohorts' => $cohorts,
     'students' => $students,
     'recent_attendance' => $recent_attendance,
     'announcements' => $announcements,
