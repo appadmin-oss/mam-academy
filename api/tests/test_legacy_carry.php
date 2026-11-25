@@ -24,7 +24,14 @@ foreach ([['a', '2026-03-07', 'present'], ['b', '2026-03-07', 'late'], ['a', '20
 $LC_ann = mam_db_insert('announcements', ['class_id' => $LC_class, 'author_id' => $LC_t, 'title' => 'Bring rosin', 'body' => 'Bring rosin on Saturday.']);
 $LC_hw = mam_db_insert('assignments', ['student_id' => $LC_s['a'], 'author_id' => $LC_t, 'class_id' => $LC_class, 'title' => 'Scales']);
 
+mam_db_update('classes', ['meeting_link' => 'https://meet.example.test/cello'], ['id' => $LC_class]);
+mam_lms_backfill_cohorts();
+$LC_coid = (int) mam_db_row('SELECT id FROM cohorts WHERE legacy_class_id = ?', [$LC_class])['id'];
+$LC_next = mam_db_insert('class_sessions', ['cohort_id' => $LC_coid, 'title' => 'Next Saturday', 'scheduled_at' => '2099-01-03 10:00:00', 'status' => 'scheduled']);
+
 $LC_r = mam_legacy_carry(null);
+t_eq((string) mam_db_row('SELECT meeting_link FROM class_sessions WHERE id = ?', [$LC_next])['meeting_link'], 'https://meet.example.test/cello',
+    "the class's meeting link reaches the cohort's next session, so a bookmarked join link still opens the class");
 $LC_co = mam_db_row('SELECT * FROM cohorts WHERE legacy_class_id = ?', [$LC_class]);
 t_ok($LC_co !== null && (int) $LC_co['course_id'] === $LC_course,
     'a class whose discipline names a course (any case) lands in a cohort of that course');
@@ -34,7 +41,7 @@ t_eq([$LC_ce('a')['status'] ?? null, $LC_ce('b')['status'] ?? null, $LC_ce('c')[
     'every enrolment keeps its state (paused is active in the cohort model), history included — the old bridge carried active ones only');
 t_eq((int) ($LC_ce('a')['cohort_id'] ?? 0), (int) $LC_co['id'], '…in that cohort');
 
-$LC_sess = mam_db_all('SELECT id, scheduled_at, status FROM class_sessions WHERE cohort_id = ? ORDER BY scheduled_at', [(int) $LC_co['id']]);
+$LC_sess = mam_db_all("SELECT id, scheduled_at, status FROM class_sessions WHERE cohort_id = ? AND status = 'held' ORDER BY scheduled_at", [(int) $LC_co['id']]);
 t_eq(array_map(fn($x) => substr($x['scheduled_at'], 0, 10) . ' ' . $x['status'], $LC_sess), ['2026-03-07 held', '2026-03-14 held'],
     'one held session per date the class met');
 $LC_marks = mam_db_all('SELECT sa.status, sa.method, sa.marked_by FROM session_attendance sa JOIN class_sessions s ON s.id = sa.session_id

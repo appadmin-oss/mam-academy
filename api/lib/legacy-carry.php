@@ -21,6 +21,7 @@
  *   attendance      → a held class_session per (cohort, date) + session_attendance,
  *                     method 'legacy', never overwriting a mark already there
  *   announcement, resource, homework → cohort_id set from the class
+ *   meeting link    → the cohort's scheduled sessions that have none
  *
  * Idempotent: a second run finds everything already there and changes nothing.
  */
@@ -67,10 +68,18 @@ function mam_legacy_carry(?int $actorId = null, array $courseFor = []): array {
             'linked' => 0, 'left' => 0, 'waiting' => []];
     $out['cohorts'] = mam_lms_backfill_cohorts();
 
-    foreach (mam_db_all('SELECT co.id, co.course_id, co.legacy_class_id, co.instructor_id, co.title, c.discipline
+    foreach (mam_db_all('SELECT co.id, co.course_id, co.legacy_class_id, co.instructor_id, co.title, c.discipline, c.meeting_link
                            FROM cohorts co JOIN classes c ON c.id = co.legacy_class_id') as $co) {
         $cid = (int) $co['id'];
         $classId = (int) $co['legacy_class_id'];
+
+        // The class's meeting link goes onto the cohort's sessions still to come that have
+        // none, so a family's bookmarked /class/{id}/join still opens the class.
+        if (trim((string) ($co['meeting_link'] ?? '')) !== '') {
+            $st = mam_db()->prepare("UPDATE class_sessions SET meeting_link = ?
+                                      WHERE cohort_id = ? AND status = 'scheduled' AND COALESCE(meeting_link, '') = ''");
+            $st->execute([trim((string) $co['meeting_link']), $cid]);
+        }
 
         // Notices, files and homework follow the class whether or not it has a course yet.
         foreach (['announcements', 'class_resources', 'assignments'] as $t) {
