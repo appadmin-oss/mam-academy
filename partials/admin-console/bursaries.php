@@ -105,7 +105,7 @@ foreach ($d['awards'] ?? [] as $a) {
           </div>
         <?php endif; ?>
       </div>
-    <?php ac_card_close('A band comes from a declared range and one document, not from a written case for hardship. The published table is a ceiling a committee may go under and never over — and there is no column here for circumstances, on purpose.'); ?>
+    <?php ac_card_close('A band comes from the declared income range and one document. The published table is a ceiling: a committee may award less, never more.'); ?>
 
     <?php ac_card_open('Where aid is spent', 'By kind'); ?>
       <div class="ac-cardbody">

@@ -83,7 +83,7 @@ $ratifiable = $open === 0 && (int) ($mod['n'] ?? 0) >= (int) ($d['min_sample'] ?
           </tbody>
         </table>
       </div>
-    <?php ac_card_close('The band comes from the mastery engine and is never recomputed here — a mean computed at this layer would be exactly the thin composite the coverage floor withholds. An unevidenced competency is a ROW with no percentage, because a zero there reports an unassessed beginner as failing.'); ?>
+    <?php ac_card_close('A competency nobody has assessed yet shows no percentage, not a zero: a beginner is not failing.'); ?>
   </div>
 
   <div class="ac-stack">
@@ -121,6 +121,6 @@ $ratifiable = $open === 0 && (int) ($mod['n'] ?? 0) >= (int) ($d['min_sample'] ?
           ?>
         </div>
       </div>
-    <?php ac_card_close('Each of those four refusals throws. A boolean return would let a caller publish an unmoderated mark by ignoring it.'); ?>
+    <?php ac_card_close(); ?>
   </div>
 </div>

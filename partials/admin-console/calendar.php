@@ -94,7 +94,7 @@ $band = static function (array $r): string {
       </tbody>
     </table>
   </div>
-<?php ac_card_close('A census is a SNAPSHOT and append-only. "Enrolment as of the census date" must not move when somebody withdraws in week nine — recompute-on-read is the commonest way an official enrolment figure quietly rewrites history.'); ?>
+<?php ac_card_close('A census is taken once. A student who withdraws later in the term does not change it.'); ?>
 
 <?php if ($maySet): ?>
 <div class="ac-cols ac-cols--main" id="term-form">

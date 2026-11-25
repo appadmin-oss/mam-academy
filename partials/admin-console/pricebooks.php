@@ -42,7 +42,7 @@ $labels = [
       </tbody>
     </table>
   </div>
-<?php ac_card_close('Every figure here is the USD source; the naira column is computed from it, not stored beside it. Summing rounded conversions per line is where the one-cent mismatch comes from, and a family reads that as a pricing error.'); ?>
+<?php ac_card_close('Prices are set in US dollars. Naira figures are converted from them, and a total is converted once, so it always matches what a family is charged.'); ?>
 
 <div class="ac-cols ac-cols--2">
   <?php ac_card_open('Programmes charged against this book', count($d['programs'] ?? []) . ' active'); ?>

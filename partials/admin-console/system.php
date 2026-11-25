@@ -174,7 +174,7 @@ $behind = ($d['schema']['target'] ?? null) !== null
           </tbody>
         </table>
       </div>
-    <?php ac_card_close('A webhook is HMAC-verified and idempotent, so a provider replaying a delivery cannot double-credit a payment. A payment re-checks the amount and the currency against what is owed before it settles anything.'); ?>
+    <?php ac_card_close('A payment notification is verified and can never credit a payment twice. Every payment is checked against the amount and currency owed before it counts.'); ?>
 
     <?php if ($d['failed_mail'] ?? []): ?>
       <?php ac_card_open('Failed mail', count($d['failed_mail']) . ''); ?>

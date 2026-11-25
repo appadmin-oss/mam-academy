@@ -199,4 +199,4 @@ $open = array_values(array_filter($d['requests'] ?? [], fn($r) => empty($r['clos
       </tbody>
     </table>
   </div>
-<?php ac_card_close('Each purpose names the tables that implement it, and the test suite checks those names against the live schema — so a register that has drifted from the software fails the build instead of sitting in a folder looking reassuring. What the academy adds on top is its own part: a review date and a note.'); ?>
+<?php ac_card_close('The register is checked against the software automatically, so it cannot drift from what the academy actually does. Add a review date and a note to each purpose.'); ?>

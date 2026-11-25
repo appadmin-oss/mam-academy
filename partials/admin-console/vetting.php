@@ -103,7 +103,7 @@ $required = (array) ($d['required'] ?? []);
       sensitive personal data about the instructor, so a certificate scan in a shared-hosting database is a
       liability, not a control.</p>
     </div>
-  <?php ac_card_close('The test suite asserts the schema has no room for check content.'); ?>
+  <?php ac_card_close(); ?>
 
   <?php ac_card_open('Designated Safeguarding Officer'); ?>
     <div class="ac-cardbody">

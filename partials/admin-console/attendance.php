@@ -66,7 +66,7 @@ $w = $d['window'] ?? null;
       </tbody>
     </table>
   </div>
-<?php ac_card_close('Seven statuses, not four: <span class="ac-mono">left_early</span>, <span class="ac-mono">technical_failure</span> and <span class="ac-mono">rescheduled</span> exist so that what happened is not recorded as an absence that misrepresents it. Durations are STORED, never recomputed on read — a session\'s scheduled time can be edited afterwards and the record of what actually happened must not move with it.'); ?>
+<?php ac_card_close('Left early, a technical failure and a rescheduled class are recorded as what happened, never as an absence. Moving a session later does not change the time a student was there.'); ?>
 
 <div class="ac-cols ac-cols--2">
   <?php ac_card_open('Platform log', (string) (($d['reconciliation'][0]['provider'] ?? '') ?: 'nothing imported')); ?>

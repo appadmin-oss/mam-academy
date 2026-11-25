@@ -273,7 +273,7 @@ $byLink = fn(string $v, string $text) => '<a href="' . ac_h(ac_url('timetable', 
       </table>
     </div>
   <?php endif; ?>
-<?php ac_card_close('A clash is computed from the room, the teacher and the duration, not read from a flag. An online session shares no walls, so it clashes only on its teacher. Open a session to move or cancel it.'); ?>
+<?php ac_card_close('A clash is found from the room, the teacher and the length of each session; an online session clashes only on its teacher. Open a session to move or cancel it.'); ?>
 
 <div class="ac-cols ac-cols--2">
   <?php ac_card_open('Schedule a class', 'A weekly series'); ?>

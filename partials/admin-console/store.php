@@ -98,5 +98,5 @@ declare(strict_types=1);
         </tbody>
       </table>
     </div>
-  <?php ac_card_close('A null stock is unlimited — a downloadable or a service. Zero means empty, and a line that is live AND empty is the row above.'); ?>
+  <?php ac_card_close('No stock number means unlimited (a download or a service). Zero means sold out.'); ?>
 </div>

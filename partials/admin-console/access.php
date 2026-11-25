@@ -122,7 +122,7 @@ declare(strict_types=1);
       </tbody>
     </table>
   </div>
-<?php ac_card_close('A role can be the primary one on the account or granted through the roles table, and both open the same doors — so the column shows every role a person actually holds rather than only the first.'); ?>
+<?php ac_card_close('Every role a person holds is listed, however it was given.'); ?>
 
 <div class="ac-cols ac-cols--2">
   <?php ac_card_open('Guardian access scopes'); ?>

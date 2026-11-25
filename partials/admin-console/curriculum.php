@@ -122,7 +122,7 @@ $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovere
         </tbody>
       </table>
     </div>
-  <?php ac_card_close('A criterion maps to a competency by its LABEL, through one function — so this column is the same mapping the score itself uses, not a second guess at it.'); ?>
+  <?php ac_card_close(); ?>
 
   <div class="ac-stack">
     <?php ac_card_open('Clone a syllabus across levels'); ?>
@@ -139,7 +139,7 @@ $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovere
           </div>
         <?php ac_form_end(); ?>
       </div>
-    <?php ac_card_close('Idempotent — an upsert by week, so running it twice never duplicates. Same level is refused.'); ?>
+    <?php ac_card_close('Running it twice copies nothing twice. A level cannot be copied onto itself.'); ?>
 
     <?php ac_card_open('Publishing, and what a curriculum year guarantees'); ?>
       <div class="ac-cardbody">
