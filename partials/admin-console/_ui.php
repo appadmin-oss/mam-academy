@@ -317,6 +317,33 @@ function ac_label_table_cells(string $html): string {
  *
  * @param array<string,string> $parts key => label, the first is the default
  */
+/**
+ * A filter as the Control Room draws one: a "+ Fee type" chip that opens its choices, each a
+ * plain link to the same screen with that value set — no script, no "Show" button, and the
+ * server's own allow-listed filter does the work, as before. A chosen filter reads
+ * "Fee type: Scholarship" with a link that clears it. `$keep` are the other parameters the
+ * screen is showing (search, other filters, sort); the page number is always dropped,
+ * because a new filter starts again at page one.
+ *
+ * @param array<string,string> $options value => label
+ * @param array<string,string> $counts  value => how many match, optional
+ */
+function ac_facet(string $screen, string $name, string $label, array $options, array $keep, array $counts = []): void {
+    $cur = (string) ($keep[$name] ?? '');
+    $keep = array_diff_key($keep, ['page' => 1, $name => 1]);
+    $on = $cur !== '' && isset($options[$cur]); ?>
+  <details class="ac-facet<?= $on ? ' is-on' : '' ?>">
+    <summary class="ac-facet-chip"><?= $on ? ac_h($label) . ': <strong>' . ac_h($options[$cur]) . '</strong>' : '<span aria-hidden="true">+</span> ' . ac_h($label) ?></summary>
+    <div class="ac-facet-menu">
+      <?php foreach ($options as $v => $l): ?>
+        <a class="ac-facet-opt" href="<?= ac_h(ac_url($screen, [$name => (string) $v] + $keep)) ?>"<?= (string) $v === $cur ? ' aria-current="true"' : '' ?>>
+          <span><?= ac_h($l) ?></span><?php if (isset($counts[$v])): ?><span class="ac-sub"><?= (int) $counts[$v] ?></span><?php endif; ?></a>
+      <?php endforeach; ?>
+      <?php if ($on): ?><a class="ac-facet-opt ac-facet-clear" href="<?= ac_h(ac_url($screen, $keep)) ?>">Clear <?= ac_h(strtolower($label)) ?></a><?php endif; ?>
+    </div>
+  </details>
+<?php }
+
 function ac_parts(string $screen, array $parts, array $keep = []): string {
     $want = (string) ($_GET['part'] ?? '');
     $current = array_key_exists($want, $parts) ? $want : (string) array_key_first($parts);

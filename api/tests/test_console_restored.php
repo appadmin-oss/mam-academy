@@ -98,3 +98,14 @@ t_ok((bool) preg_match('/<input[^>]*type="text"[^>]*name="invoice_account_number
     'the bank account number is a text field, not a number field');
 t_ok((bool) preg_match('/<select[^>]*name="safeguarding_gate_mode"/', $CR_form),
     'a mode setting offers its values rather than free text');
+
+t_group('console — filters are chips that link');
+
+ob_start(); ac_facet('timetable', 'room', 'Room', ['3' => 'Studio A', '4' => 'Hall'], ['room' => '4', 'w' => '1', 'page' => '3']);
+$CR_fc = (string) ob_get_clean();
+t_ok(str_contains($CR_fc, 'Room: <strong>Hall</strong>'), 'a chosen filter says what it is set to');
+t_ok(str_contains($CR_fc, 'href="?v=timetable&amp;room=3&amp;w=1"'),
+    'each choice is a link keeping the other filters and dropping the page number (a new filter starts at page one)');
+t_ok(str_contains($CR_fc, 'href="?v=timetable&amp;w=1">Clear room'), '…and the chosen one can be cleared, keeping the rest');
+ob_start(); ac_facet('timetable', 'room', 'Room', ['3' => 'Studio A'], []);
+t_ok(str_contains((string) ob_get_clean(), '+</span> Room'), 'an unset filter reads "+ Room"');

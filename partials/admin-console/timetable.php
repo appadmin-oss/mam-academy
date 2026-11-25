@@ -80,38 +80,17 @@ $byLink = fn(string $v, string $text) => '<a href="' . ac_h(ac_url('timetable', 
     . '<a class="ac-btn" href="' . ac_h(ac_url('timetable', array_merge($state, ['w' => null]))) . '">This week</a>'
     . '<a class="ac-btn" href="' . ac_h($tt(['w' => (int) $d['offset'] + 1 ?: null])) . '">Next <span aria-hidden="true">→</span></a>'); ?>
 
-<form method="get" action="" class="ac-row ac-filters ac-tt-filters" aria-label="Filter the timetable">
-  <input type="hidden" name="v" value="timetable">
-  <?php if ((int) $d['offset'] !== 0): ?><input type="hidden" name="w" value="<?= (int) $d['offset'] ?>"><?php endif; ?>
-  <?php if ($by !== 'time'): ?><input type="hidden" name="by" value="<?= ac_h($by) ?>"><?php endif; ?>
+<div class="ac-row ac-filters ac-tt-filters" role="group" aria-label="Filter the timetable">
   <nav class="ac-seg" aria-label="Arrange the week by"><?= $byLink('time', 'By time') . $byLink('room', 'By room') . $byLink('instructor', 'By teacher') ?></nav>
-  <label class="ac-sr" for="tt-f-cohort">Class</label>
-  <select class="ac-select ac-select--sm" id="tt-f-cohort" name="cohort">
-    <option value="">All classes</option>
-    <?php foreach ($d['cohorts'] ?? [] as $c): ?>
-      <option value="<?= (int) $c['id'] ?>"<?= (int) $f['cohort'] === (int) $c['id'] ? ' selected' : '' ?>><?= ac_h((string) $c['title']) ?></option>
-    <?php endforeach; ?>
-  </select>
-  <label class="ac-sr" for="tt-f-instr">Teacher</label>
-  <select class="ac-select ac-select--sm" id="tt-f-instr" name="instructor">
-    <option value="">All teachers</option>
-    <?php foreach ($d['instructors'] ?? [] as $u): ?>
-      <option value="<?= (int) $u['id'] ?>"<?= (int) $f['instructor'] === (int) $u['id'] ? ' selected' : '' ?>><?= ac_h((string) $u['name']) ?></option>
-    <?php endforeach; ?>
-  </select>
-  <label class="ac-sr" for="tt-f-room">Room</label>
-  <select class="ac-select ac-select--sm" id="tt-f-room" name="room">
-    <option value="">All rooms</option>
-    <?php foreach ($d['rooms'] ?? [] as $rm): ?>
-      <option value="<?= (int) $rm['id'] ?>"<?= (int) $f['room'] === (int) $rm['id'] ? ' selected' : '' ?>><?= ac_h((string) $rm['name']) ?></option>
-    <?php endforeach; ?>
-  </select>
-  <button type="submit" class="ac-btn ac-btn--sm">Show</button>
+  <?php $fk = array_map('strval', $state);
+  ac_facet('timetable', 'cohort', 'Class', array_column(array_map(fn($c) => ['k' => (string) (int) $c['id'], 'v' => (string) $c['title']], $d['cohorts'] ?? []), 'v', 'k'), $fk);
+  ac_facet('timetable', 'instructor', 'Teacher', array_column(array_map(fn($u) => ['k' => (string) (int) $u['id'], 'v' => (string) $u['name']], $d['instructors'] ?? []), 'v', 'k'), $fk);
+  ac_facet('timetable', 'room', 'Room', array_column(array_map(fn($r) => ['k' => (string) (int) $r['id'], 'v' => (string) $r['name']], $d['rooms'] ?? []), 'v', 'k'), $fk); ?>
   <?php if ($f['cohort'] || $f['instructor'] || $f['room']): ?>
     <a class="ac-btn ac-btn--sm" href="<?= ac_h(ac_url('timetable', array_filter(['w' => $state['w'] ?? null, 'by' => $state['by'] ?? null]))) ?>">Clear filters</a>
-    <span class="ac-tabnote"><?= count($rows) ?> of <?= (int) $d['total'] ?> sessions shown</span>
+    <span class="ac-tabnote" role="status"><?= count($rows) ?> of <?= (int) $d['total'] ?> sessions shown</span>
   <?php endif; ?>
-</form>
+</div>
 
 <?php foreach ($d['clashes'] ?? [] as $c): ?>
   <?php ac_banner('bad', 'fa-triangle-exclamation',
@@ -450,7 +429,7 @@ $byLink = fn(string $v, string $text) => '<a href="' . ac_h(ac_url('timetable', 
         </div>
       <?php else: ?>
         <?php ac_form('sched_feed', 'timetable', ['kind' => $fk, 'subject' => (int) $fd['id']] + $keep, 'class="ac-row"'); ?>
-          <button class="ac-btn ac-btn--primary" type="submit">Get a calendar link</button>
+          <button class="ac-btn" type="submit">Get a calendar link</button>
         <?php ac_form_end(); ?>
       <?php endif; ?>
     </div>
@@ -492,7 +471,7 @@ $byLink = fn(string $v, string $text) => '<a href="' . ac_h(ac_url('timetable', 
     <p class="ac-note">Every online and hybrid session gets its own link automatically<?= $ig['order'] ? ', tried in this order: ' . ac_h(implode(' → ', array_map('strtoupper', $ig['order']))) . '. A provider that fails falls through to the next' : '' ?>. Nobody types a link.</p>
     <?php if ($ig['pending_links'] > 0): ?>
       <?php ac_form('sched_meeting_backfill', 'timetable', $keep, 'class="ac-row ac-mt"'); ?>
-        <button type="submit" class="ac-btn ac-btn--primary">Generate links for <?= (int) $ig['pending_links'] ?> upcoming online session<?= $ig['pending_links'] === 1 ? '' : 's' ?></button>
+        <button type="submit" class="ac-btn">Generate links for <?= (int) $ig['pending_links'] ?> upcoming online session<?= $ig['pending_links'] === 1 ? '' : 's' ?></button>
       <?php ac_form_end(); ?>
     <?php endif; ?>
     <details class="ac-mt"><summary>Settings</summary>
@@ -524,7 +503,7 @@ $byLink = fn(string $v, string $text) => '<a href="' . ac_h(ac_url('timetable', 
             <input class="ac-input" type="password" name="zoom_client_secret" autocomplete="off"></label>
         </div>
         <label class="ac-tick ac-mt"><input type="checkbox" name="kapso_message_students" value="1"<?= $ig['kapso']['students'] ? ' checked' : '' ?>> Also message students' own numbers (off: guardians and staff only)</label>
-        <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Save</button></div>
+        <div class="ac-row ac-mt"><button type="submit" class="ac-btn">Save</button></div>
       <?php ac_form_end(); ?>
     </details>
     <?php if ($ig['list'][4]['ready']): ?>

@@ -485,7 +485,7 @@ $a = $d['aging'] ?? [];
         </div>
         <input type="hidden" name="currency" value="<?= ac_h(mam_fee_currency()) ?>">
         <input type="hidden" name="once_per_family" value="1">
-        <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Save the code</button>
+        <div class="ac-row ac-mt"><button type="submit" class="ac-btn">Save the code</button>
           <span class="ac-hint">Saving an existing code changes it. Once per family.</span></div>
       <?php ac_form_end(); ?>
     </div>

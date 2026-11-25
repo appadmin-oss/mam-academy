@@ -337,6 +337,22 @@
     upd();
   });
 
+  /* Filter chips (ac_facet) are <details>: they open with no script. This adds what a menu
+     owes a keyboard and a pointer — Escape closes it and returns focus to the chip, a click
+     outside closes it, and opening one closes any other. */
+  var facets = document.querySelectorAll('details.ac-facet');
+  Array.prototype.forEach.call(facets, function (d) {
+    d.addEventListener('toggle', function () {
+      if (d.open) Array.prototype.forEach.call(facets, function (o) { if (o !== d) o.open = false; });
+    });
+    d.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && d.open) { d.open = false; var s = d.querySelector('summary'); if (s) s.focus(); }
+    });
+  });
+  if (facets.length) document.addEventListener('click', function (e) {
+    Array.prototype.forEach.call(facets, function (d) { if (d.open && !d.contains(e.target)) d.open = false; });
+  });
+
   /* A bulk bar is there when something is ticked, as in the Control Room it is
      modelled on: an always-on "Do this…" row reads as the screen's main job,
      when the main job is the list. Without this script the bar is simply always

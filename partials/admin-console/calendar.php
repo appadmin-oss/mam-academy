@@ -27,7 +27,7 @@ $band = static function (array $r): string {
 <?php ac_head('Academic calendar',
     'Everything else in the console reads its dates from here · adjudicated in '
     . ac_h((string) ($d['tz'] ?? 'Africa/Lagos')) . ', displayed in your zone',
-    $maySet ? '<a class="ac-btn ac-btn--primary" href="' . ac_h(ac_url('calendar')) . '#term-form">Author a term</a>' : ''); ?>
+    $maySet ? '<a class="ac-btn" href="' . ac_h(ac_url('calendar')) . '#term-form">Author a term</a>' : ''); ?>
 
 <?php if (($cur['source'] ?? '') === 'computed'): ?>
   <?php ac_banner('warn', 'fa-circle-info',
@@ -158,7 +158,7 @@ $band = static function (array $r): string {
               <label class="ac-field"><span class="ac-label">To</span>
                 <input class="ac-input" name="to_on" type="date" required min="<?= ac_h((string) $sel['starts_on']) ?>" max="<?= ac_h((string) $sel['ends_on']) ?>"></label>
             </div>
-            <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Add the closure</button></div>
+            <div class="ac-row ac-mt"><button type="submit" class="ac-btn">Add the closure</button></div>
           <?php ac_form_end(); ?>
         </div>
       <?php ac_card_close('A closure must fall inside its term, or it would quietly never apply.'); ?>
