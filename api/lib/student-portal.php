@@ -67,10 +67,9 @@ function mam_sportal_starts_in(?string $at): ?int {
 /**
  * The student's active enrolments, as the screens need them.
  *
- * Dual-read (gotcha #2): a student can hold a legacy `enrollments` row, a
- * `course_enrollments` row, or both, and a portal that reads one model shows
- * half of them nothing. The cohort id is what every other provider here keys
- * off, so a legacy-only enrolment carries a null one rather than being dropped.
+ * One model: `course_enrollments`. The old class enrolments were carried into
+ * it (mam_legacy_carry()), so there is no second table to ask. The cohort id is
+ * what every other provider here keys off.
  */
 function mam_sportal_enrolments(int $studentId): array {
     $out = [];
@@ -92,23 +91,6 @@ function mam_sportal_enrolments(int $studentId): array {
             'level'     => $r['level_name'] ?: null,
             'cohort'    => $r['cohort_title'] ?: null,
             'model'     => 'course',
-        ];
-    }
-    foreach (mam_db_all(
-        "SELECT e.id, e.status, cl.title AS class_name
-           FROM enrollments e
-      LEFT JOIN classes cl ON cl.id = e.class_id
-          WHERE e.student_id = ? AND e.status IN ('active','completed')
-          ORDER BY e.id DESC", [$studentId]) as $r) {
-        $out[] = [
-            'id'        => (int) $r['id'],
-            'cohort_id' => null,
-            'status'    => (string) $r['status'],
-            'course'    => $r['class_name'] ?: 'Your class',
-            'code'      => null,
-            'level'     => null,
-            'cohort'    => $r['class_name'] ?: null,
-            'model'     => 'class',
         ];
     }
     return $out;

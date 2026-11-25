@@ -35,7 +35,6 @@ function mam_inline_fields(): array {
     return $f = [
         // Scheduling / teaching metadata — safe, high-churn text.
         'cohorts.title'          => ['cap' => 'enrollments', 'type' => 'text', 'max' => 160, 'label' => 'Cohort title'],
-        'classes.title'          => ['cap' => 'enrollments', 'type' => 'text', 'max' => 160, 'label' => 'Class title'],
         'class_sessions.title'   => ['cap' => 'enrollments', 'type' => 'text', 'max' => 160, 'label' => 'Session title'],
         'class_sessions.location'=> ['cap' => 'enrollments', 'type' => 'text', 'max' => 255, 'label' => 'Session location'],
 

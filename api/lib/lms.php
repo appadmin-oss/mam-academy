@@ -258,55 +258,41 @@ function mam_lms_finalize(int $enrollmentId, ?int $by = null): array {
 /** A student's course enrolments, with course/level/programme/instructor names
  *  and any finalized result. Newest first. */
 /**
- * Announcements visible to a student — from any LEGACY class OR cohort they're
- * enrolled in (dual-read, P2). `class_title` carries the class OR cohort name so
- * the portal renders unchanged. Newest first, capped. The compound query aliases
- * `created_at` explicitly: a UNION's ORDER BY must reference a result-set column
- * name (SQLite rejects a bare `an.created_at` here).
+ * Announcements visible to a student — from any cohort they are enrolled in. The
+ * old class model is retired; mam_legacy_carry() set every old notice's cohort_id,
+ * so the cohort is the only place to look. `class_title` keeps its name (it carries
+ * the cohort's title) so the portal renders unchanged. Newest first, capped, with an
+ * id tiebreak so equal timestamps order deterministically.
  */
 function mam_student_announcements(int $studentId, int $limit = 20): array {
     $limit = max(1, min(100, $limit));
     return mam_db_all(
-        "SELECT an.id AS id, an.title, an.body, an.created_at AS created_at, c.title AS class_title, usr.name AS author
-           FROM announcements an
-           JOIN classes c ON c.id = an.class_id
-           JOIN enrollments e ON e.class_id = c.id
-           LEFT JOIN users usr ON usr.id = an.author_id
-          WHERE e.student_id = ? AND e.status IN ('active','paused')
-         UNION
-         SELECT an.id AS id, an.title, an.body, an.created_at AS created_at, coh.title AS class_title, usr.name AS author
+        "SELECT DISTINCT an.id AS id, an.title, an.body, an.created_at AS created_at, coh.title AS class_title, usr.name AS author
            FROM announcements an
            JOIN cohorts coh ON coh.id = an.cohort_id
            JOIN course_enrollments ce ON ce.cohort_id = coh.id
            LEFT JOIN users usr ON usr.id = an.author_id
           WHERE ce.student_id = ? AND ce.status IN ('active','completed')
           ORDER BY created_at DESC, id DESC LIMIT " . $limit,
-        [$studentId, $studentId]
+        [$studentId]
     );
 }
 
 /**
- * Learning resources visible to a student — from any LEGACY class OR cohort they
- * are enrolled in (dual-read, P2). `class_title` carries the class OR cohort name.
- * Same compound-query rules as mam_student_announcements(): alias the ORDER BY
- * columns explicitly and tiebreak on id.
+ * Learning resources visible to a student — from any cohort they are enrolled in
+ * (one model; the old class rows were carried into cohorts). `class_title` carries
+ * the cohort name. Same ordering rules as mam_student_announcements().
  */
 function mam_student_resources(int $studentId, int $limit = 50): array {
     $limit = max(1, min(200, $limit));
     return mam_db_all(
-        "SELECT r.id AS id, r.title, r.url, r.type, r.created_at AS created_at, c.title AS class_title
-           FROM class_resources r
-           JOIN classes c ON c.id = r.class_id
-           JOIN enrollments e ON e.class_id = c.id
-          WHERE e.student_id = ? AND e.status IN ('active','paused')
-         UNION
-         SELECT r.id AS id, r.title, r.url, r.type, r.created_at AS created_at, coh.title AS class_title
+        "SELECT DISTINCT r.id AS id, r.title, r.url, r.type, r.created_at AS created_at, coh.title AS class_title
            FROM class_resources r
            JOIN cohorts coh ON coh.id = r.cohort_id
            JOIN course_enrollments ce ON ce.cohort_id = coh.id
           WHERE ce.student_id = ? AND ce.status IN ('active','completed')
           ORDER BY created_at DESC, id DESC LIMIT " . $limit,
-        [$studentId, $studentId]
+        [$studentId]
     );
 }
 

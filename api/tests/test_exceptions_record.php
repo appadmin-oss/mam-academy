@@ -108,7 +108,7 @@ foreach (array_keys(MAM_RECORD_SECTIONS) as $section) {
 t_eq($rec['personal_profile']['id'], $EX_stu, 'the profile identifies the student');
 t_eq($rec['personal_profile']['name'], 'EX Stu', 'by name');
 t_ok(is_array($rec['curriculum']['course_enrollments']), 'curriculum reads the cohort model');
-t_ok(is_array($rec['curriculum']['legacy_classes']), 'and the legacy class model — a half-record would be wrong');
+t_ok(!array_key_exists('legacy_classes', $rec['curriculum']), 'and nothing else: the old class model is retired and carried into cohorts');
 t_eq($rec['accountability']['occurrences'], 2, 'accountability carries both charges');
 t_ok($rec['mastery'] !== null && array_key_exists('score', $rec['mastery']), 'mastery is the §24 score object');
 t_ok(array_key_exists('ready', $rec['certification']), 'certification reports readiness');

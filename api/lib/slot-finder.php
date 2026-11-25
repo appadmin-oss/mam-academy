@@ -9,9 +9,9 @@
  *     out; hours set in instructor_availability are a hard limit; the coarse
  *     'mon:morning' grid from their application is a preference;
  *   - rooms: the smallest free room that seats the class (online needs none);
- *   - learners: any enrolled learner already in another class then — from BOTH
- *     enrolment models (cohort sessions, and a legacy class's weekly
- *     `schedule` text) — costs heavily and is named;
+ *   - learners: any enrolled learner already in another cohort's session then
+ *     costs heavily and is named (the old classes were carried into cohorts, so
+ *     their sessions are cohort sessions too);
  *   - siblings: a slot next to a brother's or sister's class is preferred, so a
  *     guardian makes one trip;
  *   - closures: holiday and break dates drop out (a slot with none left is out).
@@ -141,22 +141,6 @@ function mam_slot_rank(array $scored): array {
 
 /* ── Gathering the context (reads) ──────────────────────────────────────── */
 
-/** Weekly busy intervals from a legacy class's free-text schedule ("Sat 10:00", "Saturdays 4pm"). */
-function mam_slot_legacy_busy(string $schedule, string $from, string $to): array {
-    $map = ['sun' => 0, 'mon' => 1, 'tue' => 2, 'wed' => 3, 'thu' => 4, 'fri' => 5, 'sat' => 6];
-    if (!preg_match('/\b(sun|mon|tue|wed|thu|fri|sat)[a-z]*\b.*?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i', $schedule, $m)) return [];
-    $h = (int) $m[2]; $min = (int) ($m[3] ?? 0); $ap = strtolower($m[4] ?? '');
-    if ($ap === 'pm' && $h < 12) $h += 12; if ($ap === 'am' && $h === 12) $h = 0;
-    if ($h > 23) return [];
-    $dow = $map[strtolower(substr($m[1], 0, 3))]; $out = [];
-    for ($t = strtotime($from . ' 12:00'); $t <= strtotime($to . ' 12:00'); $t += 86400) {
-        if ((int) date('w', $t) !== $dow) continue;
-        $s = strtotime(date('Y-m-d', $t) . sprintf(' %02d:%02d:00', $h, $min));
-        $out[] = [$s, $s + 3600];
-    }
-    return $out;
-}
-
 /** Everything mam_slot_score() needs for one cohort between two dates. */
 function mam_slot_context(int $cohortId, string $from, string $to, array $opts = []): array {
     $co = mam_db_row('SELECT id, instructor_id, session_duration FROM cohorts WHERE id = ?', [$cohortId]);
@@ -192,9 +176,6 @@ function mam_slot_context(int $cohortId, string $from, string $to, array $opts =
         $busy = $iv(mam_db_all("SELECT cs.scheduled_at, cs.duration_min FROM class_sessions cs
                                  WHERE $live AND cs.cohort_id != ? AND cs.cohort_id IN (SELECT cohort_id FROM course_enrollments WHERE student_id = ? AND status = 'active')",
                                 array_merge($range, [$excl, $cohortId, $sid])));
-        foreach (mam_db_all("SELECT c.schedule FROM enrollments e JOIN classes c ON c.id = e.class_id WHERE e.student_id = ? AND e.status = 'active' AND c.schedule IS NOT NULL", [$sid]) as $lc) {
-            foreach (mam_slot_legacy_busy((string) $lc['schedule'], $from, $to) as $b) $busy[] = $b;
-        }
         if ($busy) $students[$sid] = $busy;
     }
 

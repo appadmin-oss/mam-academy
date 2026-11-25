@@ -172,31 +172,18 @@
     var h = new Date().getHours();
     return h < 12 ? 'Good morning' : (h < 18 ? 'Good afternoon' : 'Good evening');
   }
-  function attendanceRate(att) {
-    if (!att.length) return null;
-    var attended = att.filter(function (a) { return a.status === 'present' || a.status === 'late'; }).length;
-    return Math.round(attended / att.length * 100);
-  }
 
   function renderOverview() {
-    var apps = data.applications || [], pays = data.payments || [], enr = data.enrollments || [], att = data.attendance || [];
+    var apps = data.applications || [], pays = data.payments || [];
     var courses = data.courses || [];
-    // Dual-read (portal-audit S2): the Overview must reflect BOTH enrollment
-    // models, so a course-only student (course_enrollments, no legacy class)
-    // isn't shown an empty overview that contradicts My Learning one tab over.
-    var activeClasses = enr.filter(function (e){return e.enrollment_status==='active';}).length;
+    // One model: the course enrolments (the old classes were carried into
+    // cohorts, so a student once in a class has a course enrolment now).
     var activeCourses = courses.filter(function (c){return c.status==='active';}).length;
-    var activeLearning = activeClasses + activeCourses;
-    var learnSub = (activeClasses || activeCourses)
-      ? [activeClasses ? activeClasses + ' class' + (activeClasses===1?'':'es') : '', activeCourses ? activeCourses + ' course' + (activeCourses===1?'':'s') : ''].filter(Boolean).join(' · ')
-      : 'None active yet';
-    // Body for the "active learning" panel — both models, side by side, each
-    // labelled only when both are present so it never looks cluttered.
-    var subLabel = function (t) { return '<div style="font-size:0.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:2px 2px 8px;font-weight:700">' + t + '</div>'; };
+    var activeLearning = activeCourses;
+    var learnSub = activeCourses ? activeCourses + ' course' + (activeCourses===1?'':'s') : 'None active yet';
     var learnBody;
-    if (enr.length || courses.length) {
-      learnBody = (enr.length ? (courses.length ? subLabel('Classes') : '') + renderClassTable(enr.slice(0, 5)) : '')
-        + (courses.length ? (enr.length ? subLabel('Courses') : '') + courseTableHtml(courses.slice(0, 5)) : '');
+    if (courses.length) {
+      learnBody = courseTableHtml(courses.slice(0, 5));
     } else {
       learnBody = empty('music', 'No classes or courses yet. Once the academy places you, your timetable and coursework appear here.', { tab: 'applications', label: 'See my applications' });
     }
@@ -204,7 +191,6 @@
     var firstName = ((data.user && data.user.name) || '').split(' ')[0] || 'there';
     var ps = data.practice_stats || (STUDIO ? STUDIO.practiceStats() : { streak: 0, weekMin: 0 });
     ps.goalPct = Math.min(100, Math.round((ps.weekMin || 0) / 150 * 100)); // 150 min/week target
-    var rate = attendanceRate(att);
     var prog = data.progress || {};
     var kid = (data.program_track === 'KTAMS');
     var html = ''
@@ -216,14 +202,14 @@
       + kpi('This week', (ps.weekMin >= 60 ? (Math.floor(ps.weekMin/60) + 'h ' + (ps.weekMin%60) + 'm') : ps.weekMin + ' min'), 'Goal progress ' + ps.goalPct + '%')
       + kpi('Active learning', activeLearning, learnSub)
       + kpi('Assignments', (prog.assignments_done || 0) + '/' + (prog.assignments_total || 0), prog.assignments_open ? prog.assignments_open + ' to do' : (prog.assignments_total ? 'All done 🎉' : 'None yet'))
-      + kpi('Attendance', rate === null ? '—' : (rate + '%'), rate === null ? 'No sessions yet' : 'present across ' + att.length + ' sessions', '', 'ovAttKpi')
+      + kpi('Attendance', '—', 'No sessions yet', '', 'ovAttKpi')
       + kpi('Applications', apps.length, apps.length ? apps[0].pathway : 'None yet')
       + '</section>'
       + progressPanel(prog, ps)
       + '<section class="panel" id="aiNote" hidden><div class="panel-head"><h2><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;color:var(--gold-bright)"></i>Your progress note</h2></div><div class="panel-body" id="aiNoteBody"></div></section>'
       + '<section class="panel"><div class="panel-head"><h2>Latest application</h2><a class="panel-action" href="#applications" data-tab="applications">All →</a></div>'
       // Don't nudge an already-enrolled student (classes or courses) to "start an application".
-      + '<div class="panel-body">' + (apps[0] ? appRowFull(apps[0]) : empty('file-pen', (enr.length || (data.courses && data.courses.length)) ? 'No applications on file.' : 'You have not applied for a programme yet.', (enr.length || (data.courses && data.courses.length)) ? null : { href: '/apply', label: 'Start an application' })) + '</div></section>'
+      + '<div class="panel-body">' + (apps[0] ? appRowFull(apps[0]) : empty('file-pen', courses.length ? 'No applications on file.' : 'You have not applied for a programme yet.', courses.length ? null : { href: '/apply', label: 'Start an application' })) + '</div></section>'
       + '<section class="panel"><div class="panel-head"><h2>Upcoming &amp; active learning</h2><a class="panel-action" href="#learning" data-tab="learning">All →</a></div>'
       + '<div class="panel-body">' + learnBody + '</div>'
       + (courses.length ? '<div id="ovLearnOutline" style="margin:0 22px 18px"></div>' : '')
@@ -232,21 +218,21 @@
     bindTabLinks();
     if (courses.length) wireCourseActions('ovLearnOutline');
     loadAiNote();
-    loadOverviewSessionAttendance(att);
+    loadOverviewSessionAttendance();
     loadOverviewSurveyBanner();
   }
 
-  // Dual-read (portal-audit S2): fold cohort session attendance into the
-  // Overview attendance KPI so it agrees with the Attendance tab. Best-effort
-  // and non-blocking — like loadAiNote, it never disturbs the overview.
-  function loadOverviewSessionAttendance(att) {
+  // The Overview attendance KPI, from the cohort session register (old class
+  // marks were carried into it), so it agrees with the Attendance tab.
+  // Best-effort and non-blocking — like loadAiNote, it never disturbs the overview.
+  function loadOverviewSessionAttendance() {
     if (!API) return;
     API.request('student/session-attendance', { method: 'GET' }).then(function (r) {
       var sa = (r && r.attendance) || [];
       if (!sa.length) return;
       var tile = document.getElementById('ovAttKpi');
       if (!tile) return;
-      var combined = (att || []).concat(sa);
+      var combined = sa;
       var present = combined.filter(function (a) { return a.status === 'present' || a.status === 'late'; }).length;
       var rate = combined.length ? Math.round(present / combined.length * 100) : null;
       var val = tile.querySelector('.kpi-value'), sub = tile.querySelector('.kpi-sub');
@@ -364,49 +350,15 @@
   }
 
   function renderClasses() {
-    var enr = data.enrollments || [];
-    var att = data.attendance || [];
-
-    // Per-class attendance rate from legacy attendance records
-    var attByClass = {};
-    att.forEach(function (a) {
-      var k = a.title || '';
-      if (!attByClass[k]) attByClass[k] = { present: 0, total: 0 };
-      attByClass[k].total++;
-      if (a.status === 'present' || a.status === 'late') attByClass[k].present++;
-    });
-
-    var classCards = enr.length ? enr.map(function (e) {
-      var ar = attByClass[e.title];
-      var rateHtml = ar && ar.total ? '<div style="margin-top:10px"><div style="display:flex;justify-content:space-between;font-size:0.77rem;color:var(--text-muted);margin-bottom:4px"><span>Attendance</span><strong style="color:var(--text)">' + Math.round(ar.present / ar.total * 100) + '%</strong></div><div style="height:4px;background:var(--bg-elevated);border-radius:3px"><div style="height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gold-bright),var(--gold));width:' + Math.min(100, Math.round(ar.present / ar.total * 100)) + '%"></div></div><div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px">' + ar.present + ' of ' + ar.total + ' sessions attended</div></div>' : '';
-      var statusColor = e.enrollment_status === 'active' ? 'var(--emerald,#1FBF8F)' : 'var(--text-muted)';
-      var isOnline = e.mode && (e.mode.toLowerCase() === 'online' || e.mode.toLowerCase() === 'hybrid');
-      var meetingUrl = (e.meeting_link && /^https:\/\//i.test(e.meeting_link)) ? e.meeting_link : '';
-      var joinBtn = (isOnline && meetingUrl)
-        ? '<a href="' + P.escapeHtml(meetingUrl) + '" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:9px 18px;background:var(--gold-bright);color:#1A120B;border-radius:8px;font-size:0.82rem;font-weight:700;text-decoration:none;letter-spacing:.04em"><i class="fa-solid fa-video" aria-hidden="true"></i> Join class</a>'
-        : '';
-      return '<div style="padding:18px 20px;border:1px solid var(--border);border-radius:14px;background:var(--bg-raised)">'
-        + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">'
-        +   '<div style="flex:1;min-width:0">'
-        +     '<div style="font-weight:700;font-size:1.02rem;color:var(--text)">' + P.escapeHtml(e.title) + '</div>'
-        +     '<div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px">' + P.escapeHtml(e.discipline || '') + (e.pathway ? ' · ' + P.escapeHtml(e.pathway) : '') + '</div>'
-        +   '</div>'
-        +   '<span class="pill ' + P.escapeHtml(e.enrollment_status) + '" style="flex-shrink:0">' + P.escapeHtml(e.enrollment_status) + '</span>'
-        + '</div>'
-        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px 20px;margin-top:14px;font-size:0.84rem">'
-        +   '<div><span style="display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);font-weight:600;margin-bottom:2px">Instructor</span><span style="color:var(--text)">' + P.escapeHtml(e.instructor_name || 'TBA') + '</span></div>'
-        +   '<div><span style="display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);font-weight:600;margin-bottom:2px">Schedule</span><span style="color:var(--text)">' + P.escapeHtml(e.schedule || '—') + '</span></div>'
-        +   '<div><span style="display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);font-weight:600;margin-bottom:2px">Mode</span><span style="color:var(--text)">' + P.escapeHtml(e.mode || '—') + '</span></div>'
-        +   (e.starts_on ? '<div><span style="display:block;font-size:0.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);font-weight:600;margin-bottom:2px">Started</span><span style="color:var(--text)">' + P.fmtDate(e.starts_on) + '</span></div>' : '')
-        + '</div>'
-        + joinBtn
-        + rateHtml
-        + '</div>';
-    }).join('') : '<div class="panel-body">' + empty('music', 'No active enrollments yet. Your instructor will add you to a class soon.') + '</div>';
+    // One model: the course enrolments, each in its cohort (the old classes were
+    // carried into cohorts and are no longer read).
+    var courses = data.courses || [];
+    var classCards = courses.length ? courseTableHtml(courses) : '<div class="panel-body">' + empty('music', 'No active enrollments yet. Your instructor will add you to a class soon.') + '</div>';
 
     content.innerHTML = '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-music" style="margin-right:8px;color:var(--gold-bright)"></i>My Classes</h2></div>'
-      + '<div style="padding:14px 18px;display:grid;gap:12px">' + classCards + '</div></section>'
+      + '<div style="padding:14px 18px;display:grid;gap:12px">' + classCards + '<div id="classOutline"></div></div></section>'
       + '<section class="panel" style="margin-top:18px"><div class="panel-head"><h2><i class="fa-solid fa-calendar-days" style="margin-right:8px;color:var(--gold-bright)"></i>Upcoming Sessions</h2></div><div id="upcomingSessions"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading…') + '</div></div></section>';
+    if (courses.length) wireCourseActions('classOutline');
 
     // Load upcoming cohort sessions asynchronously
     API.request('student/upcoming-sessions', { method: 'GET' }).then(function (r) {
@@ -645,24 +597,23 @@
       .catch(function () { content.innerHTML = '<section class="panel"><div class="panel-body">' + empty('circle-exclamation', 'Could not load the curriculum. Please try again.') + '</div></section>'; });
   }
 
-  // ── My Learning (P2) — the cohort/course-centric hub that unifies courses,
-  // classes/schedule, results and attendance in one place. This is the primary
-  // learning surface: it carries the inline actions (Results, Weeks, certificate
-  // links) so a student rarely needs the separate Classes / My Courses tabs,
-  // which remain available for dual-read while the convergence settles. Builds on
+  // ── My Learning (P2) — the course hub: courses, results, certificates and
+  // attendance in one place, from the cohort model (the only model now). It
+  // carries the inline actions (Results, Weeks, certificate links) so a student
+  // rarely needs the separate Classes / My Courses tabs. Builds on
   // the shared learning building blocks and the portal-kit (P1).
   function renderLearning() {
-    var courses = data.courses || [], enr = data.enrollments || [], certs = data.certificates || [], att = data.attendance || [];
+    var courses = data.courses || [], certs = data.certificates || [];
     var active = courses.filter(function (c) { return c.status === 'active'; }).length;
     var done = courses.filter(function (c) { return c.status === 'completed'; }).length;
-    var present = att.filter(function (a) { return a.status === 'present' || a.status === 'late'; }).length;
-    var rate = attendanceRate(att);
+    var prog = data.progress || {};
+    var attTotal = prog.attendance_total || 0, present = prog.attendance_present || 0;
+    var rate = attTotal ? Math.round(present / attTotal * 100) : null;
 
     var kpis = '<section class="kpi-row">'
       + P.kpi('Active courses', active, courses.length + ' total', 'gold')
       + P.kpi('Completed', done, certs.length + ' certificate' + (certs.length === 1 ? '' : 's'))
-      + P.kpi('Active classes', enr.filter(function (e) { return e.enrollment_status === 'active'; }).length, enr.length + ' enrolment' + (enr.length === 1 ? '' : 's'))
-      + P.kpi('Attendance', rate === null ? '—' : rate + '%', att.length + ' session' + (att.length === 1 ? '' : 's'))
+      + P.kpi('Attendance', rate === null ? '—' : rate + '%', attTotal + ' session' + (attTotal === 1 ? '' : 's'))
       + '</section>';
 
     // Courses — full table with inline Results/Weeks + a shared detail area.
@@ -670,15 +621,13 @@
       ? courseTableHtml(courses) + '<div id="learnOutline" style="margin:6px 0 0"></div>'
       : '<div class="panel-body">' + P.empty('layer-group', 'No courses yet — add your first in My Courses.') + '</div>';
 
-    var classBody = enr.length ? renderClassTable(enr) : '<div class="panel-body">' + P.empty('music', 'No active classes yet. Your instructor will add you to a class soon.') + '</div>';
     var attBody = '<div class="panel-body">' + (rate === null
       ? P.empty('calendar-check', 'No attendance recorded yet.')
-      : 'You\'ve attended <strong>' + present + '</strong> of <strong>' + att.length + '</strong> sessions (<strong>' + rate + '%</strong>). ' + (rate >= 80 ? 'Excellent consistency — keep it up. 🎯' : 'Steady attendance builds momentum.')) + '</div>';
+      : 'You\'ve attended <strong>' + present + '</strong> of <strong>' + attTotal + '</strong> sessions (<strong>' + rate + '%</strong>). ' + (rate >= 80 ? 'Excellent consistency — keep it up. 🎯' : 'Steady attendance builds momentum.')) + '</div>';
 
     content.innerHTML = kpis
       + P.panel('Courses & results', courseBody, '<a class="panel-action" href="#courses" data-tab="courses"><i class="fa-solid fa-plus" style="margin-right:5px"></i>Add / manage →</a>')
       + certPanelHtml(certs)
-      + P.panel('Classes & schedule', classBody, '<a class="panel-action" href="#classes" data-tab="classes">All →</a>')
       + P.panel('Attendance', attBody, '<a class="panel-action" href="#attendance" data-tab="attendance">Session-by-session →</a>');
 
     bindTabLinks();
@@ -1416,49 +1365,30 @@
   }
 
   function renderAttendance() {
-    var att = data.attendance || [];
-    var legacy = '';
-    if (att.length) {
-      var present = att.filter(function (a) { return a.status === 'present' || a.status === 'late'; }).length;
-      var rate = Math.round(present / att.length * 100);
-      var rows = P.pagedTbody(att.map(function (a) {
-        return '<tr><td data-label="Date">' + P.fmtDate(a.session_date) + '</td>'
-          + '<td data-label="Class"><strong>' + P.escapeHtml(a.title || '—') + '</strong></td>'
-          + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td></tr>';
-      }), 3, { initial: 15, noun: 'sessions' });
-      legacy = '<section class="kpi-row">'
-        + '<div class="kpi"><div class="kpi-label">Attendance rate</div><div class="kpi-value gold">' + rate + '%</div><div class="kpi-sub">across ' + att.length + ' session' + (att.length === 1 ? '' : 's') + '</div></div>'
-        + '<div class="kpi"><div class="kpi-label">Present / Late</div><div class="kpi-value">' + present + '</div><div class="kpi-sub">of ' + att.length + ' recorded</div></div>'
-        + '</section>'
-        + '<section class="panel"><div class="ptable-wrap"><table class="ptable"><thead><tr><th>Date</th><th>Class</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div></section>';
-    }
-    content.innerHTML = legacy + '<div id="sessAttArea">' + (att.length ? '' : ('<section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading attendance…') + '</div></section>')) + '</div>' + '<section id="makeupArea"></section>';
+    // One register: cohort session attendance (old class marks were carried into it).
+    content.innerHTML = '<div id="sessAttArea"><section class="panel"><div class="panel-body">' + empty('circle-notch fa-spin', 'Loading attendance…') + '</div></section></div>' + '<section id="makeupArea"></section>';
     loadMakeup();
-    // Dual-read: also surface cohort session attendance (LMS L2). Shows only when
-    // there are session records; if there's neither legacy nor session
-    // attendance, fall back to the single empty state.
     var emptyState = '<section class="panel"><div class="panel-body">' + empty('calendar-check', 'No attendance recorded yet. Once your classes begin, every session shows here.') + '</div></section>';
     API.request('student/session-attendance', { method: 'GET' }).then(function (r) {
       var sa = r.attendance || [];
       var area = document.getElementById('sessAttArea');
       if (!area) return;
-      if (sa.length) {
-        var srows = P.pagedTbody(sa.map(function (a) {
-          return '<tr><td data-label="When">' + (a.scheduled_at ? P.escapeHtml(P.fmtDateTime(a.scheduled_at)) : '—') + '</td>'
-            + '<td data-label="Cohort"><strong>' + P.escapeHtml(a.cohort_title || '—') + '</strong>' + (a.session_title ? ' · ' + P.escapeHtml(a.session_title) : '') + '</td>'
-            + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td></tr>';
-        }), 3, { initial: 15, noun: 'sessions' });
-        area.innerHTML = '<section class="panel"' + (att.length ? ' style="margin-top:18px"' : '') + '><div class="panel-head"><h2><i class="fa-solid fa-calendar-days" style="margin-right:8px;color:var(--gold-bright)"></i>Class sessions</h2></div>'
-          + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>When</th><th>Cohort / Session</th><th>Status</th></tr></thead><tbody>' + srows + '</tbody></table></div></section>';
-      } else if (!att.length) {
-        content.innerHTML = emptyState;
-      } else {
-        area.innerHTML = '';
-      }
+      if (!sa.length) { area.innerHTML = emptyState; return; }
+      var present = sa.filter(function (a) { return a.status === 'present' || a.status === 'late'; }).length;
+      var srows = P.pagedTbody(sa.map(function (a) {
+        return '<tr><td data-label="When">' + (a.scheduled_at ? P.escapeHtml(P.fmtDateTime(a.scheduled_at)) : '—') + '</td>'
+          + '<td data-label="Cohort"><strong>' + P.escapeHtml(a.cohort_title || '—') + '</strong>' + (a.session_title ? ' · ' + P.escapeHtml(a.session_title) : '') + '</td>'
+          + '<td data-label="Status"><span class="pill ' + P.escapeHtml(a.status) + '">' + P.escapeHtml(a.status) + '</span></td></tr>';
+      }), 3, { initial: 15, noun: 'sessions' });
+      area.innerHTML = '<section class="kpi-row">'
+        + '<div class="kpi"><div class="kpi-label">Attendance rate</div><div class="kpi-value gold">' + Math.round(present / sa.length * 100) + '%</div><div class="kpi-sub">across ' + sa.length + ' session' + (sa.length === 1 ? '' : 's') + '</div></div>'
+        + '<div class="kpi"><div class="kpi-label">Present / Late</div><div class="kpi-value">' + present + '</div><div class="kpi-sub">of ' + sa.length + ' recorded</div></div>'
+        + '</section>'
+        + '<section class="panel"><div class="panel-head"><h2><i class="fa-solid fa-calendar-days" style="margin-right:8px;color:var(--gold-bright)"></i>Class sessions</h2></div>'
+        + '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>When</th><th>Cohort / Session</th><th>Status</th></tr></thead><tbody>' + srows + '</tbody></table></div></section>';
     }).catch(function () {
       var area = document.getElementById('sessAttArea');
-      if (!area) return;
-      if (!att.length) content.innerHTML = emptyState; else area.innerHTML = '';
+      if (area) area.innerHTML = emptyState;
     });
   }
   // ── Check-in (NGG-style) ──────────────────────────────────────────────
@@ -2037,17 +1967,6 @@
       .catch(function (err) { btn.disabled = false; btn.innerHTML = orig; P.fail(err, 'Could not ' + action + ' that request.'); });
   }
 
-  function renderClassTable(enr) {
-    var rows = enr.map(function (e) {
-      return '<tr><td data-label="Class"><strong>' + P.escapeHtml(e.title) + '</strong><br><span style="color:var(--text-muted);font-size:0.78rem">' + P.escapeHtml(e.discipline || '') + ' · ' + P.escapeHtml(e.pathway || '') + '</span></td>'
-        + '<td data-label="Instructor">' + P.escapeHtml(e.instructor_name || 'TBA') + '</td>'
-        + '<td data-label="Schedule">' + P.escapeHtml(e.schedule || '—') + '</td>'
-        + '<td data-label="Mode">' + P.escapeHtml(e.mode || '—') + '</td>'
-        + '<td data-label="Status"><span class="pill ' + P.escapeHtml(e.enrollment_status) + '">' + P.escapeHtml(e.enrollment_status) + '</span></td></tr>';
-    }).join('');
-    return '<div class="ptable-wrap"><table class="ptable"><thead><tr><th>Class</th><th>Instructor</th><th>Schedule</th><th>Mode</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
-  }
-
   // ── Refer a friend (§6.3) ────────────────────────────────────────────────
   function loadReferral() {
     var area = document.getElementById('referralArea'); if (!area) return;
@@ -2138,13 +2057,13 @@
     }
     // A compact tracker summary: what's outstanding, what's been paid, and how
     // many enrolments the tuition covers — so Payments reads as a status board.
-    var enr = data.enrollments || [];
+    var enr = (data.courses || []).filter(function (c) { return c.status === 'active'; });
     var outstandingTotal = outstanding.reduce(function (s, a) { return s + (parseFloat(a.total_usd || 0) || 0); }, 0);
     var paidCount = pays.filter(function (p) { return p.status === 'succeeded' || p.status === 'paid'; }).length;
     var summary = '<section class="kpi-row">'
       + kpi('Outstanding', outstandingTotal > 0 ? P.fmtUsd(outstandingTotal) : (P.fmtUsd(0)), outstanding.length ? outstanding.length + ' to settle' : 'All settled 🎉', outstandingTotal > 0 ? '' : 'gold')
       + kpi('Payments made', paidCount, pays.length ? pays.length + ' on record' : 'None yet')
-      + kpi('Active enrolments', enr.filter(function (e) { return e.enrollment_status === 'active'; }).length, 'Covered by your tuition')
+      + kpi('Active enrolments', enr.length, 'Covered by your tuition')
       + '</section>';
     content.innerHTML = summary + tile + '<section id="referralArea"></section>' + history;
     loadReferral();
@@ -2424,9 +2343,9 @@
     // ── Class Summary ────────────────────────────────────────────
     if (summary.length) {
       var cards = summary.map(function(c) {
-        var name  = c.cohort_title || c.class_name || 'Class';
+        var name  = c.cohort_title || c.course_name || 'Class';
         var sub   = [c.course_name, c.level_name||c.level, c.instructor_name].filter(Boolean).join(' · ');
-        var total = parseInt(c.total_sessions||c.total_marked||0, 10);
+        var total = parseInt(c.total_sessions||0, 10);
         var att   = parseInt(c.attended||0, 10);
         var abs   = parseInt(c.absent||0, 10);
         var pct   = c.attendance_rate != null ? Math.round(Number(c.attendance_rate)) : null;

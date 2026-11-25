@@ -240,30 +240,34 @@ $SP_more = mam_sportal_more($SP_me);
 t_ok(array_key_exists('owed_cents', $SP_more) && array_key_exists('awaiting_marks', $SP_more),
     'the sheet badges come from the screens themselves, so they cannot disagree with what they link to');
 
-/* ── Dual-read: a legacy-only student is not an empty portal (gotcha #2) ─── */
+/* ── One model: the old class tables are retired and unread ──────────────── */
 
-t_group('student portal — both enrolment models');
+t_group('student portal — the cohort model only');
 
+/* mam_legacy_carry() copied every old class enrolment into course_enrollments, so
+   the portal reads that table alone. A row left only in the old `enrollments`
+   table is not shown — and every screen still answers for that student rather
+   than failing. */
 $SP_leg = mam_db_insert('users', ['name' => 'Legacy Learner', 'email' => 'sp_leg@test.local',
     'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
 $SP_cls = mam_db_insert('classes', ['title' => 'Classical Foundations', 'instructor_id' => $SP_ins,
     'discipline' => 'piano', 'mode' => 'onsite', 'capacity' => 12, 'status' => 'active']);
 mam_db_insert('enrollments', ['student_id' => $SP_leg, 'class_id' => $SP_cls, 'status' => 'active']);
 
-$SP_en = mam_sportal_enrolments($SP_leg);
-t_eq(count($SP_en), 1, 'a legacy-only student has an enrolment');
-t_eq($SP_en[0]['model'], 'class', '…read from the legacy model');
-t_eq($SP_en[0]['course'], 'Classical Foundations',
-    '…named from classes.title — `classes` has no `name` column, and a bad column renders as nothing');
-t_eq($SP_en[0]['cohort_id'], null,
-    'and it carries a null cohort id rather than being dropped for lacking one');
-
-/* Every screen must answer for a student the cohort model has never heard of.
-   A portal that reads one model shows half its students an empty page. */
+t_eq(count(mam_sportal_enrolments($SP_leg)), 0, 'an enrolment left only in the old class table is not read');
 foreach (['home', 'train', 'learn', 'attend', 'money', 'repertoire', 'more'] as $SP_s) {
     $SP_fn = 'mam_sportal_' . $SP_s;
-    $SP_out = $SP_fn($SP_leg);
-    t_ok(is_array($SP_out), "'$SP_s' answers for a legacy-only student");
+    t_ok(is_array($SP_fn($SP_leg)), "'$SP_s' answers for a student with no course enrolment");
 }
-$SP_lLearn = mam_sportal_learn($SP_leg);
-t_eq(count($SP_lLearn['enrolments']), 1, 'and Learn shows them their class');
+
+/* Once carried (a course enrolment in the class's cohort), the class is the cohort. */
+$SP_carried = mam_db_insert('cohorts', ['course_id' => $SP_course, 'instructor_id' => $SP_ins,
+    'title' => 'Classical Foundations', 'legacy_class_id' => $SP_cls, 'status' => 'active']);
+mam_db_insert('course_enrollments', ['student_id' => $SP_leg, 'course_id' => $SP_course,
+    'cohort_id' => $SP_carried, 'status' => 'active']);
+$SP_en = mam_sportal_enrolments($SP_leg);
+t_eq(count($SP_en), 1, 'the carried enrolment is the student\'s one enrolment');
+t_eq($SP_en[0]['model'], 'course', '…read from the cohort model');
+t_eq($SP_en[0]['cohort_id'], (int) $SP_carried, '…in the cohort the class became');
+t_eq($SP_en[0]['cohort'], 'Classical Foundations', '…named by the cohort');
+t_eq(count(mam_sportal_learn($SP_leg)['enrolments']), 1, 'and Learn shows them their class');

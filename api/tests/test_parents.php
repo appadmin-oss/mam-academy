@@ -186,8 +186,8 @@ t_group('parents — the children query runs against the LIVE schema');
  *
  * This is the guardian-side twin of the check `test_admin_screens.php` runs over
  * the admin views (CLAUDE.md gotcha #9), and it exists because a real one got
- * through: the child subtitle was written as `classes.name`, and the legacy
- * `classes` table has `title`. Nothing in the suite touched it, and it was found
+ * through: the child subtitle was written against a column the old `classes`
+ * table did not have. Nothing in the suite touched it, and it was found
  * by opening the portal in a browser. Executing the query is the only check that
  * would have caught it, so the check executes it.
  */
@@ -200,7 +200,7 @@ foreach ($PC_kids as $PC_k) {
     }
     // The design's card names the course and level; these may be null, but the
     // KEYS must exist or the client renders `undefined` into the subtitle.
-    foreach (['course_name', 'level_name', 'legacy_class'] as $PC_key) {
+    foreach (['course_name', 'level_name', 'cohort_title'] as $PC_key) {
         t_ok(array_key_exists($PC_key, $PC_k), "and '$PC_key' for the card subtitle (may be null)");
     }
     break;

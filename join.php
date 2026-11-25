@@ -4,10 +4,15 @@
  *
  * Routes (via .htaccess):
  *   /session/{id}/join  →  join.php?type=session&id={id}
- *   /class/{id}/join    →  join.php?type=class&id={id}
+ *   /class/{id}/join    →  join.php?type=class&id={id}   (a bookmarked OLD class link)
  *
  * Checks the visitor is signed in and is enrolled in (or teaches / admins)
- * the session/class, then 302-redirects to the stored meeting_link URL.
+ * the session's cohort, then 302-redirects to the stored meeting_link URL.
+ *
+ * The old class model is retired (its classes were carried into cohorts,
+ * `cohorts.legacy_class_id`), but a family's bookmarked /class/{id}/join must
+ * still work: the class id resolves to the cohort it became, and the link
+ * joins that cohort's current or next session that has a meeting link.
  * Unenrolled visitors and guests get a clear, friendly error page.
  */
 declare(strict_types=1);
@@ -102,17 +107,26 @@ if ($type === 'session' && $id > 0) {
         }
     }
 } elseif ($type === 'class' && $id > 0) {
-    $cls = mam_db_row('SELECT id, title, meeting_link, instructor_id FROM classes WHERE id = ?', [$id]);
-    if (!$cls) {
+    // An old class link: the class is now the cohort it was carried into.
+    $co = mam_db_row('SELECT id, title, instructor_id FROM cohorts WHERE legacy_class_id = ? ORDER BY id LIMIT 1', [$id]);
+    if (!$co) {
         $errorCode = 'not_found';
     } else {
-        $sessionTitle = (string)($cls['title'] ?: 'Class #' . $id);
-        $meetingLink  = $cls['meeting_link'] ? (string)$cls['meeting_link'] : null;
+        $sessionTitle = (string)($co['title'] ?: 'Class #' . $id);
+        // The session in progress (started up to three hours ago) or the next one.
+        $sess = mam_db_row(
+            "SELECT id, title, meeting_link FROM class_sessions
+              WHERE cohort_id = ? AND status = 'scheduled' AND meeting_link IS NOT NULL AND meeting_link <> ''
+                AND scheduled_at >= ?
+              ORDER BY scheduled_at ASC, id ASC LIMIT 1",
+            [(int)$co['id'], gmdate('Y-m-d H:i:s', time() - 3 * 3600)]
+        );
+        $meetingLink = $sess ? (string)$sess['meeting_link'] : null;
 
-        if (!$isStaff && (int)$cls['instructor_id'] !== $userId) {
+        if (!$isStaff && (int)$co['instructor_id'] !== $userId) {
             $enrolled = mam_db_row(
-                "SELECT 1 FROM enrollments WHERE class_id = ? AND student_id = ? AND status = 'active'",
-                [$id, $userId]
+                "SELECT 1 FROM course_enrollments WHERE cohort_id = ? AND student_id = ? AND status IN ('active','completed')",
+                [(int)$co['id'], $userId]
             );
             if (!$enrolled) $errorCode = 'not_enrolled';
         }
@@ -131,8 +145,8 @@ if ($errorCode === '') {
                 if (function_exists('mam_db_insert')) {
                     mam_db_insert('events', [
                         'type'       => 'session.join_redirect',
-                        'entity'     => $type === 'class' ? 'class' : 'class_session',
-                        'entity_id'  => $id,
+                        'entity'     => $type === 'class' ? 'cohort' : 'class_session',
+                        'entity_id'  => $type === 'class' ? (int)$co['id'] : $id,
                         'actor_id'   => $userId,
                         'meta'       => json_encode(['role' => $userRole]),
                         'created_at' => date('Y-m-d H:i:s'),
