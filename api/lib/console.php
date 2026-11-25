@@ -2355,9 +2355,42 @@ function mam_console_settings_fields(): array {
         } elseif (mam_setting_is_quantity($default)) {
             $kind = 'number';
         }
+        // The schema's label carries machine notes; the screen shows a title, a plain hint, and
+        // the choices in words ("1=open, 0=invite-only" becomes Open / Invite only).
+        $raw = (string) $label;
+        $choices = ['1' => 'Yes', '0' => 'No'];
+        if (preg_match('/\(\s*1\s*=\s*([^,)]+?)\s*(?:,\s*0\s*=\s*([^)]+?))?\s*\)/i', $raw, $cm)) {
+            $on = trim($cm[1]);
+            $choices = ['1' => ucfirst($on === 'on' ? 'yes' : $on), '0' => ucfirst(isset($cm[2]) && trim($cm[2]) !== 'off' ? trim($cm[2]) : 'no')];
+            $raw = trim(str_replace($cm[0], '', $raw));
+        }
+        $hint = '';
+        if ($kind === 'enum' && preg_match('/^(.*?):\s*[a-z_]+(?:\s*\|\s*[a-z_]+)+\.?\s*(.*)$/s', $raw, $em)) {
+            $raw = $em[1];
+            $hint = str_replace('`', '', $em[2]);
+        } elseif ($kind === 'enum') {
+            $raw = trim((string) preg_replace('/\([a-z_]+\s+or\s+[a-z_]+\)/', '', $raw));
+        }
+        $raw = trim((string) preg_replace(['/\s*\(YYYY-MM-DD\)/', '/\s+\./'], ['', '.'], $raw));
+        // Title, then the rest as the hint: split at the first sentence end or dash ("e.g. x" is
+        // not a sentence end: the next word must start with a capital).
+        if ($hint === '' && preg_match('/^(.{8,}?)(?:\.\s+(?=[A-Z])| — )(.*)$/su', $raw, $sm)) {
+            $raw = $sm[1];
+            $hint = $sm[2];
+        }
+        // Shouted words read as alarm, not emphasis: STUDENTS is students.
+        $raw = (string) preg_replace_callback('/\b[A-Z]{4,}\b/', fn($w) => strtolower($w[0]), $raw);
+        $hint = ucfirst(trim($hint));
         $groups[$group][] = [
             'key' => (string) $key,
             'label' => (string) $label,
+            'title' => rtrim($raw, '. '),
+            'hint' => trim($hint),
+            'choices' => $choices,
+            // How wide the field is: by what it holds (Faithful's form rule; Baymard).
+            'size' => $kind === 'number' ? 'num'
+                : ($kind === 'text' && preg_match('/(_number|_tel|_id|_lat|_lng|_registration)$/', (string) $key) ? 'short'
+                : ($kind === 'text' && preg_match('/one per line|paragraph|description/i', (string) $label) ? 'long' : 'text')),
             'default' => (string) $default,
             'suffix' => (string) $suffix,
             'value' => (string) ($current ?? $default),

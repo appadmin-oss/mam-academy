@@ -43,7 +43,9 @@ $required = (array) ($d['required'] ?? []);
 <?php ac_card_close('An unclear result never fails an enrolment — the student is enrolled and the instructor simply not attached, because "enrolled, awaiting a cleared teacher" is actionable and a refused placement is not. An adult-only cohort is not gated at all; unknown age counts as a minor.'); ?>
 
 <?php ac_card_open('The record', count($d['instructors'] ?? []) . ' instructor' . (count($d['instructors'] ?? []) === 1 ? '' : 's')); ?>
-  <div class="ac-tablewrap">
+  <?php /* One column per required clearance: wider than a laptop, so it scrolls sideways, and a
+     keyboard can only scroll what it can focus (WCAG 2.1.1; axe scrollable-region-focusable). */ ?>
+  <div class="ac-tablewrap" tabindex="0" role="region" aria-label="Vetting record, one column per clearance">
     <table class="ac-table">
       <thead>
         <tr><th>Instructor</th>

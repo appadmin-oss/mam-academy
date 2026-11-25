@@ -15,39 +15,49 @@ $t = $d['tenant'] ?? [];
 ?>
 <?php ac_card_open('Configuration', $nCfg . ' settings · ' . $changed . ' changed from the default',
     '<span class="ac-cardmeta">One save for all of them</span>'); ?>
+  <div class="ac-cardbody">
   <?php ac_form('save_settings', 'settings', [], 'class="ac-cfg" id="settings-form"'); ?>
     <?php foreach ($cfg as $group => $fields):
       $gChanged = count(array_filter($fields, fn($f) => $f['value'] !== $f['default'])); ?>
-      <details class="ac-cfg-group">
+      <details class="ac-cfg-group"<?= $group === array_key_first($cfg) ? ' open' : '' ?>>
         <summary><span class="ac-strong"><?= ac_h($group) ?></span>
           <span class="ac-sub"><?= count($fields) ?> <?= count($fields) === 1 ? 'setting' : 'settings' ?><?= $gChanged ? ' · ' . $gChanged . ' changed' : '' ?></span></summary>
-        <div class="ac-grid ac-grid--2 ac-cfg-fields">
+        <div class="ac-cfg-fields">
           <?php foreach ($fields as $f):
             $k = $f['key']; $val = $f['value']; $isChanged = $val !== $f['default'];
-            $long = (bool) preg_match('/one per line|paragraph|description/i', $f['label']);
-            $date = (bool) preg_match('/YYYY-MM-DD/', $f['label']); ?>
-            <label class="ac-field<?= $long ? ' ac-cfg-wide' : '' ?>">
-              <span class="ac-label"><?= ac_h($f['label']) ?><?= $f['suffix'] !== '' ? ' (' . ac_h($f['suffix']) . ')' : '' ?></span>
+            $id = 'cfg-' . $k;
+            $date = (bool) preg_match('/YYYY-MM-DD/', $f['label']);
+            // A currency sign goes before the number; every other unit after it.
+            $pre = in_array($f['suffix'], ['$', '₦', '£', '€'], true) ? $f['suffix'] : '';
+            $post = $pre === '' ? $f['suffix'] : '';
+            $hint = trim($f['hint'] . ($isChanged ? ($f['hint'] !== '' ? ' · ' : '') . 'Default: ' . ($f['default'] === '' ? '(blank)' : $f['default']) : '')); ?>
+            <div class="ac-cfg-row">
+              <label class="ac-label" for="<?= ac_h($id) ?>"><?= ac_h($f['title']) ?></label>
               <?php if ($f['kind'] === 'bool'): ?>
-                <select class="ac-select" name="<?= ac_h($k) ?>">
-                  <option value="1"<?= $val === '1' ? ' selected' : '' ?>>Yes</option>
-                  <option value="0"<?= $val !== '1' ? ' selected' : '' ?>>No</option>
+                <select class="ac-select ac-w-fit" id="<?= ac_h($id) ?>" name="<?= ac_h($k) ?>">
+                  <option value="1"<?= $val === '1' ? ' selected' : '' ?>><?= ac_h($f['choices']['1']) ?></option>
+                  <option value="0"<?= $val !== '1' ? ' selected' : '' ?>><?= ac_h($f['choices']['0']) ?></option>
                 </select>
               <?php elseif ($f['kind'] === 'enum'): ?>
-                <select class="ac-select" name="<?= ac_h($k) ?>">
+                <select class="ac-select ac-w-fit" id="<?= ac_h($id) ?>" name="<?= ac_h($k) ?>">
                   <?php foreach ($f['options'] as $o): ?>
-                    <option value="<?= ac_h($o) ?>"<?= $val === $o ? ' selected' : '' ?>><?= ac_h($o) ?></option>
+                    <option value="<?= ac_h($o) ?>"<?= $val === $o ? ' selected' : '' ?>><?= ac_h(ucfirst(str_replace('_', ' ', $o))) ?></option>
                   <?php endforeach; ?>
                 </select>
               <?php elseif ($f['kind'] === 'number'): ?>
-                <input class="ac-input" type="number" step="any" min="0" name="<?= ac_h($k) ?>" value="<?= ac_h($val) ?>" required>
-              <?php elseif ($long): ?>
-                <textarea class="ac-textarea" name="<?= ac_h($k) ?>" rows="3" maxlength="300"><?= ac_h($val) ?></textarea>
+                <span class="ac-affix">
+                  <?php if ($pre !== ''): ?><span class="ac-affix-unit" aria-hidden="true"><?= ac_h($pre) ?></span><?php endif; ?>
+                  <input class="ac-input ac-w-num" id="<?= ac_h($id) ?>" type="number" step="any" min="0" name="<?= ac_h($k) ?>" value="<?= ac_h($val) ?>" required<?= $f['suffix'] !== '' ? ' aria-describedby="' . ac_h($id) . '-unit"' : '' ?>>
+                  <?php if ($post !== ''): ?><span class="ac-affix-unit" aria-hidden="true"><?= ac_h($post) ?></span><?php endif; ?>
+                  <?php if ($f['suffix'] !== ''): ?><span class="ac-sr" id="<?= ac_h($id) ?>-unit">in <?= ac_h($f['suffix']) ?></span><?php endif; ?>
+                </span>
+              <?php elseif ($f['size'] === 'long'): ?>
+                <textarea class="ac-textarea ac-w-long" id="<?= ac_h($id) ?>" name="<?= ac_h($k) ?>" rows="3" maxlength="300"><?= ac_h($val) ?></textarea>
               <?php else: ?>
-                <input class="ac-input" type="<?= $date ? 'date' : 'text' ?>" maxlength="300" name="<?= ac_h($k) ?>" value="<?= ac_h($val) ?>">
+                <input class="ac-input <?= $f['size'] === 'short' || $date ? 'ac-w-short' : 'ac-w-text' ?>" id="<?= ac_h($id) ?>" type="<?= $date ? 'date' : 'text' ?>" maxlength="300" name="<?= ac_h($k) ?>" value="<?= ac_h($val) ?>">
               <?php endif; ?>
-              <?php if ($isChanged): ?><span class="ac-hint">Default: <?= ac_h($f['default'] === '' ? '(blank)' : $f['default']) ?></span><?php endif; ?>
-            </label>
+              <?php if ($hint !== ''): ?><p class="ac-hint"><?= ac_h($hint) ?></p><?php endif; ?>
+            </div>
           <?php endforeach; ?>
         </div>
       </details>
@@ -56,6 +66,7 @@ $t = $d['tenant'] ?? [];
       <button type="submit" class="ac-btn ac-btn--primary">Save settings</button>
     </div>
   <?php ac_form_end(); ?>
+  </div>
 <?php ac_card_close('A blank number goes back to its default, never to zero, so a cleared price cannot make a programme free.'); ?>
 
 <?php ac_card_open('Sessions', count($d['terms'] ?? []) . ' authored',

@@ -107,15 +107,13 @@ $shown = array_values(array_filter($rows, $filters[$f][1]));
 </div>
 
 <div class="ac-cols ac-cols--2">
-  <?php ac_card_open('What a full cohort does'); ?>
+  <?php ac_card_open('When a cohort is full'); ?>
     <div class="ac-cardbody">
-      <p class="ac-note">Enrolling into a full cohort is <strong>refused and queued</strong>, not silently failed:
-      the add returns a waitlist position rather than an enrolment, and a caller that reads the returned id without
-      checking gets <span class="ac-mono">null</span>, not a wrong number.</p>
-      <p class="ac-note">Leaving a seat-occupying status drains the queue and notifies the next family. That drain is
-      best-effort by design — a withdrawal must never fail because the queue could not be drained.</p>
+      <p class="ac-note">A new enrolment joins the <strong>waiting list</strong>, with its place in the queue, instead of
+      taking a seat.</p>
+      <p class="ac-note">When a student leaves, the next family on the list is given the seat and told by email.</p>
     </div>
-  <?php ac_card_close('Capacity <span class="ac-mono">null</span> means uncapped. Zero would mean permanently full, and the schema keeps that distinction deliberately.'); ?>
+  <?php ac_card_close('No capacity set means no limit. A capacity of 0 means no new places.'); ?>
 
   <?php ac_card_open('Seats vs. teachable'); ?>
     <div class="ac-cardbody">
