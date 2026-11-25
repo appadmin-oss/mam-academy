@@ -1277,3 +1277,14 @@
   [data-admin="v2"] .ac-note, [data-admin="v2"] .ac-hint, [data-admin="v2"] .ac-cardfoot,
   [data-admin="v2"] .ac-head p, [data-admin="v2"] .ac-qwhy { font-size: 15px; }
 }
+
+/* A form's fields, one under another: one column, a label tight to its own field and a clear
+   gap to the next (the same rhythm as Settings, without its group indent). */
+[data-admin="v2"] .ac-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; max-width: 44rem; }
+[data-admin="v2"] .ac-fields .ac-label { display: block; margin-bottom: 6px; }
+[data-admin="v2"] .ac-fields .ac-hint { margin-top: 6px; }
+[data-admin="v2"] .ac-disclose > form { margin-top: 18px; }
+/* A row's actions: one line, right-aligned, wrapping rather than stacking at different heights. */
+[data-admin="v2"] .ac-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; }
+[data-admin="v2"] .ac-acts > form { margin: 0; }
+[data-admin="v2"] .ac-disclose > summary + form { margin-top: 18px; }

@@ -124,6 +124,9 @@ function mam_admin_console_return(string $screen): void {
            record they acted on, with the verdict beside it. Digits only. */
         // The application a handler names (app_assign, record_placement…), digits only.
         if (isset($q['app']) && is_string($q['app']) && preg_match('/^[1-9][0-9]{0,9}$/', $q['app'])) $keep['app'] = $q['app'];
+        // The part of the screen the form was on (ac_parts), so a save returns to it.
+        $part = (string) ($_POST['_part'] ?? '');
+        if (preg_match('/^[a-z][a-z0-9-]{0,20}$/', $part)) $keep['part'] = $part;
         $cid = (string) ($_POST['_console_id'] ?? '');
         if (!isset($keep['id']) && preg_match('/^[1-9][0-9]{0,9}$/', $cid)) $keep['id'] = $cid;
         /* ── end student management ── */

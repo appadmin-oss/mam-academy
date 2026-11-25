@@ -1585,7 +1585,8 @@ function mam_console_timetable(array $q = []): array {
 
 function mam_console_curriculum(array $q = []): array {
     $programs = mam_console_rows('cur.prog',
-        "SELECT p.id, p.code, p.name, p.weeks, p.active,
+        "SELECT p.id, p.code, p.name, p.weeks, p.active, p.revision_week, p.exam_week,
+                p.requires_core, p.certification, p.sort_order,
                 (SELECT COUNT(*) FROM program_courses pc WHERE pc.program_id = p.id) courses
            FROM programs p ORDER BY p.sort_order, p.name");
     $prog = (int) ($q['program'] ?? 0);
@@ -1656,7 +1657,7 @@ function mam_console_curriculum(array $q = []): array {
         'course' => $course, 'modules' => $modules, 'gaps' => $gaps, 'weeks' => $weeks,
         'coverage' => $coverage, 'editing' => $editing,
         'all_courses' => mam_console_rows('cur.allcourses',
-            "SELECT c.id, c.code, c.name, c.kind, c.active,
+            "SELECT c.id, c.code, c.name, c.kind, c.active, c.description, c.sort_order,
                     (SELECT COUNT(*) FROM program_courses pc WHERE pc.course_id = c.id AND pc.program_id = ?) linked
                FROM courses c ORDER BY c.sort_order, c.name", [$prog]),
         'report' => mam_console_try('cur.report', fn() => mam_lesson_course_report(), []),

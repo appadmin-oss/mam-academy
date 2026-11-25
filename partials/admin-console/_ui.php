@@ -169,6 +169,9 @@ function ac_form(string $action, string $screen, array $hidden = [], string $att
     <input type="hidden" name="csrf_token" value="<?= ac_h($MAM_CONSOLE_CSRF) ?>">
     <input type="hidden" name="action" value="<?= ac_h($action) ?>">
     <input type="hidden" name="_console" value="<?= ac_h($screen) ?>">
+    <?php if (($GLOBALS['MAM_CONSOLE_PART'] ?? '') !== ''): ?>
+      <input type="hidden" name="_part" value="<?= ac_h($GLOBALS['MAM_CONSOLE_PART']) ?>">
+    <?php endif; ?>
     <?php foreach ($hidden as $k => $v): ?>
       <input type="hidden" name="<?= ac_h($k) ?>" value="<?= ac_h($v) ?>">
     <?php endforeach; ?>
@@ -303,4 +306,26 @@ function ac_label_table_cells(string $html): string {
     $out = '';
     foreach ($root->childNodes as $child) $out .= $doc->saveHTML($child);
     return $out;
+}
+
+/**
+ * A screen in PARTS: one task each, chosen from a row of pills under the title, the part in the
+ * URL (`?part=`) so a link, a refresh and a save all come back to it. A screen that grew ten
+ * unrelated cards on one scroll (browse, author, review, configure) reads as nothing in
+ * particular; a part says which job this is. Returns the current part's key, and remembers it
+ * so every form on the part carries it back after a save (ac_form's `_part`).
+ *
+ * @param array<string,string> $parts key => label, the first is the default
+ */
+function ac_parts(string $screen, array $parts, array $keep = []): string {
+    $want = (string) ($_GET['part'] ?? '');
+    $current = array_key_exists($want, $parts) ? $want : (string) array_key_first($parts);
+    $GLOBALS['MAM_CONSOLE_PART'] = $current; ?>
+  <nav class="ac-tabs ac-parts" aria-label="Parts of this screen">
+    <?php foreach ($parts as $k => $label): ?>
+      <a class="ac-tab" href="<?= ac_h(ac_url($screen, ['part' => $k === array_key_first($parts) ? null : $k] + $keep)) ?>"<?= $k === $current ? ' aria-current="page"' : '' ?>><?= ac_h($label) ?></a>
+    <?php endforeach; ?>
+  </nav>
+<?php
+    return $current;
 }

@@ -46,12 +46,12 @@ $CR_posted = (static function () use ($CR_root): array {
 /* Still without a button. DELETE a name from here when its form exists; never add one. */
 $CR_pending = [
     'acadmail_toggle', 'app_bulk_status', 'app_delete', 'app_note', 'avatar_clear', 'course_approve',
-    'course_update', 'datarights_erase', 'delete_promo_banner', 'dp_assessment_save', 'dp_breach_close',
+    'datarights_erase', 'delete_promo_banner', 'dp_assessment_save', 'dp_breach_close',
     'dp_breach_ndpc', 'dp_breach_record', 'dp_breach_subjects', 'dp_note_save', 'dp_processor_save',
     'dp_request_ack', 'dp_request_close', 'dp_request_export', 'dp_request_open', 'dp_retention_run',
     'enrollment_delete', 'module_save', 'rubric_update', 'faculty_app_status', 'faculty_assign_subjects', 'faculty_invite',
     'faculty_request_review', 'fee_aid_revoke', 'meet_reconcile', 'meet_sync', 'module_import',
-    'module_proposal_review', 'module_scaffold', 'notif_read_all', 'program_create', 'program_update',
+    'module_proposal_review', 'module_scaffold', 'notif_read_all',
     'recital_add_item', 'recital_create', 'recital_email', 'recital_recording', 'recital_reorder',
     'recital_status', 'recital_update', 'referral_reward', 'resource_add', 'rubric_create', 'rubric_delete',
     'save_email_branding', 'save_google_meet', 'save_promo_banner', 'seed_starter',

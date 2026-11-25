@@ -25,6 +25,10 @@ $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovere
     . 'curriculum gap, not a reporting one.'); ?>
 <?php endif; ?>
 
+<?php $part = ac_parts('curriculum', ['lessons' => 'Lessons', 'courses' => 'Courses', 'review' => 'Review & progress', 'deadlines' => 'Deadlines & fines'],
+    ['program' => (int) ($d['program'] ?? 0) ?: null, 'course' => (int) ($d['course'] ?? 0) ?: null]); ?>
+
+<?php if ($part === 'lessons' || $part === 'courses'): ?>
 <div class="ac-cols ac-cols--2">
   <?php ac_card_open('Programme'); ?>
     <div class="ac-queue">
@@ -57,6 +61,9 @@ $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovere
   <?php ac_card_close(); ?>
 
 </div>
+<?php endif; ?>
+
+<?php if ($part === 'lessons'): ?>
 
 <?php ac_card_open('Lessons', count($d['modules'] ?? []) . ' in this course', '<span class="ac-cardmeta">Week is the planned position, not a date</span>'); ?>
     <?php ac_form('lesson_status', 'curriculum', ['course' => (string) (int) ($d['course'] ?? 0)]); ?>
@@ -141,18 +148,12 @@ $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovere
       </div>
     <?php ac_card_close('Running it twice copies nothing twice. A level cannot be copied onto itself.'); ?>
 
-    <?php ac_card_open('Publishing, and what a curriculum year guarantees'); ?>
-      <div class="ac-cardbody">
-        <p class="ac-note">A draft is invisible to students and cannot be assigned. Publishing is separate from
-        ordering, so an unfinished week sitting in the plan never leaks into a learner's timetable.</p>
-        <p class="ac-note">A student keeps the <strong>requirements</strong> they enrolled under but pays the
-        <strong>current published schedule</strong>. Two different guarantees, deliberately — conflating them would
-        freeze an academy's prices for four years.</p>
-      </div>
-    <?php ac_card_close('<a href="' . ac_h(ac_url('pricebooks')) . '">Price books</a> is where the second half of that lives.'); ?>
   </div>
 </div>
+<?php endif; ?>
 
+
+<?php if ($part === 'review'): ?>
 <div class="ac-stack">
   <?php ac_card_open('How far students are', '', '<span class="ac-cardmeta">Lessons completed, every course</span>'); ?>
     <div class="ac-tablewrap">
@@ -176,6 +177,88 @@ $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovere
       </table>
     </div>
   <?php ac_card_close('Completed is lessons done out of every published lesson times every student on the course. A dash means there is nothing to divide by yet — not 0%.'); ?>
+</div>
+<?php endif; ?>
+
+<?php if ($part === 'courses'):
+  $certs = ['participation' => 'Participation', 'completion' => 'Completion', 'internal' => 'Internal certificate', 'internal_diploma' => 'Internal diploma'];
+  $thisProg = null;
+  foreach ($d['programs'] ?? [] as $p) if ((int) $p['id'] === (int) ($d['program'] ?? 0)) $thisProg = $p;
+  // One set of programme fields, for editing this one and for making a new one.
+  $progFields = static function (array $p, string $id) use ($certs): void { ?>
+    <div class="ac-fields">
+      <?php if (!isset($p['id'])): ?>
+        <div><label class="ac-label" for="<?= $id ?>-code">Code</label>
+          <input class="ac-input ac-w-short" id="<?= $id ?>-code" name="code" required maxlength="40" placeholder="crash"></div>
+      <?php endif; ?>
+      <div><label class="ac-label" for="<?= $id ?>-name">Name</label>
+        <input class="ac-input ac-w-text" id="<?= $id ?>-name" name="name" required maxlength="120" value="<?= ac_h((string) ($p['name'] ?? '')) ?>"></div>
+      <div><label class="ac-label" for="<?= $id ?>-weeks">Length</label>
+        <span class="ac-affix"><input class="ac-input ac-w-num" id="<?= $id ?>-weeks" type="number" min="1" max="104" name="weeks" value="<?= (int) ($p['weeks'] ?? 12) ?>" required aria-describedby="<?= $id ?>-weeks-u"><span class="ac-affix-unit" id="<?= $id ?>-weeks-u">weeks</span></span></div>
+      <div><label class="ac-label" for="<?= $id ?>-rev">Revision week</label>
+        <input class="ac-input ac-w-num" id="<?= $id ?>-rev" type="number" min="0" max="104" name="revision_week" value="<?= (int) ($p['revision_week'] ?? 0) ?: '' ?>">
+        <p class="ac-hint">Leave blank for none.</p></div>
+      <div><label class="ac-label" for="<?= $id ?>-exam">Exam week</label>
+        <input class="ac-input ac-w-num" id="<?= $id ?>-exam" type="number" min="0" max="104" name="exam_week" value="<?= (int) ($p['exam_week'] ?? 0) ?: '' ?>">
+        <p class="ac-hint">Leave blank for none.</p></div>
+      <div><label class="ac-label" for="<?= $id ?>-cert">Certificate on finishing</label>
+        <select class="ac-select ac-w-fit" id="<?= $id ?>-cert" name="certification">
+          <?php foreach ($certs as $k => $label): ?>
+            <option value="<?= $k ?>"<?= ($p['certification'] ?? 'completion') === $k ? ' selected' : '' ?>><?= ac_h($label) ?></option>
+          <?php endforeach; ?>
+        </select></div>
+      <div><label class="ac-tick"><input type="checkbox" name="requires_core" value="1"<?= (int) ($p['requires_core'] ?? 0) ? ' checked' : '' ?>> A student must take a core course</label></div>
+      <div><label class="ac-label" for="<?= $id ?>-sort">Position in lists</label>
+        <input class="ac-input ac-w-num" id="<?= $id ?>-sort" type="number" min="0" max="999" name="sort_order" value="<?= (int) ($p['sort_order'] ?? 99) ?>">
+        <p class="ac-hint">Lower comes first.</p></div>
+    </div>
+  <?php };
+  $editId = (int) ($_GET['edit'] ?? 0);
+  $editing = null;
+  foreach ($d['all_courses'] ?? [] as $c) if ((int) $c['id'] === $editId) $editing = $c;
+?>
+<div class="ac-stack">
+  <?php if ($thisProg): ?>
+  <?php ac_card_open((string) $thisProg['name'], 'Programme · ' . (string) $thisProg['code']); ?>
+    <div class="ac-cardbody">
+      <p class="ac-sub"><?= ac_h(ac_join([(int) $thisProg['weeks'] . ' weeks',
+          (int) $thisProg['revision_week'] ? 'revision in week ' . (int) $thisProg['revision_week'] : '',
+          (int) $thisProg['exam_week'] ? 'exam in week ' . (int) $thisProg['exam_week'] : '',
+          ($certs[$thisProg['certification'] ?? ''] ?? 'Completion') . ' certificate',
+          (int) $thisProg['requires_core'] ? 'a core course is required' : ''])) ?></p>
+      <details class="ac-disclose"<?= isset($_GET['edit_program']) ? ' open' : '' ?>><summary class="ac-btn ac-btn--sm">Change the programme…</summary>
+        <?php ac_form('program_update', 'curriculum', ['program_id' => (int) $thisProg['id']]); ?>
+          <?php $progFields($thisProg, 'pe'); ?>
+          <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Save the programme</button></div>
+        <?php ac_form_end(); ?>
+      </details>
+    </div>
+  <?php ac_card_close(); ?>
+  <?php endif; ?>
+
+  <?php if ($editing): ?>
+  <?php ac_card_open('Edit ' . (string) $editing['name'], 'Course · ' . (string) $editing['code'], '<a class="ac-btn ac-btn--sm" href="' . ac_h(ac_url('curriculum', ['part' => 'courses', 'program' => (int) ($d['program'] ?? 0) ?: null])) . '">Close</a>'); ?>
+    <div class="ac-cardbody">
+      <?php ac_form('course_update', 'curriculum', ['course_id' => (int) $editing['id']]); ?>
+        <div class="ac-fields">
+          <div><label class="ac-label" for="ce-name">Name</label>
+            <input class="ac-input ac-w-text" id="ce-name" name="name" required maxlength="120" value="<?= ac_h((string) $editing['name']) ?>"></div>
+          <div><label class="ac-label" for="ce-kind">Kind</label>
+            <select class="ac-select ac-w-fit" id="ce-kind" name="kind">
+              <option value="elective"<?= ($editing['kind'] ?? '') !== 'core' ? ' selected' : '' ?>>Elective</option>
+              <option value="core"<?= ($editing['kind'] ?? '') === 'core' ? ' selected' : '' ?>>Core</option>
+            </select></div>
+          <div><label class="ac-label" for="ce-desc">Description</label>
+            <textarea class="ac-textarea ac-w-long" id="ce-desc" name="description" rows="3" maxlength="1000"><?= ac_h((string) ($editing['description'] ?? '')) ?></textarea>
+            <p class="ac-hint">Shown on the course outline families read.</p></div>
+          <div><label class="ac-label" for="ce-sort">Position in lists</label>
+            <input class="ac-input ac-w-num" id="ce-sort" type="number" min="0" max="999" name="sort_order" value="<?= (int) ($editing['sort_order'] ?? 99) ?>"></div>
+        </div>
+        <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Save the course</button></div>
+      <?php ac_form_end(); ?>
+    </div>
+  <?php ac_card_close(); ?>
+  <?php endif; ?>
 
   <?php ac_card_open('Courses', count($d['all_courses'] ?? []) . ' in the catalogue'); ?>
     <div class="ac-tablewrap">
@@ -192,7 +275,8 @@ $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovere
                 <?php else: ?>
                   <?php ac_action_btn('link_course', 'curriculum', ['program_id' => (int) ($d['program'] ?? 0), 'course_id' => (int) $c['id']], 'Add to programme'); ?>
                 <?php endif; ?></td>
-              <td class="ac-num"><?php ac_action_btn('course_toggle', 'curriculum', ['course_id' => (int) $c['id']], (int) $c['active'] ? 'Make inactive' : 'Make active'); ?></td>
+              <td class="ac-num"><div class="ac-acts"><a class="ac-btn ac-btn--sm" href="<?= ac_h(ac_url('curriculum', ['part' => 'courses', 'program' => (int) ($d['program'] ?? 0) ?: null, 'edit' => (int) $c['id']])) ?>">Edit</a>
+                <?php ac_action_btn('course_toggle', 'curriculum', ['course_id' => (int) $c['id']], (int) $c['active'] ? 'Make inactive' : 'Make active'); ?></div></td>
             </tr>
           <?php endforeach; ?>
         </tbody>
@@ -210,7 +294,19 @@ $uncoveredWeight = array_sum(array_map(fn($c) => (float) $c['weight'], $uncovere
       <?php ac_form_end(); ?>
     </div>
   <?php ac_card_close('An inactive course keeps its lessons and its students\' progress; it is just not offered.'); ?>
+
+  <?php ac_card_open('New programme'); ?>
+    <div class="ac-cardbody">
+      <details class="ac-disclose"><summary class="ac-btn ac-btn--sm">Add a programme…</summary>
+        <?php ac_form('program_create', 'curriculum'); ?>
+          <?php $progFields([], 'pn'); ?>
+          <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary">Add the programme</button></div>
+        <?php ac_form_end(); ?>
+      </details>
+    </div>
+  <?php ac_card_close(); ?>
 </div>
+<?php endif; ?>
 
 <?php /* Phase 2 (lessons-learn.php, lesson-exams.php). */
 $mp = $d['materials_pending'] ?? [];
@@ -219,6 +315,7 @@ $sc = $d['schedule'] ?? null;
 // Display only — the handler is what enforces it. Unknown means no.
 $mayFees = isset($adminUser) ? (!$adminUser || mam_admin_can($adminUser, 'fees')) : false;
 ?>
+<?php if ($part === 'review'): ?>
 <div class="ac-stack">
   <?php ac_card_open('Material teachers sent', count($mp) . ' waiting', '<span class="ac-cardmeta">Nothing reaches a student until it is approved</span>'); ?>
     <div class="ac-tablewrap">
@@ -268,7 +365,11 @@ $mayFees = isset($adminUser) ? (!$adminUser || mam_admin_can($adminUser, 'fees')
       </table>
     </div>
   <?php ac_card_close('Never which child said it. A lesson is flagged when at least five have answered and a third or more say lost.'); ?>
+</div>
+<?php endif; ?>
 
+<?php if ($part === 'deadlines'): ?>
+<div class="ac-stack">
   <?php if ($sc): ?>
   <?php ac_card_open('Deadlines, fines and the assistant'); ?>
     <div class="ac-cardbody">
@@ -307,4 +408,6 @@ $mayFees = isset($adminUser) ? (!$adminUser || mam_admin_can($adminUser, 'fees')
     </div>
   <?php ac_card_close('Words that read as a child at risk are never marked or sent to the assistant: they are held for a person and the safeguarding lead is told.'); ?>
   <?php endif; ?>
+  <?php if (!$sc): ?><?php ac_empty('No deadlines yet', 'Lesson deadlines start once a term is set up in the calendar.'); ?><?php endif; ?>
 </div>
+<?php endif; ?>
