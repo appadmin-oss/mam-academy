@@ -154,14 +154,29 @@ t_ok(preg_match('/\.p-prose\s*\{\s*font:\s*\d+\s+(\d+(?:\.\d+)?)px\/(\d+(?:\.\d+
     'the portals\' reading register sits inside 15-17px / 1.55-1.65 (got '
     . ($m[1] ?? '?') . 'px/' . ($m[2] ?? '?') . ')');
 
-/* MEASURED 3.48:1 at alpha 0.38 on --ac-ink. The rail's group headings are
-   10px uppercase, which 1.4.3 treats as small text and holds to 4.5:1. The
-   10px is the design package's own scale, so the alpha is what had to move. */
-if (preg_match('/\.ac-navgroup \{[^}]*color:\s*rgba\(255,\s*255,\s*255,\s*([0-9.]+)\)/s', $DS_av2, $m)) {
-    t_ok((float) $m[1] >= 0.50,
-        'the rail group headings clear 4.5:1 on --ac-ink (alpha ' . $m[1] . ', needs >= 0.50)');
+/* The rail's group headings are 10px uppercase, which 1.4.3 treats as small
+   text and holds to 4.5:1. The rail is light since the Control Room model
+   (2026-11-25): the heading's colour token against the rail's ground, both read
+   from the stylesheet and measured, not assumed. (On the old dark rail an alpha
+   of 0.38 measured 3.48:1.) */
+$DS_tok = static function (string $name) use ($DS_av2): ?array {
+    if (!preg_match('/' . preg_quote($name, '/') . ':\s*#([0-9A-Fa-f]{6})/', $DS_av2, $t)) return null;
+    return array_map(fn($h) => hexdec($h) / 255, str_split($t[1], 2));
+};
+$DS_lum = static function (array $c): float {
+    $l = array_map(fn($v) => $v <= 0.03928 ? $v / 12.92 : (($v + 0.055) / 1.055) ** 2.4, $c);
+    return 0.2126 * $l[0] + 0.7152 * $l[1] + 0.0722 * $l[2];
+};
+preg_match('/\.ac-navgroup \{[^}]*color:\s*var\((--ac-[a-z0-9-]+)\)/s', $DS_av2, $DS_ng);
+preg_match('/\.ac-rail \{[^}]*background:\s*var\((--ac-[a-z0-9-]+)\)/s', $DS_av2, $DS_rb);
+$DS_fg = isset($DS_ng[1]) ? $DS_tok($DS_ng[1]) : null;
+$DS_bg = isset($DS_rb[1]) ? $DS_tok($DS_rb[1]) : null;
+if ($DS_fg && $DS_bg) {
+    $DS_a = $DS_lum($DS_fg); $DS_b = $DS_lum($DS_bg);
+    $DS_ratio = (max($DS_a, $DS_b) + 0.05) / (min($DS_a, $DS_b) + 0.05);
+    t_ok($DS_ratio >= 4.5, sprintf('the rail group headings clear 4.5:1 on the rail (%s on %s: %.2f:1)', $DS_ng[1], $DS_rb[1], $DS_ratio));
 } else {
-    t_ok(false, 'the .ac-navgroup colour is still an rgba this test can check');
+    t_ok(false, 'the .ac-navgroup colour and the rail background are tokens this test can measure');
 }
 
 /* ⚠️ console.php and phone.php SHARE admin-v2.css but carried different

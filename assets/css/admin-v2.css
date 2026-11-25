@@ -27,19 +27,19 @@
 
 [data-admin="v2"] {
   /* ── Surfaces ─────────────────────────────────────────────────────────── */
-  --ac-page:     #E4E7EC;  /* ✱MOCK the page behind the console frame */
-  --ac-app:      #F1F3F6;  /* ✱MOCK the console's own ground */
+  --ac-page:     #FAFAF9;  /* ✱MOCK the page behind the console frame */
+  --ac-app:      #FFFFFF;  /* ✱MOCK the console's own ground */
   --ac-surface:  #FFFFFF;  /* ✱MOCK cards, tables, drawers */
-  --ac-sunken:   #F6F7F9;  /* ✱MOCK table headers, ghost buttons, footers */
-  --ac-chip:     #EBEEF2;  /* ✱MOCK neutral pills, keyboard hints */
-  --ac-ink:      #1B2430;  /* ✱MOCK primary text, the rail, the primary button */
+  --ac-sunken:   #FAFAF9;  /* ✱MOCK table headers, ghost buttons, footers */
+  --ac-chip:     #F0F0EF;  /* ✱MOCK neutral pills, keyboard hints */
+  --ac-ink:      #0B0B0C;  /* ✱MOCK primary text, the rail, the primary button */
 
   /* ── Ink ramp. Four steps, and they are used consistently: heading, body,
         secondary, and the muted label/meta tier. ────────────────────────── */
-  --ac-ink-2:    #3B4453;  /* ✱MOCK body copy, form labels */
-  --ac-ink-3:    #57616F;  /* ✱MOCK neutral pill text, kbd glyphs */
-  --ac-ink-4:    #66707E;  /* ✱MOCK meta, notes, column headers */
-  --ac-ink-5:    #98A1AE;  /* ✱MOCK dismiss affordances only */
+  --ac-ink-2:    #2B2B30;  /* ✱MOCK body copy, form labels */
+  --ac-ink-3:    #4A4A50;  /* ✱MOCK neutral pill text, kbd glyphs */
+  --ac-ink-4:    #5D5D63;  /* ✱MOCK meta, notes, column headers */
+  --ac-ink-5:    #9A9AA0;  /* ✱MOCK dismiss affordances only */
 
   /* ── Accent. One orange, used for the active rail marker, the primary
         button and the search highlight. Nothing else. ───────────────────── */
@@ -64,11 +64,11 @@
   --ac-t-md:   16px;
   --ac-t-lg:   20px;   /* card and drawer titles */
   --ac-t-xl:   24px;   /* figures */
-  --ac-t-2xl:  30px;   /* the page title */
-  --ac-line:     rgba(24, 32, 44, 0.10);
-  --ac-line-2:   rgba(24, 32, 44, 0.14);
-  --ac-line-3:   rgba(24, 32, 44, 0.17);
-  --ac-line-4:   rgba(24, 32, 44, 0.20);
+  --ac-t-2xl:  28px;   /* the page title */
+  --ac-line:     #ECECEA;
+  --ac-line-2:   #E2E2DF;
+  --ac-line-3:   #D6D6D3;
+  --ac-line-4:   #CFCFCB;
 
   /* ── Type ─────────────────────────────────────────────────────────────── */
   /* ⚠️ This console does NOT take the portals' 12px floor, and a sweep that
@@ -95,7 +95,7 @@
 
   /* ── Radii ────────────────────────────────────────────────────────────── */
   --ac-r-sm: 6px; --ac-r: 8px; --ac-r-md: 10px; --ac-r-lg: 12px;
-  --ac-r-xl: 14px; --ac-r-2xl: 16px; --ac-pill: 100px;
+  --ac-r-xl: 14px; --ac-r-2xl: 14px; --ac-pill: 100px;
 
   /* ── Rail. Two widths, one custom property, so the collapse is a single
         attribute flip rather than a dozen inline writes the mock's script
@@ -145,15 +145,15 @@
 /* ── Rail ─────────────────────────────────────────────────────────────────── */
 [data-admin="v2"] .ac-rail {
   flex: 0 0 var(--ac-rail); width: var(--ac-rail);
-  background: var(--ac-ink); color: rgba(255, 255, 255, 0.72);
+  background: var(--ac-sunken); color: var(--ac-ink-3); border-right: 1px solid var(--ac-line);
   display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden;
   position: sticky; top: 0; height: 100vh;
 }
 [data-admin="v2"][data-rail="collapsed"] { --ac-rail: 62px; }
 
 [data-admin="v2"] .ac-railstick {
-  position: sticky; top: 0; z-index: 2; background: var(--ac-ink);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  position: sticky; top: 0; z-index: 2; background: var(--ac-sunken);
+  border-bottom: 1px solid var(--ac-line-2);
   padding: 14px 12px 12px; display: flex; flex-direction: column; gap: 10px;
 }
 /* The mock lifts the rail head on scroll. One class, set by script. */
@@ -162,23 +162,23 @@
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
   box-shadow: 0 8px 22px rgba(9, 13, 19, 0.34);
-  border-bottom-color: rgba(255, 255, 255, 0.18);
+  border-bottom-color: var(--ac-line-2);
 }
 [data-admin="v2"] .ac-railhead { display: flex; align-items: center; gap: 10px; }
 [data-admin="v2"] .ac-railhead img { width: 28px; height: 28px; border-radius: var(--ac-r-sm); flex: 0 0 auto; }
 [data-admin="v2"] .ac-railhead .ac-rt { flex: 1; min-width: 0; }
-[data-admin="v2"] .ac-railname { font-family: var(--ac-num); font-size: var(--ac-t-md); letter-spacing: 0.06em; color: #fff; line-height: 1; }
-[data-admin="v2"] .ac-railsub { font-size: var(--ac-t-xs); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.52); margin-top: 3px; }
+[data-admin="v2"] .ac-railname { font-family: var(--ac-num); font-size: var(--ac-t-md); letter-spacing: 0.06em; color: var(--ac-ink); line-height: 1; }
+[data-admin="v2"] .ac-railsub { font-size: var(--ac-t-xs); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ac-ink-4); margin-top: 3px; }
 [data-admin="v2"] .ac-railtoggle {
   width: 26px; height: 26px; flex: 0 0 auto; cursor: pointer;
-  border: 1px solid rgba(255, 255, 255, 0.16); border-radius: var(--ac-r-sm);
-  background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.72); font-size: var(--ac-t-xs);
+  border: 1px solid var(--ac-line-2); border-radius: var(--ac-r-sm);
+  background: rgba(11, 11, 12, 0.04); color: var(--ac-ink-3); font-size: var(--ac-t-xs);
 }
 [data-admin="v2"] .ac-centre {
   display: flex; align-items: center; gap: 9px; width: 100%; min-height: 34px;
   padding: 0 10px; cursor: pointer; text-align: left;
-  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: var(--ac-r);
-  background: rgba(255, 255, 255, 0.05); color: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--ac-line-2); border-radius: var(--ac-r);
+  background: rgba(11, 11, 12, 0.04); color: var(--ac-ink-3);
   font-family: inherit; font-size: var(--ac-t-base); font-weight: 600;
 }
 [data-admin="v2"] .ac-centre span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -186,27 +186,25 @@
 [data-admin="v2"] .ac-navlist { padding: 10px 0 14px; display: flex; flex-direction: column; }
 [data-admin="v2"] .ac-navgroup {
   padding: 14px 14px 6px; font-size: var(--ac-t-xs); font-weight: 800;
-  /* MEASURED 3.48:1 at 0.38 on --ac-ink. These are 10px uppercase, which
-     1.4.3 judges as small text and holds to 4.5:1 — the 10px size is the
-     package's own (see the scale note above) so the alpha is what had to
-     move. 0.50 computes to 4.97:1 and stays clearly subordinate to the
-     0.72 the nav links themselves carry. */
-  letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.50);
+  /* Small uppercase text, held to 4.5:1 by 1.4.3. On the light rail
+     --ac-ink-4 on --ac-sunken measures 6.26:1 (test_design_system.php reads
+     both tokens and computes it), and stays subordinate to the links' ink-3. */
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--ac-ink-4);
 }
 [data-admin="v2"] .ac-nav {
   position: relative; display: flex; align-items: center; gap: 11px;
   min-height: 34px; padding: 0 12px; cursor: pointer; text-align: left;
-  border: 0; background: none; color: rgba(255, 255, 255, 0.72);
+  border: 0; background: none; color: var(--ac-ink-3);
   font-family: inherit; font-size: var(--ac-t-sm); font-weight: 500; text-decoration: none;
 }
 [data-admin="v2"] .ac-nav i { font-size: var(--ac-t-base); width: 15px; text-align: center; flex: 0 0 auto; }
 [data-admin="v2"] .ac-nav .ac-navlabel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-[data-admin="v2"] .ac-nav:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+[data-admin="v2"] .ac-nav:hover { background: rgba(11, 11, 12, 0.04); color: var(--ac-ink); }
 [data-admin="v2"] .ac-navbar {
   position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
   border-radius: 0 3px 3px 0; background: var(--ac-accent); opacity: 0;
 }
-[data-admin="v2"] .ac-nav[aria-current="page"] { background: rgba(255, 255, 255, 0.10); color: #fff; font-weight: 700; }
+[data-admin="v2"] .ac-nav[aria-current="page"] { background: #EBEBE9; color: var(--ac-ink); font-weight: 700; }
 [data-admin="v2"] .ac-nav[aria-current="page"] .ac-navbar { opacity: 1; }
 /* A count is a call to action, so it reads as one — but only when non-zero,
    which is the server's decision, not this file's. */
@@ -218,16 +216,16 @@
 }
 [data-admin="v2"] .ac-railfoot {
   margin-top: auto; padding: 12px; display: flex; align-items: center; gap: 10px;
-  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  border-top: 1px solid var(--ac-line-2);
 }
-[data-admin="v2"] .ac-railfoot .ac-avatar { background: rgba(255, 255, 255, 0.12); color: #fff; }
+[data-admin="v2"] .ac-railfoot .ac-avatar { background: var(--ac-chip); color: var(--ac-ink); }
 /* The rail foot is the way to My account, so it is a link and reads as one on
    hover and focus — but keeps the rail's own colours rather than a link blue. */
 [data-admin="v2"] a.ac-railfoot { color: inherit; text-decoration: none; }
 [data-admin="v2"] a.ac-railfoot:hover,
-[data-admin="v2"] a.ac-railfoot[aria-current="page"] { background: rgba(255, 255, 255, 0.06); }
-[data-admin="v2"] .ac-railwho { font-size: var(--ac-t-base); font-weight: 700; color: #fff; }
-[data-admin="v2"] .ac-railrole { font-size: var(--ac-t-xs); color: rgba(255, 255, 255, 0.52); margin-top: 2px; }
+[data-admin="v2"] a.ac-railfoot[aria-current="page"] { background: rgba(11, 11, 12, 0.04); }
+[data-admin="v2"] .ac-railwho { font-size: var(--ac-t-base); font-weight: 700; color: var(--ac-ink); }
+[data-admin="v2"] .ac-railrole { font-size: var(--ac-t-xs); color: var(--ac-ink-4); margin-top: 2px; }
 
 /* Collapsed rail. The mock's script rewrites a dozen inline styles; the same
    result falls out of one attribute because the labels share a class. */
@@ -300,8 +298,8 @@
 /* ── Screen header ────────────────────────────────────────────────────────── */
 [data-admin="v2"] .ac-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
 [data-admin="v2"] .ac-head h1 {
-  margin: 0; font-family: var(--ac-serif); font-size: var(--ac-t-2xl); font-weight: 700;
-  line-height: 1.05; letter-spacing: -0.01em;
+  margin: 0; font-family: var(--ac-sans); font-size: var(--ac-t-2xl); font-weight: 700;
+  line-height: 1.1; letter-spacing: -0.02em;
 }
 [data-admin="v2"] .ac-head p { margin: 6px 0 0; font-size: var(--ac-t-base); color: var(--ac-ink-4); line-height: 1.6; }
 [data-admin="v2"] .ac-headactions { margin-left: auto; display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
@@ -336,11 +334,24 @@
   display: block;
 }
 [data-admin="v2"] a.ac-kpi:hover { border-color: var(--ac-line-3); }
-[data-admin="v2"] .ac-kpi-l { font-size: var(--ac-t-xs); font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ac-ink-4); }
+[data-admin="v2"] .ac-kpi-l { font-size: var(--ac-t-sm); font-weight: 500; color: var(--ac-ink-3); }
 [data-admin="v2"] .ac-kpi-v {
-  font-family: var(--ac-num); font-size: var(--ac-t-2xl); line-height: 1;
+  font-family: var(--ac-sans); font-size: var(--ac-t-xl); font-weight: 700; line-height: 1.1;
   letter-spacing: -0.02em; margin-top: 8px; font-variant-numeric: tabular-nums;
 }
+/* Figures are ONE strip divided into cells, not a row of separate cards: they are
+   read together, as one line of the page's state. A cell's divider is a shadow
+   outside it, so the strip's own clipping hides it on the first column and the
+   first row however the cells wrap. */
+[data-admin="v2"] .ac-kpis--tiles {
+  gap: 0; background: var(--ac-surface); border: 1px solid var(--ac-line);
+  border-radius: var(--ac-r-2xl); overflow: hidden;
+}
+[data-admin="v2"] .ac-kpis--tiles > .ac-kpi {
+  border: 0; border-radius: 0; padding: 18px 20px;
+  box-shadow: -1px 0 0 var(--ac-line), 0 -1px 0 var(--ac-line);
+}
+[data-admin="v2"] .ac-kpis--tiles > a.ac-kpi:hover { background: var(--ac-sunken); }
 [data-admin="v2"] .ac-kpi-n { font-size: var(--ac-t-sm); color: var(--ac-ink-4); margin-top: 5px; line-height: 1.5; }
 [data-admin="v2"] .ac-kpi-v.is-bad { color: var(--ac-bad); }
 [data-admin="v2"] .ac-kpi-v.is-warn { color: var(--ac-warn); }
@@ -903,8 +914,8 @@
   /* Figures two to a row, not one: four stacked tiles cost ~470px of a phone
      screen before the first thing anybody came to act on. Tiles only — a
      card grid that reuses .ac-kpis stays one per row. */
-  [data-admin="v2"] .ac-kpis--tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  [data-admin="v2"] .ac-kpis--tiles .ac-kpi { padding: 12px 13px; }
+  [data-admin="v2"] .ac-kpis--tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; }
+  [data-admin="v2"] .ac-kpis--tiles > .ac-kpi { padding: 12px 13px; }
   [data-admin="v2"] .ac-kpis--tiles .ac-kpi-v { font-size: var(--ac-t-xl); margin-top: 6px; }
   /* A card head's count and note wrap UNDER the title rather than squeezing it
      into a third of the width ("Needs a | 2 | Deduped —" in three columns). */
@@ -969,8 +980,8 @@
 [data-admin="v2"] .ap-main:focus { outline: none; }
 
 [data-admin="v2"] .ap-h1 {
-  font-family: var(--ac-serif); font-size: var(--ac-t-xl); font-weight: 700;
-  margin: 0 0 3px; line-height: 1.15;
+  font-family: var(--ac-sans); font-size: var(--ac-t-xl); font-weight: 700;
+  margin: 0 0 3px; line-height: 1.15; letter-spacing: -0.02em;
 }
 [data-admin="v2"] .ap-lede {
   margin: 0 0 16px; font-size: var(--ac-t-base); color: var(--ac-ink-4); line-height: 1.55;
