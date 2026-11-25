@@ -17,14 +17,16 @@ $body    = trim((string)($in['body'] ?? ''));
 $subject = trim((string)($in['subject'] ?? '')) ?: null;
 $cat     = trim((string)($in['category'] ?? 'general'));
 $anon    = !empty($in['anonymous']);
-$enrId   = isset($in['enrollment_id'])        && (int)$in['enrollment_id']        > 0 ? (int)$in['enrollment_id']        : null;
+// Feedback names a COURSE enrolment only. The old class enrolments (`enrollments`)
+// are retired and carried into course_enrollments, so an `enrollment_id` sent by an
+// old page is ignored rather than written against a table nothing reads.
 $ceId    = isset($in['course_enrollment_id']) && (int)$in['course_enrollment_id'] > 0 ? (int)$in['course_enrollment_id'] : null;
 
 if ($rating < 1 || $rating > 5)  mam_fail('bad_rating', 422, ['field' => 'rating']);
 if ($body === '')                  mam_fail('empty_body',  422, ['field' => 'body']);
 
 try {
-    $id = mam_feedback_submit((int)$u['id'], $rating, $cat, $body, $subject, $enrId, $ceId, $anon);
+    $id = mam_feedback_submit((int)$u['id'], $rating, $cat, $body, $subject, null, $ceId, $anon);
     mam_notify((int)$u['id'], 'feedback_received', 'Feedback received', 'Thank you — your feedback helps us improve.');
     mam_ok(['id' => $id]);
 } catch (\InvalidArgumentException $e) {

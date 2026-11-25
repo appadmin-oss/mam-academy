@@ -54,7 +54,9 @@ DirectoryIndex index.php index.html index.htm
   # bare /recital lists them. Both land on recital.php.
   RewriteRule ^recital/([A-Za-z0-9-]+)/?$ recital.php?slug=$1 [L,QSA]
 
-  # Meeting link redirects: /session/{id}/join and /class/{id}/join → join.php
+  # Meeting link redirects: /session/{id}/join and /class/{id}/join → join.php.
+  # /class/{id}/join is an OLD class link kept for bookmarks: join.php resolves
+  # the class to the cohort it was carried into (cohorts.legacy_class_id).
   RewriteRule ^session/([0-9]+)/join/?$ join.php?type=session&id=$1 [L,QSA]
   RewriteRule ^class/([0-9]+)/join/?$   join.php?type=class&id=$1   [L,QSA]
 

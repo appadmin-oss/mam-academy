@@ -210,9 +210,10 @@ function mam_parent_children(int $parentId): array {
      * names them ("Classical Foundations, Level 2") and a card that can only say
      * the relationship tells a guardian nothing they did not already know.
      *
-     * Dual-read is deliberate (CLAUDE.md gotcha #2): the newer cohort model FIRST,
-     * falling back to the legacy classes model, so a student who exists in only
-     * one of the two still gets a subtitle. The subquery is correlated rather than
+     * One model: the course enrolment. The old classes were carried into cohorts
+     * (mam_legacy_carry()), so a student once only in a class has a course
+     * enrolment now; where it has no course name the cohort's title is the
+     * subtitle. The subquery is correlated rather than
      * joined so a student on two courses yields one row here and not two — this is
      * a list of children, not of enrolments. */
     $rows = mam_db_all(
@@ -225,15 +226,10 @@ function mam_parent_children(int $parentId): array {
                    LEFT JOIN levels l ON l.id = ce.level_id
                   WHERE ce.student_id = u.id AND ce.status IN ('active','completed')
                   ORDER BY ce.id DESC LIMIT 1) AS level_name,
-                -- `classes.title`, NOT `classes.name`. The legacy table has no
-                -- `name` column, and the mistake is not cosmetic: this subquery is
-                -- on the critical path of the whole guardian portal, so a wrong
-                -- column here 500s the children list rather than emptying one card.
-                -- Caught by running the portal, which is the only thing that would
-                -- have caught it — see CLAUDE.md gotcha #9 for the admin-side twin.
-                (SELECT cl.title FROM enrollments e
-                   JOIN classes cl ON cl.id = e.class_id
-                  WHERE e.student_id = u.id ORDER BY e.id DESC LIMIT 1) AS legacy_class
+                (SELECT co.title FROM course_enrollments ce
+                   JOIN cohorts co ON co.id = ce.cohort_id
+                  WHERE ce.student_id = u.id AND ce.status IN ('active','completed')
+                  ORDER BY ce.id DESC LIMIT 1) AS cohort_title
            FROM parent_links pl JOIN users u ON u.id = pl.student_id
           WHERE pl.parent_id = ? ORDER BY u.name",
         [$parentId]

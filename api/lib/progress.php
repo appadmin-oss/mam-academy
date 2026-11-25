@@ -124,7 +124,7 @@ function mam_progress_token_revoke(int $tokenId, int $studentId): void {
  * No auth check here — caller must have validated the token or be the student.
  *
  * Returns keys:
- *   student, enrollments, course_enrollments, class_summary,
+ *   student, course_enrollments, class_summary (one row per cohort),
  *   sessions, upcoming_sessions, assessments, results,
  *   certificates, announcements, practice_logs, generated_at
  */
@@ -148,20 +148,8 @@ function mam_progress_report_data(int $studentId): array {
         catch (\Throwable $e) { mam_log('warn', 'report_section_failed', ['err' => $e->getMessage()]); return $default; }
     };
 
-    // ── Legacy class enrollments ──────────────────────────────────────────
-    $enrollments = $soft(fn () => mam_db_all(
-        "SELECT e.id, e.status, e.enrolled_at AS created_at,
-                cl.title AS class_name, cl.discipline AS instrument, cl.pathway AS level,
-                cu.name AS instructor_name
-           FROM enrollments e
-           JOIN classes cl ON cl.id = e.class_id
-           LEFT JOIN users cu ON cu.id = cl.instructor_id
-          WHERE e.student_id = ? AND e.status = 'active'
-          ORDER BY e.enrolled_at DESC",
-        [$studentId]
-    ), []);
-
-    // ── LMS course enrollments ────────────────────────────────────────────
+    // ── Course enrolments (the one model; old class enrolments were carried
+    //    into course_enrollments by mam_legacy_carry()) ─────────────────────
     $courseEnrollments = $soft(fn () => mam_db_all(
         "SELECT ce.id, ce.status, ce.created_at,
                 c.name AS course_name, c.code AS course_code,
@@ -177,27 +165,11 @@ function mam_progress_report_data(int $studentId): array {
         [$studentId]
     ), []);
 
-    // ── Class-level attendance summary ────────────────────────────────────
-    // One summary row per class/cohort so the parent dashboard can show
-    // attendance rings and per-course stats without iterating every session.
-    $legacySummary = $soft(fn () => mam_db_all(
-        "SELECT cl.title AS class_name, cl.discipline AS instrument, cl.pathway AS level,
-                u.name AS instructor_name, e.status,
-                e.enrolled_at AS enrolled_at, 'legacy' AS type,
-                COUNT(a.id) AS total_marked,
-                SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS attended,
-                SUM(CASE WHEN a.status = 'absent'  THEN 1 ELSE 0 END) AS absent,
-                SUM(CASE WHEN a.status = 'late'    THEN 1 ELSE 0 END) AS late
-           FROM enrollments e
-           JOIN classes cl ON cl.id = e.class_id
-           LEFT JOIN users u ON u.id = cl.instructor_id
-           LEFT JOIN attendance a ON a.enrollment_id = e.id
-          WHERE e.student_id = ?
-          GROUP BY e.id
-          ORDER BY e.enrolled_at DESC",
-        [$studentId]
-    ), []);
-
+    // ── Per-cohort attendance summary ─────────────────────────────────────
+    // One summary row per cohort so the parent dashboard can show attendance
+    // rings and per-course stats without iterating every session. Old class
+    // marks live here too: mam_legacy_carry() copied them into held
+    // class_sessions + session_attendance (method 'legacy').
     $lmsSummary = $soft(fn () => mam_db_all(
         "SELECT co.title AS cohort_title, c.name AS course_name, l.name AS level_name,
                 iu.name AS instructor_name, ce.status, ce.created_at AS enrolled_at, 'lms' AS type,
@@ -208,7 +180,10 @@ function mam_progress_report_data(int $studentId): array {
                   WHERE cs2.cohort_id = ce.cohort_id AND sa2.status IN ('present','late')) AS attended,
                 (SELECT COUNT(*) FROM class_sessions cs2
                    JOIN session_attendance sa2 ON sa2.session_id = cs2.id AND sa2.student_id = ce.student_id
-                  WHERE cs2.cohort_id = ce.cohort_id AND sa2.status = 'absent') AS absent
+                  WHERE cs2.cohort_id = ce.cohort_id AND sa2.status = 'absent') AS absent,
+                (SELECT COUNT(*) FROM class_sessions cs2
+                   JOIN session_attendance sa2 ON sa2.session_id = cs2.id AND sa2.student_id = ce.student_id
+                  WHERE cs2.cohort_id = ce.cohort_id AND sa2.status = 'late') AS late
            FROM course_enrollments ce
            JOIN cohorts co ON co.id = ce.cohort_id
            JOIN courses c ON c.id = ce.course_id
@@ -221,13 +196,6 @@ function mam_progress_report_data(int $studentId): array {
 
     // Normalise to a unified shape: total, attended, absent, rate
     $classSummary = [];
-    foreach ($legacySummary as $row) {
-        $total = (int)$row['total_marked'];
-        $att   = (int)$row['attended'];
-        $row['total_sessions'] = $total;
-        $row['attendance_rate'] = $total > 0 ? round($att / $total * 100) : null;
-        $classSummary[] = $row;
-    }
     foreach ($lmsSummary as $row) {
         $total = (int)$row['total_sessions'];
         $att   = (int)$row['attended'];
@@ -311,20 +279,17 @@ function mam_progress_report_data(int $studentId): array {
         [$studentId]
     ), []);
 
-    // ── Announcements (dual-model: class + cohort) ────────────────────────
+    // ── Announcements (the student's cohorts) ────────────────────────────
     $announcements = $soft(fn () => mam_db_all(
         "SELECT an.id, an.title, an.body, an.created_at, u.name AS author_name
            FROM announcements an
            LEFT JOIN users u ON u.id = an.author_id
-          WHERE an.class_id IN (
-                  SELECT class_id FROM enrollments WHERE student_id = ? AND status = 'active'
-                )
-             OR an.cohort_id IN (
+          WHERE an.cohort_id IN (
                   SELECT cohort_id FROM course_enrollments WHERE student_id = ? AND status = 'active'
                 )
-          ORDER BY an.created_at DESC
+          ORDER BY an.created_at DESC, an.id DESC
           LIMIT 10",
-        [$studentId, $studentId]
+        [$studentId]
     ), []);
 
     // ── Practice logs ─────────────────────────────────────────────────────
@@ -416,7 +381,6 @@ function mam_progress_report_data(int $studentId): array {
 
     return [
         'student'            => $student,
-        'enrollments'        => $enrollments,
         'course_enrollments' => $courseEnrollments,
         'class_summary'      => $classSummary,
         'sessions'           => $sessions,

@@ -60,15 +60,10 @@ $storeOrders = $orderEmails ? $soft(fn () => mam_db_all(
     $orderEmails
 ), []) : [];
 
-$enrollments = $soft(fn () => mam_db_all(
-    'SELECT e.id, e.status AS enrollment_status, e.enrolled_at, c.title, c.discipline, c.pathway, c.mode, c.schedule, c.starts_on, c.meeting_link, u.name AS instructor_name FROM enrollments e JOIN classes c ON c.id = e.class_id LEFT JOIN users u ON u.id = c.instructor_id WHERE e.student_id = ? ORDER BY c.starts_on DESC',
-    [(int)$u['id']]
-), []);
-
-$attendance = $soft(fn () => mam_db_all(
-    'SELECT a.session_date, a.status, c.title FROM attendance a JOIN enrollments e ON e.id = a.enrollment_id JOIN classes c ON c.id = e.class_id WHERE e.student_id = ? ORDER BY a.session_date DESC LIMIT 10',
-    [(int)$u['id']]
-), []);
+// One enrolment model: the old classes (and their enrolments and marks) were
+// carried into cohorts by mam_legacy_carry(), and the old tables are not read.
+// Enrolments are `courses` below; attendance is the cohort session register
+// (GET /api/student/session-attendance, and the roll-up in `progress`).
 
 $auditer = $soft(fn () => mam_db_row('SELECT * FROM auditer_results WHERE student_id = ? ORDER BY audited_at DESC LIMIT 1', [(int)$u['id']]), null);
 // Live placement validity (the detailed auditer_results above has no writer yet,
@@ -76,28 +71,27 @@ $auditer = $soft(fn () => mam_db_row('SELECT * FROM auditer_results WHERE studen
 // real, current status — student-exempt / valid-until / expired / not-taken.
 $auditerStatus = $soft(fn () => $u['customer_id'] ? mam_auditer_status((int)$u['customer_id']) : null, null);
 
-// Announcements from any class OR cohort the student is enrolled in (dual-read,
-// P2): a course/cohort-only student now sees their instructor's updates too.
+// Announcements from any cohort the student is enrolled in.
 $announcements = $soft(fn () => mam_student_announcements((int)$u['id']), []);
 
-// Learning resources for any class OR cohort the student is enrolled in (P2).
+// Learning resources for any cohort the student is enrolled in.
 $resources = $soft(fn () => mam_student_resources((int)$u['id']), []);
 
 // Assignments set by instructors (open first, then by due date).
 $assignments = $soft(fn () => mam_db_all(
-    "SELECT a.id, a.title, a.instructions, a.due_on, a.status, a.completed_at, a.created_at, a.class_id,
+    "SELECT a.id, a.title, a.instructions, a.due_on, a.status, a.completed_at, a.created_at, a.cohort_id,
             a.reference_url, a.reference_kind,
-            c.title AS class_title, usr.name AS author
+            co.title AS class_title, usr.name AS author
        FROM assignments a
-       LEFT JOIN classes c ON c.id = a.class_id
+       LEFT JOIN cohorts co ON co.id = a.cohort_id
        LEFT JOIN users usr ON usr.id = a.author_id
       WHERE a.student_id = ?
       ORDER BY (a.status = 'done'), COALESCE(a.due_on, a.created_at) ASC",
     [(int)$u['id']]
 ), []);
 
-// Flexible course registrations (v16 LMS — distinct from legacy class
-// enrollments above). Drives the "My Courses" tab + "Add a course" flow.
+// Course enrolments — the student's one enrolment model. Drives "My Courses",
+// "Classes" and the "Add a course" flow.
 $courses = $soft(fn () => mam_lms_student_courses((int)$u['id']), []);
 // Earned certificates (issued on a passed, completed course/programme).
 $certificates = $soft(fn () => mam_lms_student_certificates((int)$u['id']), []);
@@ -109,8 +103,8 @@ $practice = $soft(fn () => mam_practice_stats((int)$u['id']), ['practice' => [],
 // "Attended" = present OR late, matching the client's attendanceRate()/render —
 // otherwise the overview progress bar disagreed with the Attendance tab/KPI.
 $attCounts = $soft(fn () => mam_db_row(
-    "SELECT COUNT(*) AS total, SUM(CASE WHEN a.status IN ('present','late') THEN 1 ELSE 0 END) AS present
-       FROM attendance a JOIN enrollments e ON e.id = a.enrollment_id WHERE e.student_id = ?",
+    "SELECT COUNT(*) AS total, SUM(CASE WHEN status IN ('present','late') THEN 1 ELSE 0 END) AS present
+       FROM session_attendance WHERE student_id = ?",
     [(int)$u['id']]
 ), ['total' => 0, 'present' => 0]) ?: ['total' => 0, 'present' => 0];
 $asgDone = 0; foreach ($assignments as $a) { if (($a['status'] ?? '') === 'done') $asgDone++; }
@@ -120,7 +114,7 @@ $progress = [
     'assignments_open'   => count($assignments) - $asgDone,
     'attendance_total'   => (int)($attCounts['total'] ?? 0),
     'attendance_present' => (int)($attCounts['present'] ?? 0),
-    'classes'            => count($enrollments),
+    'classes'            => count(array_filter($courses, fn ($c) => ($c['status'] ?? '') === 'active')),
 ];
 
 mam_ok([
@@ -136,10 +130,8 @@ mam_ok([
     'customer' => $customer,
     'applications' => $apps,
     'payments' => $payments,
-    'enrollments' => $enrollments,
     'courses' => $courses,
     'certificates' => $certificates,
-    'attendance' => $attendance,
     'auditer' => $auditer,
     'auditer_status' => $auditerStatus,
     'wallet' => ['balance_cents' => mam_wallet_balance((int)$u['id']), 'balance_usd' => round(mam_wallet_balance((int)$u['id']) / 100, 2)],

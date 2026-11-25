@@ -296,7 +296,7 @@
         +   '<div class="p-avatar" aria-hidden="true">' + esc(initials(c.student_name)) + '</div>'
         +   '<div class="p-who-main"><div class="p-name">' + esc(c.student_name) + '</div>'
         +     '<div class="p-caption">'
-        +     esc([c.course_name, c.level_name].filter(Boolean).join(', ') || c.legacy_class || (c.relationship || 'guardian'))
+        +     esc([c.course_name, c.level_name].filter(Boolean).join(', ') || c.cohort_title || (c.relationship || 'guardian'))
         +     (c.enrollment_ref ? '<br>Student number ' + esc(c.enrollment_ref) : '') + '</div></div>'
         + '</div>'
         + '<div class="p-kpis">' + attTile + bandTile + credTile + '</div>'

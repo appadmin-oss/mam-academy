@@ -322,13 +322,12 @@ function mam_onboarding_batch(array $ids): array {
             LEFT JOIN customers c ON c.id = u.customer_id WHERE u.id IN ($in)") as $u) $users[(int) $u['id']] = $u;
     $guard   = $set("SELECT DISTINCT student_id AS id FROM parent_links WHERE student_id IN ($in)");
     $consent = $set("SELECT student_id AS id FROM student_consents WHERE student_id IN ($in)");
-    $learn   = $set("SELECT DISTINCT student_id AS id FROM course_enrollments WHERE status = 'active' AND student_id IN ($in)
-                     UNION SELECT DISTINCT student_id AS id FROM enrollments WHERE status = 'active' AND student_id IN ($in)");
+    // One model: the old class enrolments and marks were carried into the cohort
+    // tables (mam_legacy_carry()), so "is learning" and "has attended" ask those.
+    $learn   = $set("SELECT DISTINCT student_id AS id FROM course_enrollments WHERE status = 'active' AND student_id IN ($in)");
     $now = date('Y-m-d H:i:s');
     $card    = $set("SELECT DISTINCT user_id AS id FROM id_cards WHERE status = 'active' AND (expires_at IS NULL OR expires_at > '$now') AND user_id IN ($in)");
-    $went    = $set("SELECT DISTINCT student_id AS id FROM session_attendance WHERE status IN ('present','late') AND student_id IN ($in)
-                     UNION SELECT DISTINCT e.student_id AS id FROM attendance a JOIN enrollments e ON e.id = a.enrollment_id
-                      WHERE a.status IN ('present','late') AND e.student_id IN ($in)");
+    $went    = $set("SELECT DISTINCT student_id AS id FROM session_attendance WHERE status IN ('present','late') AND student_id IN ($in)");
     $invited = $set("SELECT DISTINCT user_id AS id FROM password_resets WHERE user_id IN ($in)");
     $today = function_exists('mam_calendar_today') ? mam_calendar_today() : date('Y-m-d');
 

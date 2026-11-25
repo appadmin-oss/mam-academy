@@ -84,36 +84,22 @@ function mam_analytics_overview(): array {
  */
 function mam_analytics_at_risk(int $staleDays = 14, int $limit = 100): array {
     try {
-        // Union both enrollment models so legacy-only students are visible too.
+        // One model: the old class enrolments and marks were carried into the
+        // cohort tables (mam_legacy_carry()), so course_enrollments is everyone.
         $active = mam_db_all(
-            "SELECT DISTINCT student_id, name FROM (
-               SELECT ce.student_id, u.name
-                 FROM course_enrollments ce JOIN users u ON u.id = ce.student_id
-                WHERE ce.status = 'active'
-               UNION
-               SELECT e.student_id, u.name
-                 FROM enrollments e JOIN users u ON u.id = e.student_id
-                WHERE e.status = 'active'
-             ) sub ORDER BY name LIMIT " . max(1, min(500, $limit))
+            "SELECT DISTINCT ce.student_id, u.name
+               FROM course_enrollments ce JOIN users u ON u.id = ce.student_id
+              WHERE ce.status = 'active'
+              ORDER BY u.name, ce.student_id LIMIT " . max(1, min(500, $limit))
         );
         if (!$active) return [];
 
         // Aggregate signals keyed by student_id (a handful of grouped queries,
         // merged in PHP — far cheaper than N+1 per student).
-        // LMS-v2 attendance (session_attendance).
+        // Attendance (session_attendance — carried class marks included).
         $attMap = [];
         foreach (mam_db_all("SELECT student_id, SUM(CASE WHEN status IN ('present','late') THEN 1 ELSE 0 END) AS att, COUNT(*) AS tot FROM session_attendance GROUP BY student_id") as $r) {
             $attMap[(int)$r['student_id']] = ['att' => (int)$r['att'], 'tot' => (int)$r['tot']];
-        }
-        // Legacy attendance (attendance table, joined through enrollments to student_id).
-        foreach (mam_db_all("SELECT e.student_id, SUM(CASE WHEN a.status IN ('present','late') THEN 1 ELSE 0 END) AS att, COUNT(*) AS tot FROM attendance a JOIN enrollments e ON e.id = a.enrollment_id GROUP BY e.student_id") as $r) {
-            $sid = (int)$r['student_id'];
-            if (isset($attMap[$sid])) {
-                $attMap[$sid]['att'] += (int)$r['att'];
-                $attMap[$sid]['tot'] += (int)$r['tot'];
-            } else {
-                $attMap[$sid] = ['att' => (int)$r['att'], 'tot' => (int)$r['tot']];
-            }
         }
         $subMap = [];
         foreach (mam_db_all("SELECT student_id, SUM(CASE WHEN status='needs_resubmission' THEN 1 ELSE 0 END) AS resub, SUM(CASE WHEN status='accepted' THEN 1 ELSE 0 END) AS accepted FROM submissions GROUP BY student_id") as $r) {

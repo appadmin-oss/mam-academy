@@ -75,7 +75,7 @@ function mam_academic_record(int $studentId): array {
     ];
 }
 
-/** Programme, instrument, level and modules — across BOTH enrolment models. */
+/** Programme, instrument, level and modules — from the course enrolments (the one model). */
 function mam_record_curriculum(int $studentId): array {
     $courses = mam_db_all(
         "SELECT ce.id, ce.status, ce.created_at, c.code AS course_code, c.name AS course_title,
@@ -89,15 +89,9 @@ function mam_record_curriculum(int $studentId): array {
           ORDER BY ce.id DESC",
         [$studentId]
     );
-    // Legacy classes too — a student can appear in one model and not the other
-    // (see CLAUDE.md gotcha #2), and a record that shows only half is wrong.
-    $classes = mam_db_all(
-        "SELECT e.id, e.status, cl.title AS class_title, cl.id AS class_id
-           FROM enrollments e JOIN classes cl ON cl.id = e.class_id
-          WHERE e.student_id = ? ORDER BY e.id DESC",
-        [$studentId]
-    );
-    return ['course_enrollments' => $courses, 'legacy_classes' => $classes];
+    // One model: the old class enrolments were carried into course_enrollments
+    // (mam_legacy_carry()), so this is the whole record.
+    return ['course_enrollments' => $courses];
 }
 
 /** Pre-class preparation history, module by module. */

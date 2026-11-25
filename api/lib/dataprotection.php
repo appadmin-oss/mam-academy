@@ -151,7 +151,10 @@ function mam_dp_purposes(): array {
             'purpose'  => 'Deliver tuition, mark work and record progress',
             'basis'    => 'contract',
             'subjects' => 'Enrolled students',
-            'data'     => 'Enrolment, attendance, marks, submissions, teacher feedback, practice logs',
+            // `enrollments` and `attendance` are the RETIRED class records: carried into
+            // course_enrollments / session_attendance (mam_legacy_carry()) and no longer
+            // read, but still held — so they stay on the register until they are deleted.
+            'data'     => 'Enrolment, attendance, marks, submissions, teacher feedback, practice logs; and the retired class enrolments and attendance marks, carried into the cohort records and kept unread',
             'tables'   => ['course_enrollments', 'enrollments', 'session_attendance', 'attendance', 'results', 'submissions', 'practice_logs', 'feedback'],
             'special'  => true,
             'recipients' => 'The student\'s own instructor and linked guardian',
