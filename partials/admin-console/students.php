@@ -393,11 +393,7 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
       </tbody>
     </table>
   </div>
-<?php ac_card_close(
-    'A <strong>band</strong> rather than a computed score, and never a sort: sorting a cohort of children by a '
-    . 'composite turns the table into a ranking whatever the heading says. "Not enough yet" is a different statement '
-    . 'from a low score. <strong>Learning</strong> counts both enrolment models. A staff member on this list is '
-    . 'refused by every bulk action — staff are administered from People &amp; access.'); ?>
+<?php ac_card_close('"Not enough yet" means not yet assessed, not a low score.'); ?>
 <?php ac_form_end(); ?>
 
 <?php if ((int) ($d['pages'] ?? 1) > 1): ?>
