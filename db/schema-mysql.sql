@@ -4003,3 +4003,8 @@ CREATE TABLE IF NOT EXISTS whatsapp_inbound (
   last_inbound_at DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (107) ON DUPLICATE KEY UPDATE version = version;
+
+-- v108 — the old class model is retired: homework follows its class into the cohort.
+ALTER TABLE assignments ADD COLUMN cohort_id INT NULL;
+ALTER TABLE assignments ADD INDEX idx_assignments_cohort (cohort_id);
+INSERT INTO schema_version (version) VALUES (108) ON DUPLICATE KEY UPDATE version = version;

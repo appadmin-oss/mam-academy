@@ -38,6 +38,7 @@ return [
     'practice',
     'klangio',
     'lms',
+    'legacy-carry',
     'curriculum-seed',
     'ai',
     'admissions',
