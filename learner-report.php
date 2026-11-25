@@ -397,7 +397,6 @@ tr:last-child td{border-bottom:none}
     var assessments    = data.assessments || [];
     var results        = data.results || [];
     var classSummary   = data.class_summary || [];
-    var enrollments    = data.enrollments || [];
     var courseEnrolls  = data.course_enrollments || [];
     var certs          = data.certificates || [];
     var announcements  = data.announcements || [];
@@ -409,7 +408,7 @@ tr:last-child td{border-bottom:none}
     var present        = sessions.filter(function(x){return x.attendance_status==='present'||x.attendance_status==='late';}).length;
     var rate           = totalSess ? Math.round(present/totalSess*100) : null;
     var withNotes      = sessions.filter(function(x){return x.lesson_notes||x.topics;}).length;
-    var totalEnrols    = enrollments.length + courseEnrolls.length;
+    var totalEnrols    = courseEnrolls.length;
 
     // Profile banner
     var avatarHtml = s.avatar_url
@@ -418,7 +417,6 @@ tr:last-child td{border-bottom:none}
 
     var programNames = [];
     courseEnrolls.forEach(function(e){ if (e.course_name) programNames.push(e.course_name); });
-    enrollments.forEach(function(e){ if (e.class_name) programNames.push(e.class_name); });
     var uniquePrograms = programNames.filter(function(v,i,a){return a.indexOf(v)===i;}).slice(0,3);
 
     var html = '';
