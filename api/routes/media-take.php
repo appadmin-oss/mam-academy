@@ -41,7 +41,7 @@ $uid = (int) $u['id'];
 // Resolve the key back to its submission. LIKE on the key is safe: the grammar
 // is already validated by mam_take_path, so it cannot carry a wildcard.
 $sub = mam_db_row(
-    "SELECT s.id, s.student_id, a.class_id
+    "SELECT s.id, s.student_id
        FROM submissions s
        JOIN assignments a ON a.id = s.assignment_id
       WHERE s.artifact_url LIKE ?
@@ -57,20 +57,14 @@ $allowed   = ($studentId === $uid);
 if (!$allowed && function_exists('mam_user_has_role') && mam_user_has_role($u, 'admin')) $allowed = true;
 
 if (!$allowed && function_exists('mam_user_has_role') && mam_user_has_role($u, 'instructor')) {
-    // Dual-read, per the standing convention: an instructor may teach this
-    // student through the legacy class model OR through a cohort. Checking one
-    // model only would 403 a real teacher of a course-only student.
-    $legacy = mam_db_row(
-        'SELECT 1 FROM enrollments e JOIN classes c ON c.id = e.class_id
-          WHERE e.student_id = ? AND c.instructor_id = ?',
-        [$studentId, $uid]
-    );
+    // A teacher of this student: the enrolment's instructor or its cohort's.
+    // Cohort model only — the legacy class roster is retired (mam_legacy_carry()).
     $cohort = mam_db_row(
         'SELECT 1 FROM course_enrollments ce LEFT JOIN cohorts co ON co.id = ce.cohort_id
           WHERE ce.student_id = ? AND (co.instructor_id = ? OR ce.instructor_id = ?)',
         [$studentId, $uid, $uid]
     );
-    if ($legacy || $cohort) $allowed = true;
+    if ($cohort) $allowed = true;
 }
 
 if (!$allowed && function_exists('mam_parent_can_view') && mam_parent_can_view($uid, $studentId)) $allowed = true;

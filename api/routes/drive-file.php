@@ -17,7 +17,7 @@ $u = mam_require_role('student', 'instructor', 'admin');
 $rid = (int)($_GET['rid'] ?? 0);
 if ($rid <= 0) mam_fail('validation', 422, ['fields' => ['rid']]);
 
-$res = mam_db_row('SELECT id, class_id, cohort_id, url, title FROM class_resources WHERE id = ?', [$rid]);
+$res = mam_db_row('SELECT id, cohort_id, url, title FROM class_resources WHERE id = ?', [$rid]);
 if (!$res) mam_fail('not_found', 404);
 
 $fileId = mam_drive_id_from_url((string)$res['url']);
@@ -28,8 +28,9 @@ $roles   = function_exists('mam_user_roles') ? mam_user_roles($u) : [$u['role'] 
 $isAdmin = in_array('admin', $roles, true);
 $allowed = $isAdmin;
 if (!$allowed && in_array('instructor', $roles, true)) {
+    // Cohort model only: a resource still on a legacy class alone (never
+    // carried) belongs to no cohort, so only an admin reaches it.
     if (!empty($res['cohort_id'])) $allowed = mam_lms_instructor_owns_cohort((int)$u['id'], (int)$res['cohort_id']);
-    elseif (!empty($res['class_id'])) $allowed = mam_db_row('SELECT 1 FROM classes WHERE id = ? AND instructor_id = ?', [(int)$res['class_id'], (int)$u['id']]) !== null;
 }
 if (!$allowed && in_array('student', $roles, true)) {
     foreach (mam_student_resources((int)$u['id'], 200) as $r) { if ((int)$r['id'] === $rid) { $allowed = true; break; } }

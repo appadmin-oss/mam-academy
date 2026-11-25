@@ -3,10 +3,10 @@
  * GET /api/instructor/student?id=<student_id>
  *
  * Drill-down for one student the caller actually teaches (admins: any student).
- * Returns the student's contact info, their enrolments — in BOTH models, the
- * caller's legacy classes AND the courses/cohorts they teach (dual-read, P2) —
- * and their attendance history (legacy class attendance + cohort session
- * attendance) with a combined present/late/absent summary.
+ * Returns the student's contact info, the courses/cohorts the caller teaches
+ * them in, and their cohort session attendance with a present/late/absent
+ * summary. Cohort model only: the legacy class model is retired, its classes,
+ * enrolments and marks carried into cohorts by mam_legacy_carry().
  */
 declare(strict_types=1);
 
@@ -26,21 +26,13 @@ if (!$isAdmin && function_exists('mam_vetting_may_see_child') && !mam_vetting_ma
     mam_fail('clearance_required', 403, ['message' => 'Your safeguarding clearance is not complete, so this child\'s record is closed to you. The office can see what is missing.']);
 }
 $meId    = (int)$u['id'];
-$scope   = $isAdmin ? '' : ' AND c.instructor_id = ' . $meId;
 // A course the caller teaches: either assigned as the enrolment's instructor OR
 // the owner of its cohort. course_enrollments.instructor_id is often NULL (set
 // later by admin), so cohort ownership must also grant the drill-down — matching
 // mam_lms_instructor_owns_cohort — else a legitimately-teaching instructor 403s.
 $cscope  = $isAdmin ? '' : ' AND (ce.instructor_id = ' . $meId . ' OR coh.instructor_id = ' . $meId . ')';
 
-$enrollments = mam_db_all(
-    "SELECT e.id AS enrollment_id, e.status, c.title, c.discipline, c.mode, c.schedule
-       FROM enrollments e JOIN classes c ON c.id = e.class_id
-      WHERE e.student_id = ?$scope ORDER BY c.title",
-    [$sid]
-);
-
-// Dual-read: the courses/cohorts the caller teaches this student in.
+// The courses/cohorts the caller teaches this student in.
 $courses = mam_db_all(
     "SELECT ce.id AS enrollment_id, ce.status, ce.cohort_id,
             co.name AS course_name, l.name AS level_name, coh.title AS cohort_title
@@ -52,23 +44,13 @@ $courses = mam_db_all(
     [$sid]
 );
 
-// An instructor may only view a student they share EITHER model with.
-if (!$isAdmin && !$enrollments && !$courses) mam_fail('forbidden', 403);
-
-$attendance = mam_db_all(
-    "SELECT a.session_date, a.status, a.notes, c.title
-       FROM attendance a
-       JOIN enrollments e ON e.id = a.enrollment_id
-       JOIN classes c     ON c.id = e.class_id
-      WHERE e.student_id = ?$scope ORDER BY a.session_date DESC LIMIT 80",
-    [$sid]
-);
+// An instructor may only view a student they teach.
+if (!$isAdmin && !$courses) mam_fail('forbidden', 403);
 
 $summary = ['present' => 0, 'late' => 0, 'absent' => 0, 'excused' => 0];
-foreach ($attendance as $a) { if (isset($summary[$a['status']])) $summary[$a['status']]++; }
 
-// Dual-read: cohort session attendance, scoped to the cohorts the caller
-// teaches this student in, folded into the same summary.
+// Cohort session attendance, scoped to the cohorts the caller teaches this
+// student in (carried legacy marks arrive here as method 'legacy').
 $sessionAttendance = [];
 $cohortIds = array_values(array_filter(array_map(static fn($c) => (int)$c['cohort_id'], $courses)));
 if ($cohortIds) {
@@ -87,9 +69,7 @@ if ($cohortIds) {
 
 mam_ok([
     'student'            => $student,
-    'enrollments'        => $enrollments,
     'courses'            => $courses,
-    'attendance'         => $attendance,
     'session_attendance' => $sessionAttendance,
     'summary'            => $summary,
 ]);
