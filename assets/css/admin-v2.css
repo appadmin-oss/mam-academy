@@ -1299,3 +1299,7 @@
 [data-admin="v2"] .ac-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; }
 [data-admin="v2"] .ac-acts > form { margin: 0; }
 [data-admin="v2"] .ac-disclose > summary + form { margin-top: 18px; }
+
+/* The bulk bar waits for a tick (admin-console.js). A class, not [hidden]: the bar
+   is a flex row, and an author display beats the UA's [hidden] rule. */
+[data-admin="v2"] .ac-bulkbar.is-idle { display: none; }

@@ -337,6 +337,21 @@
     upd();
   });
 
+  /* A bulk bar is there when something is ticked, as in the Control Room it is
+     modelled on: an always-on "Do this…" row reads as the screen's main job,
+     when the main job is the list. Without this script the bar is simply always
+     shown, and "all N matching" is reached by ticking the header box first. */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-ac-bulkbar]'), function (bar) {
+    var form = bar.closest('form'); if (!form) return;
+    var name = bar.getAttribute('data-ac-bulkbar');
+    function upd() {
+      var n = Array.prototype.filter.call(form.elements, function (el) { return el.name === name && el.checked; }).length;
+      bar.classList.toggle('is-idle', n === 0);
+    }
+    form.addEventListener('change', upd); form.addEventListener('click', function () { setTimeout(upd, 0); });
+    upd();
+  });
+
   Array.prototype.forEach.call(document.querySelectorAll('[data-ac-checkall]'), function (all) {
     var form = all.form; if (!form) return;
     var name = all.getAttribute('data-ac-checkall');

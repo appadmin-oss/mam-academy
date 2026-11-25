@@ -323,7 +323,7 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
 
 <?php ac_form('member_bulk', 'students', $filters); ?>
 <?php ac_card_open('', ''); ?>
-  <div class="ac-cardbody ac-row">
+  <div class="ac-cardbody ac-row ac-bulkbar" data-ac-bulkbar="ids[]">
     <select class="ac-select ac-input--sm" name="bulk_action" required aria-label="Bulk action">
       <option value="">Do this…</option>
       <?php foreach (($d['bulk_actions'] ?? []) as $k => $a): ?><option value="<?= ac_h($k) ?>"><?= ac_h($a['label']) ?></option><?php endforeach; ?>
