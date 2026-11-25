@@ -118,6 +118,17 @@ function mam_setting_set(string $key, $value): void {
 }
 
 /**
+ * Whether a setting is a QUANTITY (stored as a number) rather than text, from its shipped default.
+ * A numeric-looking default with a leading zero is an identifier — a bank account number,
+ * '0117579643' — and stored as a number it loses the zero: every invoice then printed an account
+ * that does not exist. One predicate, read by the save handler and the console's form alike.
+ */
+function mam_setting_is_quantity($default): bool {
+    if (!is_numeric($default)) return false;
+    return !(is_string($default) && preg_match('/^0\d/', $default));
+}
+
+/**
  * The canonical list of admin-editable settings with their shipped defaults,
  * labels, groups and input hints. Single source for: seeding, the admin form,
  * and the public /api/config/public endpoint. Keep keys stable.

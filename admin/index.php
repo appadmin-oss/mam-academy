@@ -2781,7 +2781,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         foreach (mam_settings_schema() as $row) {
             [$group, $key, $label, $default, $suffix] = $row;
             $raw = $_POST[$key] ?? null;
-            if (is_numeric($default)) {
+            if (mam_setting_is_quantity($default)) {
                 // Numeric setting — non-negative; blank falls back to the
                 // shipped default so a cleared field can't zero out a price.
                 if ($raw === null || $raw === '') { $val = (float)$default; }

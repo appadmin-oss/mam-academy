@@ -1239,3 +1239,15 @@
   [data-admin="v2"] .ac-tt-filters .ac-seg { width: 100%; }
   [data-admin="v2"] .ac-tt-suggest > li { flex-direction: column; align-items: stretch; }
 }
+
+/* Settings: one form, every key, grouped (partials/admin-console/settings.php). A closed group
+   still submits its fields, which is what keeps a save from resetting the settings not shown. */
+[data-admin="v2"] .ac-cfg-group { border-top: 1px solid var(--ac-line); }
+[data-admin="v2"] .ac-cfg-group:first-of-type { border-top: 0; }
+[data-admin="v2"] .ac-cfg-group > summary { display: flex; align-items: baseline; gap: 10px; padding: 14px 0; cursor: pointer; list-style: none; }
+[data-admin="v2"] .ac-cfg-group > summary::-webkit-details-marker { display: none; }
+[data-admin="v2"] .ac-cfg-group > summary::before { content: '›'; display: inline-block; width: 12px; color: var(--ac-ink-4); transition: transform .15s; }
+[data-admin="v2"] .ac-cfg-group[open] > summary::before { transform: rotate(90deg); }
+[data-admin="v2"] .ac-cfg-fields { padding: 0 0 18px 22px; }
+[data-admin="v2"] .ac-cfg-wide { grid-column: 1 / -1; }
+@media (prefers-reduced-motion: reduce) { [data-admin="v2"] .ac-cfg-group > summary::before { transition: none; } }

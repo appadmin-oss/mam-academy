@@ -2310,6 +2310,7 @@ function mam_console_settings(): array {
         'vetting_mode' => mam_console_try('se.vet', fn() => mam_vetting_mode(), 'warn'),
         'retention_mode' => mam_console_try('se.ret', fn() => mam_dp_retention_mode(), 'report'),
         'statuses' => mam_console_status_vocabulary(),
+        'config' => mam_console_settings_fields(),
         'tenant' => [
             'base_currency' => 'USD',
             'reporting_currency' => (string) mam_console_try('se.cur', fn() => mam_setting_or_default('display_currency', 'NGN'), 'NGN'),
@@ -2317,6 +2318,54 @@ function mam_console_settings(): array {
             'rate' => mam_console_try('se.rate', fn() => mam_usd_to_ngn_rate(false), null),
         ],
     ];
+}
+
+/**
+ * Every setting in mam_settings_schema(), grouped, with its current value and the kind of field
+ * that edits it — for the console's one settings form (action `save_settings`).
+ *
+ * ── THE FORM MUST CARRY EVERY KEY ────────────────────────────────────────────
+ * The `save_settings` handler writes EVERY key in the schema, and a key absent from the POST
+ * falls back to its shipped default. A form showing a subset would silently reset the rest —
+ * prices included — so the console renders all of them, each filled with what is stored now.
+ *
+ * The kind is read from the schema itself, so a setting added there gets a field here:
+ *   bool — a label that says "1=on, 0=off", or a 0/1 default on an *_enabled / *_auto key:
+ *          a Yes/No choice that always posts a value (an unticked checkbox posts nothing,
+ *          which the handler would read as "use the default" — a switch that cannot turn off);
+ *   enum — a label naming its values ("off | warn | enforce", "(per_session or per_request)");
+ *   number, or text (the handler keeps at most 300 characters, which the field says).
+ */
+function mam_console_settings_fields(): array {
+    $groups = [];
+    foreach (mam_settings_schema() as $row) {
+        [$group, $key, $label, $default, $suffix] = $row;
+        $current = mam_console_try('se.cfg.' . $key, fn() => mam_setting($key, $default), $default);
+        $kind = 'text';
+        $options = [];
+        if (preg_match('/1\s*=\s*on/i', (string) $label)
+            || (in_array($default, [0, 1], true) && preg_match('/(_enabled|_auto|_is_minor|open_applications)$/', (string) $key))) {
+            $kind = 'bool';
+        } elseif (preg_match('/:\s*([a-z_]+(?:\s*\|\s*[a-z_]+)+)/', (string) $label, $m)) {
+            $kind = 'enum';
+            $options = array_map('trim', explode('|', $m[1]));
+        } elseif (preg_match('/\(([a-z_]+)\s+or\s+([a-z_]+)\)/', (string) $label, $m)) {
+            $kind = 'enum';
+            $options = [$m[1], $m[2]];
+        } elseif (mam_setting_is_quantity($default)) {
+            $kind = 'number';
+        }
+        $groups[$group][] = [
+            'key' => (string) $key,
+            'label' => (string) $label,
+            'default' => (string) $default,
+            'suffix' => (string) $suffix,
+            'value' => (string) ($current ?? $default),
+            'kind' => $kind,
+            'options' => $options,
+        ];
+    }
+    return $groups;
 }
 
 /**

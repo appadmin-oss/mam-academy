@@ -7,6 +7,57 @@ $t = $d['tenant'] ?? [];
 <?php ac_head('Settings & vocabulary',
     'Words, features and fields · changed here, not in a deploy'); ?>
 
+<?php
+  $cfg = $d['config'] ?? [];
+  $nCfg = array_sum(array_map('count', $cfg));
+  $changed = 0;
+  foreach ($cfg as $fs) foreach ($fs as $f) if ($f['value'] !== $f['default']) $changed++;
+?>
+<?php ac_card_open('Configuration', $nCfg . ' settings · ' . $changed . ' changed from the default',
+    '<span class="ac-cardmeta">One save for all of them</span>'); ?>
+  <?php ac_form('save_settings', 'settings', [], 'class="ac-cfg" id="settings-form"'); ?>
+    <?php foreach ($cfg as $group => $fields):
+      $gChanged = count(array_filter($fields, fn($f) => $f['value'] !== $f['default'])); ?>
+      <details class="ac-cfg-group">
+        <summary><span class="ac-strong"><?= ac_h($group) ?></span>
+          <span class="ac-sub"><?= count($fields) ?> <?= count($fields) === 1 ? 'setting' : 'settings' ?><?= $gChanged ? ' · ' . $gChanged . ' changed' : '' ?></span></summary>
+        <div class="ac-grid ac-grid--2 ac-cfg-fields">
+          <?php foreach ($fields as $f):
+            $k = $f['key']; $val = $f['value']; $isChanged = $val !== $f['default'];
+            $long = (bool) preg_match('/one per line|paragraph|description/i', $f['label']);
+            $date = (bool) preg_match('/YYYY-MM-DD/', $f['label']); ?>
+            <label class="ac-field<?= $long ? ' ac-cfg-wide' : '' ?>">
+              <span class="ac-label"><?= ac_h($f['label']) ?><?= $f['suffix'] !== '' ? ' (' . ac_h($f['suffix']) . ')' : '' ?></span>
+              <?php if ($f['kind'] === 'bool'): ?>
+                <select class="ac-select" name="<?= ac_h($k) ?>">
+                  <option value="1"<?= $val === '1' ? ' selected' : '' ?>>Yes</option>
+                  <option value="0"<?= $val !== '1' ? ' selected' : '' ?>>No</option>
+                </select>
+              <?php elseif ($f['kind'] === 'enum'): ?>
+                <select class="ac-select" name="<?= ac_h($k) ?>">
+                  <?php foreach ($f['options'] as $o): ?>
+                    <option value="<?= ac_h($o) ?>"<?= $val === $o ? ' selected' : '' ?>><?= ac_h($o) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              <?php elseif ($f['kind'] === 'number'): ?>
+                <input class="ac-input" type="number" step="any" min="0" name="<?= ac_h($k) ?>" value="<?= ac_h($val) ?>" required>
+              <?php elseif ($long): ?>
+                <textarea class="ac-textarea" name="<?= ac_h($k) ?>" rows="3" maxlength="300"><?= ac_h($val) ?></textarea>
+              <?php else: ?>
+                <input class="ac-input" type="<?= $date ? 'date' : 'text' ?>" maxlength="300" name="<?= ac_h($k) ?>" value="<?= ac_h($val) ?>">
+              <?php endif; ?>
+              <?php if ($isChanged): ?><span class="ac-hint">Default: <?= ac_h($f['default'] === '' ? '(blank)' : $f['default']) ?></span><?php endif; ?>
+            </label>
+          <?php endforeach; ?>
+        </div>
+      </details>
+    <?php endforeach; ?>
+    <div class="ac-row ac-mt">
+      <button type="submit" class="ac-btn ac-btn--primary">Save settings</button>
+    </div>
+  <?php ac_form_end(); ?>
+<?php ac_card_close('A blank number goes back to its default, never to zero, so a cleared price cannot make a programme free.'); ?>
+
 <?php ac_card_open('Sessions', count($d['terms'] ?? []) . ' authored',
     '<span class="ac-cardmeta">Four a year · MAM calls these sessions</span>'); ?>
   <div class="ac-tablewrap">
