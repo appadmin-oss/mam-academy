@@ -186,3 +186,14 @@ Two owner decisions are needed first:
   own (the guardian's email plus a name and date of birth? a username?), and
   what happens to the existing merged records. The read model lists them for
   a human to separate.
+
+## Decisions (owner, 2026-11-27)
+
+- **Direction: B, module by module, identity first. But v2 is also
+  faulted** and must be audited and corrected before any module moves onto
+  it. The target is "v2-corrected", not v2 as it stands.
+- **Child identity:** every child gets **their own person record and a
+  username to sign in**. A parent's email is stored as the guardian contact,
+  never as the child's identity. **Students may also have their own email
+  address, as NextGenGen provides them.** The design follows NGG's scheme,
+  studied before building.
