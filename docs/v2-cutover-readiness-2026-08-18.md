@@ -73,7 +73,7 @@ Also unmigrated with no recorded decision: `id_cards` (8), `user_roles`,
 
 ### The audit log is a contradiction, not a gap
 
-The NDPA retention schedule shipped in `api/lib/dataprotection.php` states:
+The NDPA retention schedule shipped in `api/modules/identity/lib/dataprotection.php` states:
 
 ```php
 'audit' => [ 'table' => 'audit_log', 'days' => 2555,
@@ -120,7 +120,7 @@ has a measured number attached to it today, and I am not going to invent one.
 
 # Option B, shipped: the v2 read model
 
-`api/lib/v2/readmodel.php` + admin `?v=v2read`. Configured by env
+`api/modules/v2/lib/readmodel.php` + admin `?v=v2read`. Configured by env
 (`V2_READ_DB` or `V2_READ_DSN`); unset, the feature is **absent rather than
 empty**, and nothing else on the site changes.
 

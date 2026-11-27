@@ -17,7 +17,7 @@ It is **not yet enterprise-grade** because it still lacks: unified scheduling/co
 
 ## 1 · Current state (honest assessment)
 
-**What exists today** (verified in `api/lib/lms.php`, `api/lib/db.php`, `db/schema-mysql.sql`, the portals, `admin/index.php`):
+**What exists today** (verified in `api/modules/academics/lib/lms.php`, `api/modules/kernel/lib/db.php`, `db/schema-mysql.sql`, the portals, `admin/index.php`):
 
 | Area | State |
 |------|-------|
@@ -69,7 +69,7 @@ Program ─┬─ Level ─┬─ Course (offering) ─┬─ Cohort ──┬�
 
 ### 3.2 API & service layer
 
-- Keep the lean PHP router. Continue the **service-layer** pattern (`api/lib/lms.php` and, as it grows, `api/lib/lms/*.php`) so routes stay thin and business rules are unit-testable in isolation (the v18 lifecycle is the template: pure `mam_lms_can_transition()` + audited `mam_lms_transition()`, 35 tests).
+- Keep the lean PHP router. Continue the **service-layer** pattern (`api/modules/academics/lib/lms.php` and, as it grows, `api/lib/lms/*.php`) so routes stay thin and business rules are unit-testable in isolation (the v18 lifecycle is the template: pure `mam_lms_can_transition()` + audited `mam_lms_transition()`, 35 tests).
 - **Idempotency + optimistic concurrency** on state-changing endpoints (idempotency keys already exist for payments; generalize).
 - **Versioned, documented contract:** publish an OpenAPI description generated from the router table.
 
@@ -83,7 +83,7 @@ A lightweight, dependency-free **event → job** spine — and we already have t
 
 ### 3.4 AI optimization layer (the "AI-optimized" requirement)
 
-All AI runs **server-side, through one audited, provider-agnostic gateway** (`api/lib/ai.php`). The gateway is the only thing that talks to a model: it owns prompt templates, output schemas, provider selection, caching, quotas, PII redaction, logging, and the human-in-the-loop gate. Crucially it is **not tied to any one vendor** — providers are pluggable adapters behind a single contract, and the academy can run **every AI feature for free** on local/open models, then *optionally* upgrade individual use-cases to a paid provider for higher quality. **No feature ever hard-depends on a paid API.**
+All AI runs **server-side, through one audited, provider-agnostic gateway** (`api/modules/integrations/lib/ai.php`). The gateway is the only thing that talks to a model: it owns prompt templates, output schemas, provider selection, caching, quotas, PII redaction, logging, and the human-in-the-loop gate. Crucially it is **not tied to any one vendor** — providers are pluggable adapters behind a single contract, and the academy can run **every AI feature for free** on local/open models, then *optionally* upgrade individual use-cases to a paid provider for higher quality. **No feature ever hard-depends on a paid API.**
 
 **Provider adapters — free by default, premium optional.** Each adapter implements one contract — `complete(prompt, schema?, opts) → {json|text, provider, model, usage, ok}` — so callers never know or care which ran:
 
@@ -144,7 +144,7 @@ Model competencies explicitly (`skills`, `skill_assessments`) — *rhythm readin
 | **L1 · Unify & formalize** | One enrolment model with an enforced lifecycle | Enrolment state machine + `enrolment_events` audit; **then** introduce `cohorts`, migrate `classes`/`enrollments` | 🟢 **lifecycle shipped (v18)**; cohort merge next |
 | **L2 · Sessions & submissions** | Real teaching loop | `sessions`/attendance on cohorts; `submissions`+`feedback` with file artifacts + rubrics; instructor & student UIs | ✅ (schema v81, `session_attendance`, rubrics, `submission_reviews`; audit 2026-11) |
 | **L3 · Automation spine** | The platform runs itself | `events`+`jobs` tables; single cron `run-jobs.php` (generalising the v17 outbox cron); notification service; auto-progression, reminders, digests, at-risk nudges | 🟡 outbox primitive shipped |
-| **L4 · AI optimization** | Measurably better outcomes | `api/lib/ai.php` gateway + guardrails; placement assist, practice coach, grading assist, syllabus/narrative generation; skill graph | ✅ gateway + narrative, feedback draft, practice coach, placement (`ai.php`); ⬜ skill graph (audit 2026-11) |
+| **L4 · AI optimization** | Measurably better outcomes | `api/modules/integrations/lib/ai.php` gateway + guardrails; placement assist, practice coach, grading assist, syllabus/narrative generation; skill graph | ✅ gateway + narrative, feedback draft, practice coach, placement (`ai.php`); ⬜ skill graph (audit 2026-11) |
 | **L5 · Analytics & hardening** | Enterprise operations | Cohort/retention/at-risk dashboards; RBAC matrix; observability; a11y AA; pagination/indexes; export/delete; load + contract tests | ⬜ |
 
 **Sequencing rationale:** L1 removes the structural debt everything else would inherit; automation (L3) and AI (L4) are only as good as the unified, audited data they sit on. **Relative effort:** L1-cohorts ≈ M, L2 ≈ L, L3 ≈ M, L4 ≈ L (mostly prompt/eval/gateway work + UI), L5 ≈ M.
@@ -155,7 +155,7 @@ Model competencies explicitly (`skills`, `skill_assessments`) — *rhythm readin
 
 1. **Cohort merge (finish L1).** Introduce `cohorts`; back-map `classes`→`cohorts` and link `course_enrollments.cohort_id`; route attendance/announcements/resources through cohorts. Dual-read during migration, then cut over. *Test: every legacy class resolves to exactly one cohort; no orphaned enrolments.*
 2. **`events` table + `run-jobs.php`.** Generalise the outbox/recovery crons into one job drainer; move auto-progression-on-pass behind it. *Test with a faked clock (pattern already exists).*
-3. **`api/lib/ai.php` gateway (stub + contract test).** One audited, provider-agnostic entry point — pluggable adapters, schema-constrained output, quota, PII redaction, `reviewed_by` storage — before any feature. Ship with a **free adapter (Ollama/local) as the default** and a mocked adapter for the contract test; wire the first use case (progress narrative — read-only, low-risk). Premium adapters (Claude, etc.) are opt-in config.
+3. **`api/modules/integrations/lib/ai.php` gateway (stub + contract test).** One audited, provider-agnostic entry point — pluggable adapters, schema-constrained output, quota, PII redaction, `reviewed_by` storage — before any feature. Ship with a **free adapter (Ollama/local) as the default** and a mocked adapter for the contract test; wire the first use case (progress narrative — read-only, low-risk). Premium adapters (Claude, etc.) are opt-in config.
 4. **Skill-profile read-model.** Derive a per-student skill snapshot from `results` + game telemetry; surface in the portal. No new teacher workflow.
 
 Each is additive, test-covered, and ships independently.

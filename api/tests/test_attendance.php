@@ -15,7 +15,7 @@ foreach (['mam_attendance_token', 'mam_attendance_verify_token', 'mam_attendance
 foreach (['routes/attendance-checkin.php', 'routes/instructor/attendance-qr.php', 'routes/instructor/mark-attendance.php'] as $rf) {
     t_ok(!is_file(dirname(__DIR__) . '/' . $rf), "api/$rf (legacy class register) is deleted");
 }
-$atSrc = (string) file_get_contents(dirname(__DIR__) . '/lib/attendance.php');
+$atSrc = (string) file_get_contents(dirname(__DIR__) . '/modules/live/lib/attendance.php');
 t_ok(!preg_match('/\b(FROM|JOIN|INTO)\s+(attendance|enrollments|classes)\b/i', $atSrc),
     'attendance.php reads and writes no legacy table');
 $atPage = (string) file_get_contents(dirname(__DIR__, 2) . '/attend.php');
@@ -31,10 +31,10 @@ t_group('attendance — how a mark got there is recorded, not defaulted');
 // built to tell them apart. The notes column said "Self check-in (QR)" in prose;
 // nothing queries prose, and a student disputing an absence has only this.
 $amWriters = [
-    ['api/lib/checkin.php',                    "'method'        => 'self'",   'the portal check-in button'],
-    ['api/lib/attendance.php',                 "'method'     => 'qr'",        'a scan of the session QR'],
+    ['api/modules/live/lib/checkin.php',                    "'method'        => 'self'",   'the portal check-in button'],
+    ['api/modules/live/lib/attendance.php',                 "'method'     => 'qr'",        'a scan of the session QR'],
     ['api/routes/instructor/card-scan.php',    "'method'     => 'card'",      'an instructor scanning an ID card'],
-    ['api/lib/lms.php',                        "'method' => 'instructor'",    'the instructor register'],
+    ['api/modules/academics/lib/lms.php',                        "'method' => 'instructor'",    'the instructor register'],
 ];
 foreach ($amWriters as [$file, $needle, $what]) {
     $src = (string) file_get_contents(dirname(__DIR__, 2) . '/' . $file);

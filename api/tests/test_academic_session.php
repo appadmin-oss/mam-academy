@@ -1,6 +1,6 @@
 <?php
 /**
- * The academic-session engine (api/lib/academic-session.php).
+ * The academic-session engine (api/modules/academics/lib/academic-session.php).
  *
  * This decides which term every application is stamped with, and drives the
  * "current / upcoming session" copy across the public site. It is pure date

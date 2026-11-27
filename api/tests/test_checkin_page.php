@@ -21,7 +21,7 @@ $ciPath = dirname(__DIR__, 2) . '/checkin.php';
 t_ok(is_file($ciPath), 'the page exists at the repo root, so /checkin resolves via the extensionless rule');
 $ci = (string) file_get_contents($ciPath);
 
-// Thin client. The gates live in api/lib/checkin.php and must not be restated.
+// Thin client. The gates live in api/modules/live/lib/checkin.php and must not be restated.
 t_ok(substr_count($ci, "'student/checkin'") >= 2,
     'it reads AND writes through the existing student/checkin endpoint');
 foreach (['mam_checkin_', 'SELECT ', 'mam_db_'] as $forbidden) {
@@ -101,7 +101,7 @@ t_group('/checkin — the rate it displays cannot exceed 100%');
 // the total demanded status IN ('scheduled','held') and the attended count
 // filtered nothing, so a session in any other state was excluded from the bottom
 // and counted on the top. Measured at 300% on a roster with three marks.
-$ciSrc = (string) file_get_contents(dirname(__DIR__) . '/lib/checkin.php');
+$ciSrc = (string) file_get_contents(dirname(__DIR__) . '/modules/live/lib/checkin.php');
 t_ok(defined('MAM_CHECKIN_COUNTED_SESSION_STATUSES'),
     'the counted session states are named once, so both halves move together');
 t_ok(!in_array('cancelled', MAM_CHECKIN_COUNTED_SESSION_STATUSES, true),

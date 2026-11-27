@@ -166,7 +166,7 @@ than one that reads it.
 Every item measured before and after, tests added, suite green (**3,448
 assertions**).
 
-### Safeguarding: `api/lib/vetting.php` + schema v82 + admin screen — NEW
+### Safeguarding: `api/modules/safeguarding/lib/vetting.php` + schema v82 + admin screen — NEW
 
 The reports' #1 blocking item, and nothing existed. `vetting_records` stores
 type, issuing body, reference, dates, verifier and a pointer to where evidence is
@@ -230,7 +230,7 @@ admin screen. Gated by a new `payment_enrol` automation, separate from
 
 ## 5. Not implemented, in the order I would take them
 
-1. ~~**Academic calendar**~~ — ✅ **shipped** as `api/lib/calendar.php` +
+1. ~~**Academic calendar**~~ — ✅ **shipped** as `api/modules/academics/lib/calendar.php` +
    schema v83 + admin `?v=calendar`. `academic_terms` carries
    `add_drop_deadline` / `withdrawal_deadline` / `census_date` as dated rows;
    `term_refund_schedule` is the published pro-rata-by-week table (seeded from
@@ -240,7 +240,7 @@ admin screen. Gated by a new `payment_enrol` automation, separate from
    `mam_calendar_current_term()` falls back and tags its `source`. It supplies
    the refund authority the blueprints correctly identified as the dependency
    for items 3 and 4 below. See HANDOFF §4d and `CLAUDE.md` #14.
-2. ~~**NDPA compliance layer**~~ — ✅ **shipped** as `api/lib/dataprotection.php`
+2. ~~**NDPA compliance layer**~~ — ✅ **shipped** as `api/modules/identity/lib/dataprotection.php`
    + schema v84 + admin `?v=dataprotection`. Retention as data, breach register
    with the s.40(2) 72-hour clock from *awareness*, a rights-request log with its
    clock (incl. GAID's SNAG 7/30), DPIA records, lawful-basis-per-purpose, and a
@@ -289,7 +289,7 @@ Blocking the items above, and not answerable by me:
 5. **When does the gate move to `enforce`?** It ships in `warn`; someone must own
    loading the existing records and flipping it.
 6. **The published fine amounts in the policy handbook** (`mam_policy_points()` in
-   `api/lib/mailer.php`) quote ₦500/$0.50 lateness, ₦1,000/$1 late submission and
+   `api/modules/integrations/lib/mailer.php`) quote ₦500/$0.50 lateness, ₦1,000/$1 late submission and
    ₦2,000/$2 inconvenience fees. **None of these match the ledger settings, and
    the ledger is switched off** — so families are being told about charges the
    system does not levy, at amounts it does not hold. That is a content decision,

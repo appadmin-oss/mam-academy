@@ -1,6 +1,6 @@
 <?php
 /**
- * The lesson editor (api/lib/lessons.php), drawn by curriculum.php when
+ * The lesson editor (api/modules/learning/lib/lessons.php), drawn by curriculum.php when
  * ?lesson=N or ?lesson=new is open. One form, posting `lesson_save` to the
  * legacy dispatcher like every console write. It works with no JavaScript:
  * existing questions and materials are drawn, plus a few empty slots, and an

@@ -4,7 +4,7 @@
  * ─────────────────────────────────────────────────────────────
  * The MySQL file is CANONICAL. The SQLite mirror is generated, never
  * hand-edited, because the v1 schema drifted exactly that way: someone added a
- * migration to `api/lib/db.php` and forgot `db/schema-mysql.sql`, and the two
+ * migration to `api/modules/kernel/lib/db.php` and forgot `db/schema-mysql.sql`, and the two
  * engines then disagreed about what the schema was.
  *
  *   php api/tools/schema-v2-sqlite.php            # write the mirror

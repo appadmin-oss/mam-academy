@@ -172,7 +172,7 @@ t_group('v2 read model — the one-way boundary');
 /* Its admin screen (?v=v2read) was retired on 2026-11-19 with the rest of the
    legacy dashboard; the read model and its read-only guarantees remain. */
 
-$rmLib = file_get_contents(__DIR__ . '/../lib/v2/readmodel.php');
+$rmLib = file_get_contents(__DIR__ . '/../modules/v2/lib/readmodel.php');
 t_ok(strpos($rmLib, 'mode=ro') !== false, 'SQLite is opened read-only at the engine level');
 t_ok(strpos($rmLib, 'PRAGMA query_only') !== false, 'with a second layer at the statement level');
 t_ok(strpos($rmLib, 'SET SESSION TRANSACTION READ ONLY') !== false, 'and the MySQL equivalent');

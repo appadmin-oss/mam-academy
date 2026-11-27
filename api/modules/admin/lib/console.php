@@ -1,6 +1,6 @@
 <?php
 /**
- * MAM Academy — admin console read model (api/lib/console.php)
+ * MAM Academy — admin console read model (api/modules/admin/lib/console.php)
  *
  * One provider per console screen. Each returns a plain array the partial in
  * `partials/admin-console/` renders; nothing here emits markup and nothing here
@@ -1228,7 +1228,7 @@ function mam_console_roster(array $q = []): array {
               WHERE cohort_id = ? ORDER BY scheduled_at DESC LIMIT 20", [$sel]);
     }
 
-    /* ── Classes & enrolment (api/lib/cohort-admin.php) ───────────────────────
+    /* ── Classes & enrolment (api/modules/academics/lib/cohort-admin.php) ───────────────────────
        What the office needs beside the roster to act on it: each student's
        attendance and mastery BAND (never raw_score — mam_mastery_publishable()
        strips it, CLAUDE.md #12), the waitlist in order, the sessions still to
@@ -1343,7 +1343,7 @@ function mam_console_roster_extra(array $q, int $sel, ?array $cohort, array $ros
  */
 /* ── Scheduling (Teaching → Timetable & rooms) ─────────────────────────────
    2026-11-23: the timetable became the office's scheduling desk. The writes
-   are api/lib/scheduling.php, posted through admin/index.php; this reads.
+   are api/modules/academics/lib/scheduling.php, posted through admin/index.php; this reads.
    Clashes are computed over the WHOLE week before any filter is applied — a
    filter that hid a clash's other half would make the clash invisible. */
 function mam_console_timetable(array $q = []): array {
@@ -1550,7 +1550,7 @@ function mam_console_curriculum(array $q = []): array {
 
     // Resources attach to a class or a cohort, never to a module, so a per-module
     // resource count is not a thing v1 can answer — don't invent a column for it.
-    // A module is a LESSON since v97 (api/lib/lessons.php): its state, how many
+    // A module is a LESSON since v97 (api/modules/learning/lib/lessons.php): its state, how many
     // questions it has and how many students have started it, in one query.
     $modules = $course > 0 ? mam_console_rows('cur.modules',
         "SELECT m.id, m.week, m.title, m.kind, m.status, m.version, l.code level_code,

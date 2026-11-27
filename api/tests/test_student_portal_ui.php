@@ -380,7 +380,7 @@ t_ok(!preg_match('/\.p-methods span \{[^}]*min-height: 44px/s', $css),
     'the payment methods do not look like buttons');
 
 /* The two ledgers are not merged into one figure. */
-$slib = preg_replace('~/\*.*?\*/~s', '', (string) @file_get_contents(MAM_API_ROOT . '/lib/student-portal.php'));
+$slib = preg_replace('~/\*.*?\*/~s', '', (string) @file_get_contents(MAM_API_ROOT . '/modules/portals/lib/student-portal.php'));
 foreach (['charges_cents', 'fees_cents'] as $k) {
     t_ok(strpos($slib, "'" . $k . "'") !== false,
         "mam_sportal_owed() reports $k separately — a \$0.00 headline over an overdue invoice is one figure answering two questions");

@@ -16,7 +16,7 @@ hosting behind Cloudflare.
 - Public pages: 38 `*.php` at the repo root (index, apply, store, book, tuition,
   pathways, terms, etc.). Clean URLs via root `.htaccess` (`.php`/`.html` → 301 → clean).
 - `admin/console.php` — the **redesigned admin console**, 31 screens, reads via
-  `api/lib/console.php` and renderers in `partials/admin-console/`. Where new
+  `api/modules/admin/lib/console.php` and renderers in `partials/admin-console/`. Where new
   admin work goes. See "The admin console" below.
 - `admin/index.php` — **draws no screens** since the legacy dashboard was
   RETIRED (2026-11-19, owner's call). It is now only the **one implementation of
@@ -33,13 +33,14 @@ hosting behind Cloudflare.
 - `assets/js/` — `config.js` (the `MAM_API` client + `MAM_CONFIG`), `portal.js`
   (shared portal kit `P.*`), `main.js`, `tools.js` (studio), etc.
 - `api/` — front controller `api/index.php` → `lib/router.php`; the libs in
-  `api/lib/`, the routes registered in `api/index.php`, the tests in
+  domain modules under `api/modules/<module>/lib/` (map and rules:
+  `api/modules/README.md`), the routes registered in `api/index.php`, the tests in
   `api/tests/`. Counts are deliberately not repeated here: three separate
-  numbers in this paragraph went stale within a fortnight. `ls api/lib | wc -l`,
+  numbers in this paragraph went stale within a fortnight. `ls api/modules/*/lib | grep -c php`,
   `grep -c '\$r->\(get\|post\)' api/index.php` and `ls api/tests/test_*.php |
   wc -l` are always right.
 - `db/schema-mysql.sql` — canonical MySQL schema, applied with **`mysql
-  --force`** (see below); mirrored by SQLite migrations in `api/lib/db.php`.
+  --force`** (see below); mirrored by SQLite migrations in `api/modules/kernel/lib/db.php`.
   `db/schema-v2.sql` is the 141-table v2 target, not yet read by anything.
 
 📍 **`docs/codebase-index-2026-08-15.md` is the map** — the full library, route,
@@ -109,19 +110,19 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
   client-supplied amount/total/status.
 - **Escaping:** every dynamic value in `innerHTML` goes through `escapeHtml`/`P.escapeHtml`
   (JS) or `htmlspecialchars` (PHP). URLs into `href`/`location` get a scheme guard.
-- **Money:** USD is the accounting unit. FX (USD→NGN/GBP/EUR) lives in `api/lib/fx.php`,
+- **Money:** USD is the accounting unit. FX (USD→NGN/GBP/EUR) lives in `api/modules/integrations/lib/fx.php`,
   cached, bounds-checked (`MAM_FX_MIN/MAX`); the cron warms the cache so display == charge.
   The wallet ledger is in **USD cents** (integers).
 - **CSRF:** every state-changing route uses `mw_csrf()`; tokens are HMAC, bound to
   the session (anonymous tokens for public forms). The `MAM_API` client auto-attaches
   `X-CSRF-Token` and retries once on `csrf_invalid`.
 - **Audit:** mutations call `mam_audit(action, entity, id, meta)`.
-- **Migrations:** add `N => "SQL"` to the `$migrations` array in `api/lib/db.php`,
+- **Migrations:** add `N => "SQL"` to the `$migrations` array in `api/modules/kernel/lib/db.php`,
   bump `MAM_SCHEMA_TARGET`, AND add the equivalent to `db/schema-mysql.sql` (with its
   `INSERT INTO schema_version`). MySQL `TEXT` can't carry a `DEFAULT` — add nullable
   columns without one and treat NULL as the default in code (see `student_type`).
 - **One source each** (2026-11-20; each was written two to four times):
-  libraries load from `api/lib/libs.php`; signed tokens use
+  libraries load from the module manifests (`api/modules/`, resolved by `api/modules/libs.php` — see `api/modules/README.md`); signed tokens use
   `mam_b64url_encode()`/`_decode()` (validation.php); "may we measure this
   visitor" is `MAM_PRIVACY.mayMeasure()` (config.js — Do-Not-Track, Global
   Privacy Control, or Decline on the cookie banner: any no is a no); the portals'
@@ -138,19 +139,21 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
 1. **The test harness does NOT load `bootstrap.php`.** `api/tests/run.php` stubs
    `mam_env`, `mam_client_ip`, `mam_fail`/`mam_ok` (these THROW in tests) and
    loads the libraries itself. So:
-   - A new lib is added to **`api/lib/libs.php`** — the ONE list, read by both
-     `bootstrap.php` and the harness (which skips only `log` and `response`, the
+   - A new lib goes in a module's `lib/` folder and is named in that module's
+     **`module.php`** manifest — the manifests are the ONE list
+     (`api/modules/libs.php` resolves them), read by both `bootstrap.php` and the
+     harness (which skips only `log` and `response`, the
      two it stubs). Until 2026-11-20 it was two hand-kept lists, 91 and 89 long,
      and a lib in only one worked in production and was undefined under test, or
-     the reverse. `test_code_structure.php` fails on a file in `api/lib/` that
-     the list does not name.
+     the reverse. `test_code_structure.php` fails on a file in a module's `lib/`
+     that its manifest does not name.
    - A shared helper used by a lib must live in a file the harness loads (e.g.
      `mam_ip_in_cidr` lives in `validation.php`, not `bootstrap.php`, so both prod
      and tests have it).
    - `test_migrations.php` asserts the version equals `MAM_SCHEMA_TARGET` — keep it
      dynamic, don't hardcode the number.
 2. ⛔ **The old class model is RETIRED (25 Nov 2026, owner's call): one model, cohorts.**
-   `api/lib/legacy-carry.php` carries every class into its cohort, every enrolment (with its
+   `api/modules/academics/lib/legacy-carry.php` carries every class into its cohort, every enrolment (with its
    state) into `course_enrollments`, every attendance mark into a held `class_sessions` row +
    `session_attendance` (method `legacy`), and notices, files and homework by `cohort_id`
    (`assignments.cohort_id` is v108). Nothing in the product reads `classes`/`enrollments`/
@@ -327,7 +330,7 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    since that would emit headers and write the real `api/storage` dev DB):
    - **Never stub a function a required lib already defines.** PHP declares top-level
      functions at COMPILE time, *before* any `require_once` in the same file executes —
-     so `function mam_log(...) {}` beside `require_once .../lib/log.php` is an
+     so `function mam_log(...) {}` beside `require_once .../modules/kernel/lib/log.php` is an
      unconditional `Cannot redeclare` fatal, not a harmless shadow or fallback. Both
      pages stubbed `mam_log`/`mam_audit` (and card.php `mam_automation_touch`). Only
      `mam_env`, `mam_client_ip` and `mam_after_response` genuinely need defining —
@@ -522,7 +525,7 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
        output. Standard 4mm offset crop marks were also not added: at 9-up on A4 the
        margin is only 7mm and a standard mark needs bleed+gap+len = 8.5mm, so the
        edge-reaching guides serve that purpose instead.
-   - **Registration photos are stored FIRST-PARTY** (`api/lib/uploads.php`,
+   - **Registration photos are stored FIRST-PARTY** (`api/modules/integrations/lib/uploads.php`,
      `POST /api/upload/headshot`, `GET /api/media/headshot?k=…`). Cloudinary is still
      used when configured; this is the floor. The original failure: the ONLY persist
      path was an unsigned browser upload to Cloudinary, and `headshot.js` decided
@@ -584,7 +587,7 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
 6. **`mam_client_ip()` (bootstrap.php)** trusts `CF-Connecting-IP`/`X-Forwarded-For`
    ONLY from a trusted proxy (private + Cloudflare ranges by default; `TRUSTED_PROXY_CIDRS`
    to override). It's the rate-limit + audit IP key. Don't revert to blindly trusting headers.
-7. **SSRF guard** for the curriculum remote-import is in `api/lib/lms.php`
+7. **SSRF guard** for the curriculum remote-import is in `api/modules/academics/lib/lms.php`
    (`mam_lms_public_ips_for` / `mam_lms_fetch_url`): per-hop re-validation, `CURLOPT_RESOLVE`
    pinning, denies private/CGNAT/IETF-special ranges, ports 80/443 only. Keep it strict.
 8. **`auditer_results` capture flow.** `mam_auditer_record()` (`auditer.php`) is the
@@ -611,7 +614,7 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    `header('Location: ?v=…&ok=' . urlencode($msg)); exit;`, which is what every
    other action does. **Read `api/logs/` after touching this file**; a
    clean-looking screen is not evidence.
-10. **Safeguarding gate (`api/lib/vetting.php`, schema v82).** The academy teaches
+10. **Safeguarding gate (`api/modules/safeguarding/lib/vetting.php`, schema v82).** The academy teaches
    children one-to-one, so instructor vetting is the highest-consequence control
    here. Child Rights Act 2003 s.2(2) requires standards on the **suitability of
    staff**; the Lagos State Safeguarding and Child Protection Policy 2016 mandates
@@ -675,7 +678,7 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    rendering surfaces print `MAM_ANALYTICS_INSTRUCTOR_NOTICE`. **`ORDER BY u.name`
    is load-bearing** — sorting by a metric makes it a ranking whatever the heading
    says.
-14. **The academic calendar (`api/lib/calendar.php`, schema v83) is the ONLY
+14. **The academic calendar (`api/modules/academics/lib/calendar.php`, schema v83) is the ONLY
    authority on a refund.** Before it there was **no refund function anywhere in
    the repo** — every refund was a manual decision with nothing to check it
    against. Five invariants, all of which are easy to "simplify" into being wrong:
@@ -710,7 +713,7 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
    schema's CHECKs can only police one row's own date ordering), because two
    terms covering one day makes "which refund table applies" ambiguous.
 
-15. **The NDPA layer (`api/lib/dataprotection.php`, schema v84) is the RECORD,
+15. **The NDPA layer (`api/modules/identity/lib/dataprotection.php`, schema v84) is the RECORD,
    not the machinery.** `datarights.php` already exported and erased; what did
    not exist was any trace that a request had been made. An admin typed an email,
    downloaded a bundle, and nothing survived. Non-obvious invariants:
@@ -835,7 +838,7 @@ the notation showcase.**
 - ✅ **Scholarship flow (MAM Scholars Initiative, §2c)** — `scholarship.php` (opt-in
   page: transparent soft-requirements + 5-section essay assessment + commitment
   checkbox) → `POST /api/scholarship/apply` → `scholarship_applications` (schema **v34**,
-  `api/lib/scholarship.php`, own status track, advisory readiness reuses
+  `api/modules/admissions/lib/scholarship.php`, own status track, advisory readiness reuses
   `mam_application_readiness`). `GET /api/scholarship/status` (email-gated). Linked from
   footer + a post-apply opt-in CTA on `thank-you.php`. Awarding still routes through the
   existing admin `set-student-type` (committee decides; capture-only here). Auditer
@@ -848,7 +851,7 @@ the notation showcase.**
   `class_resources` (add/delete) + portal photos (clear); `GET /api/admin/media` aggregates them.
 - ✅ **#6 T&C** — clause 5 "Practice & the MAM metronome" in `terms.php`.
 - ✅ **#12 Wallet → #7 Instructor earnings** — `wallet_ledger` (v32, user-keyed),
-  `api/lib/wallet.php`. Now tracks INSTRUCTOR EARNINGS: admin records via the users-table
+  `api/modules/finance/lib/wallet.php`. Now tracks INSTRUCTOR EARNINGS: admin records via the users-table
   "Earnings" form (`wallet_credit` action, reasons `earnings`/`earnings_adjust`); instructor
   sees a read-only statement at `GET /api/instructor/earnings` (Earnings tab). The student
   Wallet tab + "Pay with credit" were removed; `student/wallet` + `store-redeem` remain in
@@ -962,7 +965,7 @@ the notation showcase.**
   dismiss) for Applications (`?app=`), Class (`?class=`), Module (`?module=`), Proposal
   (`?proposal=`). Bulk status actions on Applications (`app_bulk_status`). Reusable
   primitives: `.auto-switch` toggle, `.mam-drawer`, palette, `table.stack`.
-- ✅ **Lifecycle automations** — `api/lib/automations.php`: a registry of rules
+- ✅ **Lifecycle automations** — `api/modules/comms/lib/automations.php`: a registry of rules
   (`payment_provision`, **`payment_enrol`**, `enrol_welcome`, `payment_retry`,
   `auditer_placement`, `session_reminder`, `week_drip`, `store_receipt`,
   `ktams_birthday`, …) — **never hardcode the count in a test; derive it from
@@ -974,7 +977,7 @@ the notation showcase.**
   scheduled sweeps now"). The three scheduled sweeps
   (`mam_automation_session_reminder_sweep` / `_ktams_birthday_sweep` / `_week_drip_sweep`)
   are events-deduped, never throw, and are wired into `api/tools/run-jobs.php` (the cron).
-  A new lib → add it to `api/lib/libs.php` (gotcha #1).
+  A new lib → add it to its module's `module.php` (gotcha #1).
   Covered by `test_automations.php`.
 - ✅ **Curriculum clone across levels** — `mam_lms_clone_syllabus(courseCode, fromLevelCode,
   toLevelCode)` (`lms.php`): copies a course's authored weeks between levels, idempotent
@@ -987,7 +990,7 @@ the notation showcase.**
   how-it-works, and the student portal Auditer tab.
 - ✅ **#9/#10 QR attendance** — instructor shows a per-session QR (signed, day-scoped
   token via `mam_attendance_token`, `GET /api/instructor/attendance-qr`), enrolled
-  students scan → `attend.php` → `POST /api/attendance/checkin` (`api/lib/attendance.php`,
+  students scan → `attend.php` → `POST /api/attendance/checkin` (`api/modules/live/lib/attendance.php`,
   enrolment-gated, idempotent, never downgrades an instructor mark). Sits over the LEGACY
   attendance model (enrollments+classes+attendance), not cohorts. QR rendered by a
   self-hosted MIT lib at `assets/js/vendor/qrcode.min.js` (CDN is CSP-blocked). The
@@ -995,7 +998,7 @@ the notation showcase.**
 - ✅ **#7 Instructor earnings** — shipped as the repurposed wallet (see #12): admin-recorded
   earnings statement in the instructor portal. Payout mechanics stay off-platform.
 - ✅ **#5 Google Drive file upload** — via a Google **Apps Script web app**, NO OAuth /
-  Drive API credentials. `api/lib/drive.php` signs each request (HMAC over ts+action+body)
+  Drive API credentials. `api/modules/integrations/lib/drive.php` signs each request (HMAC over ts+action+body)
   to the admin-configured web-app URL: `mam_drive_upload()` writes bytes → Drive (link-shared)
   → returns view/download URLs; `mam_drive_fetch()` pulls bytes back for an access-gated
   proxy. Instructor uploads (`POST /api/instructor/drive-upload`) store the file as a
@@ -1003,7 +1006,7 @@ the notation showcase.**
   fetchable via the stored view URL OR the gated proxy `GET /api/drive/file?rid=N`
   (visibility-checked per role). Off until `drive_webapp_url`+`drive_shared_secret` set
   (`DRIVE_TRANSPORT=mock` = in-process store for dev/tests). Deploy guide:
-  `docs/drive-apps-script.md`. New lib → in `api/lib/libs.php` (gotcha #1). Covered by `test_drive.php` (signing, guards, byte-for-byte
+  `docs/drive-apps-script.md`. New lib → in its module's `module.php` (gotcha #1). Covered by `test_drive.php` (signing, guards, byte-for-byte
   upload→fetch round-trip).
 - ✅ **#14 Notation showcase** — `notation.php` + `assets/js/notation.js`. **M1:** renders one
   melody in THREE systems (Classical 5-line treble staff, Contemporary piano-roll, African
@@ -1303,11 +1306,11 @@ Two conventions these established:
   call with `MAM_PORTAL.seenOnce(key)` — it records the key per-device, so a
   re-render does not replay yesterday's badge. Never animates under
   `prefers-reduced-motion` (particles are not *created*, not merely hidden).
-- **`api/lib/inline-edit.php`'s allowlist is a security boundary, not a config list.**
+- **`api/modules/kernel/lib/inline-edit.php`'s allowlist is a security boundary, not a config list.**
   (Its browser half, `assets/js/inline-edit.js`, went with the retired legacy
   dashboard — nothing loaded it — and was deleted on 2026-11-20; the server side
   and its allowlist remain, and a console screen that edits in place must reuse them.)
-  `api/lib/inline-edit.php` is the only thing standing between "edit a cell"
+  `api/modules/kernel/lib/inline-edit.php` is the only thing standing between "edit a cell"
   and "set `users.admin_tier`". Adding a field there is a security decision:
   never identity, authentication, roles, money already taken, or the audit log.
   `$table`/`$column` are interpolated into SQL and are only safe because they
@@ -1346,7 +1349,7 @@ Two conventions these established:
 
 ## Lessons — the syllabus as something a student works through (HANDOFF §4z — ported from NGG)
 
-`api/lib/lessons.php`, schema v97. NGG's curriculum (units, questions, per-member
+`api/modules/learning/lib/lessons.php`, schema v97. NGG's curriculum (units, questions, per-member
 progress, marking) ported onto MAM's `modules`. **A `modules` row (course · level
 · week) IS a lesson now** — before v97 nothing recorded a student against the
 syllabus at all; per-student progress lived only on cohort `lessons`, which
@@ -1421,7 +1424,7 @@ nothing links to a module. The rules, each a bug NGG shipped before it had it:
 
 ## Member records, the roster and onboarding (HANDOFF §4w — ported from NGG)
 
-`api/lib/members.php`, schema v94–v95. NGG's member management, ported to the
+`api/modules/identity/lib/members.php`, schema v94–v95. NGG's member management, ported to the
 people MAM already had. The rules, each easy to "simplify" away:
 
 - **One status setter, `mam_member_set_status()`.** Every change to whether
@@ -1466,7 +1469,7 @@ people MAM already had. The rules, each easy to "simplify" away:
   one inbox is one login, and linking it gives the child's login the guardian
   role.
 
-## Performance marking — the audio-only control (`api/lib/marking.php`)
+## Performance marking — the audio-only control (`api/modules/learning/lib/marking.php`)
 
 Built from the instructor mobile frame's **Grade entry** screen
 (`docs/design/2026-08-portal-redesign/portals-mobile.dc.html`,
@@ -1570,7 +1573,7 @@ The third and last portal onto the redesign, and **the one place to read for
 **Home · Train · Learn · Attend · More** — plus Fees and Repertoire behind the
 More sheet. Class-only markup in `portal/student/index.html`, the app in
 `assets/js/portal-student.js`, one read provider per screen in
-`api/lib/student-portal.php` (`GET /api/student/portal?screen=…`), styled by
+`api/modules/portals/lib/student-portal.php` (`GET /api/student/portal?screen=…`), styled by
 the `.s-*` block of `assets/css/portal-v2.css`.
 
 ⚠️ **All three portals now share `portal-v2.css` and one a11y key.** Load
@@ -2021,7 +2024,7 @@ rebuilt console screen posts to the existing action; it never grows a second one
 admin/console.php               the shell: rail, topbar, ⌘K, flash, screen dispatch
 assets/css/admin-v2.css         the design system, scoped to [data-admin="v2"]
 assets/js/admin-console.js      progressive enhancement ONLY — nothing depends on it
-api/lib/console.php             one read provider per screen (mam_console_<screen>())
+api/modules/admin/lib/console.php             one read provider per screen (mam_console_<screen>())
 partials/admin-console/*.php    one renderer per screen, + _ui.php helpers (ac_*)
 api/routes/admin/search.php     the palette's lookup
 api/tests/test_console.php      the guards below
@@ -2100,7 +2103,7 @@ in `console.php`) stamps each body cell with its column's header.
   a bare DOM round-trip: the helper may add attributes and change nothing else.
 
 **`admin/phone.php` is the frame's `#5b` subset** — Decide · Today · Assign ·
-Look up, with `api/lib/console-phone.php` for the reads, `partials/admin-phone/`
+Look up, with `api/modules/admin/lib/console-phone.php` for the reads, `partials/admin-phone/`
 for the renderers and the `.ap-*` block of `admin-v2.css`. Linked from the
 console rail; links back.
 - ⚠️ **It is a separate entry, not a breakpoint, and that is the whole point.**
@@ -2213,7 +2216,7 @@ good. What was missing was everything around it — **nothing ran it**,
 DEPLOYMENT.md never said the words backup or restore, the uploaded files were
 in no archive, and nothing deleted an old one.
 
-- ⚠️ **`api/lib/backup.php` does NOT take the backup, deliberately.** The
+- ⚠️ **`api/modules/kernel/lib/backup.php` does NOT take the backup, deliberately.** The
   obvious design shells out to export.php; it is wrong twice. Shared hosting
   commonly disables `exec`/`proc_open`, so the backup would never happen and
   the failure would be invisible — the exact disease. And export.php is
@@ -2313,7 +2316,7 @@ in no archive, and nothing deleted an old one.
   conventions a new v2 table must follow, and the order of work. `db/schema-v2.sql`
   is at **141 tables** (all five batches authored: the guardian layer, the
   assessment layer, teaching operations, communications, and safeguarding /
-  practice / compliance — all in v2 idiom) and `api/lib/v2/plan.php` writes
+  practice / compliance — all in v2 idiom) and `api/modules/v2/lib/plan.php` writes
   **112** of them. Against a real export every v1 table now has a destination or
   a recorded reason: 144 accounted for, zero unmapped-with-rows.
   ⚠️ Three things here bite:

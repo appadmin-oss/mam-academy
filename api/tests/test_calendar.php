@@ -1,6 +1,6 @@
 <?php
 /**
- * The academic calendar as data (api/lib/calendar.php, schema v83).
+ * The academic calendar as data (api/modules/academics/lib/calendar.php, schema v83).
  *
  * Both research blueprints make this the dependency for refunds, scholarship
  * pro-ration and the withdrawal outcome — and before it there was **no refund
@@ -292,7 +292,7 @@ t_group('calendar — a withdrawal records WHICH KIND it was');
    W, and a graded enrolment — and the difference is both academic and financial.
    mam_lms_withdraw() now consults the calendar and writes the outcome into the
    transition reason, so enrolment_events carries it. */
-$lmsSrc = (string) file_get_contents(dirname(__DIR__) . '/lib/lms.php');
+$lmsSrc = (string) file_get_contents(dirname(__DIR__) . '/modules/academics/lib/lms.php');
 t_ok(strpos($lmsSrc, 'mam_calendar_withdrawal_outcome()') !== false,
     'mam_lms_withdraw consults the calendar');
 t_ok(strpos($lmsSrc, "mam_audit('lms_withdraw_outcome'") !== false,

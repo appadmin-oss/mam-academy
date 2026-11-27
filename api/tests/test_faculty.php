@@ -252,14 +252,14 @@ t_eq((int) mam_db_row('SELECT COUNT(*) c FROM instructor_assignments WHERE instr
 // The harness stubs mam_audit() to a no-op (run.php), so the row cannot be
 // observed here — assert the CALL instead, which is the thing that would be
 // lost in a refactor.
-t_ok(str_contains(file_get_contents(dirname(__DIR__) . '/lib/faculty.php'), "mam_audit('faculty_assign_subjects'"),
+t_ok(str_contains(file_get_contents(dirname(__DIR__) . '/modules/admissions/lib/faculty.php'), "mam_audit('faculty_assign_subjects'"),
     'the acceptance is audited');
 
 // mam_fail() is mam_json() — it EMITS AND EXITS. admin/index.php is an HTML
 // page, so a mam_fail() in this path would print JSON into the admin screen
 // and the caller's try/catch would never run. The harness stubs mam_fail() to
 // throw, which is exactly why that bug passed its tests once already.
-$FA_src = file_get_contents(dirname(__DIR__) . '/lib/faculty.php');
+$FA_src = file_get_contents(dirname(__DIR__) . '/modules/admissions/lib/faculty.php');
 $FA_fn = substr($FA_src, strpos($FA_src, 'function mam_faculty_assign_subjects'));
 $FA_fn = substr($FA_fn, 0, strpos($FA_fn, "\nfunction ") ?: strlen($FA_fn));
 t_ok(!str_contains($FA_fn, 'mam_fail('),

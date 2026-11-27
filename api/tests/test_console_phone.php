@@ -94,7 +94,7 @@ t_ok(isset($PH_today['date'], $PH_today['sessions'], $PH_today['clashes'], $PH_t
 t_eq($PH_today['date'], mam_phone_today_date(), 'the day is the provider\'s own');
 /* ⚠️ The academy's day, never the server's. A console open in London must not
    show tomorrow's sessions to somebody standing in the building in Lagos. */
-$PH_src = (string) file_get_contents(dirname(__DIR__) . '/lib/console-phone.php');
+$PH_src = (string) file_get_contents(dirname(__DIR__) . '/modules/admin/lib/console-phone.php');
 t_ok(str_contains($PH_src, 'mam_calendar_today'),
     'Today resolves the date through the calendar, not the server clock');
 
@@ -200,8 +200,8 @@ foreach (glob(dirname(dirname(__DIR__)) . '/partials/admin-phone/*.php') ?: [] a
    test harness's require block, or it works in one and is missing in the
    other. This file only runs at all because the harness loads it, so the
    assertion that matters is the bootstrap half. */
-t_ok(in_array('console-phone', require dirname(__DIR__) . '/lib/libs.php', true),
-    'console-phone is in the one library list (api/lib/libs.php), which the app and the harness both load');
+t_ok(array_key_exists('console-phone', require dirname(__DIR__) . '/modules/libs.php'),
+    'console-phone is in the one library list (the module manifests), which the app and the harness both load');
 
 // The stylesheet block exists and is scoped like the rest of the console.
 $PH_css = (string) file_get_contents(dirname(dirname(__DIR__)) . '/assets/css/admin-v2.css');

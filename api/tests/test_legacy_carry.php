@@ -1,6 +1,6 @@
 <?php
 /**
- * The old class model, carried into cohorts (api/lib/legacy-carry.php). Every kind of thing an
+ * The old class model, carried into cohorts (api/modules/academics/lib/legacy-carry.php). Every kind of thing an
  * old class holds arrives in the cohort model; a class with no course waits and is named; a
  * second run changes nothing; a teacher's own mark is never overwritten.
  */

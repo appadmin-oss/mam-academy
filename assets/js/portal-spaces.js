@@ -4,7 +4,7 @@
  *   MAM_SPACES.mount(root, { toast, paint, onTitle })   the list → a space → its feed
  *   MAM_SPACES.concernForm(root, { toast, aboutPost })  a concern, from anywhere
  *
- * The server decides everything about who sees what (api/lib/spaces.php): this
+ * The server decides everything about who sees what (api/modules/community/lib/spaces.php): this
  * file draws what it is sent and offers the actions the role allows. It never
  * hides a mark or a held post itself — if a payload carries a score, the viewer
  * was allowed it.

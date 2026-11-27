@@ -19,7 +19,7 @@ foreach (['mam_leaderboard_for_student', 'mam_leaderboard_optin_get', 'mam_leade
           'mam_leaderboard_display_name', 'mam_leaderboard_eligible'] as $gone) {
     t_ok(!function_exists($gone), "$gone() is gone and must not come back");
 }
-t_ok(!file_exists(__DIR__ . '/../lib/leaderboard.php'), 'api/lib/leaderboard.php is deleted');
+t_ok(!file_exists(__DIR__ . '/../lib/leaderboard.php') && !glob(__DIR__ . '/../modules/*/lib/leaderboard.php'), 'the leaderboard lib is deleted (in no module)');
 t_ok(!file_exists(__DIR__ . '/../routes/student/leaderboard.php'), 'the student leaderboard route file is deleted');
 t_ok(strpos(file_get_contents(__DIR__ . '/../index.php'), "student/leaderboard.php") === false,
     'no route registers the cohort board');

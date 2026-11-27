@@ -24,11 +24,11 @@ declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
 $ROOT = dirname(__DIR__);
-require $ROOT . '/lib/v2/clarity.php';      // mam_v2_ulid()
-require $ROOT . '/lib/v2/identity.php';
-require $ROOT . '/lib/v2/transform.php';
-require $ROOT . '/lib/v2/load.php';
-require $ROOT . '/lib/v2/verify.php';
+require $ROOT . '/modules/v2/lib/clarity.php';      // mam_v2_ulid()
+require $ROOT . '/modules/v2/lib/identity.php';
+require $ROOT . '/modules/v2/lib/transform.php';
+require $ROOT . '/modules/v2/lib/load.php';
+require $ROOT . '/modules/v2/lib/verify.php';
 
 /** --key=value / --flag → an options array. */
 $opt = [];

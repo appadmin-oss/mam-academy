@@ -1,4 +1,4 @@
-/* Calendar subscriptions in the portals (api/lib/calendar-feeds.php).
+/* Calendar subscriptions in the portals (api/modules/academics/lib/calendar-feeds.php).
    Mounts into every [data-cal-subscribe]: one row per calendar this person can
    subscribe to. A calendar that has no link yet offers "Get my calendar link"
    (POST /api/calendar/mine); one that has shows Google / Apple / Outlook buttons,

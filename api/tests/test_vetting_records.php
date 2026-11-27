@@ -45,7 +45,7 @@ t_ok(str_contains((string) $VR_reg['save_notice'], 'clearance'), '…and says wh
 $VR_space = ['id' => 0, 'cohort_id' => $VR_kids, 'visibility' => 'class'];
 t_eq(mam_space_member_role($VR_space, $VR_raw), null, 'an uncleared teacher is not the teacher of a class space with children');
 // The harness stubs mam_audit() (run.php), so the record is pinned in the source: both doors write it.
-t_eq(substr_count((string) file_get_contents(dirname(__DIR__) . '/lib/vetting.php'), "mam_audit('vetting_record_refused'"), 2, 'each refusal is audited for the officer');
+t_eq(substr_count((string) file_get_contents(dirname(__DIR__) . '/modules/safeguarding/lib/vetting.php'), "mam_audit('vetting_record_refused'"), 2, 'each refusal is audited for the officer');
 
 t_group('vetting — enforce does not touch what it should not');
 t_ok(mam_media_student_reader($VR_kid, $VR_user($VR_ok)), 'a cleared teacher opens the child\'s records');

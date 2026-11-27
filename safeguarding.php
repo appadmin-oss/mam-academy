@@ -2,7 +2,7 @@
 /**
  * Safeguarding — what the academy does to keep children safe, stated from the
  * code that does it rather than written as promises. The checks listed are
- * MAM_VETTING_REQUIRED and MAM_VETTING_ALTERNATIVES (api/lib/vetting.php); the
+ * MAM_VETTING_REQUIRED and MAM_VETTING_ALTERNATIVES (api/modules/safeguarding/lib/vetting.php); the
  * sentence about what happens without them follows the gate's ACTUAL mode; the
  * officer is the one named in settings, and the page says so plainly when nobody
  * has been named rather than inventing a contact. A page that promised `enforce`

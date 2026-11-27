@@ -205,7 +205,7 @@ foreach (['2026-01-31', '2026-03-31', '2026-08-31', '2026-05-31'] as $MA_d) {
    calling strtotime() directly; cards.php had the real clamp. They must not
    drift apart again. */
 foreach (['vetting', 'cards'] as $MA_lib) {
-    $MA_src = (string) @file_get_contents(MAM_API_ROOT . '/lib/' . $MA_lib . '.php');
+    $MA_src = (string) @file_get_contents((require MAM_API_ROOT . '/modules/libs.php')[$MA_lib]);
     t_ok(str_contains($MA_src, 'mam_add_months('),
         "$MA_lib.php dates its expiry through the shared clamp");
     t_ok(!preg_match("/strtotime\(\s*\\\$\w+\s*\.\s*' \+' \. \\\$months/", $MA_src),

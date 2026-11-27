@@ -1,6 +1,6 @@
 <?php
 /**
- * A student's lessons (api/lib/lessons.php v97; lessons-learn.php and
+ * A student's lessons (api/modules/learning/lib/lessons.php v97; lessons-learn.php and
  * lesson-exams.php v98).
  *
  *   GET  /api/student/lessons            → {courses, certificates, exams} — every course they study, where they

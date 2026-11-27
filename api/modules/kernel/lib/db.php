@@ -253,7 +253,7 @@ function mam_db_migrate_mysql(PDO $db): void {
     $target = MAM_SCHEMA_TARGET;
     if ($current >= $target) return;
 
-    $path = realpath(__DIR__ . '/../../db/schema-mysql.sql');
+    $path = realpath(__DIR__ . '/../../../../db/schema-mysql.sql');
     if (!$path || !is_readable($path)) {
         mam_log('warn', 'mysql_schema_missing', ['path' => $path]);
         return;
@@ -985,7 +985,7 @@ function mam_db_migrate(PDO $db): void {
               SELECT instructor_id, title, discipline, pathway, mode, COALESCE(capacity,12), schedule, starts_on, COALESCE(status,'active'), id, created_at FROM classes;
         ",
         // v20 — AI run audit (provider-agnostic AI gateway). Every call through
-        // api/lib/ai.php records who/what/which-provider for reproducibility +
+        // api/modules/integrations/lib/ai.php records who/what/which-provider for reproducibility +
         // quota, WITHOUT hoarding PII: we store a prompt HASH, not the prompt.
         // Additive; supports the free-by-default, premium-optional AI layer.
         20 => "
@@ -1331,7 +1331,7 @@ function mam_db_migrate(PDO $db): void {
             CREATE INDEX idx_facinv_status ON faculty_invites(status, id);
         ",
         // v38 — lifecycle automations: an admin-toggleable enable flag per rule
-        // (see api/lib/automations.php). One row per fired/edited rule; unknown
+        // (see api/modules/comms/lib/automations.php). One row per fired/edited rule; unknown
         // rows fall back to the registry default, so this table is additive.
         38 => "
             CREATE TABLE automations (
@@ -1613,7 +1613,7 @@ function mam_db_migrate(PDO $db): void {
         // raised error 1064 and left columns absent while advancing schema_version.
         50 => "SELECT 1;",
 
-        // v51 — idempotency_cache table (api/lib/idempotency.php).
+        // v51 — idempotency_cache table (api/modules/kernel/lib/idempotency.php).
         // Keyed by (scope, idem_key); entries expire after 24 h.
         51 => "CREATE TABLE IF NOT EXISTS idempotency_cache (
           idem_key      TEXT    NOT NULL,
@@ -2607,7 +2607,7 @@ function mam_db_migrate(PDO $db): void {
         // annotations over the code-side processing + retention registries.
         //
         // What is NOT here: the ROPA and the retention schedule themselves. Those
-        // live in `api/lib/dataprotection.php` as code registries, because a
+        // live in `api/modules/identity/lib/dataprotection.php` as code registries, because a
         // register that describes what the software does must be derived from the
         // software. Free text in a table drifts from the code the day a feature
         // ships, and a drifted register is worse than none — it is a false
@@ -2769,7 +2769,7 @@ function mam_db_migrate(PDO $db): void {
          *      numbers (`x = CAST(x AS INTEGER)`, which SQLite and MySQL spell
          *      the same way), and the band is either exactly MAM_MASTERY_BAND
          *      wide or clamped against the top of the scale. `mam_report_band()`
-         *      in api/lib/reports.php restates it in PHP, because a database that
+         *      in api/modules/learning/lib/reports.php restates it in PHP, because a database that
          *      already ran the loose version keeps it — `CREATE TABLE IF NOT
          *      EXISTS` does not revise a table that is already there.
          *   2. Coverage is on the face, so it is stored beside the band and NOT
@@ -3710,7 +3710,7 @@ function mam_db_migrate(PDO $db): void {
          * and collected only a name and a phone, so no account could ever be
          * made and every under-16 reached the office's "no guardian" list. */
         96 => "ALTER TABLE applications ADD COLUMN parent_email TEXT;",
-        /* v97 — lessons, ported from NGG's curriculum (api/lib/lessons.php).
+        /* v97 — lessons, ported from NGG's curriculum (api/modules/learning/lib/lessons.php).
          * A `modules` row (one course · level · week) becomes a LESSON: a draft
          * → published → retired life, a version, objectives and a pass mark,
          * with questions (module_checks), materials (module_materials) and one
@@ -3786,7 +3786,7 @@ function mam_db_migrate(PDO $db): void {
             CREATE INDEX IF NOT EXISTS idx_mprog_student ON module_progress(student_id);
             CREATE INDEX IF NOT EXISTS idx_mprog_pending ON module_progress(pending, module_id);
         ",
-        /* v98 — lessons, phase 2 (api/lib/lessons-learn.php, api/lib/lesson-exams.php):
+        /* v98 — lessons, phase 2 (api/modules/learning/lib/lessons-learn.php, api/modules/learning/lib/lesson-exams.php):
          * private notes and "saved for later", one-tap feedback on how a lesson
          * landed, where a student is placed on a course, timed exams and their
          * appeals, and the log that makes a deadline reminder or an overdue fine
@@ -4211,7 +4211,7 @@ function mam_db_migrate(PDO $db): void {
          * has no collations, so there is nothing to do here: the version moves so
          * both engines agree on the target. */
         105 => "SELECT 1;",
-        // v106 — Paystack scenario guards (api/lib/payment-guards.php).
+        // v106 — Paystack scenario guards (api/modules/finance/lib/payment-guards.php).
         // payment_attempts: one row per gateway reference opened for a payment, so
         //   a retry after closing the checkout gets a fresh reference (Paystack
         //   refuses one it has seen) and every attempt resolves to the ONE payment.
@@ -4242,7 +4242,7 @@ function mam_db_migrate(PDO $db): void {
             CREATE INDEX IF NOT EXISTS idx_payev_payment ON payment_events(payment_id, created_at);
             CREATE INDEX IF NOT EXISTS idx_pay_gateway_state ON payments(gateway_state);
         ",
-        /* v107 — scheduling integrations (api/lib/meeting-links.php, kapso.php).
+        /* v107 — scheduling integrations (api/modules/live/lib/meeting-links.php, kapso.php).
          * meeting_external_id: the provider's own id for a generated meeting
          * (a Google Calendar event, a Zoom meeting) so a reschedule can move it
          * and a cancellation can withdraw it. whatsapp_outbound: one row per
@@ -4273,7 +4273,7 @@ function mam_db_migrate(PDO $db): void {
               last_inbound_at TEXT NOT NULL
             );
         ",
-        // v108 — the old class model is retired (api/lib/legacy-carry.php). Homework
+        // v108 — the old class model is retired (api/modules/academics/lib/legacy-carry.php). Homework
         // follows its class into the cohort, as announcements (v39) and resources
         // (v40) already did; the old tables stay, unread, so nothing is lost.
         108 => "

@@ -292,7 +292,7 @@ new names, and a table that skips one is a table that has to be revisited:
    and keep `test_schema_v2.php` green; it asserts the two files agree and that
    the canonical file uses no ENUM, generated column or FULLTEXT index, because
    none of the three mirrors.
-3. **Extend the ETL** — ✅ done. `api/lib/v2/plan.php` writes **112** tables (all
+3. **Extend the ETL** — ✅ done. `api/modules/v2/lib/plan.php` writes **112** tables (all
    five batches). A table in the schema but not in the plan is a table that
    silently arrives empty on cutover day, which is worse than one that is
    missing — so against a real export the coverage ledger now accounts for

@@ -3,7 +3,7 @@
  * GET /api/student/ai-narrative
  *
  * A short, AI-generated progress note for the signed-in student, built from
- * their finalized results via the provider-agnostic AI gateway (api/lib/ai.php).
+ * their finalized results via the provider-agnostic AI gateway (api/modules/integrations/lib/ai.php).
  * Lazily fetched by the portal:
  *   - AI off            → {enabled:false, narrative:null}  (portal shows nothing,
  *                          and no model call is made)

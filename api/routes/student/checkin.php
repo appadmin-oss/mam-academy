@@ -8,7 +8,7 @@
  *
  * When session_id is omitted the server resolves today's session for the
  * student. All gating (enable toggle, enrolment, open window, late grace,
- * geofence) is server-authoritative in api/lib/checkin.php. `next_class`
+ * geofence) is server-authoritative in api/modules/live/lib/checkin.php. `next_class`
  * carries the §8/§9 preparation panel: topic, resources, preparation and
  * teach-back state, and the 30-minute/15-minute window.
  */

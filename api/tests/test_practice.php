@@ -1,6 +1,6 @@
 <?php
 /**
- * Practice-log aggregation (api/lib/practice.php).
+ * Practice-log aggregation (api/modules/community/lib/practice.php).
  *
  * mam_practice_stats() powers the student dashboard's streak, weekly total and
  * Mon–Sun dot strip. The streak rule in particular is a product decision worth

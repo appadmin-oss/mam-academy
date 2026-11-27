@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for module status + carry-forward (api/lib/lms2.php, PDF §6-7, 29-30):
+ * Tests for module status + carry-forward (api/modules/academics/lib/lms2.php, PDF §6-7, 29-30):
  * the §7 status vocabulary + mastery, and a carry-forward that appends history
  * (no data deleted), bumps attempts, and re-dates the module.
  */

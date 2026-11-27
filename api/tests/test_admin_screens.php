@@ -118,7 +118,7 @@ foreach ($AG_pages as $AG_p) {
 $AG_boot = (string) @file_get_contents(MAM_API_ROOT . '/lib/bootstrap.php');
 t_ok((bool) preg_match("/!defined\('MAM_RESPONSE_SENT'\)\s*&&\s*!defined\('MAM_HTML_RESPONSE'\)/", $AG_boot),
     'the no_response net accepts either constant');
-$AG_resp = (string) @file_get_contents(MAM_API_ROOT . '/lib/response.php');
+$AG_resp = (string) @file_get_contents(MAM_API_ROOT . '/modules/kernel/lib/response.php');
 t_ok(!str_contains($AG_resp, 'MAM_HTML_RESPONSE'),
     'mam_json() still keys ONLY on MAM_RESPONSE_SENT — an HTML page must never make it return early');
 

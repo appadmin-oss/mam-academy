@@ -1,6 +1,6 @@
 <?php
 /**
- * The office's side of fees (api/lib/fees.php, schema v91; HANDOFF §4t).
+ * The office's side of fees (api/modules/finance/lib/fees.php, schema v91; HANDOFF §4t).
  *
  * v87 built invoices, aid, plans and bursary applications and nothing outside
  * the library and its tests could act on them: no invoice could be raised from
@@ -82,7 +82,7 @@ t_eq($FO_after - $FO_before, 1, 'and its guardian gets ONE email for it, however
 $FO_mail = mam_db_row("SELECT to_email, subject FROM mail_log WHERE context = 'fee_reminder' ORDER BY id DESC LIMIT 1");
 t_eq($FO_mail['to_email'] ?? '', 'officeguardian@test.local', 'to the billing guardian');
 t_ok(str_contains((string) ($FO_mail['subject'] ?? ''), 'Fees outstanding'), 'saying the fees are outstanding');
-$FO_src = (string) file_get_contents(dirname(__DIR__) . '/lib/fees.php');
+$FO_src = (string) file_get_contents(dirname(__DIR__) . '/modules/finance/lib/fees.php');
 t_ok(!preg_match('/suspend|lock_?out|withhold_?report/i', substr($FO_src, (int) strpos($FO_src, 'function mam_fee_dunning_sweep'))),
     'the reminder sweep suspends nothing and withholds nothing — the design\'s refusal, kept by leaving the mechanism unbuilt');
 mam_automation_set('fee_reminders', false);

@@ -1,6 +1,6 @@
 <?php
 /**
- * Safeguarding concerns (api/lib/safeguarding.php, schema v99).
+ * Safeguarding concerns (api/modules/safeguarding/lib/safeguarding.php, schema v99).
  *
  *   GET  /api/safeguarding/concern  → {categories, mine:[{id, category, created_at, received}], officer_named}
  *   POST {category, body, urgency?, about_id?, ref_type?, ref_id?}  → {id, message}

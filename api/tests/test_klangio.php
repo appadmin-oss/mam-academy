@@ -1,6 +1,6 @@
 <?php
 /**
- * Practice Studio · Transcribe (api/lib/klangio.php, api/routes/transcribe.php).
+ * Practice Studio · Transcribe (api/modules/integrations/lib/klangio.php, api/routes/transcribe.php).
  * Klangio itself is never called here: what is pinned is that the feature is OFF
  * without a key, that provider statuses map to three phases, that the note CSV
  * parser survives the shapes it may meet, and that the route is gated.

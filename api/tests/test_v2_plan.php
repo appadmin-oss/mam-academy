@@ -26,11 +26,11 @@
  */
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/lib/v2/identity.php';
-require_once dirname(__DIR__) . '/lib/v2/transform.php';
-require_once dirname(__DIR__) . '/lib/v2/plan.php';
-require_once dirname(__DIR__) . '/lib/v2/emit.php';
-require_once dirname(__DIR__) . '/lib/v2/verify.php';
+require_once dirname(__DIR__) . '/modules/v2/lib/identity.php';
+require_once dirname(__DIR__) . '/modules/v2/lib/transform.php';
+require_once dirname(__DIR__) . '/modules/v2/lib/plan.php';
+require_once dirname(__DIR__) . '/modules/v2/lib/emit.php';
+require_once dirname(__DIR__) . '/modules/v2/lib/verify.php';
 
 /**
  * A fixture export.

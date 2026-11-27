@@ -18,10 +18,10 @@ declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
 $ROOT = dirname(__DIR__);
-require $ROOT . '/lib/v2/identity.php';
-require $ROOT . '/lib/v2/transform.php';
-require $ROOT . '/lib/v2/plan.php';      // for mam_v2_apply_exclusions()
-require $ROOT . '/lib/v2/verify.php';
+require $ROOT . '/modules/v2/lib/identity.php';
+require $ROOT . '/modules/v2/lib/transform.php';
+require $ROOT . '/modules/v2/lib/plan.php';      // for mam_v2_apply_exclusions()
+require $ROOT . '/modules/v2/lib/verify.php';
 
 $opt = [];
 foreach (array_slice($argv, 1) as $a) {

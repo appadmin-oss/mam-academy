@@ -141,10 +141,10 @@ extra_courses), and confirmation/invoice emails showing only the final total.
 
 ---
 
-## 4. Sessions engine (`api/lib/academic-session.php`) — ✅ DONE (Phase 0)
+## 4. Sessions engine (`api/modules/academics/lib/academic-session.php`) — ✅ DONE (Phase 0)
 
 > Named `academic-session.php` to avoid colliding with the existing auth
-> `api/lib/session.php`. Shipped with no DB migration — admin overrides ride on
+> `api/modules/kernel/lib/session.php`. Shipped with no DB migration — admin overrides ride on
 > the existing key/value settings store (`academic_session_overrides`).
 
 `mam_session_current(?DateTimeInterface $now = null, ?array $overrides = null): array`
@@ -176,7 +176,7 @@ online: subtotal *= (1 + surcharge%)  (backend only, silent; Crash exempt)
 + $5 registration (one-time)
 ```
 
-### Currency / FX — ✅ live rate API (`api/lib/fx.php`)
+### Currency / FX — ✅ live rate API (`api/modules/integrations/lib/fx.php`)
 USD→NGN is fetched live from a key-less provider (`open.er-api.com`, override
 via `FX_RATE_URL`), cached ~6h in `settings`, sanity-bounded, and falls back to
 the admin `usd_to_ngn` rate when off (`fx_auto=0`) or unreachable — so a charge

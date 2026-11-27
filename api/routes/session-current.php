@@ -3,7 +3,7 @@
  * GET /api/session/current
  *
  * Public, unauthenticated. Returns the operative academic session resolved from
- * the calendar (see api/lib/academic-session.php), plus the session currently
+ * the calendar (see api/modules/academics/lib/academic-session.php), plus the session currently
  * being promoted and its promo-window state. The application form reads this so
  * the session is applied silently — it is never a form step nor user-editable.
  *

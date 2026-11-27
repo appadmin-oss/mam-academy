@@ -1,6 +1,6 @@
 <?php
 /**
- * Uploads to the file store (api/lib/media-store.php, schema v99).
+ * Uploads to the file store (api/modules/integrations/lib/media-store.php, schema v99).
  *
  *   POST /api/media/sign {purpose, name, type, size, meta?}  → {id, kind, provider, max, upload:{url, method, headers}}
  *   PUT  /api/media/put?id=N&t=…   (no bucket only) the file's bytes, straight to this host

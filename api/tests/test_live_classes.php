@@ -1,6 +1,6 @@
 <?php
 /**
- * Live online classes (api/lib/live-classes.php, v101): who may join and when,
+ * Live online classes (api/modules/live/lib/live-classes.php, v101): who may join and when,
  * the signed token, the webhook, and turning presence into attendance.
  */
 declare(strict_types=1);

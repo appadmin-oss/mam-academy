@@ -78,7 +78,7 @@ t_ok(mam_console_member_profile($CS_course, $CS_manager)['concerns'] === null,
     'a manager (no safeguarding capability) is given NOTHING — not even a zero');
 t_ok(is_int(mam_console_member_profile($CS_course, $CS_super)['concerns']),
     'a super admin is given the count of open concerns');
-$CS_lib = (string) file_get_contents($CS_root . '/api/lib/console.php');
+$CS_lib = (string) file_get_contents($CS_root . '/api/modules/admin/lib/console.php');
 $CS_fn  = substr($CS_lib, (int) strpos($CS_lib, 'function mam_console_member_profile'), 9000);
 t_ok(str_contains($CS_fn, 'SELECT COUNT(*) FROM safeguarding_concerns') && !preg_match('/safeguarding_concerns[^;]*\\b(body|category)\\b/', $CS_fn),
     'the profile reads only a COUNT of concerns — no body, no category (those stay behind the safeguarding screen)');

@@ -85,7 +85,7 @@ What remains before a cutover is not code:
 
 ## 2. Decisions already made — do not re-litigate
 
-- **Base currency is NGN.** `MAM_V2_BASE_CURRENCY` in `api/lib/v2/transform.php`.
+- **Base currency is NGN.** `MAM_V2_BASE_CURRENCY` in `api/modules/v2/lib/transform.php`.
   The wallet ledger stays USD cents; that is deliberate and unchanged.
 - **Reference data is re-seeded, never copied.** Copying it silently orphans
   children: `ktams` is id 5 in production and id 22 in a fresh install, and the
@@ -271,7 +271,7 @@ vanished. The instructor call site was testing the student flag.
 
 **Safeguarding was the genuine gap, and it was total.** Nothing recorded staff
 clearance and nothing checked it, on a system that schedules adults one-to-one
-with children. `api/lib/vetting.php` + schema v82 + `?v=vetting` now do, gated
+with children. `api/modules/safeguarding/lib/vetting.php` + schema v82 + `?v=vetting` now do, gated
 into `mam_lms_approve()`. It ships in **`warn`** deliberately — see §9.
 
 **Where the research disagrees with `CLAUDE.md`, and who wins:** doc 3 says stop
@@ -292,7 +292,7 @@ term it is from constants, which is enough for a label on a page and nothing els
 Every refund was therefore a manual decision with no published table to check it
 against — the gap wasn't a missing feature, it was a missing *authority*.
 
-`api/lib/calendar.php` + `?v=calendar` supply it. What it deliberately does **not**
+`api/modules/academics/lib/calendar.php` + `?v=calendar` supply it. What it deliberately does **not**
 do is replace the computed engine: `mam_calendar_current_term()` prefers an
 authored row, falls back to the computed window, and tags which it returned
 (`source`). An install with an empty calendar behaves exactly as before, which is
@@ -330,7 +330,7 @@ artefact — the log of which requests arrived and whether they were answered in
 time is, and so is the register of what is held, on what basis, for how long,
 and who else sees it.
 
-`api/lib/dataprotection.php` + `?v=dataprotection` (seven tabs) supply all of it:
+`api/modules/identity/lib/dataprotection.php` + `?v=dataprotection` (seven tabs) supply all of it:
 the request log with its clock, the breach register with its 72 hours, the ROPA,
 the retention schedule, the processor/DPA register and DPIA records.
 
@@ -686,7 +686,7 @@ nobody notices.
 
 ### The one loose end
 
-`api/lib/v2/readmodel.php` and admin `?v=v2read` were built for a plan the
+`api/modules/v2/lib/readmodel.php` and admin `?v=v2read` were built for a plan the
 academy then changed. They are env-gated and absent unless `V2_READ_DB` is set,
 so they are inert — but they should be removed or kept deliberately rather than
 by default. One commit either way.
@@ -938,10 +938,10 @@ information content of the payload. The earlier claim was theatre.
 
 | Subsystem | Where | Schema |
 |---|---|---|
-| Ratified termly reports, moderation, mark appeals | `api/lib/reports.php` | v85 |
-| Guardian access scopes (§3.2) | `api/lib/parents.php` | v86 |
-| Fee invoices, four kinds of aid, payment plans, bursaries | `api/lib/fees.php` | v87 |
-| Guardian↔staff threads, channel prefs, make-up credits | `api/lib/guardian-comms.php` | v88 |
+| Ratified termly reports, moderation, mark appeals | `api/modules/learning/lib/reports.php` | v85 |
+| Guardian access scopes (§3.2) | `api/modules/identity/lib/parents.php` | v86 |
+| Fee invoices, four kinds of aid, payment plans, bursaries | `api/modules/finance/lib/fees.php` | v87 |
+| Guardian↔staff threads, channel prefs, make-up credits | `api/modules/comms/lib/guardian-comms.php` | v88 |
 
 Verified absent before building: there was **no invoice table at all**
 (`invoicing.php` is the application processing-fee lifecycle), `messages` is the
@@ -951,7 +951,7 @@ public contact form with no participants and no reply, and `makeup.php` only eve
 **Money.** The invoice states what is OWED in its own currency (USD, matching the
 published price list) with the rate FROZEN at issue; the naira figure is a
 conversion labelled an ESTIMATE, because the rate it settles at is the payment
-row's own. `MAM_V2_BASE_CURRENCY` (`api/lib/v2/transform.php`) is `'NGN'` and is
+row's own. `MAM_V2_BASE_CURRENCY` (`api/modules/v2/lib/transform.php`) is `'NGN'` and is
 the v2 ETL's, not this layer's; the wallet ledger stays USD cents, deliberately.
 `mam_fee_to_minor()` is string arithmetic — the decimal point is MOVED, so `8.29`
 is 829 and not the 828 a truncating float conversion gives.
@@ -1113,7 +1113,7 @@ reaches both. No payment step — nobody pays to apply to teach.
 | Page | `instructor-apply.php` (markup only, 0 inline styles) |
 | Wizard | `assets/js/instructor-apply.js` |
 | Components | `assets/css/apply.css` (`.fac-*`) |
-| Lib | `api/lib/faculty.php` (extended — no new lib, so gotcha #1 does not apply) |
+| Lib | `api/modules/admissions/lib/faculty.php` (extended — no new lib, so gotcha #1 does not apply) |
 | Route | `api/routes/faculty-apply.php` |
 | Schema | v90 — `instructor_application_subjects`, `instructor_application_referees`, + 12 columns |
 | Tests | `api/tests/test_faculty.php` (+44 assertions) |
@@ -1442,30 +1442,30 @@ actually measuring before reporting it.
 | Schema v2 (canonical MySQL, 141 tables) | `db/schema-v2.sql` |
 | SQLite mirror — **generated, never hand-edited** | `db/schema-v2-sqlite.sql` |
 | The generator (`--check` is wired into CI) | `api/tools/schema-v2-sqlite.php` |
-| Status catalogue — 67 statuses × 3 audiences | `api/lib/v2/status-catalogue.php` |
-| Clarity read model | `api/lib/v2/clarity.php` |
-| Identity resolution (22 people, 0 unaccounted, 2 tombstones, 2 flagged splits) | `api/lib/v2/identity.php` |
-| Payment/application transform | `api/lib/v2/transform.php` |
-| The enrolment completion chain | `api/lib/enrol-complete.php` |
-| The ETL load + verify | `api/lib/v2/load.php`, `api/lib/v2/verify.php`, `api/tools/v2-load.php` |
-| The load-free transform → a loadable dataset | `api/lib/v2/plan.php`, `api/lib/v2/emit.php`, `api/tools/v2-transform.php` |
+| Status catalogue — 67 statuses × 3 audiences | `api/modules/v2/lib/status-catalogue.php` |
+| Clarity read model | `api/modules/v2/lib/clarity.php` |
+| Identity resolution (22 people, 0 unaccounted, 2 tombstones, 2 flagged splits) | `api/modules/v2/lib/identity.php` |
+| Payment/application transform | `api/modules/v2/lib/transform.php` |
+| The enrolment completion chain | `api/modules/admissions/lib/enrol-complete.php` |
+| The ETL load + verify | `api/modules/v2/lib/load.php`, `api/modules/v2/lib/verify.php`, `api/tools/v2-load.php` |
+| The load-free transform → a loadable dataset | `api/modules/v2/lib/plan.php`, `api/modules/v2/lib/emit.php`, `api/tools/v2-transform.php` |
 | Verify a database somebody else loaded (read-only) | `api/tools/v2-verify.php` |
 | The academy's migration exclusions (data, not code) | `db/v2-exclusions.json` |
 | Browser-triggered export for a host with no shell | `api/tools/export-web.php` |
 | Instructor's register — camera + card QR + group check-in | `scan.php` |
 | Student one-tap check-in | `checkin.php` |
-| Account invitations (a link, never a password) | `mam_auth_invite()` in `api/lib/auth.php` |
+| Account invitations (a link, never a password) | `mam_auth_invite()` in `api/modules/identity/lib/auth.php` |
 | Shared portal error translator (`P.errText` / `P.fail`) | `assets/js/portal.js` |
 | The three redesigned portals | `portal/{student,instructor,parent}/index.html` + `assets/js/portal-{student,instructor,guardian}.js` + `assets/css/portal-v2.css` |
-| Their read providers (one function per screen) | `api/lib/{student,instructor}-portal.php`, `api/lib/parents.php` |
+| Their read providers (one function per screen) | `api/lib/{student,instructor}-portal.php`, `api/modules/identity/lib/parents.php` |
 | The legacy dashboards, still served | `portal/{student,instructor}/classic.html` |
 | Which portal a sign-in goes to | `mam_portal_targets()` → `GET /api/auth/me` (the clients only fall back) |
 | Self-hosted toast (the CDN-proof one) | `assets/js/libs.js` |
-| The academic calendar + refund authority | `api/lib/calendar.php`, admin `?v=calendar` |
-| The NDPA layer — requests, breaches, ROPA, retention, processors, DPIAs | `api/lib/dataprotection.php`, admin `?v=dataprotection` |
+| The academic calendar + refund authority | `api/modules/academics/lib/calendar.php`, admin `?v=calendar` |
+| The NDPA layer — requests, breaches, ROPA, retention, processors, DPIAs | `api/modules/identity/lib/dataprotection.php`, admin `?v=dataprotection` |
 | The forms audit, with every number | `docs/forms-audit-2026-08-17.md` |
 | The codebase map | `docs/codebase-index-2026-08-15.md` |
-| The admin console — shell, screens, reads, helpers | `admin/console.php`, `partials/admin-console/`, `api/lib/console.php` |
+| The admin console — shell, screens, reads, helpers | `admin/console.php`, `partials/admin-console/`, `api/modules/admin/lib/console.php` |
 | The console's design system (scoped `[data-admin="v2"]`) | `assets/css/admin-v2.css` |
 | The console → legacy-handler return hook | `mam_admin_console_return()` in `admin/index.php` |
 | The homepage hero (markup / styles / behaviour) | `index.php`, the hero block in `assets/css/main.css`, `initHero()` in `assets/js/main.js` |
@@ -1517,7 +1517,7 @@ request. It *is* in `api/tests/run.php`.
    `user_credentials`, sessions on `auth_sessions`, and one screen at a time
    repointed behind a flag. Sequence it WITH the redesign, not before — repointing
    a screen that is about to be rebuilt is work done twice.
-7. **The read model decision.** `api/lib/v2/readmodel.php` and `?v=v2read` were
+7. **The read model decision.** `api/modules/v2/lib/readmodel.php` and `?v=v2read` were
    built for a plan the academy changed. Inert without `V2_READ_DB`, so harmless,
    but there by default rather than by decision. One commit either way.
 
@@ -1607,7 +1607,7 @@ actually clicked.
    Labour Act s.5(1) binds the punctuality deduction at all. Until answered it
    stays off — which is the safe default, not a verdict.
 0c. **The policy handbook quotes fines the system does not levy.**
-   `mam_policy_points()` in `api/lib/mailer.php` promises families ₦500/$0.50
+   `mam_policy_points()` in `api/modules/integrations/lib/mailer.php` promises families ₦500/$0.50
    lateness, ₦1,000/$1 late submission and ₦2,000/$2 inconvenience fees. None match
    the ledger settings, and the ledger is switched off. Content decision, needs
    resolving either way.
@@ -1955,7 +1955,7 @@ NGG's curriculum is units with questions, materials and a progress row per
 member. MAM had a syllabus (`modules`: one course · level · week, a title and a
 paragraph) and **nothing recording a student against it** — per-student
 progress lived only on cohort `lessons`, which nothing links to the syllabus.
-Phase 1 makes a module a lesson (schema v97, `api/lib/lessons.php`):
+Phase 1 makes a module a lesson (schema v97, `api/modules/learning/lib/lessons.php`):
 
 - **Content:** state (draft / published / retired), summary, objectives,
   duration, pass mark, version; questions in `module_checks` (multiple choice,
@@ -1998,7 +1998,7 @@ instructors, lesson feedback and private notes.
 
 Owner: "Add them all" (fines, AI marking, exams, tiers and certificates,
 placement, the study helper, teacher materials, feedback, notes). Schema v98,
-`api/lib/lessons-learn.php` + `api/lib/lesson-exams.php`; rules in CLAUDE.md
+`api/modules/learning/lib/lessons-learn.php` + `api/modules/learning/lib/lesson-exams.php`; rules in CLAUDE.md
 "Lessons". Decisions made, each reversible by a setting rather than code:
 
 - Fines and AI are built and **switched off**. Fines need the `fees` permission
@@ -2360,7 +2360,7 @@ five `mam_v2_load_*` stages the plan-driven loader replaced (267 lines); in JS
   to the end of the script and took `load();` with it — the store drew no items
   and threw nothing. Caught in the browser; the test pins the boot call.
 - **`assets/js/inline-edit.js`** — loaded by no page since the legacy dashboard
-  went. The server half (`api/lib/inline-edit.php`, its allowlist, the route)
+  went. The server half (`api/modules/kernel/lib/inline-edit.php`, its allowlist, the route)
   stays; CLAUDE.md now names the allowlist by the file that enforces it.
 - The safeguarding badge counted open concerns with its own copy of
   `mam_sg_open_count()`'s query; it calls the function now.
@@ -2441,7 +2441,7 @@ Before: the old homepage scored **21%** against the design. After: 78–83% on e
 because Faithful computes its match score before applying declared deviations and needs 90%:
 a Faithful behaviour, reported, not something to tune here.
 
-**What the pages must not type.** Every fee is `site_fee()` (api/lib/site.php) over the
+**What the pages must not type.** Every fee is `site_fee()` (api/modules/site/lib/site.php) over the
 functions that charge an application; the estimator (`assets/js/site-programmes.js`) applies
 the handoff's rules to `window.MAM_SITE.fees` and types no number. The intake name is the
 academic session being promoted (`site_intake()`), the Power Play date is
@@ -2610,7 +2610,7 @@ main.css, not hidden).
   here), legacy-admin screen commits from `master` and the ETL branch (screens retired).
 - **Practice Studio, from claude/upbeat-fermat-cW7ay:** Chords & Scales (studio-chords.js, the
   sampled piano is `window.MAM_PIANO` from tools.js), Drone (drone.js, stops on tab change via
-  `MAM_DRONE`), Transcribe (Klangio proxy: api/lib/klangio.php, /api/transcribe, signed-in +
+  `MAM_DRONE`), Transcribe (Klangio proxy: api/modules/integrations/lib/klangio.php, /api/transcribe, signed-in +
   CSRF + rate limit, OFF until `KLANGIO_API_KEY`), Note Rush (note-rush.js, the old student
   dashboard's Practice Arcade, mounted in the Studio on first open; progress in localStorage).
   The Studio remembers the last tool per device. **Not ported:** that branch's Beat Maker changes
@@ -2759,7 +2759,7 @@ Open questions for the owner:
 ## 4z21. 2026-11-25 — the old class model retired; the console modelled on NGG's Control Room
 
 **One class model.** The owner retired the legacy `classes` + `enrollments` + `attendance`
-model ("it is confusing"). `mam_legacy_carry()` (api/lib/legacy-carry.php, v108) carries it
+model ("it is confusing"). `mam_legacy_carry()` (api/modules/academics/lib/legacy-carry.php, v108) carries it
 all into cohorts, idempotently: enrolments keep their state, attendance becomes held sessions,
 notices/files/homework follow by `cohort_id`, and a class's meeting link goes onto the
 cohort's sessions to come. Every reader — console, instructor portal and routes, student and

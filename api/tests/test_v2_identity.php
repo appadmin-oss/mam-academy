@@ -9,7 +9,7 @@
  */
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/lib/v2/identity.php';
+require_once dirname(__DIR__) . '/modules/v2/lib/identity.php';
 
 t_group('ETL identity — matching');
 

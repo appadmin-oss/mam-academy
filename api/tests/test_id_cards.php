@@ -223,7 +223,7 @@ t_eq(mam_card_sign('SIGNTEST01AB', 4242, null, 1), $IC_sig,
 /* And the shape, so the read cannot drift back. Comments are stripped first —
    the note above the fix names the old expression, and a test that cannot tell
    an explanation from an implementation forbids documenting the decision. */
-$IC_src  = (string) file_get_contents(dirname(__DIR__) . '/lib/cards.php');
+$IC_src  = (string) file_get_contents(dirname(__DIR__) . '/modules/identity/lib/cards.php');
 $IC_body = (string) preg_replace('~/\*.*?\*/~s', '', $IC_src);
 $IC_body = (string) preg_replace('~^\s*//.*$~m', '', $IC_body);
 t_ok(!str_contains($IC_body, "mam_env('APP_KEY'"),

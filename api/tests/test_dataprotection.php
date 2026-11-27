@@ -30,7 +30,7 @@ t_eq(MAM_DP_DEADLINES['breach_ndpc_hours'], 72, 'NDPA s.40(2): the NDPC gets 72 
 t_eq(MAM_DP_DEADLINES['snag_ack_days'], 7, 'GAID SNAG: acknowledge within 7 days');
 t_eq(MAM_DP_DEADLINES['snag_close_days'], 30, 'GAID SNAG: resolve within 30 days');
 
-$dpSrc = file_get_contents(__DIR__ . '/../lib/dataprotection.php');
+$dpSrc = file_get_contents(__DIR__ . '/../modules/identity/lib/dataprotection.php');
 t_ok(strpos($dpSrc, 'not statutory') !== false,
     'the response deadline is labelled as the academy\'s own commitment, not the law\'s');
 t_ok(strpos($dpSrc, 'Verified 2026-08-17') !== false,
@@ -438,7 +438,7 @@ foreach (['dp_request_open', 'dp_request_close', 'dp_breach_record', 'dp_process
 t_ok(strpos($adminSrc, 'mam_admin_redirect') === false,
     'no invented redirect helper — this file has none (gotcha #9)');
 
-t_ok(in_array('dataprotection', require __DIR__ . '/../lib/libs.php', true), 'the lib is in the one library list (gotcha #1)');
+t_ok(array_key_exists('dataprotection', require __DIR__ . '/../modules/libs.php'), 'the lib is in the one library list (gotcha #1)');
 $jobsSrc = file_get_contents(__DIR__ . '/../tools/run-jobs.php');
 t_ok(strpos($jobsSrc, 'mam_dp_retention_sweep') !== false, 'the retention sweep is wired into the cron');
 t_ok(strpos($jobsSrc, "mam_automation_on('data_retention')") !== false,

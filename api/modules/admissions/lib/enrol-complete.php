@@ -298,7 +298,7 @@ function mam_enrol_complete(int $appId, array $overrides = [], ?int $actorId = n
               ?: (int) ($co['instructor_id'] ?? 0)
               ?: (int) (mam_lms_default_instructor((int) $plan['course']['id'], $plan['level']['id'] ?? null) ?? 0);
 
-        /* Safeguarding gate — see api/lib/vetting.php. This path runs from an
+        /* Safeguarding gate — see api/modules/safeguarding/lib/vetting.php. This path runs from an
            admin click AND from payment settlement, so it is the one an uncleared
            instructor is most likely to slip through unattended.
 

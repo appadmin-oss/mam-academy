@@ -367,7 +367,7 @@
   }
 
   /**
-   * Written answers to lesson questions (api/lib/lessons.php). Each attempt is
+   * Written answers to lesson questions (api/modules/learning/lib/lessons.php). Each attempt is
    * a card: the question, what a good answer looks like, the student's answer
    * and a mark out of the question's worth. Only the questions a person marks
    * arrive here — multiple choice and put-in-order were marked by the server
@@ -638,7 +638,7 @@
   /* ── 6b · One student's lessons ─────────────────────────────────────────────
 
      The lessons a teacher teaches this child, and where they stand on each
-     (api/lib/lessons.php). A lesson done in the room is ticked here — it is the
+     (api/modules/learning/lib/lessons.php). A lesson done in the room is ticked here — it is the
      only record a question-free syllabus week can have. An untick takes back
      only a tick: a lesson the student did online stays theirs, and the server
      refuses it, so this screen offers it only where it can work. */

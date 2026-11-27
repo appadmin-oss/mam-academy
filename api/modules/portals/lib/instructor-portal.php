@@ -467,7 +467,7 @@ function mam_iportal_marking(int $instructorId): array {
     }
     unset($r);
     return ['queue' => $rows, 'audio_only_notice' => MAM_MARKING_AUDIO_NOTICE,
-        /* Written answers to lesson questions (api/lib/lessons.php): a person
+        /* Written answers to lesson questions (api/modules/learning/lib/lessons.php): a person
            marks these, never the machine. Only this teacher's students. */
         'lessons' => mam_iportal_try(fn() => function_exists('mam_lesson_marking_queue') ? mam_lesson_marking_queue($instructorId, 50) : [], []),
         /* Exam sittings with written answers to mark or an appeal to answer

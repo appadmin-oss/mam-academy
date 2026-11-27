@@ -54,10 +54,11 @@ function mam_client_ip() { return '127.0.0.1'; }
 if (!function_exists('mam_after_response')) { function mam_after_response(callable $fn): void {} }
 
 // ---- Library under test ----------------------------------------------------
-// The one list (api/lib/libs.php), minus the two libraries stubbed above —
-// their real versions write to disk and end the request.
-foreach (array_diff(require $ROOT . '/lib/libs.php', ['log', 'response']) as $__lib) {
-    require_once $ROOT . '/lib/' . $__lib . '.php';
+// The one list (resolved from the module manifests by api/modules/libs.php),
+// minus the two libraries stubbed above — their real versions write to disk
+// and end the request.
+foreach (array_diff_key(require $ROOT . '/modules/libs.php', ['log' => 1, 'response' => 1]) as $__lib => $__path) {
+    require_once $__path;
 }
 
 require __DIR__ . '/assert.php';

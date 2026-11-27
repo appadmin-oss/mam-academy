@@ -118,7 +118,7 @@ window.MAM_CONFIG = {
      Two flagship programmes (available across all four certification levels)
      plus two standalone intensives. Online learners pay +onlineSurchargePct%
      on the programme fee; onsite is the standard fee. Keep in sync with
-     mam_prices() in api/lib/validation.php. */
+     mam_prices() in api/modules/kernel/lib/validation.php. */
   pricing: {
     'standard':           { name: 'Standard',           usd: 120 },
     'certified-musician': { name: 'Certified Musician', usd: 240 },

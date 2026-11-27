@@ -60,7 +60,7 @@ t_eq(mam_application_link_guardian(['parent_email' => ''], $GE_stu)['reason'], '
 t_group('guardian email — every path that makes the student\'s account links the guardian');
 
 $GE_src = static fn(string $rel) => (string) file_get_contents(dirname(__DIR__) . '/' . $rel);
-t_ok(str_contains($GE_src('lib/payments.php'), 'mam_application_link_guardian($app, $studentId)'), 'payment settlement');
-t_ok(str_contains($GE_src('lib/enrol-complete.php'), 'mam_application_link_guardian($app, (int) $studentId, $actorId)'), '"Complete enrolment", which reports it as a step');
-t_ok(str_contains($GE_src('lib/auditer.php'), 'mam_application_link_guardian($gApp'), 'an Auditer placement');
+t_ok(str_contains($GE_src('modules/finance/lib/payments.php'), 'mam_application_link_guardian($app, $studentId)'), 'payment settlement');
+t_ok(str_contains($GE_src('modules/admissions/lib/enrol-complete.php'), 'mam_application_link_guardian($app, (int) $studentId, $actorId)'), '"Complete enrolment", which reports it as a step');
+t_ok(str_contains($GE_src('modules/admissions/lib/auditer.php'), 'mam_application_link_guardian($gApp'), 'an Auditer placement');
 t_ok(str_contains((string) file_get_contents(dirname(__DIR__, 2) . '/admin/index.php'), 'mam_application_link_guardian($app,'), 'and an admin marking the application paid');

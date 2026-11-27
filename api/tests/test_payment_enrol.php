@@ -38,7 +38,7 @@ t_ok($reg['payment_enrol']['default'] === true, '…and defaults on');
 t_ok(isset($reg['payment_provision']) && $reg['payment_provision'] !== $reg['payment_enrol'],
     'it is a separate flag from payment_provision, not a rename of it');
 
-$pay = (string) file_get_contents(dirname(__DIR__) . '/lib/payments.php');
+$pay = (string) file_get_contents(dirname(__DIR__) . '/modules/finance/lib/payments.php');
 t_ok(strpos($pay, "mam_automation_on('payment_enrol')") !== false, 'settlement honours the flag');
 t_ok(strpos($pay, 'mam_enrol_complete($appId, [], null)') !== false,
     'settlement delegates to the one enrolment implementation');

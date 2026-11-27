@@ -1,6 +1,6 @@
 <?php
 /**
- * Live online classes (api/lib/live-classes.php, v101).
+ * Live online classes (api/modules/live/lib/live-classes.php, v101).
  *
  *   GET  /api/live/join?session=N           → what the class page needs to put this person in the call
  *   POST /api/live/beat {session}           → "still here", once a minute while the call is open

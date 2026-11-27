@@ -148,7 +148,7 @@ t_eq(count($smTextDefault), 0, 'no TEXT/BLOB column carries a literal DEFAULT �
 
 // ── 4 · Every table the SQLite migration chain builds must exist here too.
 //        This is the assertion that catches the commonest mirror failure: a new
-//        `N => "CREATE TABLE …"` in api/lib/db.php with no counterpart in this
+//        `N => "CREATE TABLE …"` in api/modules/kernel/lib/db.php with no counterpart in this
 //        file, which SQLite never notices and MySQL discovers as a 1146 at
 //        runtime, on a live host, inside whichever endpoint reads it first.
 $smRuntime = [];

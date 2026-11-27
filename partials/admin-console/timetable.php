@@ -5,7 +5,7 @@
  * A week by time, by room or by teacher, with every clash computed (never read
  * from a flag); filters by class, teacher and room; and the four scheduling
  * writes — a weekly series, one session, a move and a cancellation — each
- * posted to admin/index.php and implemented in api/lib/scheduling.php.
+ * posted to admin/index.php and implemented in api/modules/academics/lib/scheduling.php.
  * Below 720px the grid gives way to a list of the week, which stacks like
  * every other console table.
  */

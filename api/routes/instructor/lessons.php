@@ -1,6 +1,6 @@
 <?php
 /**
- * The teacher's side of lessons (api/lib/lessons.php, v97).
+ * The teacher's side of lessons (api/modules/learning/lib/lessons.php, v97).
  *
  *   GET  /api/instructor/lessons                       → {queue} — written answers waiting for this teacher
  *   GET  /api/instructor/lessons?student=N             → {student, courses} — that student's lessons, on the

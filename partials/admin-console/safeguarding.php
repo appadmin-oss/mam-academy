@@ -1,5 +1,5 @@
 <?php
-/** Safeguarding — the officer's queue of concerns (api/lib/safeguarding.php, v99). */
+/** Safeguarding — the officer's queue of concerns (api/modules/safeguarding/lib/safeguarding.php, v99). */
 declare(strict_types=1);
 /** @var array $d */
 $c = $d['counts'] ?? [];

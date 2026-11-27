@@ -9,7 +9,7 @@
  *        any `require_once` in the file runs, so such a stub is an unconditional
  *        "Cannot redeclare" fatal on every request — not a shadow, not a
  *        fallback. card.php and join.php both stubbed mam_log()/mam_audit()
- *        while also requiring lib/log.php.
+ *        while also requiring modules/kernel/lib/log.php.
  *
  *   R2 — a page must not call a mam_* function that exists nowhere in the repo.
  *        card.php called mam_session_get(), which is not defined anywhere
@@ -87,18 +87,20 @@ function trp_called_mam_functions(string $file): array {
 function trp_required_libs(string $file, string $apiRoot): array {
     $src = (string)@file_get_contents($file);
     $libs = [];
-    if (preg_match_all('#[\'"]/lib/([\w\-]+)\.php[\'"]#', $src, $m)) {
+    $all  = (array) require $apiRoot . '/modules/libs.php';   // name => path
+    $libs = [];
+    // A page names a library by its module path (…/modules/<m>/lib/<name>.php).
+    if (preg_match_all('#/modules/[\w\-]+/lib/([\w\-]+)\.php[\'"]#', $src, $m)) {
         foreach ($m[1] as $name) $libs[$name] = true;
     }
-    // A page that loads bootstrap.php gets everything bootstrap autoloads.
-    if (isset($libs['bootstrap'])) {
-        // bootstrap.php loads the one list in api/lib/libs.php.
-        foreach ((array) require $apiRoot . '/lib/libs.php' as $name) $libs[$name] = true;
+    // A page that loads bootstrap.php gets everything bootstrap loads — the
+    // list resolved from the module manifests by api/modules/libs.php.
+    if (preg_match('#[\'"]/lib/bootstrap\.php[\'"]#', $src)) {
+        foreach (array_keys($all) as $name) $libs[$name] = true;
     }
     $paths = [];
     foreach (array_keys($libs) as $name) {
-        $p = $apiRoot . '/lib/' . $name . '.php';
-        if (is_file($p)) $paths[] = $p;
+        if (isset($all[$name]) && is_file($all[$name])) $paths[] = $all[$name];
     }
     return $paths;
 }
@@ -108,6 +110,7 @@ $allDefined = [];
 foreach ([
     glob($ROOT_DIR . '/*.php') ?: [],
     glob(MAM_API_ROOT . '/lib/*.php') ?: [],
+    glob(MAM_API_ROOT . '/modules/*/lib/*.php') ?: [],
     glob(MAM_API_ROOT . '/routes/*.php') ?: [],
     glob(MAM_API_ROOT . '/routes/*/*.php') ?: [],
     glob(MAM_API_ROOT . '/*.php') ?: [],

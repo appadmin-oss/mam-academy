@@ -69,7 +69,7 @@ This proposal adds those four things in phases, reusing the LMS AI gateway and a
 - **A "mastery → apply" bridge** on the free tools: once a visitor hits a meaningful free-tool milestone, a tasteful, dismissible prompt connecting their progress to the full programme.
 
 ### S3 · AI practice feedback + value-first capture (via the LMS AI gateway)
-- **Explain-the-score + next-drill:** after a Rhythm/Pitch run, the `api/lib/ai.php` gateway (Sonnet-tier, prompt-cached on the rubric, **Batch** for non-blocking generation) turns the numeric result + weak-figure data into one or two sentences of plain-language feedback and a concrete next exercise. The differentiator the user asked for ("initiates thinking").
+- **Explain-the-score + next-drill:** after a Rhythm/Pitch run, the `api/modules/integrations/lib/ai.php` gateway (Sonnet-tier, prompt-cached on the rubric, **Batch** for non-blocking generation) turns the numeric result + weak-figure data into one or two sentences of plain-language feedback and a concrete next exercise. The differentiator the user asked for ("initiates thinking").
 - **Value-first lead capture on free tools:** "save your tuner presets / metronome setlists — sign in" — capture that *gives* value rather than gating it, feeding the same accounts the apply funnel uses.
 
 ### S4 · Reach + hardening

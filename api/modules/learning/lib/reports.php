@@ -6,7 +6,7 @@
  * `report_moderations`, `mark_appeals`.
  *
  * ── What this is NOT ────────────────────────────────────────────────────────
- * `progress_reports` (api/lib/progress-reports.php) is a different artefact: the
+ * `progress_reports` (api/modules/learning/lib/progress-reports.php) is a different artefact: the
  * instructor's post-session note, due within two hours, with no status, no board,
  * no bands and no per-competency rows. It answers "what happened in Tuesday's
  * lesson". This answers "what standard has this child reached this term", it is a
@@ -156,7 +156,7 @@ function mam_report_band(?float $score): ?array {
  *
  * The slot is (student, term, course, level), where the term is `term_id` when
  * the calendar has been authored and the printed `term_label` otherwise —
- * because api/lib/calendar.php deliberately falls back to a computed window on
+ * because api/modules/academics/lib/calendar.php deliberately falls back to a computed window on
  * an install with an empty calendar, so a report may legitimately have no
  * term_id at all.
  *

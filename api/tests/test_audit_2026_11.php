@@ -57,7 +57,7 @@ t_group('audit 2026-11 — a returning family\'s stored details are not blanked 
 $AU_route = (string) file_get_contents(dirname(__DIR__) . '/routes/application.php');
 t_ok((bool) preg_match("/mam_db_update\\('customers', array_filter\\(/", $AU_route),
     'the customer update drops empty values instead of writing NULL over what an earlier application stored');
-$AU_dmg = (string) file_get_contents(dirname(__DIR__) . '/lib/enrol-complete.php');
+$AU_dmg = (string) file_get_contents(dirname(__DIR__) . '/modules/admissions/lib/enrol-complete.php');
 t_ok(str_contains($AU_dmg, 'AS other_apps'), 'the damaged-application listing counts the family\'s other applications');
 $AU_adm = (string) file_get_contents(dirname(__DIR__, 2) . '/admin/index.php');
 t_ok(!str_contains($AU_adm, "array_filter(\$rows, fn (\$r) => isset(\$incompleteIds"),

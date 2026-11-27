@@ -23,7 +23,7 @@ Severity: 🔴 fix soon · 🟡 should fix · 🔵 nice-to-have / informational.
 **Fix:** `if (next && !/^\/(?!\/)/.test(next)) next = null;`
 
 ### 🟡 E3 — Multi-role users can never be admin
-`api/lib/auth.php` has two role systems that disagree:
+`api/modules/identity/lib/auth.php` has two role systems that disagree:
 - `mw_role(...)` → `mam_user_has_role()` honours the v16 `user_roles` join table (multi-role).
 - `mw_admin()` → `mam_require_admin()` (auth.php:135) and the admin dashboard gate (`admin/index.php:29`) check **only the primary `users.role === 'admin'`**.
 
@@ -39,7 +39,7 @@ Unauthenticated `POST /api/payment/initialize` (Flutterwave branch) returns the 
 `robots.txt` disallows `/apply.html`, `/book.html`, `/thank-you.html`, `/diag.html` — but those pages now live at `/apply`, `/book`, `/thank-you` (the `.html`/`.php` forms 301 to clean URLs). The live conversion/transactional URLs are crawlable again. Update the disallow list to the clean paths (and decide deliberately whether `/apply` should be indexable — see G2).
 
 ### 🔵 E7 — Session cookie `secure` flag depends on proxy header detection
-`api/lib/session.php:32` sets `secure` only when `HTTPS`/`X-Forwarded-Proto` indicates TLS. Behind a misconfigured proxy the session cookie is minted without `Secure`. Since production is HTTPS-only by policy, consider forcing `secure => true` via an env flag.
+`api/modules/kernel/lib/session.php:32` sets `secure` only when `HTTPS`/`X-Forwarded-Proto` indicates TLS. Behind a misconfigured proxy the session cookie is minted without `Secure`. Since production is HTTPS-only by policy, consider forcing `secure => true` via an env flag.
 
 *(Fixed during this session, listed for the record: `MAM_STUDIO.logScore` was called by both games but never existed; Rhythm Tap kept clicking after Stop, stacked duplicate Space-bar listeners on tab re-entry, mis-scored early taps at card boundaries, and `/studio#…` deep links never opened the right tab.)*
 
@@ -48,7 +48,7 @@ Unauthenticated `POST /api/payment/initialize` (Flutterwave branch) returns the 
 ## 2 · Feature gaps
 
 ### 🟡 G1 — `instructor_assignments` is a dead table
-Migrated in `api/lib/db.php:590`, asserted by `api/tests/test_migrations.php:16`, mentioned in `lms.php`'s header — but **no code ever reads or writes it**. Instructor↔course assignment actually happens per-enrolment via `course_enrollments.instructor_id`. Either implement course/level-scoped instructor assignment (so admins don't re-pick the instructor on every approval) or drop the table + test line.
+Migrated in `api/modules/kernel/lib/db.php:590`, asserted by `api/tests/test_migrations.php:16`, mentioned in `lms.php`'s header — but **no code ever reads or writes it**. Instructor↔course assignment actually happens per-enrolment via `course_enrollments.instructor_id`. Either implement course/level-scoped instructor assignment (so admins don't re-pick the instructor on every approval) or drop the table + test line.
 
 ### 🟡 G2 — Sitemap omissions and duplicates
 `sitemap.xml` omits **`/apply`** and **`/book`** (the two conversion pages) while listing both `/tools` and `/studio`, which serve identical content (canonical is `/studio`). Add `/apply` (+ `/book` if it should be indexed), drop `/tools`.

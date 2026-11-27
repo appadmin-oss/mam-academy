@@ -5,7 +5,7 @@
  *
  * A student records themselves over a backing track and submits the take
  * (Advanced Modernization §1.4). The recording is stored first-party (see the
- * AUDIO TAKES block in api/lib/uploads.php) and attached to the existing
+ * AUDIO TAKES block in api/modules/integrations/lib/uploads.php) and attached to the existing
  * submissions model as artifact_kind='audio' — so instructor review, feedback,
  * rubric scoring and the guardian feed all keep working with no changes.
  *

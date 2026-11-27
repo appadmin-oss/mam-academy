@@ -653,7 +653,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'program_create' => 'curriculum', 'program_update' => 'curriculum',
         'link_course' => 'curriculum', 'unlink_course' => 'curriculum',
         'legacy_carry' => 'settings', 'cohort_create' => 'curriculum', 'cohort_edit' => 'curriculum',
-        // Classes & enrolment from the console (api/lib/cohort-admin.php): placing,
+        // Classes & enrolment from the console (api/modules/academics/lib/cohort-admin.php): placing,
         // moving and withdrawing a student is enrolment work; who teaches a cohort
         // and whether it is open is curriculum work, like cohort_edit beside it.
         'cohort_enrol' => 'enrollments', 'cohort_transfer' => 'enrollments', 'cohort_withdraw' => 'enrollments',
@@ -663,7 +663,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'sched_series' => 'curriculum', 'sched_session_add' => 'curriculum', 'sched_reschedule' => 'curriculum', 'sched_cancel' => 'curriculum',
         'sched_meeting_backfill' => 'curriculum', 'sched_feed' => 'curriculum', 'sched_integrations_save' => 'settings', 'sched_kapso_test' => 'settings',
         'module_save' => 'curriculum', 'module_delete' => 'curriculum',
-        // Lessons (api/lib/lessons.php): writing one, and publishing or retiring in bulk.
+        // Lessons (api/modules/learning/lib/lessons.php): writing one, and publishing or retiring in bulk.
         'lesson_save' => 'curriculum', 'lesson_status' => 'curriculum',
         'lesson_material_review' => 'curriculum', 'lesson_settings' => 'curriculum',
         'module_scaffold' => 'curriculum', 'module_import' => 'curriculum',
@@ -859,7 +859,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // ── Media & Documents library (#media) ──────────────────────────────
     // Add a class resource (document/media link) from admin, delete any
     // resource, or clear a student's portal photo. All gated by the 'media' cap.
-    /* The old class model, carried into cohorts (api/lib/legacy-carry.php). One
+    /* The old class model, carried into cohorts (api/modules/academics/lib/legacy-carry.php). One
        press carries everything that can go; a class whose subject names no
        course goes when the admin picks one (course_for[classId]). Idempotent. */
     if ($action === 'legacy_carry') {
@@ -1522,7 +1522,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
        where an academy proves it holds them.
 
        Only the reference number, dates and a note of WHERE the evidence is filed
-       are accepted — never the content of a check. See api/lib/vetting.php. */
+       are accepted — never the content of a check. See api/modules/safeguarding/lib/vetting.php. */
     if ($action === 'vetting_record') {
         $iid  = (int)($_POST['instructor_id'] ?? 0);
         $type = trim((string)($_POST['clearance_type'] ?? ''));
@@ -1562,7 +1562,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=vetting&ok=' . urlencode('Safeguarding officer named. Concerns now go to them first.')); exit;
     }
 
-    // ─── Incidents (v103, api/lib/safeguarding.php) ───────
+    // ─── Incidents (v103, api/modules/safeguarding/lib/safeguarding.php) ───────
     if (in_array($action, ['incident_record', 'incident_tell', 'incident_close'], true)) {
         $actor = mam_admin_require_actor();
         try {
@@ -1576,7 +1576,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
     }
 
-    // ─── Safeguarding concerns (v99, api/lib/safeguarding.php) ───────
+    // ─── Safeguarding concerns (v99, api/modules/safeguarding/lib/safeguarding.php) ───────
     if ($action === 'sg_update') {
         $id = (int) ($_POST['id'] ?? 0);
         $by = (int) (mam_admin_require_actor()['id'] ?? 0);
@@ -1590,7 +1590,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
     }
 
-    // ─── Online classes: JaaS (v101, api/lib/live-classes.php). Secrets are never echoed back. ───
+    // ─── Online classes: JaaS (v101, api/modules/live/lib/live-classes.php). Secrets are never echoed back. ───
     if ($action === 'live_save') {
         $prov = (string) ($_POST['provider'] ?? 'none');
         if (!in_array($prov, ['jaas', 'meet', 'jitsi', 'none'], true)) $prov = 'none';
@@ -1609,7 +1609,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=system&ok=' . urlencode($msg)); exit;
     }
 
-    // ─── File storage: the bucket (v99, api/lib/media-store.php). Secrets are never echoed back. ───
+    // ─── File storage: the bucket (v99, api/modules/integrations/lib/media-store.php). Secrets are never echoed back. ───
     if ($action === 'storage_save') {
         $ep = rtrim(trim((string) ($_POST['endpoint'] ?? '')), '/');
         if ($ep !== '' && !preg_match('#^https://[A-Za-z0-9.-]+(:\d+)?$#', $ep)) {
@@ -2182,7 +2182,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=courseenroll&ok=' . urlencode('Cohort #' . $cohortId . ' updated.')); exit;
     }
 
-    /* ─── Classes & enrolment from the console (api/lib/cohort-admin.php) ─────
+    /* ─── Classes & enrolment from the console (api/modules/academics/lib/cohort-admin.php) ─────
        The console's Enrol & staffing screen. Each handler is a thin call into
        the lib, which owns the rules (capacity, the level-aware duplicate guard,
        the safeguarding gate, the calendar's withdrawal outcome) and throws a
@@ -2251,7 +2251,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 
     /* ── Scheduling (console Teaching → Timetable & rooms) ─────────────────
-       Four writes, all through api/lib/scheduling.php, which builds on the
+       Four writes, all through api/modules/academics/lib/scheduling.php, which builds on the
        lms.php session primitives rather than beside them. Each is audited in
        the lib. A clash refuses unless the operator chose otherwise; a
        cancellation credits free make-ups and never touches money. */
@@ -2387,7 +2387,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         header('Location: ?v=modules&ok=1'); exit;
     }
 
-    // ─── Lessons: the console's editor and its bulk bar (api/lib/lessons.php) ──
+    // ─── Lessons: the console's editor and its bulk bar (api/modules/learning/lib/lessons.php) ──
     if ($action === 'lesson_save') {
         $lid = (int) ($_POST['lesson_id'] ?? 0) ?: null;
         $checks = [];
@@ -2784,7 +2784,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // Record a MAM Auditer placement for an application's student — writes the
     // auditer_results row and (when the 'auditer_placement' automation is on)
     // ensures the account + enrols them at the recommended level (see
-    // api/lib/auditer.php). Gated to the 'admissions' cap above.
+    // api/modules/admissions/lib/auditer.php). Gated to the 'admissions' cap above.
     // Complete an enrolment: account → course → class → instructor, in one
     // action. Before this, marking an application "enrolled" created a portal
     // account and an ID card and stopped — no course, no class, no teacher — so
@@ -2973,7 +2973,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 
     // Toggle a lifecycle automation on/off (super/settings only — gated above).
-    // The flag is honoured at each rule's trigger point (see api/lib/automations.php).
+    // The flag is honoured at each rule's trigger point (see api/modules/comms/lib/automations.php).
     if ($action === 'automation_toggle') {
         $key = (string)($_POST['key'] ?? '');
         if (isset(mam_automations_registry()[$key])) {

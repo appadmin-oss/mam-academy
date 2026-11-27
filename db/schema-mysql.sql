@@ -2,7 +2,7 @@
 -- MAM Academy — MySQL / MariaDB production schema
 -- ============================================================
 -- Apply once before the first deploy. The SQLite migrator in
--- api/lib/db.php does not run when DB_DSN is set in api/.env.
+-- api/modules/kernel/lib/db.php does not run when DB_DSN is set in api/.env.
 --
 -- Usage:
 --   mysql -u USER -p DBNAME < db/schema-mysql.sql
@@ -1139,7 +1139,7 @@ CREATE TABLE IF NOT EXISTS faculty_invites (
 INSERT INTO schema_version (version) VALUES (37) ON DUPLICATE KEY UPDATE version = version;
 
 -- v38 — lifecycle automations: admin-toggleable enable flag per rule
--- (see api/lib/automations.php). Additive; unknown rules fall back to defaults.
+-- (see api/modules/comms/lib/automations.php). Additive; unknown rules fall back to defaults.
 CREATE TABLE IF NOT EXISTS automations (
   akey        VARCHAR(64) PRIMARY KEY,
   enabled     TINYINT(1) NOT NULL DEFAULT 1,
@@ -1474,7 +1474,7 @@ ALTER TABLE class_resources ADD COLUMN cohort_id          INT          NULL;
 ALTER TABLE instructor_fines ADD COLUMN resolution_note   TEXT         NULL;
 INSERT INTO schema_version (version) VALUES (50) ON DUPLICATE KEY UPDATE version = version;
 
--- v51: idempotency_cache table for the shared idempotency layer (api/lib/idempotency.php).
+-- v51: idempotency_cache table for the shared idempotency layer (api/modules/kernel/lib/idempotency.php).
 -- Keyed by (scope, idem_key) so application and payment keys never collide.
 -- Entries expire after 24 h; the cron purges them via mam_idempotency_purge().
 CREATE TABLE IF NOT EXISTS idempotency_cache (
@@ -2376,7 +2376,7 @@ INSERT INTO schema_version (version) VALUES (83) ON DUPLICATE KEY UPDATE version
 --
 -- Five distinct legal artefacts, deliberately not one 'compliance' table. What
 -- is NOT here: the record of processing activities and the retention schedule
--- themselves. Those are CODE registries in `api/lib/dataprotection.php`, because
+-- themselves. Those are CODE registries in `api/modules/identity/lib/dataprotection.php`, because
 -- a register describing what the software does must be derived from the
 -- software — free text in a table drifts the day a feature ships, and a drifted
 -- register is a false assurance rather than a missing one.
@@ -2712,7 +2712,7 @@ INSERT INTO schema_version (version) VALUES (86) ON DUPLICATE KEY UPDATE version
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- v87 — the FEE INVOICE, and the four things that are not one discount
--- (guardian redesign §3.4). See the SQLite migration in api/lib/db.php for the
+-- (guardian redesign §3.4). See the SQLite migration in api/modules/kernel/lib/db.php for the
 -- reasoning; the invariants below are the same ones, spelled for MySQL 8.
 --
 -- Money is integer minor units + an ISO currency + a rate frozen at issue.
@@ -3642,7 +3642,7 @@ CREATE TABLE IF NOT EXISTS safeguarding_notes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (99) ON DUPLICATE KEY UPDATE version = version;
 
--- v100 — invoice review, family queries, discount codes (api/lib/fee-review.php).
+-- v100 — invoice review, family queries, discount codes (api/modules/finance/lib/fee-review.php).
 ALTER TABLE fee_invoices ADD COLUMN reviewed_by INT NULL;
 ALTER TABLE fee_invoices ADD COLUMN reviewed_at DATETIME NULL;
 ALTER TABLE fee_invoices ADD COLUMN review_note VARCHAR(500) NULL;
@@ -3705,7 +3705,7 @@ CREATE TABLE IF NOT EXISTS fee_discount_redemptions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO schema_version (version) VALUES (100) ON DUPLICATE KEY UPDATE version = version;
 
--- v101 — live online classes: join/leave/heartbeat events (api/lib/live-classes.php).
+-- v101 — live online classes: join/leave/heartbeat events (api/modules/live/lib/live-classes.php).
 CREATE TABLE IF NOT EXISTS live_events (
   id         INT AUTO_INCREMENT PRIMARY KEY,
   session_id INT NOT NULL,
@@ -3946,7 +3946,7 @@ ALTER TABLE `collections` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unico
 SET FOREIGN_KEY_CHECKS = 1;
 INSERT INTO schema_version (version) VALUES (105) ON DUPLICATE KEY UPDATE version = version;
 
--- v106 — Paystack scenario guards (api/lib/payment-guards.php): one row per
+-- v106 — Paystack scenario guards (api/modules/finance/lib/payment-guards.php): one row per
 -- gateway reference opened for a payment, the events beyond settling, and the
 -- payment's gateway state (refund due / refunded / disputed …; NULL normally).
 ALTER TABLE payments ADD COLUMN gateway_state VARCHAR(24) NULL;

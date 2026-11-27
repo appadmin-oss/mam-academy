@@ -17,15 +17,15 @@ define('MAM_LOGS',     MAM_API_ROOT . '/logs');
 foreach ([MAM_LOGS, MAM_STORAGE] as $d) { if (!is_dir($d)) @mkdir($d, 0775, true); }
 date_default_timezone_set('UTC');
 ini_set('display_errors', '0');
-require_once MAM_API_ROOT . '/lib/log.php';
-require_once MAM_API_ROOT . '/lib/db.php';
-require_once MAM_API_ROOT . '/lib/settings.php';
-require_once MAM_API_ROOT . '/lib/validation.php';
-require_once MAM_API_ROOT . '/lib/session.php';
-require_once MAM_API_ROOT . '/lib/auth.php';
-require_once MAM_API_ROOT . '/lib/mailer.php';
-require_once MAM_API_ROOT . '/lib/automations.php';
-require_once MAM_API_ROOT . '/lib/cards.php';
+require_once MAM_API_ROOT . '/modules/kernel/lib/log.php';
+require_once MAM_API_ROOT . '/modules/kernel/lib/db.php';
+require_once MAM_API_ROOT . '/modules/kernel/lib/settings.php';
+require_once MAM_API_ROOT . '/modules/kernel/lib/validation.php';
+require_once MAM_API_ROOT . '/modules/kernel/lib/session.php';
+require_once MAM_API_ROOT . '/modules/identity/lib/auth.php';
+require_once MAM_API_ROOT . '/modules/integrations/lib/mailer.php';
+require_once MAM_API_ROOT . '/modules/comms/lib/automations.php';
+require_once MAM_API_ROOT . '/modules/identity/lib/cards.php';
 
 // Load .env the same way bootstrap does.
 function mam_env(string $key, $default = null) {
@@ -50,8 +50,8 @@ function mam_env(string $key, $default = null) {
 
 // Only the helpers this page's requires DON'T already provide. PHP declares
 // top-level functions at compile time — before the require_once calls above run —
-// so stubbing mam_log/mam_audit (lib/log.php) or mam_automation_touch
-// (lib/automations.php) here made every request a fatal "Cannot redeclare"
+// so stubbing mam_log/mam_audit (modules/kernel/lib/log.php) or mam_automation_touch
+// (modules/comms/lib/automations.php) here made every request a fatal "Cannot redeclare"
 // error. Those libs are required above and supply the real implementations.
 // mam_env / mam_client_ip / mam_after_response live in bootstrap.php, which this
 // page deliberately doesn't load, so they DO still need defining.
@@ -60,7 +60,7 @@ function mam_after_response(callable $fn) { register_shutdown_function($fn); }
 
 $serial = trim((string)($_GET['serial'] ?? ''));
 
-// Auth check via session cookie. Defer to lib/session.php rather than reading the
+// Auth check via session cookie. Defer to modules/kernel/lib/session.php rather than reading the
 // cookie by hand: it uses the real cookie name (MAM_COOKIE = 'mam_sid', NOT
 // 'mam_session'), validates the token format, hashes it, and enforces both expiry
 // and users.status='active'. The previous inline version called a

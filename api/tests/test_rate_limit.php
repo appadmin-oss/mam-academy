@@ -127,7 +127,7 @@ t_ok(!preg_match("/'csrf'\s*=>\s*strlen\(mam_app_key\(\)\)\s*>=\s*32\s*,/", $SK_
 
 /* The console surfaces it where an admin looking for "why are the forms
    broken" will actually be. */
-$SK_con = (string) @file_get_contents(MAM_API_ROOT . '/lib/console.php');
+$SK_con = (string) @file_get_contents(MAM_API_ROOT . '/modules/admin/lib/console.php');
 t_ok(str_contains($SK_con, "'signing'"), 'the console health card carries the signing state');
 t_ok(str_contains($SK_con, 'mam_app_key_persisted'), '…derived from the predicate, not re-implemented');
 $SK_sys = (string) @file_get_contents(dirname(MAM_API_ROOT) . '/partials/admin-console/system.php');
@@ -137,7 +137,7 @@ t_ok(str_contains($SK_sys, "signing"), 'the System screen renders it');
    invitation tokens; on shared hosting a key in a world-writable /tmp is a
    worse failure than a broken form. An unwritable storage directory is an
    operator fix, not something this function may route around. */
-$SK_csrf = (string) @file_get_contents(MAM_API_ROOT . '/lib/csrf.php');
+$SK_csrf = (string) @file_get_contents(MAM_API_ROOT . '/modules/kernel/lib/csrf.php');
 /* Comments stripped first: the reason for the rule is written in this very
    file, and a test that cannot tell the explanation from the implementation
    forbids documenting the decision. (Second time this bit — the phone

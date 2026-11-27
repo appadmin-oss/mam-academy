@@ -94,14 +94,14 @@ $r->get ('/media/headshot',  $f('media-headshot.php'),  [mw_rate_limit('media_he
 // Practice takes (§1.4). Unlike headshots this proxy is ACCESS-GATED inside the
 // handler — a recording of a child playing is not "whoever holds the link".
 $r->get ('/media/take',      $f('media-take.php'),      [mw_rate_limit('media_take', 240, 600)]);
-// Stored files (v99, api/lib/media-store.php): sign → PUT (to the bucket, or here) → done → read.
+// Stored files (v99, api/modules/integrations/lib/media-store.php): sign → PUT (to the bucket, or here) → done → read.
 // Every read is checked by WHO is asking; a bucket file is then a ten-minute link.
 $r->post('/media/sign',   $f('media/upload.php'), [mw_csrf(), mw_user(), mw_rate_limit('media_sign', 60, 600)]);
 $r->put ('/media/put',    $f('media/upload.php'), [mw_user(), mw_rate_limit('media_put', 60, 600)]);
 $r->post('/media/done',   function () use ($f) { $GLOBALS['mam_media_step'] = 'done'; ($f('media/upload.php'))(); },
          [mw_csrf(), mw_user(), mw_rate_limit('media_done', 60, 600)]);
 $r->get ('/media/object', $f('media/object.php'), [mw_rate_limit('media_object', 600, 600)]);
-// Live online classes (v101, api/lib/live-classes.php): the token to join, a heartbeat, the register from the call.
+// Live online classes (v101, api/modules/live/lib/live-classes.php): the token to join, a heartbeat, the register from the call.
 $r->get ('/live/join',     $f('live/live.php'), [mw_user(), mw_rate_limit('live_join', 60, 600)]);
 $r->post('/live/beat',     function () use ($f) { $GLOBALS['mam_live_step'] = 'beat'; ($f('live/live.php'))(); }, [mw_csrf(), mw_user(), mw_rate_limit('live_beat', 400, 3600)]);
 $r->post('/live/register', function () use ($f) { $GLOBALS['mam_live_step'] = 'register'; ($f('live/live.php'))(); }, [mw_csrf(), mw_user(), mw_rate_limit('live_reg', 60, 600)]);
@@ -115,7 +115,7 @@ $r->post('/calendar/mine',    $f('calendar/mine.php'),    [mw_csrf(), mw_user(),
 $r->post('/whatsapp/kapso-webhook', $f('whatsapp/kapso-hook.php'), [mw_rate_limit('wh_kapso', 600, 60)]);
 // JaaS webhooks: signed with the webhook secret, not a CSRF cookie.
 $r->post('/hooks/jaas',    $f('live/hook.php'), [mw_rate_limit('wh_jaas', 600, 60)]);
-// Growth timeline and goals (v102, api/lib/growth.php) — the library decides who may see whom.
+// Growth timeline and goals (v102, api/modules/learning/lib/growth.php) — the library decides who may see whom.
 $r->get ('/growth', $f('growth.php'), [mw_user(), mw_rate_limit('growth_read', 300, 600)]);
 $r->post('/growth', $f('growth.php'), [mw_csrf(), mw_user(), mw_rate_limit('growth_write', 60, 600)]);
 // Incidents (v103, safeguarding.php) — teachers record; a safeguarding one goes to the officer.
@@ -124,15 +124,15 @@ $r->post('/incidents', $f('incidents.php'), [mw_csrf(), mw_user(), mw_rate_limit
 // Authorised collectors and sign-out (v104, safeguarding.php) — staff of the child only.
 $r->get ('/collectors', $f('collectors.php'), [mw_user(), mw_rate_limit('coll_read', 300, 600)]);
 $r->post('/collectors', $f('collectors.php'), [mw_csrf(), mw_user(), mw_rate_limit('coll_write', 120, 600)]);
-// Class spaces (v99, api/lib/spaces.php) — every signed-in role; the library decides who sees what.
+// Class spaces (v99, api/modules/community/lib/spaces.php) — every signed-in role; the library decides who sees what.
 $r->get ('/spaces',       $f('spaces.php'), [mw_user(), mw_rate_limit('spaces_read', 600, 600)]);
 $r->post('/spaces',       $f('spaces.php'), [mw_csrf(), mw_user(), mw_rate_limit('spaces_write', 120, 600)]);
-// Safeguarding concerns (v99, api/lib/safeguarding.php): anybody signed in can raise one.
+// Safeguarding concerns (v99, api/modules/safeguarding/lib/safeguarding.php): anybody signed in can raise one.
 $r->get ('/safeguarding/concern',  $f('safeguarding-concern.php'), [mw_user(), mw_rate_limit('sg_read', 60, 600)]);
 $r->post('/safeguarding/concern',  $f('safeguarding-concern.php'), [mw_csrf(), mw_user(), mw_rate_limit('sg_raise', 10, 3600)]);
 // The recital listen-back gallery. Same audio files as /media/take, a
 // deliberately different lock: published performance + signed-in academy
-// member, rather than "your own recording". See api/lib/recital.php.
+// member, rather than "your own recording". See api/modules/community/lib/recital.php.
 $r->get ('/media/recital-take', $f('media-recital-take.php'), [mw_rate_limit('media_recital', 240, 600)]);
 $r->post('/summer/apply',  $f('summer/apply.php'),  [mw_csrf(), mw_rate_limit('summer_apply', 8, 600)]);
 $r->get ('/summer/status', $f('summer/status.php'), [mw_rate_limit('summer_status', 30, 600)]);
@@ -153,7 +153,7 @@ $r->post('/newsletter',  $f('newsletter.php'),  [mw_csrf(), mw_rate_limit('newsl
 $r->get ('/newsletter/unsubscribe', $f('newsletter-unsubscribe.php'), [mw_rate_limit('unsubscribe', 60, 600)]);
 $r->post('/newsletter/unsubscribe', $f('newsletter-unsubscribe.php'), [mw_rate_limit('unsubscribe', 60, 600)]);
 $r->post('/contact',     $f('contact.php'),     [mw_csrf(), mw_rate_limit('contact',     5,  600)]);
-// Instructor application form (emailed, tokenized invite — api/lib/faculty.php).
+// Instructor application form (emailed, tokenized invite — api/modules/admissions/lib/faculty.php).
 $r->get ('/faculty-apply', $f('faculty-apply.php'), [mw_rate_limit('faculty_check', 30, 600)]);
 $r->post('/faculty-apply', $f('faculty-apply.php'), [mw_csrf(), mw_rate_limit('faculty_apply', 6, 600)]);
 
@@ -198,7 +198,7 @@ $r->get('/report-print',   $f('report-print.php'),   [mw_rate_limit('progress_re
 $r->get('/learner-lookup', $f('learner-lookup.php'), [mw_rate_limit('learner_lookup', 5, 60)]);
 
 /* ─── Studio AI practice feedback (any signed-in user; S3) ─── */
-/* Practice Studio · Transcribe (Klangio audio→notation, api/lib/klangio.php). POST submits a
+/* Practice Studio · Transcribe (Klangio audio→notation, api/modules/integrations/lib/klangio.php). POST submits a
    clip, GET polls or streams a result. Signed-in only: each submission spends a paid quota. */
 $r->post('/transcribe', $f('transcribe.php'), [mw_csrf(), mw_user(), mw_rate_limit('transcribe', 12, 600)]);
 $r->get ('/transcribe', $f('transcribe.php'), [mw_user(), mw_rate_limit('transcribe_poll', 180, 60)]);
@@ -266,7 +266,7 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     // Per-session instructor-submitted progress reports for the student.
     $r->get ('/session-reports',     $f('student/session-reports.php'),     [mw_role('student')]);
     // The student portal v2 — ONE payload per screen (Home/Train/Learn/Attend/More).
-    // Mirrors GET /api/instructor/portal; see api/lib/student-portal.php for why
+    // Mirrors GET /api/instructor/portal; see api/modules/portals/lib/student-portal.php for why
     // a provider layer rather than six more routes.
     $r->get ('/portal',              $f('student/portal.php'),              [mw_role('student')]);
     // Waitlist: join or leave a cohort queue when class is at capacity.
@@ -297,7 +297,7 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     $r->get ('/preclass',            $f('student/preclass.php'),            [mw_role('student')]);
     $r->post('/preclass',            $f('student/preclass.php'),            [mw_csrf(), mw_role('student'), mw_rate_limit('preclass', 40, 600)]);
 
-    // Lessons: the syllabus with questions and per-student progress (v97, api/lib/lessons.php).
+    // Lessons: the syllabus with questions and per-student progress (v97, api/modules/learning/lib/lessons.php).
     $r->get ('/lessons',             $f('student/lessons.php'),             [mw_role('student')]);
     $r->post('/lessons',             $f('student/lessons.php'),             [mw_csrf(), mw_role('student'), mw_rate_limit('lesson_submit', 150, 600)]);
 });
@@ -340,9 +340,9 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     $r->get ('/student',          $f('instructor/student.php'),         [mw_role('instructor', 'admin')]);
     // Per-session QR check-in token for a class the instructor teaches (#9/#10).
     // The Grade entry sheet. The SERVER decides whether video travels with a
-    // criterion — see the route file and api/lib/marking.php.
+    // criterion — see the route file and api/modules/learning/lib/marking.php.
     $r->get ('/marking-sheet',    $f('instructor/marking-sheet.php'),   [mw_role('instructor', 'admin')]);
-    // The instructor portal v2 — one payload per screen (api/lib/instructor-portal.php).
+    // The instructor portal v2 — one payload per screen (api/modules/portals/lib/instructor-portal.php).
     $r->get ('/portal',           $f('instructor/portal.php'),          [mw_role('instructor', 'admin')]);
     // The instructor's half of the termly report. It writes a DRAFT; the
     // Examinations panel is the only thing that releases one to a family.
@@ -380,7 +380,7 @@ $r->group('/instructor', function (MamRouter $r) use ($f) {
     // Pre-class command centre + teach-back review + module content (§17-19).
     $r->get ('/preclass',           $f('instructor/preclass.php'),           [mw_role('instructor', 'admin')]);
     $r->post('/preclass',           $f('instructor/preclass.php'),           [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('preclass_ins', 80, 600)]);
-    // Lessons: written answers to mark, and ticking a lesson done (v97, api/lib/lessons.php).
+    // Lessons: written answers to mark, and ticking a lesson done (v97, api/modules/learning/lib/lessons.php).
     $r->get ('/lessons',            $f('instructor/lessons.php'),            [mw_role('instructor', 'admin')]);
     $r->post('/lessons',            $f('instructor/lessons.php'),            [mw_csrf(), mw_role('instructor', 'admin'), mw_rate_limit('lesson_mark', 200, 600)]);
     // Module status + carry-forward (LMS 2.0, PDF §6-7, 29-30).

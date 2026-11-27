@@ -3,7 +3,7 @@
 The site uploads lesson videos and materials to Google Drive **without** OAuth or
 Drive API credentials. Instead you deploy a tiny Apps Script web app that runs as
 the Google account owning a Drive folder; the site calls it over HTTPS with an
-HMAC-signed request. The gateway on the PHP side is `api/lib/drive.php`.
+HMAC-signed request. The gateway on the PHP side is `api/modules/integrations/lib/drive.php`.
 
 ## 1. Create the Apps Script
 

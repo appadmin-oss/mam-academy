@@ -1,6 +1,6 @@
 <?php
 /**
- * Invoice review, family queries and discount codes (api/lib/fee-review.php, v100).
+ * Invoice review, family queries and discount codes (api/modules/finance/lib/fee-review.php, v100).
  */
 declare(strict_types=1);
 

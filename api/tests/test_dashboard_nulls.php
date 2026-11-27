@@ -118,7 +118,7 @@ t_ok(strpos($dnCss, 'border: 1px dashed') !== false, 'drawn dashed rather than a
 
 t_group('dashboards — the weekly email does not claim a rate that does not exist');
 
-$dnMail = file_get_contents(__DIR__ . '/../lib/academic-emails.php');
+$dnMail = file_get_contents(__DIR__ . '/../modules/learning/lib/academic-emails.php');
 t_ok(strpos($dnMail, 'no sessions yet') !== false,
     'a child with no sessions is described, not scored — the email said "Attendance: 0%"');
 t_ok(strpos($dnMail, '$att === null') !== false, 'branching on the null the engine now returns');

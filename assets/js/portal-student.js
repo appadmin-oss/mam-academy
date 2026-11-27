@@ -587,7 +587,7 @@
       }
 
       /* Lessons — the syllabus with where this student stands on each one
-         (api/lib/lessons.php). The count is lessons DONE out of lessons
+         (api/modules/learning/lib/lessons.php). The count is lessons DONE out of lessons
          published; a week with no questions is the teacher's to tick off. */
       var lx = d.lesson_extra || {};
       if (lx.open_exam) {
@@ -914,7 +914,7 @@
 
   /* ── 3b · A lesson ──────────────────────────────────────────────────────────
 
-     The player for one lesson (api/lib/lessons.php). What it never does is
+     The player for one lesson (api/modules/learning/lib/lessons.php). What it never does is
      decide anything: whether an answer is right, whether the right answer may
      be shown yet, whether the lesson is done — all of that arrives from the
      server. It only collects answers and shows what came back. Nothing here

@@ -24,7 +24,7 @@ A server-rendered PHP site (no build step) plus a small hand-rolled API.
 | Admin dashboard | `admin/index.php` (~196 KB) | Server-rendered + JS; gated by `mam_require_admin`/`mw_admin_cap` with super/manager tiers. |
 | Portals | `portal/{student,instructor}/index.html`, `portal/{login,signup,reset}.html` | SPA-style, talk to the API via `assets/js/config.js` (`MAM_API`). |
 | API | `api/` | `index.php` front controller → `lib/router.php`; **32 libs** in `api/lib/`, **~90 routes** in `api/routes/`, **36 test files** (`api/tests/test_*.php`, auto-discovered). PHP 8.4, SQLite (auto-migrate, schema target **v30**) or MySQL. |
-| Schema | `db/schema-mysql.sql` | Mirrored by `api/lib/db.php` migrations. |
+| Schema | `db/schema-mysql.sql` | Mirrored by `api/modules/kernel/lib/db.php` migrations. |
 | Payments | Paystack + Flutterwave (server-authoritative), Stripe is a disabled placeholder. |
 | CI | `.github/workflows/ci.yml` | Runs the PHP suite + `php -l` + `node --check`. |
 
@@ -42,14 +42,14 @@ Any client can send a fresh `X-Forwarded-For:` per request to get a new bucket,
 defeating the login (8/600), reset (5/600) and every other per-IP limit — i.e. it
 re-opens online password brute-forcing despite the limiter the prior audit credited
 as the mitigation. The same value is also stored as `sessions.ip` and in audit logs
-(`api/lib/session.php:23`), so the "your active sessions" IP shown to users and the
+(`api/modules/kernel/lib/session.php:23`), so the "your active sessions" IP shown to users and the
 forensic IP shown to admins are attacker-controllable.
 **Fix:** only trust forwarded headers when `REMOTE_ADDR` is in a configured
 trusted-proxy CIDR set (e.g. Cloudflare ranges); otherwise key off `REMOTE_ADDR`.
 Make the trusted set configurable via env.
 
 ### 🟡 S2 — CSRF token is global, not bound to the session/user
-`api/lib/csrf.php:48` mints `timestamp.nonce.HMAC(APP_KEY)` with no per-user/per-session
+`api/modules/kernel/lib/csrf.php:48` mints `timestamp.nonce.HMAC(APP_KEY)` with no per-user/per-session
 binding, and `/csrf` (`api/index.php:28`) is unauthenticated. One token minted by
 anyone validates state-changing requests for **every** user for 2 hours. The cookie
 is `SameSite=Lax` and CORS is same-origin, so this is defense-in-depth rather than a
@@ -68,7 +68,7 @@ other sessions — unlike `api/routes/auth/perform-reset.php:47` and
 (`mam_sessions_revoke_others((int)$u['id'])`).
 
 ### 🟡 F1 — Invoicing cron: duplicate-email race + expired email re-sends on failed transition
-`api/lib/invoicing.php:96-118`, `api/tools/run-jobs.php` (no lock).
+`api/modules/finance/lib/invoicing.php:96-118`, `api/tools/run-jobs.php` (no lock).
 Two issues in `mam_invoices_process`:
 1. **Race / no lock.** The due-reminder dedup is `mam_invoice_reminded()` (SELECT)
    followed by an `application_events` INSERT with no unique constraint, no transaction,
@@ -86,17 +86,17 @@ expired email only when the transition returns `changed === true`; optionally ad
 `UNIQUE(application_id, reason)` guard for `invoice_reminded`.
 
 ### 🟡 F2 — SSRF guard treats CGNAT space (100.64.0.0/10) as public; no port restriction
-`api/lib/lms.php:1108` (`mam_lms_public_ips_for`). The guard is otherwise **strong**
+`api/modules/academics/lib/lms.php:1108` (`mam_lms_public_ips_for`). The guard is otherwise **strong**
 (see §4), but `FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE` does **not** reject
 RFC 6598 carrier-grade-NAT space — `100.64.0.1` is accepted as public. On hosts behind
 CGNAT this can reach internal infrastructure. Separately, the fetch validates the IP but
-**accepts any port** (`api/lib/lms.php:1150`), so a public host can be probed on
+**accepts any port** (`api/modules/academics/lib/lms.php:1150`), so a public host can be probed on
 non-HTTP ports (`:22`, `:6379`, `:25`).
 **Fix:** add an explicit deny for `100.64.0.0/10` (and consider `192.0.0.0/24`,
 `198.18.0.0/15`) by range-checking the resolved IP; restrict the fetch port to 80/443.
 
 ### 🟡 F4 — Invoice/expiry date math mixes UTC DB timestamps with PHP-local time
-`api/lib/invoicing.php:45` (`mam_invoice_ts` uses `strtotime`), but `created_at` is
+`api/modules/finance/lib/invoicing.php:45` (`mam_invoice_ts` uses `strtotime`), but `created_at` is
 written in UTC (SQLite `datetime('now')`, MySQL `CURRENT_TIMESTAMP`). There is **no**
 `date_default_timezone_set()` anywhere in app code, so parsing runs on the php.ini
 default; if that isn't UTC (e.g. Africa/Lagos UTC+1), due/expiry instants and the
@@ -106,7 +106,7 @@ boundary skew, not a correctness disaster.
 explicitly as UTC.
 
 ### 🟡 F5 — SMTP TLS peer verification disabled by default
-`api/lib/mailer.php:250` (PHPMailer) and `:454` (built-in client) default to
+`api/modules/integrations/lib/mailer.php:250` (PHPMailer) and `:454` (built-in client) default to
 `verify_peer=false`, `verify_peer_name=false`, `allow_self_signed=true` unless
 `MAIL_STRICT_TLS=1`. This is a **deliberate, documented** shared-host accommodation and
 STARTTLS still encrypts — but it leaves SMTP credentials and message contents open to an
@@ -126,7 +126,7 @@ inert); a broken-display bug on a transactional page.
 for this path, or build the bank lines as DOM nodes.
 
 ### 🔵 S4 — New users get only the legacy `users.role`, not a `user_roles` row
-`api/routes/admin/create-user.php:21`, `api/lib/auth.php` (`mam_create_admin`). The v16
+`api/routes/admin/create-user.php:21`, `api/modules/identity/lib/auth.php` (`mam_create_admin`). The v16
 `user_roles` join is the authoritative multi-role store, but newly-created users only
 set the primary `users.role`. It works today because `mam_user_roles()` always folds in
 the primary role — but the two stores diverge from creation, so any future code reading
@@ -140,7 +140,7 @@ entered consistently. (The length cap is harmless given bcrypt's 72-byte limit.)
 **Fix:** read the raw password without `trim()` (type/length guard only).
 
 ### 🔵 F3 — SSRF guard's reliance on PHP filter flags is version-sensitive
-`api/lib/lms.php:1109`. On the PHP 8.4 here, `0.0.0.0`, IPv4-mapped IPv6
+`api/modules/academics/lib/lms.php:1109`. On the PHP 8.4 here, `0.0.0.0`, IPv4-mapped IPv6
 (`::ffff:169.254.169.254`) and integer-encoded IPs are all correctly rejected. Older PHP
 builds historically did not. **Fix:** confirm the production PHP version, or add explicit
 checks for `0.0.0.0/8` and strip `::ffff:` prefixes before classifying.
@@ -154,7 +154,7 @@ overstated. GBP/EUR are display-only (booking tiers convert via hardcoded cross 
 so a bad GBP/EUR rate cannot misprice a charge.
 
 ### 🔵 F7 — Booking country/tier from spoofable geo header
-`api/lib/booking-pricing.php:37` (`mam_detect_country`) trusts `HTTP_CF_IPCOUNTRY` etc.,
+`api/modules/finance/lib/booking-pricing.php:37` (`mam_detect_country`) trusts `HTTP_CF_IPCOUNTRY` etc.,
 so a user can self-select the cheapest regional booking tier. Tiers are small and roughly
 equivalent, so low-impact arbitrage — but the price is client-influenced despite the
 file's "never client-controlled" claim.
@@ -184,7 +184,7 @@ to its clean URL, so installed-app shortcuts take an extra hop and contradict th
 canonical-URL policy. **Fix:** use `/apply`, `/pathways`, `/metamusic-order`.
 
 ### 🟡 C2 — `DEPLOYMENT.md` schema target is stale (says 16, actual 30)
-`DEPLOYMENT.md:33-34` says "target version **16**" while `api/lib/db.php:11` defines
+`DEPLOYMENT.md:33-34` says "target version **16**" while `api/modules/kernel/lib/db.php:11` defines
 `MAM_SCHEMA_TARGET = 30`. An operator following the runbook will misread a current DB as
 14 versions ahead. **Fix:** update the doc to v30, or drop the hardcoded number and point
 to `MAM_SCHEMA_TARGET`.
@@ -215,7 +215,7 @@ misleading label.
 ## 4 · What's in good shape (verified, not assumed)
 
 - **SSRF guard (new, highest-risk surface) is genuinely strong.** `mam_lms_fetch_url`
-  (`api/lib/lms.php:1139`) rejects non-http(s) schemes before any I/O, resolves DNS and
+  (`api/modules/academics/lib/lms.php:1139`) rejects non-http(s) schemes before any I/O, resolves DNS and
   rejects the whole host if *any* A/AAAA record is private/loopback/link-local/metadata
   (incl. IPv6 and `169.254.169.254`), rejects integer/octal/hex-encoded IPs, follows
   redirects **manually** re-validating every hop, and **pins** the validated IP via

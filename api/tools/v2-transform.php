@@ -27,10 +27,10 @@ declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
 $ROOT = dirname(__DIR__);
-require $ROOT . '/lib/v2/identity.php';
-require $ROOT . '/lib/v2/transform.php';
-require $ROOT . '/lib/v2/plan.php';
-require $ROOT . '/lib/v2/emit.php';
+require $ROOT . '/modules/v2/lib/identity.php';
+require $ROOT . '/modules/v2/lib/transform.php';
+require $ROOT . '/modules/v2/lib/plan.php';
+require $ROOT . '/modules/v2/lib/emit.php';
 
 $opt = [];
 foreach (array_slice($argv, 1) as $a) {

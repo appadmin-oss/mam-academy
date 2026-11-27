@@ -1,4 +1,4 @@
-/* MAM Academy — the growth screen (api/lib/growth.php), shared by the student,
+/* MAM Academy — the growth screen (api/modules/learning/lib/growth.php), shared by the student,
  * guardian and instructor portals.
  *
  *   MAM_GROWTH.render(root, { paint, toast, student, back })

@@ -317,7 +317,7 @@
       + '</section>';
   }
 
-  // Lazily fetch the AI progress note (api/lib/ai.php). Shows the card only when
+  // Lazily fetch the AI progress note (api/modules/integrations/lib/ai.php). Shows the card only when
   // AI is enabled AND a note came back; silent + non-blocking otherwise, so the
   // overview is never delayed or disrupted by it.
   function loadAiNote() {
@@ -1745,7 +1745,7 @@
        to put one fair number on it" are not the same message, and a child told
        the first when the second is true reasonably concludes their work was
        ignored. The composite is withheld below a declared coverage floor —
-       see MAM_MASTERY_MIN_COVERAGE in api/lib/mastery.php. */
+       see MAM_MASTERY_MIN_COVERAGE in api/modules/learning/lib/mastery.php. */
     if (m.score == null) {
       var hasSome = (m.components || []).length > 0;
       if (!hasSome) {

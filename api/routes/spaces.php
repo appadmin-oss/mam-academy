@@ -1,6 +1,6 @@
 <?php
 /**
- * Class spaces (api/lib/spaces.php, schema v99). One route for every role; the
+ * Class spaces (api/modules/community/lib/spaces.php, schema v99). One route for every role; the
  * library decides, per call, what this person may see and do.
  *
  *   GET  /api/spaces                         → {spaces}           every space this person can open

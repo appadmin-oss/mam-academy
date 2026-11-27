@@ -1,6 +1,6 @@
 <?php
 /**
- * First-party headshot storage (api/lib/uploads.php).
+ * First-party headshot storage (api/modules/integrations/lib/uploads.php).
  *
  * Why this exists at all: the ONLY way a registration photo was ever persisted
  * was an unsigned browser upload to Cloudinary, and the widget decided whether

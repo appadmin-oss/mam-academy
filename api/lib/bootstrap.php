@@ -193,10 +193,12 @@ function mam_env(string $key, $default = null) {
 $mam_vendor = MAM_API_ROOT . '/vendor/autoload.php';
 if (is_file($mam_vendor)) require_once $mam_vendor;
 
-// ---------- Library autoload (manual; no Composer needed) ----------
-$mam_libs = require __DIR__ . '/libs.php';
-foreach ($mam_libs as $lib) {
-    require_once __DIR__ . '/' . $lib . '.php';
+// ---------- Library load (manual; no Composer needed) ----------
+// The libraries live in domain modules (api/modules/<name>/lib); the module
+// manifests decide what loads and in which order — see api/modules/README.md.
+$mam_libs = require MAM_API_ROOT . '/modules/libs.php';
+foreach ($mam_libs as $lib => $path) {
+    require_once $path;
 }
 
 // ---------- API version ----------

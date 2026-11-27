@@ -1,6 +1,6 @@
 <?php
 /**
- * Paystack scenario guards (api/lib/payment-guards.php, schema v106).
+ * Paystack scenario guards (api/modules/finance/lib/payment-guards.php, schema v106).
  * One group per guard. The gateway is never called: every function that would
  * call it takes an injectable initializer/verifier, and the suite passes fakes.
  */
@@ -139,7 +139,7 @@ t_eq(mam_payment_target_closed(['purpose' => 'store', 'reference' => "ST-PG-{$PG
 $PG_init = $PG_src('api/routes/payment-init.php');
 t_ok(substr_count($PG_init, "mam_fail('not_payable', 409") === 2 && strpos($PG_init, "'not_payable'") < strpos($PG_init, "mam_db_insert('payments'"),
     'init refuses a closed application or order before any payments row is written, with a sentence the page shows');
-t_ok(str_contains($PG_src('api/lib/payments.php'), 'mam_payment_flag_refund_due($payment, \'paid after it closed'), 'settlement itself refuses a closed target, whoever calls it');
+t_ok(str_contains($PG_src('api/modules/finance/lib/payments.php'), 'mam_payment_flag_refund_due($payment, \'paid after it closed'), 'settlement itself refuses a closed target, whoever calls it');
 t_ok(str_contains(mam_payment_closed_message('application_cancelled'), 'closed'), 'the refusal reads as a sentence');
 
 /* ── 5 ── */

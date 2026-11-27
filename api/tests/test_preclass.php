@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for pre-class learning + teach-back (api/lib/preclass.php, PDF §8-9,18-19):
+ * Tests for pre-class learning + teach-back (api/modules/learning/lib/preclass.php, PDF §8-9,18-19):
  * module content, the next-class card, preparation status, teach-back submit/
  * resubmit + evidence guards, instructor review + readiness decision, the review
  * queue, and the per-session pre-class roster view.

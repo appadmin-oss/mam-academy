@@ -14,7 +14,7 @@
  */
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/lib/v2/transform.php';
+require_once dirname(__DIR__) . '/modules/v2/lib/transform.php';
 
 t_group('ETL transform — minor units by string arithmetic');
 
@@ -63,7 +63,7 @@ t_eq(mam_v2_map_application_status('mystery'), 'submitted', 'an unknown status s
 
 // Every mapping target must exist in the v2 vocabulary, or the load fails on a
 // CHECK constraint after the transform has already claimed success.
-require_once dirname(__DIR__) . '/lib/v2/status-catalogue.php';
+require_once dirname(__DIR__) . '/modules/v2/lib/status-catalogue.php';
 $cat = mam_v2_status_catalogue();
 foreach (['pending_bank_transfer', 'pending', 'succeeded', 'failed', 'refunded', 'disputed', 'nonsense'] as $v1) {
     t_ok(isset($cat['payment'][mam_v2_map_payment_status($v1)]),

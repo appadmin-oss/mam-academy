@@ -252,7 +252,7 @@ CREATE TABLE memberships (
   UNIQUE KEY uq_memberships_user (tenant_id, user_id, deleted_seq),
   UNIQUE KEY uq_memberships_ref (tenant_id, reference, deleted_seq),
   -- Vocabulary and wording come from ONE place: mam_v2_status_catalogue()
-  -- in api/lib/v2/status-catalogue.php. test_v2_clarity.php asserts this CHECK
+  -- in api/modules/v2/lib/status-catalogue.php. test_v2_clarity.php asserts this CHECK
   -- and that catalogue list the same values, so a status can never exist that
   -- nobody has written a sentence for.
   CONSTRAINT chk_membership_stage CHECK (stage IN
@@ -429,7 +429,7 @@ CREATE TABLE applications (
   -- No rejection without a reason. "Unsuccessful" and nothing else is the most
   -- confusing message an academy can send, and v1 permitted exactly that.
   -- Vocabulary and wording come from ONE place: mam_v2_status_catalogue()
-  -- in api/lib/v2/status-catalogue.php. test_v2_clarity.php asserts this CHECK
+  -- in api/modules/v2/lib/status-catalogue.php. test_v2_clarity.php asserts this CHECK
   -- and that catalogue list the same values, so a status can never exist that
   -- nobody has written a sentence for.
   CONSTRAINT chk_app_status CHECK (status IN

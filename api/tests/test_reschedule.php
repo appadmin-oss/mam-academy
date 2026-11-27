@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for paid class rescheduling (api/lib/reschedule.php, LMS 2.0 Part C):
+ * Tests for paid class rescheduling (api/modules/academics/lib/reschedule.php, LMS 2.0 Part C):
  * server-side pricing + free allowance, the wallet settlement on the Part A
  * money model, instructor approve→apply through the audited session writer,
  * decline/cancel refunds, the payment-expiry sweep, and the feature gate.

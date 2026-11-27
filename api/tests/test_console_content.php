@@ -26,7 +26,7 @@ foreach (['partials/admin-console/vetting.php' => '$s', 'partials/admin-console/
     t_ok(!preg_match('/' . preg_quote($v, '/') . "\\['(gaps|expiring)'\\]/", $src), "$f reads no key the summary has never returned");
     t_ok(str_contains($src, $v . "['needs_action']"), "$f shows the number that need action");
 }
-t_ok(str_contains($CT_p('api/lib/console.php'), "\$b['vetting'] = (int) ((\$v['needs_action'] ?? 0) + (\$v['expiring_soon'] ?? 0));"),
+t_ok(str_contains($CT_p('api/modules/admin/lib/console.php'), "\$b['vetting'] = (int) ((\$v['needs_action'] ?? 0) + (\$v['expiring_soon'] ?? 0));"),
     'the rail badge counts the same two figures');
 
 t_group('console content — the Dashboard names an instructor\'s real vetting state');
@@ -41,7 +41,7 @@ if ($CT_row) {
     t_ok(str_contains($CT_row['why'], 'required checks are not on file'), 'and the sentence says why, from the record');
 } else {
     // The Dashboard lists the first three only; prove the rule on the shape instead.
-    $CT_src = $CT_p('api/lib/console.php');
+    $CT_src = $CT_p('api/modules/admin/lib/console.php');
     t_ok(str_contains($CT_src, "'no checks on file'") && !preg_match("/\\\$v\\['(state|days|detail)'\\]/", $CT_src),
         'the Dashboard derives the state from ok / missing / expired, never from keys attention() has never returned');
 }

@@ -69,7 +69,7 @@ This is the single sharpest hazard in the transform. Identity resolution that
 inferred a person from the rows around them — six applications, a payment, an
 ID card — would quietly rebuild the person the academy was asked to forget.
 
-`api/lib/v2/identity.php` detects the sentinel **first** and carries the row
+`api/modules/v2/lib/identity.php` detects the sentinel **first** and carries the row
 across as a tombstone: present, so its applications keep a valid owner and the
 counts reconcile, but holding no name, phone or date of birth, never emailable,
 and never given credentials. An erasure on *either* the customer or the user row

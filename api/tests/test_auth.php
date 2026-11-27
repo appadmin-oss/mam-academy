@@ -250,10 +250,10 @@ t_ok(strpos($ivPage, 'valid for 7 days') !== false, 'and its expiry sentence');
 
 // Settlement must send the link, not a password. The old body printed one in a
 // dashed box and told the family to change it on first sign-in.
-$ivPay = (string) file_get_contents(dirname(__DIR__) . '/lib/payments.php');
+$ivPay = (string) file_get_contents(dirname(__DIR__) . '/modules/finance/lib/payments.php');
 t_ok(strpos($ivPay, 'mam_auth_send_invite') !== false, 'payment settlement sends an invitation');
 t_ok(strpos($ivPay, 'Temporary password') === false, 'and no longer emails a temporary password');
-$ivAuth = (string) file_get_contents(dirname(__DIR__) . '/lib/auth.php');
+$ivAuth = (string) file_get_contents(dirname(__DIR__) . '/modules/identity/lib/auth.php');
 $ivEns  = substr($ivAuth, (int) strpos($ivAuth, 'function mam_ensure_student_user'), 3000);
 t_ok(strpos($ivEns, 'mam_auth_unusable_password()') !== false && strpos($ivEns, 'random_bytes(5)') === false,
     'the provisioner itself never makes a usable password, so there is no plaintext for any caller to lose or send');

@@ -23,7 +23,7 @@ $ROOT = dirname(MAM_API_ROOT);
 $html = (string) @file_get_contents($ROOT . '/portal/instructor/index.html');
 $js   = (string) @file_get_contents($ROOT . '/assets/js/portal-instructor.js');
 $css  = (string) @file_get_contents($ROOT . '/assets/css/portal-v2.css');
-$prov = (string) @file_get_contents(MAM_API_ROOT . '/lib/instructor-portal.php');
+$prov = (string) @file_get_contents(MAM_API_ROOT . '/modules/portals/lib/instructor-portal.php');
 $route= (string) @file_get_contents(MAM_API_ROOT . '/routes/instructor/portal.php');
 
 t_ok($html !== '' && $js !== '' && $css !== '', 'the three surface files are readable');

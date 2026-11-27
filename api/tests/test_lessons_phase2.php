@@ -256,7 +256,7 @@ $L2_src = static fn(string $p) => (string) file_get_contents(dirname(__DIR__, 2)
 t_ok(str_contains($L2_src('api/tools/run-jobs.php'), 'mam_lesson_due_run'), 'the deadline run is in the cron');
 t_ok(isset(mam_automations_registry()['lesson_deadlines']), 'and it is an automation the console can switch off');
 t_ok((int) mam_setting_num('lesson_fines_enabled', 0) === 0, 'fines ship OFF — a money penalty on a child is the academy\'s decision (gotcha #11)');
-t_ok(str_contains($L2_src('api/lib/lesson-exams.php'), 'if (!in_array($check[\'kind\'] ?? \'\', [\'short\', \'task\', \'reflection\'], true)) return null;'),
+t_ok(str_contains($L2_src('api/modules/learning/lib/lesson-exams.php'), 'if (!in_array($check[\'kind\'] ?? \'\', [\'short\', \'task\', \'reflection\'], true)) return null;'),
     'AI marking is an ALLOW-list of written kinds, so a new kind of question is never sent to a model by default');
 
 /* Cleanup: the shared test database keeps its seeded catalogue count. */

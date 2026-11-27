@@ -192,7 +192,7 @@ function mam_lms_withdraw(int $enrollmentId, ?int $by = null, ?string $reason = 
          • past the withdrawal deadline → the enrolment stands and is GRADED
 
        Getting that boundary wrong is how a student ends up with an F for a course
-       they left in week two. The calendar (api/lib/calendar.php) is the only thing
+       they left in week two. The calendar (api/modules/academics/lib/calendar.php) is the only thing
        that can answer it, because the answer is a date comparison against
        published deadlines.
 

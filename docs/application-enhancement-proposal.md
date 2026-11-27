@@ -3,7 +3,7 @@
 **Status:** proposal for review · **Author:** engineering · **Date:** 2026-06-14
 **Scope:** lift conversion and make admissions enterprise-grade, automated, and AI-optimized — across the whole applicant journey (discover → apply → pay → confirmed → onboarded) — without destabilising the working flow.
 
-> Companion to `docs/lms-enterprise-proposal.md` and `docs/studio-enhancement-proposal.md`. The three share one spine: the durable mail outbox (v17), the automation cron, and the audited AI gateway proposed for the LMS. This document grounds every claim in the live code (`assets/js/apply.js`, `assets/js/headshot.js`, `assets/js/validate.js`, `api/routes/application.php`, `api/routes/payment-verify.php`, `api/lib/validation.php`, `api/lib/mailer.php`, `api/lib/auth.php`).
+> Companion to `docs/lms-enterprise-proposal.md` and `docs/studio-enhancement-proposal.md`. The three share one spine: the durable mail outbox (v17), the automation cron, and the audited AI gateway proposed for the LMS. This document grounds every claim in the live code (`assets/js/apply.js`, `assets/js/headshot.js`, `assets/js/validate.js`, `api/routes/application.php`, `api/routes/payment-verify.php`, `api/modules/kernel/lib/validation.php`, `api/modules/integrations/lib/mailer.php`, `api/modules/identity/lib/auth.php`).
 
 ---
 
@@ -74,7 +74,7 @@ This proposal fixes those in four additive phases, reusing the LMS automation + 
 - **Quick-win bug fixes** (see §5).
 
 ### A4 · AI-assisted admissions (via the LMS AI gateway)
-- **Auditer placement recommendation:** turn the entry assessment + any Studio telemetry into a recommended pathway/level with a written rationale — schema-constrained JSON, **human-confirmed** (reuses the `api/lib/ai.php` gateway, model-tiered to Opus 4.8 for this PII-bearing, high-stakes call, kept on a zero-data-retention-compatible model).
+- **Auditer placement recommendation:** turn the entry assessment + any Studio telemetry into a recommended pathway/level with a written rationale — schema-constrained JSON, **human-confirmed** (reuses the `api/modules/integrations/lib/ai.php` gateway, model-tiered to Opus 4.8 for this PII-bearing, high-stakes call, kept on a zero-data-retention-compatible model).
 - **Automated abandoned-draft nudges** via the automation cron: if a server draft is idle N hours, queue a gentle "finish your application" email (one-touch resume link), capped and unsubscribable.
 - **Smart admissions triage:** draft a reviewer summary per application (strengths, fit, flags) for staff — advisory only, stored with prompt+model+reviewer.
 

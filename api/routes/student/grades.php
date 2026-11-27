@@ -2,7 +2,7 @@
 /**
  * GET /api/student/grades — the signed-in student's gradebook: 4.0-scale GPA,
  * per-term trend, cohort standing (percentile/rank), and the per-course results
- * table. Read-only; all aggregates come from api/lib/lms2.php.
+ * table. Read-only; all aggregates come from api/modules/academics/lib/lms2.php.
  */
 declare(strict_types=1);
 

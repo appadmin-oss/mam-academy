@@ -10,7 +10,7 @@
  *   POST /api/student/reschedule {action:'pay',    request_id}   (settle from wallet)
  *   POST /api/student/reschedule {action:'cancel', request_id}
  *
- * All pricing and validation are server-authoritative (see api/lib/reschedule.php);
+ * All pricing and validation are server-authoritative (see api/modules/academics/lib/reschedule.php);
  * the client never supplies a fee. Feature-gated behind reschedule_enabled.
  */
 declare(strict_types=1);

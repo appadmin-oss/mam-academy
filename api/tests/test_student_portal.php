@@ -147,7 +147,7 @@ foreach (($SP_train['takes'] ?? []) as $SP_k) {
 /* ⚠️ Strip the comments before an ABSENCE assertion. This file explains what
    it does not do, in prose, so a naive `strpos` finds the very string it is
    asserting is absent — a trap this suite has fallen into three times. */
-$SP_lib = (string) @file_get_contents(MAM_API_ROOT . '/lib/student-portal.php');
+$SP_lib = (string) @file_get_contents(MAM_API_ROOT . '/modules/portals/lib/student-portal.php');
 $SP_code = preg_replace(['~/\*.*?\*/~s', '~^\s*//.*$~m'], '', $SP_lib);
 t_ok(!preg_match('/\bmam_(studio|notation)_score|auto_?score|detectPitch/i', $SP_code),
     'nothing in the provider scores a performance');

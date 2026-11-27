@@ -82,7 +82,7 @@ t_ok(str_contains($ajs, "'speechSynthesis' in window") && !preg_match('/fetch\(|
 t_group('site chrome — one currency choice, at the rates a charge is made at');
 preg_match_all('/"([A-Z]{3})" => "/', $sfoot, $cm);
 t_eq($cm[1], ['USD', 'NGN', 'GBP'], 'the footer switch offers the three currencies the server prices in');
-$siteLib = (string)@file_get_contents(MAM_API_ROOT . '/lib/site.php');
+$siteLib = (string)@file_get_contents(MAM_API_ROOT . '/modules/site/lib/site.php');
 foreach ($cm[1] as $c) t_ok($c === 'USD' || str_contains($siteLib, "'$c' => (float)"),
     "$c has a rate in site_fees(), the rates a charge is made at (a missing rate hides the button)");
 t_ok(str_contains($sjs, 'F.rates[cur]') && !preg_match('/open\.er-api|ipapi/', $sjs),
@@ -119,7 +119,7 @@ $authMe = (string)@file_get_contents($ROOT . '/api/routes/auth/me.php');
 $cfgJs  = (string)@file_get_contents($ROOT . '/assets/js/config.js');
 $loginH = (string)@file_get_contents($ROOT . '/portal/login.html');
 $chooseH= (string)@file_get_contents($ROOT . '/portal/choose.html');
-$authL  = (string)@file_get_contents($ROOT . '/api/lib/auth.php');
+$authL  = (string)@file_get_contents($ROOT . '/api/modules/identity/lib/auth.php');
 
 /* `mam_portal_targets()` has always known about 'parent'. Three CLIENTS kept
    their own copy of that map and none of them did, so a guardian was bounced

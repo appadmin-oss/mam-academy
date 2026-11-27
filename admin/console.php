@@ -14,7 +14,7 @@
  * view its handler names. So there is exactly one implementation of "approve",
  * "waive", "enrol" — and this console cannot drift from it.
  *
- * Reads live in `api/lib/console.php`, one provider per screen, all never-throw
+ * Reads live in `api/modules/admin/lib/console.php`, one provider per screen, all never-throw
  * with a failure register. A screen that cannot read its data says so on the
  * page rather than rendering an empty table that looks fine (the failure mode
  * admin/index.php shipped for months — CLAUDE.md gotcha #9).

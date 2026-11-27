@@ -22,12 +22,12 @@ define('MAM_LOGS',     MAM_API_ROOT . '/logs');
 foreach ([MAM_LOGS, MAM_STORAGE] as $d) { if (!is_dir($d)) @mkdir($d, 0775, true); }
 date_default_timezone_set('UTC');
 ini_set('display_errors', '0');
-require_once MAM_API_ROOT . '/lib/log.php';
-require_once MAM_API_ROOT . '/lib/db.php';
-require_once MAM_API_ROOT . '/lib/settings.php';
-require_once MAM_API_ROOT . '/lib/validation.php';
-require_once MAM_API_ROOT . '/lib/session.php';
-require_once MAM_API_ROOT . '/lib/auth.php';
+require_once MAM_API_ROOT . '/modules/kernel/lib/log.php';
+require_once MAM_API_ROOT . '/modules/kernel/lib/db.php';
+require_once MAM_API_ROOT . '/modules/kernel/lib/settings.php';
+require_once MAM_API_ROOT . '/modules/kernel/lib/validation.php';
+require_once MAM_API_ROOT . '/modules/kernel/lib/session.php';
+require_once MAM_API_ROOT . '/modules/identity/lib/auth.php';
 
 function mam_env(string $key, $default = null) {
     static $env = null;
@@ -50,7 +50,7 @@ function mam_env(string $key, $default = null) {
 }
 // Only what this page's requires DON'T already provide. PHP declares top-level
 // functions at compile time — before the require_once calls above run — so
-// stubbing mam_log/mam_audit (lib/log.php, required above) made every request an
+// stubbing mam_log/mam_audit (modules/kernel/lib/log.php, required above) made every request an
 // unconditional "Cannot redeclare" fatal. mam_client_ip lives in bootstrap.php,
 // which this page deliberately doesn't load, so it DOES still need defining.
 function mam_client_ip() { return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'; }
@@ -62,7 +62,7 @@ $appUrl   = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '
 $selfUrl  = $appUrl . '/' . ($type === 'class' ? 'class' : 'session') . '/' . $id . '/join';
 $loginUrl = $appUrl . '/portal/login.html?next=' . urlencode($selfUrl);
 
-// Auth — defer to lib/session.php rather than reading the cookie by hand: it uses
+// Auth — defer to modules/kernel/lib/session.php rather than reading the cookie by hand: it uses
 // the real cookie name (MAM_COOKIE = 'mam_sid', NOT 'mam_session'), validates the
 // token format, hashes it, and enforces expiry + users.status='active'. The
 // previous inline version called a mam_session_get() that does not exist and read

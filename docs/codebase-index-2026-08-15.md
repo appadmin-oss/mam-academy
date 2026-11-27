@@ -434,7 +434,7 @@ pass (commits `56ddf1c`, `2cdfdda`):
 | §10 clock-out, duration, exit time (only clock-in existed, and only for instructors) | `mam_checkin_clock_out()`, `session_attendance` v81 columns |
 | §12 three missing attendance statuses; §16 modes absent entirely | `MAM_ATTENDANCE_STATUSES` / `_MODES`, `session_attendance` rebuild |
 | §15 exception requests; §37 `pending` + `disputed` | `accountability.php` request → decision flow, `accountability_exceptions` |
-| §23 six-level scale, §24 MAM Mastery Score, §43 unified record | `api/lib/mastery.php`, `api/lib/academic-record.php` |
+| §23 six-level scale, §24 MAM Mastery Score, §43 unified record | `api/modules/learning/lib/mastery.php`, `api/modules/learning/lib/academic-record.php` |
 
 New libs: `mastery`, `academic-record` (both registered in `bootstrap.php` AND
 `api/tests/run.php` — gotcha #1). New routes: `GET /api/student/mastery`,
@@ -453,7 +453,7 @@ Tests: `test_attendance_clock.php`, `test_mastery.php`,
   ~2KB). Tested without credentials by verifying the JWT against its own
   generated public key and parsing a Reports-shaped payload. Still inert until
   an academy pastes a service account in — that is configuration, not code.
-- **§34/§35 Upper Admin** (`13b1400`). New lib `api/lib/upper-admin.php`, route
+- **§34/§35 Upper Admin** (`13b1400`). New lib `api/modules/admin/lib/upper-admin.php`, route
   `GET /api/admin/upper`, admin view `?v=upper` (super-only). The §34 chain
   Academy → Programme → Instrument → Grade → Instructor → Student, every level
   reporting the same metric set so siblings compare, with a breadcrumb back to

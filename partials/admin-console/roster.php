@@ -4,10 +4,10 @@
  * doing, who is waiting, who teaches it, what is coming up; enrol, move,
  * withdraw, approve; change the instructor with the safeguarding gate's verdict
  * shown BEFORE saving; close it. There is one class model: the old classes were
- * carried into cohorts (api/lib/legacy-carry.php; Enrol & staffing → Cohorts).
+ * carried into cohorts (api/modules/academics/lib/legacy-carry.php; Enrol & staffing → Cohorts).
  *
  * Every write posts to /admin/ (admin/index.php); the rules live in
- * api/lib/cohort-admin.php and lms.php, never here. `_cohort` on a form
+ * api/modules/academics/lib/cohort-admin.php and lms.php, never here. `_cohort` on a form
  * tells the console's return hook which record to come back to.
  */
 declare(strict_types=1);

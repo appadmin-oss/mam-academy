@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for the grading upgrade (api/lib/lms2.php): rubric scores wired into the
+ * Tests for the grading upgrade (api/modules/academics/lib/lms2.php): rubric scores wired into the
  * gradebook, submission→enrolment resolution, and the term GPA / trend /
  * percentile aggregates.
  */

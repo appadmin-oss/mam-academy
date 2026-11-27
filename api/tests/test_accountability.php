@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for the accountability ledger (api/lib/accountability.php, PDF §13-15,37):
+ * Tests for the accountability ledger (api/modules/learning/lib/accountability.php, PDF §13-15,37):
  * charge recording + idempotency, ledger/outstanding totals, the waiver
  * decision, and the auto-charge on a late check-in (gated by the toggle).
  */
@@ -120,8 +120,8 @@ t_group('accountability — the call sites do not defeat the gate');
    was written at all and the lateness vanished, defeating the very record-only
    path the gate exists to take. And the instructor site tested $cfg['enabled'],
    the STUDENT flag, so the instructor setting could not actually govern it. */
-$checkinSrc  = (string) file_get_contents(dirname(__DIR__) . '/lib/checkin.php');
-$meetingsSrc = (string) file_get_contents(dirname(__DIR__) . '/lib/meetings.php');
+$checkinSrc  = (string) file_get_contents(dirname(__DIR__) . '/modules/live/lib/checkin.php');
+$meetingsSrc = (string) file_get_contents(dirname(__DIR__) . '/modules/live/lib/meetings.php');
 t_ok(!preg_match("/if \(\\\$cfg2\['enabled'\]\) mam_accountability_charge/", $checkinSrc),
     'the student check-in no longer re-gates the call');
 t_ok(!preg_match("/if \(\\\$acfg\['enabled'\]\) mam_accountability_charge/", $meetingsSrc),

@@ -15,7 +15,7 @@
  */
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/lib/v2/clarity.php';
+require_once dirname(__DIR__) . '/modules/v2/lib/clarity.php';
 require_once dirname(__DIR__) . '/tools/schema-v2-sqlite.php';
 
 /* ── a v2 database in memory ──────────────────────────────────────────────── */

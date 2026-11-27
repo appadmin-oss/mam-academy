@@ -139,7 +139,7 @@ t_group('site redesign — the application sends what the server requires');
    refuses without, so the flow adds screens. Each field the validator can reject
    is READ from the validator ($errors[] = '…') and must be in the payload the
    flow builds — a renamed field there fails here, not on a family's submission. */
-$SR_val  = (string) file_get_contents(MAM_API_ROOT . '/lib/validation.php');
+$SR_val  = (string) file_get_contents(MAM_API_ROOT . '/modules/kernel/lib/validation.php');
 $SR_fn   = substr($SR_val, (int) strpos($SR_val, 'function mam_validate_application'));
 $SR_fn   = substr($SR_fn, 0, (int) strpos($SR_fn, "\nfunction "));
 preg_match_all("/\\\$errors\\[\\] = '([a-zA-Z]+)'/", $SR_fn, $SR_req);
@@ -152,6 +152,6 @@ t_ok(count($SR_req[1]) >= 15, 'the validator\'s required fields were found (the 
 t_eq($SR_missingFields, [], 'every field the server requires is in the application flow\'s payload (headshot is optional)');
 t_ok(str_contains($SR_flow, "purpose: 'booking_fee'"), 'the only charge is the registration, through the existing booking-fee payment');
 t_ok(str_contains($SR_val, "'undecided'"), '"Help me choose" is a value the server accepts');
-t_ok(str_contains((string) file_get_contents($SR_root . '/api/lib/admissions.php'), "/apply?resume=")
+t_ok(str_contains((string) file_get_contents($SR_root . '/api/modules/admissions/lib/admissions.php'), "/apply?resume=")
      && str_contains((string) file_get_contents($SR_root . '/apply.php'), '$apFromDraft'),
     'a "resume your draft" link from the retired wizard lands on the live form with a note');

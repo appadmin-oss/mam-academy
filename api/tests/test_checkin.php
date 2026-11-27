@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for NGG-style student check-in (api/lib/checkin.php): self check-in
+ * Tests for NGG-style student check-in (api/modules/live/lib/checkin.php): self check-in
  * with the late-grace window, the open/closed window, enrolment + geofence
  * gates, and the derived XP / streak / attendance-rate / dashboard.
  */

@@ -71,7 +71,7 @@ Overview · Applications · Payments · Users · Classes · **Enrollments** *(le
 ### P4 · Personalization & AI surfaces *(rides the provider-agnostic AI gateway — free by default)*
 - **Student:** a skill-profile card (rhythm/intonation/etc. from `results` + Studio telemetry), an **adaptive practice coach** ("what to practise next"), and an auto-drafted **progress narrative** on the term/results view.
 - **Instructor:** **grading assist** in the Gradebook — a rubric-aligned feedback draft the instructor edits and signs (never auto-final).
-- All via `api/lib/ai.php`, defaulting to the **free/local adapter** so these cost nothing to run.
+- All via `api/modules/integrations/lib/ai.php`, defaulting to the **free/local adapter** so these cost nothing to run.
 
 ### P5 · Admin modernization + auth/security
 - **Management surfaces the data now supports:** cohort create/edit (not just the read panel), session scheduling (L2), the **admissions pipeline** (Application proposal), and AI-assist panels — all on shared design tokens so admin stops looking like a different product.

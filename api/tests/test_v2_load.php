@@ -21,11 +21,11 @@
  */
 declare(strict_types=1);
 
-require_once dirname(__DIR__) . '/lib/v2/clarity.php';
-require_once dirname(__DIR__) . '/lib/v2/identity.php';
-require_once dirname(__DIR__) . '/lib/v2/transform.php';
-require_once dirname(__DIR__) . '/lib/v2/load.php';
-require_once dirname(__DIR__) . '/lib/v2/verify.php';
+require_once dirname(__DIR__) . '/modules/v2/lib/clarity.php';
+require_once dirname(__DIR__) . '/modules/v2/lib/identity.php';
+require_once dirname(__DIR__) . '/modules/v2/lib/transform.php';
+require_once dirname(__DIR__) . '/modules/v2/lib/load.php';
+require_once dirname(__DIR__) . '/modules/v2/lib/verify.php';
 
 /** A fresh in-memory v2 database from the generated SQLite mirror. */
 function v2l_db(): PDO {
@@ -463,7 +463,7 @@ t_group('ETL load — coverage is derived from the plan, not hand-listed');
  * there is ONE list of what a migration carries, `$plan['order']`, and both the
  * SQL emitter and the loader walk it.
  */
-$v2lLoadSrc = file_get_contents(dirname(__DIR__) . '/lib/v2/load.php');
+$v2lLoadSrc = file_get_contents(dirname(__DIR__) . '/modules/v2/lib/load.php');
 $v2lToolSrc = file_get_contents(dirname(__DIR__) . '/tools/v2-load.php');
 
 t_ok(str_contains($v2lLoadSrc, "\$plan['order']") || str_contains($v2lLoadSrc, '$order = (array) ($plan'),

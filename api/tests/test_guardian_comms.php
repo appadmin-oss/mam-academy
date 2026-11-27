@@ -1,7 +1,7 @@
 <?php
 /**
  * Guardian↔staff threads, channel preferences, and make-up credits
- * (api/lib/guardian-comms.php, schema v88).
+ * (api/modules/comms/lib/guardian-comms.php, schema v88).
  *
  * Three refusals carry this file, and each is the kind that gets "simplified"
  * away by a later change that looks like a convenience:

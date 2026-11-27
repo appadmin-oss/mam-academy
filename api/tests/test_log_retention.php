@@ -16,7 +16,7 @@ t_group('application log — the IP is the caller, not the proxy in front of the
    while mam_audit(), from the same request, wrote 102.89.44.17. Every line in
    the file named the CDN, which is the one field anybody reaches for during an
    incident. The two writers now agree because both go through the resolver. */
-$LR_src = (string) file_get_contents(dirname(__DIR__) . '/lib/log.php');
+$LR_src = (string) file_get_contents(dirname(__DIR__) . '/modules/kernel/lib/log.php');
 $LR_body = preg_replace('~/\*.*?\*/~s', '', $LR_src);   // strip the comment that
 $LR_body = preg_replace('~^\s*//.*$~m', '', (string) $LR_body); // explains the trap
 t_ok(!preg_match("/'ip'\s*=>\s*\\\$_SERVER\['REMOTE_ADDR'\]/", (string) $LR_body),

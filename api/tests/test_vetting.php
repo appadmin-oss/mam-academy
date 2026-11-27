@@ -1,6 +1,6 @@
 <?php
 /**
- * Instructor vetting and the safeguarding gate (api/lib/vetting.php).
+ * Instructor vetting and the safeguarding gate (api/modules/safeguarding/lib/vetting.php).
  *
  * This is the highest-consequence control in the system: the academy teaches
  * children one-to-one. Until now nothing recorded staff clearance and nothing

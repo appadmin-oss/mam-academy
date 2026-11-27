@@ -1,6 +1,6 @@
 <?php
 /**
- * Classes & enrolment from the console (api/lib/cohort-admin.php, the console's
+ * Classes & enrolment from the console (api/modules/academics/lib/cohort-admin.php, the console's
  * Enrol & staffing screen). Each group pins a rule the screen promises in words:
  *
  *   enrol      — into THIS cohort (not the one the course tuple would pick)
@@ -134,7 +134,7 @@ t_eq($pv['verdict'], 'refuse', 'enforce + an uncleared teacher + a child in the 
 t_eq($pv['allow'], false, '…and is not allowed');
 // mam_audit() is a no-op under the harness, so this is asserted on the source:
 // the preview must not reach the auditing gate or write an audit row itself.
-$CE_src = (string) file_get_contents(__DIR__ . '/../lib/cohort-admin.php');
+$CE_src = (string) file_get_contents(__DIR__ . '/../modules/academics/lib/cohort-admin.php');
 $CE_fn = substr($CE_src, strpos($CE_src, 'function mam_cohort_instructor_check('));
 $CE_fn = substr($CE_fn, 0, strpos($CE_fn, "\n}\n"));
 t_ok(!str_contains($CE_fn, 'mam_vetting_check_assignment') && !str_contains($CE_fn, 'mam_audit'),

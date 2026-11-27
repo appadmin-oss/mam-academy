@@ -1,7 +1,7 @@
 <?php
 /**
  * Fee invoices, the four kinds of aid, and payment plans
- * (api/lib/fees.php, schema v87).
+ * (api/modules/finance/lib/fees.php, schema v87).
  *
  * Two things here carry most of the weight. The conversion, because the design
  * names the exact float that breaks it. And the ORDER the four kinds of aid apply
@@ -291,7 +291,7 @@ t_group('fees — receipts read the currency-safe column');
 
 /* BI money reads `payments.amount_usd_cents` only; `amount` is the CHARGE
  * currency and summing NGN into a USD total is the bug v61 exists to prevent. */
-$FE_src = file_get_contents(__DIR__ . '/../lib/fees.php');
+$FE_src = file_get_contents(__DIR__ . '/../modules/finance/lib/fees.php');
 t_ok(strpos($FE_src, 'amount_usd_cents') !== false, 'the receipts query selects amount_usd_cents');
 t_ok(preg_match('/SUM\s*\(\s*p?\.?amount\s*\)/i', $FE_src) !== 1,
     'and nothing in this file SUMs the charge-currency `amount` column');

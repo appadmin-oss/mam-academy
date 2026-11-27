@@ -87,7 +87,7 @@ t_ok(strpos($PA_wh, "mam_fail('invalid_signature', 401)") < strpos($PA_wh, "mam_
 
 t_group('paystack audit — the callback is always this site\'s own');
 
-$PA_lib = $PA_src('api/lib/paystack.php');
+$PA_lib = $PA_src('api/modules/finance/lib/paystack.php');
 t_ok(str_contains($PA_lib, "preg_match('#^https?://#i', \$base)"), 'with no absolute APP_URL the callback is left to the dashboard, never a relative URL');
 t_ok(!preg_match('#callback_url[^;]*\\$_(GET|POST|REQUEST)#', $PA_lib . $PA_init . $PA_src('api/routes/parent/fee-pay.php')), 'no caller-supplied value reaches callback_url');
 t_ok(!preg_match('#PAYSTACK_SECRET_KEY|sk_(live|test)_#', implode('', array_map('file_get_contents', glob($PA_root . '/assets/js/*.js') ?: []))),

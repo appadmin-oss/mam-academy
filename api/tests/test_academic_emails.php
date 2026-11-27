@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for the academic email engine (api/lib/academic-emails.php, PDF §28):
+ * Tests for the academic email engine (api/modules/learning/lib/academic-emails.php, PDF §28):
  * the enable gate, per-(type,recipient) dedup, and a representative sweep.
  * (mam_send has no transport in tests; we assert the dedup event is recorded,
  * which is what prevents double-sends.)

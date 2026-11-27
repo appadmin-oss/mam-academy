@@ -50,7 +50,7 @@ audit fixed must survive the restructure — see "Invariants" below.
 
 **High-fidelity.** Colours, type sizes, spacing, radii and target sizes are final and
 measured, and every value traces to a file in the repo (`assets/css/main.css` `:root`,
-`assets/css/apply.css`, the catalogue seed in `api/lib/db.php`). Recreate pixel-perfectly.
+`assets/css/apply.css`, the catalogue seed in `api/modules/kernel/lib/db.php`). Recreate pixel-perfectly.
 
 Two contractual floors, carried over from the guardian redesign and already stated twice in
 `apply.css`, are honoured throughout and must not regress:
@@ -365,7 +365,7 @@ mode button, headshot circle · 44px grade chip · 40px part toggle, desktop ste
   to blank squares offline is cosmetic, but no control may depend on an icon to be
   identifiable — every one above sits beside real text or has an `aria-label`.
 - No photography or illustration. The headshot slot is user-supplied via the existing
-  first-party uploader (`api/lib/uploads.php`, `POST /api/upload/headshot`).
+  first-party uploader (`api/modules/integrations/lib/uploads.php`, `POST /api/upload/headshot`).
 
 ## Invariants — do not regress
 

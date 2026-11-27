@@ -1,6 +1,6 @@
 <?php
 /**
- * Growth and goals (api/lib/growth.php, v102).
+ * Growth and goals (api/modules/learning/lib/growth.php, v102).
  *
  *   GET  /api/growth[?student=N]                → {growth}  (yourself by default; a teacher, guardian or admin names the student)
  *   POST {action:'goal', student?, kind, title, target?, due_on?}

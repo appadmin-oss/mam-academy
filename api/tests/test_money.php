@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for the v61 money-normalization layer (api/lib/money.php) and the
+ * Tests for the v61 money-normalization layer (api/modules/finance/lib/money.php) and the
  * currency-safe revenue query. These lock in the invariant the old
  * SUM(amount) violated: naira and dollars are never added in the same total.
  */

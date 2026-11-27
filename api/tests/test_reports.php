@@ -1,6 +1,6 @@
 <?php
 /**
- * The ratified termly report (api/lib/reports.php, schema v85-86).
+ * The ratified termly report (api/modules/learning/lib/reports.php, schema v85-86).
  *
  * The subsystem's whole value is a refusal, so most of this file tests failure
  * paths: a report reaches a family only after a board has ratified it, and

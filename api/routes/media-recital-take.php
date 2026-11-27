@@ -6,7 +6,7 @@
  *
  * This is a second door onto the same audio files that /api/media/take serves,
  * with a deliberately different lock — see the gallery block in
- * api/lib/recital.php. In short: /api/media/take asks "is this YOUR recording
+ * api/modules/community/lib/recital.php. In short: /api/media/take asks "is this YOUR recording
  * or your child's?", and this route asks "was this performance published, and
  * are you part of the academy?". Neither weakens the other: a recording that
  * fails the gallery rules is still reachable by its own student through the

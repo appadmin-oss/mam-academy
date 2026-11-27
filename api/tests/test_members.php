@@ -79,7 +79,7 @@ t_ok(mam_member_ensure_ref($MB_new) !== null && preg_match('#^(JE/)?MAM/\d{2}/\d
 $MB_ref = (string) $MB_row($MB_new)['enrollment_ref'];
 t_eq(mam_member_ensure_ref($MB_new), $MB_ref, 'and asking again never reissues it — it is printed on a card');
 t_eq(mam_member_ensure_ref($MB_inst), null, 'staff are not given a member number');
-$MB_lms = (string) file_get_contents(dirname(__DIR__) . '/lib/lms.php');
+$MB_lms = (string) file_get_contents(dirname(__DIR__) . '/modules/academics/lib/lms.php');
 t_ok(str_contains(substr($MB_lms, (int) strpos($MB_lms, 'function mam_lms_transition'), 4000), 'mam_member_ensure_ref('),
     'the enrolment transition mints it, so office, Summer and Auditer enrolments get one — only payment settlement did before');
 
@@ -140,7 +140,7 @@ t_group('members roster — duplicates are listed, never merged');
 $MB_dup = mam_member_duplicates(100);
 $MB_phone = array_values(array_filter($MB_dup, fn($g) => str_contains($g['why'], 'phone') && in_array($MB_ids[0], array_map('intval', array_column($g['members'], 'id')), true)));
 t_ok(count($MB_phone) === 1 && count($MB_phone[0]['members']) === 2, 'two students on one phone are listed as possibly the same person — or siblings');
-t_ok(!preg_match('/function mam_member_merge/', (string) file_get_contents(dirname(__DIR__) . '/lib/members.php')), 'and nothing merges them: a person decides from the records');
+t_ok(!preg_match('/function mam_member_merge/', (string) file_get_contents(dirname(__DIR__) . '/modules/identity/lib/members.php')), 'and nothing merges them: a person decides from the records');
 
 t_group('members roster — the screen and the handler');
 
@@ -223,9 +223,9 @@ t_ok(mam_db_row('SELECT 1 FROM password_resets WHERE user_id = ?', [$OB_inv]) !=
 t_group('onboarding — every way an account is made sends a link, never a password');
 
 $OB_src = static fn(string $rel) => (string) file_get_contents(dirname(__DIR__) . '/' . $rel);
-t_ok(str_contains($OB_src('lib/enrol-complete.php'), "mam_auth_send_invite(\$studentId, 'student', 'portal_welcome')"),
+t_ok(str_contains($OB_src('modules/admissions/lib/enrol-complete.php'), "mam_auth_send_invite(\$studentId, 'student', 'portal_welcome')"),
     '"Complete enrolment" invites — its step said "sign-in details emailed" while nothing was sent');
-t_ok(str_contains($OB_src('lib/auditer.php'), 'mam_auth_send_invite($studentId'), 'an Auditer placement that makes an account invites');
+t_ok(str_contains($OB_src('modules/admissions/lib/auditer.php'), 'mam_auth_send_invite($studentId'), 'an Auditer placement that makes an account invites');
 t_ok(str_contains($OB_src('routes/admin/parent-link.php'), "'guardian_invite'") && str_contains($MB_adm, "'guardian_invite'"),
     'linking a new guardian invites them — the account used to be made with a password nobody was given');
 $OB_admin = (string) file_get_contents(dirname(__DIR__, 2) . '/admin/index.php');

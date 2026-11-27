@@ -35,8 +35,8 @@ t_eq($AR_bad, [], 'and every one maps to a console screen that exists');
 t_group('admin retired — nothing in the console sends somebody to a retired screen');
 
 $AR_files = array_merge(glob($AR_root . '/partials/admin-console/*.php'), glob($AR_root . '/partials/admin-phone/*.php'),
-    [$AR_root . '/admin/console.php', $AR_root . '/admin/phone.php', $AR_root . '/api/lib/console.php',
-     $AR_root . '/api/lib/console-phone.php', $AR_root . '/assets/js/admin-console.js']);
+    [$AR_root . '/admin/console.php', $AR_root . '/admin/phone.php', $AR_root . '/api/modules/admin/lib/console.php',
+     $AR_root . '/api/modules/admin/lib/console-phone.php', $AR_root . '/assets/js/admin-console.js']);
 $AR_links = [];
 foreach ($AR_files as $f) {
     preg_match_all('#/admin/\?v=(?!export)[a-z_]+#', (string) file_get_contents($f), $mm);

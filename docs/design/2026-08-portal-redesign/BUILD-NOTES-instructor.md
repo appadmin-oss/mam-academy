@@ -11,7 +11,7 @@ Source: `portals-mobile.dc.html` `data-phone="instructorv2"` (seven screens at
 | `portal/instructor/index.html` | Class-only markup. `data-portal="v2"` on `<html>`, one stylesheet, no `style=` attribute anywhere. |
 | `assets/js/portal-instructor.js` | The app: seven screens, one request each, every write through one helper. |
 | `assets/css/portal-v2.css` | The shared design system, extended with the `.i-*` block. Everything both portals share is reused unchanged. |
-| `api/lib/instructor-portal.php` | The read layer (shipped earlier), plus the Termly report provider this build needed. |
+| `api/modules/portals/lib/instructor-portal.php` | The read layer (shipped earlier), plus the Termly report provider this build needed. |
 | `api/routes/instructor/report.php` | New. The instructor's half of the termly report. |
 | `portal/instructor/classic.html` | **The legacy 13-tab dashboard, not retired.** See below. |
 | `api/tests/test_instructor_portal_ui.php` | 38 static guards on the surface. |

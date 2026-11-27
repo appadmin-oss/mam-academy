@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for instructor clock-in + meeting reconciliation (api/lib/meetings.php,
+ * Tests for instructor clock-in + meeting reconciliation (api/modules/live/lib/meetings.php,
  * PDF §10-11,14): on-time/late clock-in (+ instructor accountability charge when
  * enabled), clock-out, deterministic Jitsi room, CSV parse + reconcile import,
  * and the Google scaffold staying inert.

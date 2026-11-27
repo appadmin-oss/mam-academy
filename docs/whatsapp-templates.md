@@ -5,7 +5,7 @@ language **en**), because WhatsApp allows free-form text only within 24 hours of
 the recipient's last message. Submit these four in Kapso (Templates) or Meta
 Business Manager with exactly these names and bodies. The names are settings
 (`kapso_tpl_*`) if you must use others; the parameter ORDER is fixed in
-`api/lib/kapso.php` (`MAM_KAPSO_TEMPLATES`).
+`api/modules/integrations/lib/kapso.php` (`MAM_KAPSO_TEMPLATES`).
 
 | Name | Body | {{1}} | {{2}} | {{3}} | {{4}} | {{5}} |
 |---|---|---|---|---|---|---|

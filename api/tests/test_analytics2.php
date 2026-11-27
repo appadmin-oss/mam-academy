@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for LMS 2.0 academic analytics (api/lib/analytics2.php, PDF §32-35):
+ * Tests for LMS 2.0 academic analytics (api/modules/admin/lib/analytics2.php, PDF §32-35):
  * academy health shape/bounds, per-instructor performance (scoped, exact), and
  * the today snapshot.
  */

@@ -52,4 +52,4 @@ Options -Indexes -MultiViews
 <FilesMatch "\.(env|sqlite|sqlite3|db|log|bak|ini|json|md|sh|sql)$">
   Require all denied
 </FilesMatch>
-RedirectMatch 403 ^/api/(lib|routes)/.*$
+RedirectMatch 403 ^/api/(lib|modules|routes)/.*$

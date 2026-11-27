@@ -476,7 +476,7 @@ accent do the separating. This deletes `0 12px 40px rgba(0,0,0,0.34)` from the n
   replaced by `fa-fire`; one icon library is enough.
 - No photography or illustration. The desktop mega-menu spotlight image is removed. The
   headshot slot is user-supplied via the existing first-party uploader
-  (`api/lib/uploads.php`, `POST /api/upload/headshot`).
+  (`api/modules/integrations/lib/uploads.php`, `POST /api/upload/headshot`).
 
 ## Invariants — do not regress
 

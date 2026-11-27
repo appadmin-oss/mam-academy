@@ -82,7 +82,7 @@ a link that then always errors — account recovery is entirely broken. This is 
 The migration blocks use `ALTER TABLE … ADD COLUMN/INDEX/KEY IF NOT EXISTS`
 (`schema-mysql.sql:271-276, 284-294, 304-307, 424-427, 687-688, 737-738, 884, 891,
 972`). `IF NOT EXISTS` on `ADD COLUMN/INDEX/KEY` is a **MariaDB extension**; MySQL 8
-rejects it (error 1064). The migrator (`api/lib/db.php:104-121`) logs the error
+rejects it (error 1064). The migrator (`api/modules/kernel/lib/db.php:104-121`) logs the error
 non-fatally and still advances `schema_version` via the file's own
 `INSERT INTO schema_version` rows — so a fresh **MySQL 8** install reports
 "migration complete" while these ALTER-only columns never get created:
@@ -98,8 +98,8 @@ bodies (correct on any driver for fresh installs), or guard each ALTER with an
 standardize on MariaDB and say so in `.env.example`/DEPLOYMENT.
 
 ### 3. Student Wallet tab 500s on MySQL — bound `LIMIT ?` under native prepares
-`api/lib/wallet.php:74` runs `… ORDER BY id DESC LIMIT ?` with the limit passed as
-a bound parameter. `api/lib/db.php:32` sets `PDO::ATTR_EMULATE_PREPARES => false`,
+`api/modules/finance/lib/wallet.php:74` runs `… ORDER BY id DESC LIMIT ?` with the limit passed as
+a bound parameter. `api/modules/kernel/lib/db.php:32` sets `PDO::ATTR_EMULATE_PREPARES => false`,
 so MySQL receives `LIMIT '20'` (a string) and rejects it (error 1210/1064).
 `GET /api/student/wallet` therefore 500s in production. It works on SQLite, so CI
 is green. (This is the only bound-`LIMIT` in the codebase — everywhere else the
@@ -131,7 +131,7 @@ be set for the installer to accept a POST at all (missing token = closed);
 document it as a mandatory deploy step.
 
 ### 5. Wallet balance can go negative — double-spend of store credit (race)
-`api/lib/wallet.php:36-42` (`mam_wallet_apply`) does read-then-write:
+`api/modules/finance/lib/wallet.php:36-42` (`mam_wallet_apply`) does read-then-write:
 `$after = mam_wallet_balance() + $amountCents; if ($after < 0) throw;` where
 `mam_wallet_balance()` is a plain non-locking `SELECT SUM(amount_cents)`. Auth is
 DB-token based (not PHP `$_SESSION`), so concurrent same-user requests aren't
@@ -156,14 +156,14 @@ long random token, add a loud audit/alert on every use, and consider auto-expiry
 ### 7. Login brute-force protection is IP-only and fails open
 `login` is limited 8/600s keyed on IP only (`api/index.php:99`) with **no
 per-account lockout**, and `mam_rate_limit()` swallows DB errors and proceeds
-(`api/lib/rate-limit.php:33-37`). A distributed attacker gets 8 tries *per IP* per
+(`api/modules/kernel/lib/rate-limit.php:33-37`). A distributed attacker gets 8 tries *per IP* per
 account; inducing DB contention disables throttling entirely. **Fix:** add a
 per-email failure counter/lockout; fail closed (or fall back to a short in-process
 throttle) for the login/reset buckets.
 
 ### 8. Instructor can mark attendance for any `student_id` (off-roster write)
 `api/routes/instructor/session-attendance.php:35-39` → `mam_lms_mark_attendance`
-(`api/lib/lms.php:470`) validates cohort ownership and status but never checks the
+(`api/modules/academics/lib/lms.php:470`) validates cohort ownership and status but never checks the
 `student_id` is on the cohort roster. Any instructor can POST
 `{session_id, student_id:<any uid>, status:'absent'}` and fabricate/overwrite
 attendance for a student in someone else's cohort — polluting their history and
@@ -172,7 +172,7 @@ restricts to the roster; the POST must too. **Fix:** assert `student_id ∈
 mam_lms_cohort_roster($sess['cohort_id'])` before writing.
 
 ### 9. AI spend is one global daily bucket — a single user can exhaust it (cost/DoS)
-`api/lib/ai.php:238-244,263`: the only ceiling is a shared `ai:<date>` counter
+`api/modules/integrations/lib/ai.php:238-244,263`: the only ceiling is a shared `ai:<date>` counter
 (`ai_daily_cap`, default 1000); the per-route limiters are keyed on IP, not user.
 One authenticated student can drain the academy-wide daily AI budget (disabling
 narrative/coach/grading-assist for everyone) and, with a paid provider configured,
@@ -180,8 +180,8 @@ run up real cost. Fails closed, so no crash. **Fix:** add a per-user/day sub-buc
 (`ai:<uid>:<date>`) and/or key the AI route limiters on user id.
 
 ### 10. Store overselling — last unit sells twice, second fulfilment silently lost
-`api/lib/store.php:59` checks stock at checkout, but decrement happens only at
-settle (`api/lib/payments.php:112-119`) guarded by `WHERE stock >= ?`. Two buyers
+`api/modules/finance/lib/store.php:59` checks stock at checkout, but decrement happens only at
+settle (`api/modules/finance/lib/payments.php:112-119`) guarded by `WHERE stock >= ?`. Two buyers
 check out the last unit, both pay; first settle decrements to 0, second matches 0
 rows and is swallowed as a `warn`. Both orders show paid/delivered; only one ships,
 with no admin-visible failure. **Fix:** reserve/decrement stock at order creation,
@@ -275,12 +275,12 @@ dashboard CSRF + same-origin + output escaping; committed PHPMailer 6.12.0 match
 ## Subsystem index
 | Subsystem | Key files | Findings |
 |-----------|-----------|----------|
-| Payments/settlement | `lib/payments.php`, `payment-verify.php`, `webhook-*.php` | core clean; #19, #24 |
-| Wallet/store | `lib/wallet.php`, `lib/store.php`, `student/store-redeem.php` | #3, #5, #10 |
+| Payments/settlement | `modules/finance/lib/payments.php`, `payment-verify.php`, `webhook-*.php` | core clean; #19, #24 |
+| Wallet/store | `modules/finance/lib/wallet.php`, `modules/finance/lib/store.php`, `student/store-redeem.php` | #3, #5, #10 |
 | Invoicing/certs | `invoice.php`, `certificate.php`, `policy.php` | #14 |
 | Auth/session/CSRF | `lib/{auth,session,csrf,rate-limit,bootstrap}.php`, `auth/*` | #1, #7; core clean |
 | Setup/recovery | `routes/setup.php`, `raw-debug.php`, `diag.php` | #4, #6, #12 |
 | Admin/RBAC | `admin/index.php`, `routes/admin/*`, `index.php` middleware | #11 |
 | LMS/teaching | `lib/{lms,analytics,ai,admissions}.php`, `instructor/*`, `student/*` | #8, #9, #15, #20, #23, #25 |
-| DB/portability | `lib/db.php`, `db/schema-mysql.sql`, `ci.yml` | #1, #2, #3 (meta) |
+| DB/portability | `modules/kernel/lib/db.php`, `db/schema-mysql.sql`, `ci.yml` | #1, #2, #3 (meta) |
 | Config/exposure | `.htaccess` (root/api), `api/tests|bin|vendor`, `health.php` | #13, #16, #17, #18, #22 |

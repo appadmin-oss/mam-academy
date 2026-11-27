@@ -26,22 +26,30 @@ foreach (['ac_money', 'ac_money_dual', 'mam_acadmail_appurl', 'mam_ach_icon', 'm
     t_ok(!function_exists($CS_fn), "$CS_fn() — defined and never called — is not reintroduced");
 }
 t_ok(!is_file(dirname(__DIR__, 2) . '/assets/js/inline-edit.js'), 'the legacy dashboard\'s inline-edit script, loaded by no page, is gone');
-t_ok(str_contains((string) file_get_contents(dirname(__DIR__) . '/lib/console.php'), 'fn() => mam_sg_open_count()'),
+t_ok(str_contains((string) file_get_contents(dirname(__DIR__) . '/modules/admin/lib/console.php'), 'fn() => mam_sg_open_count()'),
     'the safeguarding badge asks the library\'s own count rather than a second copy of its query');
 
 t_group('code structure — one list of libraries');
 
 /* bootstrap.php and the harness each kept their own list (91 and 89 entries)
-   and a new library had to be added to both. Now both read api/lib/libs.php;
-   what is left to get wrong is forgetting the one list, which this catches. */
-$CS_libs = require dirname(__DIR__) . '/lib/libs.php';
-t_eq(count($CS_libs), count(array_unique($CS_libs)), 'the list names each library once');
-$CS_files = array_map(fn($f) => basename($f, '.php'), glob(dirname(__DIR__) . '/lib/*.php'));
-t_eq(array_values(array_diff($CS_files, $CS_libs, ['bootstrap', 'router', 'libs'])), [],
-    'every library in api/lib is on the list — a file left off it is never loaded');
-foreach ($CS_libs as $CS_l) if (!is_file(dirname(__DIR__) . "/lib/$CS_l.php")) t_ok(false, "listed library $CS_l exists");
-t_ok(str_contains((string) file_get_contents(dirname(__DIR__) . '/lib/bootstrap.php'), "require __DIR__ . '/libs.php'")
-     && str_contains((string) file_get_contents(__DIR__ . '/run.php'), "require \$ROOT . '/lib/libs.php'"),
+   and a new library had to be added to both. Now both read the list that
+   api/modules/libs.php resolves from the module manifests; what is left to get
+   wrong is a file no manifest names, which this catches. (The resolver itself
+   throws on a lib named twice or a listed file that is missing.) */
+$CS_libs = require dirname(__DIR__) . '/modules/libs.php';   // name => path
+t_ok(count($CS_libs) > 90, 'the module manifests resolve to the library list [' . count($CS_libs) . ']');
+$CS_onDisk = [];
+foreach (glob(dirname(__DIR__) . '/modules/*/lib/*.php') ?: [] as $CS_f) $CS_onDisk[realpath($CS_f)] = $CS_f;
+$CS_listed = array_flip(array_map('realpath', array_values($CS_libs)));
+$CS_unlisted = array_values(array_diff_key($CS_onDisk, $CS_listed));
+// The v2 package loads its own files (load.php requires plan.php, …); only its
+// read model is on the list. Everything else in a module's lib/ must be listed.
+$CS_unlisted = array_values(array_filter($CS_unlisted, fn($f) => !str_contains($f, '/modules/v2/lib/')));
+t_eq($CS_unlisted, [], 'every library in api/modules/*/lib is in its module manifest — a file left off is never loaded');
+t_eq(array_map(fn($f) => basename($f), glob(dirname(__DIR__) . '/lib/*.php') ?: []), ['bootstrap.php', 'router.php'],
+    'api/lib holds only the boot files; libraries live in a module');
+t_ok(str_contains((string) file_get_contents(dirname(__DIR__) . '/lib/bootstrap.php'), "require MAM_API_ROOT . '/modules/libs.php'")
+     && str_contains((string) file_get_contents(__DIR__ . '/run.php'), "require \$ROOT . '/modules/libs.php'"),
     'the app and the harness both load that list, not a copy of it');
 
 t_group('code structure — one answer to "may we measure this visitor"');

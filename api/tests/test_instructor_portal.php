@@ -129,7 +129,7 @@ t_ok(str_contains($IP_earn['statement_notice'], 'Read-only'),
 
 /* Labour Act s.5(1) is why the instructor gate is separate and off (gotcha
    #11). This asserts the provider never invents a deduction of its own. */
-$IP_src = file_get_contents(dirname(__DIR__) . '/lib/instructor-portal.php');
+$IP_src = file_get_contents(dirname(__DIR__) . '/modules/portals/lib/instructor-portal.php');
 t_ok(!str_contains($IP_src, 'mam_wallet_post') && !str_contains($IP_src, 'mam_wallet_apply'),
     'the earnings screen is a READ — this provider writes nothing to the ledger');
 
@@ -200,7 +200,7 @@ t_ok($IP_act !== null && (int) $IP_act['count'] === count($IP_q),
     'the "to mark" action counts exactly what the marking queue lists');
 
 // Neither query, nor the routes that set and open the work, reads the retired class model.
-$IP_src = (string) file_get_contents(dirname(__DIR__) . '/lib/instructor-portal.php');
+$IP_src = (string) file_get_contents(dirname(__DIR__) . '/modules/portals/lib/instructor-portal.php');
 foreach (['routes/instructor/assignment.php', 'routes/instructor/marking-sheet.php',
           'routes/instructor/announce.php', 'routes/instructor/resource.php',
           'routes/instructor/drive-upload.php', 'routes/instructor/student.php',

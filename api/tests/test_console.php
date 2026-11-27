@@ -208,7 +208,7 @@ if ($CN_isSqlite) {
         preg_match_all("/'([^']+)'/", $m[1], $vals);
         return $vals[1];
     };
-    $src = (string) file_get_contents(dirname(__DIR__) . '/lib/console.php');
+    $src = (string) file_get_contents(dirname(__DIR__) . '/modules/admin/lib/console.php');
     // Every "FROM <table> ... status IN ('a','b')" the lib writes, per table.
     foreach (['fee_invoices', 'bursary_applications', 'academic_terms', 'termly_reports'] as $table) {
         $legal = $CN_vocab($table);
@@ -403,7 +403,7 @@ t_ok($MK_hits > 60 && $MK_hits < 140, "roughly one in eight is second-marked (go
 t_ok(mam_marking_needs_second_marker(7, 1), 'an every-of-1 double-marks everything rather than dividing by zero');
 
 // No automatic scoring of a child's playing, anywhere in this file.
-$MK_src = file_get_contents(dirname(__DIR__) . '/lib/marking.php');
+$MK_src = file_get_contents(dirname(__DIR__) . '/modules/learning/lib/marking.php');
 foreach (['detectPitch', 'autoscore', 'auto_score', 'analyse_audio'] as $MK_no) {
     t_ok(!str_contains($MK_src, $MK_no), "marking.php contains no '$MK_no' — it helps a human mark, it never marks");
 }

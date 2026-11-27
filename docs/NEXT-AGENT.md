@@ -6,7 +6,7 @@ is the to-do list; HANDOFF is the history.
 
 Branch: `afv/mam-audit` (never a `claude/` branch — owner's rule). Suite:
 `php api/tests/run.php` must stay green. Schema target: see `MAM_SCHEMA_TARGET` in
-`api/lib/db.php` (104 at the time of writing).
+`api/modules/kernel/lib/db.php` (104 at the time of writing).
 
 ---
 
@@ -57,7 +57,7 @@ NGG's features were inventoried (its `mentorship-pods.php` case queue,
 `community.php` screen, `summer-incidents.php`, `registration.php` consents,
 `family-portal.php` collectors). What MAM now has, and what it does not:
 
-Done (v103, `api/lib/safeguarding.php`, `test_spaces.php`):
+Done (v103, `api/modules/safeguarding/lib/safeguarding.php`, `test_spaces.php`):
 - [x] **Escalation nobody can switch off** — a concern still unopened after
   `sg_escalate_hours` (2–72, default 4) is sent again to the officer and every super
   admin, once (`mam_sg_escalate_sweep`, run-jobs). Not an automation toggle on purpose.

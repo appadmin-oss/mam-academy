@@ -5,7 +5,7 @@
  * First-party headshot storage, so a registration photo is never silently lost.
  * Public by necessity — applicants are not signed in when they register — hence
  * CSRF + a tight rate limit, a size ceiling, and GD re-encoding that proves the
- * bytes really are an image (see api/lib/uploads.php).
+ * bytes really are an image (see api/modules/integrations/lib/uploads.php).
  *
  * Returns { url } — a same-origin /api/media/headshot?k=… URL the form submits as
  * `headshotUrl` exactly as it would a Cloudinary one.

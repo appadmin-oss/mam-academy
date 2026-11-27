@@ -252,9 +252,9 @@ $SP_stamp = mam_db_row('SELECT escalated_at FROM safeguarding_concerns WHERE id 
 mam_db_update('safeguarding_concerns', ['escalated_at' => '2000-01-01 00:00:00'], ['id' => $SP_c1]);
 mam_sg_escalate_sweep();
 t_eq(mam_db_row('SELECT escalated_at FROM safeguarding_concerns WHERE id = ?', [$SP_c1])['escalated_at'], '2000-01-01 00:00:00', '…once (an escalated concern is not sent again)');
-t_ok(!str_contains((string) file_get_contents(__DIR__ . '/../lib/automations.php'), 'sg_escalate'), 'escalation is not an automation anybody can switch off');
-t_ok(str_contains((string) file_get_contents(__DIR__ . '/../lib/safeguarding.php'), "mam_audit('safeguarding_read'")
-    && str_contains((string) file_get_contents(__DIR__ . '/../lib/console.php'), "mam_sg_get(\$id, (int) (mam_current_user()"), 'reading a concern on the console is audited, with the reader');
+t_ok(!str_contains((string) file_get_contents(__DIR__ . '/../modules/comms/lib/automations.php'), 'sg_escalate'), 'escalation is not an automation anybody can switch off');
+t_ok(str_contains((string) file_get_contents(__DIR__ . '/../modules/safeguarding/lib/safeguarding.php'), "mam_audit('safeguarding_read'")
+    && str_contains((string) file_get_contents(__DIR__ . '/../modules/admin/lib/console.php'), "mam_sg_get(\$id, (int) (mam_current_user()"), 'reading a concern on the console is audited, with the reader');
 
 t_group('safeguarding — incidents');
 

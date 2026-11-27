@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for the LMS 2.0 teaching helpers (api/lib/lms2.php, Parts B/D):
+ * Tests for the LMS 2.0 teaching helpers (api/modules/academics/lib/lms2.php, Parts B/D):
  * assignment-group fan-out, rubric scoring, lesson progress, submission files,
  * resource versioning, instructor availability, and the signed ICS feed.
  */

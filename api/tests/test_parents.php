@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for parent accounts + guardian portal (api/lib/parents.php, PDF §26):
+ * Tests for parent accounts + guardian portal (api/modules/identity/lib/parents.php, PDF §26):
  * provisioning + role grant, guardian↔student linking (idempotent), the
  * children list + weekly status, and access control on child detail.
  */
