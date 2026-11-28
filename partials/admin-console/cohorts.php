@@ -83,9 +83,13 @@ $shown = array_values(array_filter($rows, $filters[$f][1]));
           <div class="ac-cardtitle"><?= ac_h((string) $r['title']) ?></div>
           <div class="ac-sub"><?= ac_h(ac_join([
               (string) ($r['course_code'] ?? ''), (string) ($r['level_code'] ?? ''),
-              (string) ($r['term'] ?? ''), (string) ($r['mode'] ?? ''),
+              (string) ($r['mode'] ?? ''),
               (string) ($r['schedule_days'] ?? '') . ' ' . (string) ($r['schedule_time'] ?? ''),
               (string) ($r['instructor'] ?? '') ?: 'unassigned'])) ?></div>
+          <div class="ac-row ac-mt-sm">
+            <?php if ((string) ($r['programme_label'] ?? '') !== ''): ?><?= ac_pill((string) $r['programme_label'], 'accent') ?><?php endif; ?>
+            <?= ac_pill((string) ($r['term_label'] ?? 'Year-round')) ?>
+          </div>
         </div>
         <?= !empty($r['is_full']) ? ac_pill('Full', 'bad')
             : ($r['uncapped'] ? ac_pill('Uncapped') : ac_status((string) $r['status'])) ?>

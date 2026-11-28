@@ -1765,8 +1765,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!$student) { header('Location: ?v=users&err=' . urlencode('Student not found.')); exit; }
         $ceId = 0;
         $ceWaitPos = null;
+        // Reuse the levelled class when the student's level (and programme) is
+        // known — posted, or from their last enrolment in this course. Unknown
+        // keeps the old level-less add (classes audit §6.5).
+        $plLevel = trim((string) ($_POST['level_code'] ?? ''));
+        $plProg  = trim((string) ($_POST['program_code'] ?? ''));
+        if ($plLevel === '') {
+            $plCourse = mam_db_row('SELECT id FROM courses WHERE code = ?', [$code]);
+            if ($plCourse) {
+                [$knownLevel, $knownProg] = mam_lms_known_placement($uid, (int) $plCourse['id']);
+                $plLevel = (string) ($knownLevel ?? '');
+                if ($plProg === '') $plProg = (string) ($knownProg ?? '');
+            }
+        }
         try {
-            $ceRow = mam_lms_add_course($uid, $code);
+            $ceRow = mam_lms_add_course($uid, $code, $plLevel !== '' ? $plLevel : null, $plProg !== '' ? $plProg : null);
             // A full cohort queues the student instead of over-filling it.
             if (($ceRow['status'] ?? '') === 'waitlisted') $ceWaitPos = (int)$ceRow['position'];
             $ceId  = (int)($ceRow['id'] ?? 0);
@@ -2331,7 +2344,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $r = mam_sched_create_series($cohortId, [
                 'days' => (array) ($_POST['days'] ?? []), 'time' => (string) ($_POST['time'] ?? ''),
                 'duration' => (int) ($_POST['duration'] ?? 0), 'room_id' => (int) ($_POST['room_id'] ?? 0),
-                'mode' => (string) ($_POST['mode'] ?? 'onsite'), 'from' => (string) ($_POST['from'] ?? ''), 'to' => (string) ($_POST['to'] ?? ''),
+                'mode' => (string) ($_POST['mode'] ?? ''), 'from' => (string) ($_POST['from'] ?? ''), 'to' => (string) ($_POST['to'] ?? ''),
             ], (int) $me['id'], (string) ($_POST['on_clash'] ?? 'refuse'));
         } catch (\Throwable $e) {
             if (!$e instanceof InvalidArgumentException) mam_log('error', 'sched_series_failed', ['cohort' => $cohortId, 'err' => $e->getMessage()]);
@@ -2355,7 +2368,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         try {
             $r = mam_sched_add_session((int) ($_POST['cohort_id'] ?? 0), [
                 'at' => (string) ($_POST['at'] ?? ''), 'duration' => (int) ($_POST['duration'] ?? 60),
-                'room_id' => (int) ($_POST['room_id'] ?? 0), 'mode' => (string) ($_POST['mode'] ?? 'onsite'),
+                'room_id' => (int) ($_POST['room_id'] ?? 0), 'mode' => (string) ($_POST['mode'] ?? ''),
                 'kind' => (string) ($_POST['kind'] ?? 'class'), 'title' => (string) ($_POST['title'] ?? ''),
             ], (int) $me['id'], !empty($_POST['force']));
         } catch (\Throwable $e) {

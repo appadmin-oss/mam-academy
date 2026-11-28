@@ -118,9 +118,11 @@ try {
             'location'     => (string)($in['location']     ?? ''),
             'room'         => (string)($in['room']         ?? ''),
             'skip_dates'   => (array)($in['skip_dates']    ?? []),
+            // Absent → the class's own mode (mam_lms_session_mode).
+            'mode'         => isset($in['mode']) && $in['mode'] !== '' ? (string)$in['mode'] : null,
         ], $me);
         $ids = $res['session_ids'];
-        mam_ok(['created' => true, 'count' => count($ids), 'session_ids' => $ids, 'conflicts' => $res['conflicts']]);
+        mam_ok(['created' => true, 'count' => count($ids), 'session_ids' => $ids, 'conflicts' => $res['conflicts'], 'skipped' => $res['skipped']]);
     }
 
     /* ── reschedule ── */
@@ -273,8 +275,11 @@ try {
         'kind'         => (string)($in['kind']   ?? 'class'),
         'location'     => isset($in['location']) ? (string)$in['location'] : null,
         'room'         => isset($in['room'])     ? (string)$in['room']     : null,
+        'mode'         => isset($in['mode']) && $in['mode'] !== '' ? (string)$in['mode'] : null,
         'created_by'   => $me,
     ]);
+    // The same link-on-create the admin timetable gives an online/hybrid session.
+    try { mam_meeting_ensure($id); } catch (\Throwable $e) { mam_log('warn', 'meeting_ensure_failed', ['session' => $id, 'err' => $e->getMessage()]); }
     mam_ok(['created' => true, 'session_id' => $id, 'conflicts' => $conflicts]);
 
 } catch (RuntimeException $e) {

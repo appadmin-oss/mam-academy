@@ -667,15 +667,31 @@ function mam_lms_find_cohort(int $courseId, ?int $levelId, ?int $programId): ?in
     $args  = [$courseId, 'active'];
     if ($levelId === null)   { $where .= ' AND level_id IS NULL'; }   else { $where .= ' AND level_id = ?';   $args[] = $levelId; }
     if ($programId === null) { $where .= ' AND program_id IS NULL'; } else { $where .= ' AND program_id = ?'; $args[] = $programId; }
+    // A summer intake is its own class (mam_summer_cohort(), keyed on course +
+    // SUMMER-<year>) even though it carries the crash programme. Without this a
+    // year-round Crash enrolment landed in the holiday class (classes audit §3.4).
+    $where .= " AND (term IS NULL OR term NOT LIKE 'SUMMER-%')";
     $row = mam_db_row("SELECT id FROM cohorts WHERE $where ORDER BY id LIMIT 1", $args);
     return $row ? (int) $row['id'] : null;
 }
 
-/** The title a cohort for (course, level) is created with. */
-function mam_lms_cohort_default_title(int $courseId, ?int $levelId): string {
+/** The programme every class belongs to unless it says otherwise; not named in a title. */
+const MAM_LMS_DEFAULT_PROGRAMME = 'standard';
+
+/**
+ * The title a cohort for (course, level, programme) is created with:
+ * "Course — Level · Programme". The programme is named only when it is not the
+ * standard one, so the KTAMS / Certified / Crash classes of one course and level
+ * no longer share a title. Existing cohorts are never renamed.
+ */
+function mam_lms_cohort_default_title(int $courseId, ?int $levelId, ?int $programId = null): string {
     $c = mam_db_row('SELECT name FROM courses WHERE id = ?', [$courseId]);
     $title = $c ? (string)$c['name'] : ('Course #' . $courseId);
     if ($levelId !== null) { $l = mam_db_row('SELECT name FROM levels WHERE id = ?', [$levelId]); if ($l) $title .= ' — ' . $l['name']; }
+    if ($programId !== null) {
+        $p = mam_db_row('SELECT code, name FROM programs WHERE id = ?', [$programId]);
+        if ($p && (string) $p['code'] !== MAM_LMS_DEFAULT_PROGRAMME) $title .= ' · ' . $p['name'];
+    }
     return $title;
 }
 
@@ -683,7 +699,26 @@ function mam_lms_ensure_cohort(int $courseId, ?int $levelId, ?int $programId): i
     $found = mam_lms_find_cohort($courseId, $levelId, $programId);
     if ($found !== null) return $found;
     return mam_lms_create_cohort(['course_id' => $courseId, 'level_id' => $levelId, 'program_id' => $programId,
-        'title' => mam_lms_cohort_default_title($courseId, $levelId)]);
+        'title' => mam_lms_cohort_default_title($courseId, $levelId, $programId)]);
+}
+
+/**
+ * Where a student is already known to sit in a course: the level and programme
+ * of their most recent enrolment in it that names a level (any status — a
+ * completed or withdrawn one still says where they were placed). The admin
+ * "assign course" path uses it so a re-add reuses the levelled class instead of
+ * opening a level-less one. Unknown → [null, null], and the caller keeps its
+ * old behaviour.
+ */
+function mam_lms_known_placement(int $studentId, int $courseId): array {
+    $r = mam_db_row(
+        "SELECT l.code AS level_code, p.code AS program_code
+           FROM course_enrollments ce
+           JOIN levels l ON l.id = ce.level_id
+           LEFT JOIN programs p ON p.id = ce.program_id
+          WHERE ce.student_id = ? AND ce.course_id = ? AND ce.level_id IS NOT NULL
+          ORDER BY ce.id DESC LIMIT 1", [$studentId, $courseId]);
+    return $r ? [(string) $r['level_code'], $r['program_code'] !== null ? (string) $r['program_code'] : null] : [null, null];
 }
 
 /* ───────────────────────── Sessions / scheduling (L2) ────────────────────
@@ -726,6 +761,7 @@ function mam_lms_create_session(int $cohortId, array $d): int {
     if (!in_array($kind, ['class', 'exam', 'revision', 'makeup'], true)) $kind = 'class';
     $id = mam_db_insert('class_sessions', [
         'cohort_id'    => $cohortId,
+        'mode'         => mam_lms_session_mode($cohortId, isset($d['mode']) ? (string) $d['mode'] : null),
         'title'        => isset($d['title']) ? (string)$d['title'] : null,
         'scheduled_at' => mam_lms_norm_datetime(isset($d['scheduled_at']) ? (string) $d['scheduled_at'] : null),
         'duration_min' => isset($d['duration_min']) ? max(1, (int)$d['duration_min']) : 60,
@@ -738,6 +774,22 @@ function mam_lms_create_session(int $cohortId, array $d): int {
     ]);
     mam_audit('lms_session_create', 'class_session', $id, ['cohort' => $cohortId, 'kind' => $kind]);
     return $id;
+}
+
+/** The modes a session (and an attendance mark) can take. */
+const MAM_LMS_SESSION_MODES = ['onsite', 'online', 'hybrid'];
+
+/**
+ * A session's mode: the one asked for when it is a real mode, otherwise the
+ * class's own (cohorts.mode), otherwise in person. Every create path goes
+ * through mam_lms_create_session(), so an online class's sessions are online
+ * without anybody choosing it again (classes audit §3.8).
+ */
+function mam_lms_session_mode(int $cohortId, ?string $asked): string {
+    if ($asked !== null && in_array($asked, MAM_LMS_SESSION_MODES, true)) return $asked;
+    $co = mam_db_row('SELECT mode FROM cohorts WHERE id = ?', [$cohortId]);
+    $m = strtolower(trim((string) ($co['mode'] ?? '')));
+    return in_array($m, MAM_LMS_SESSION_MODES, true) ? $m : 'onsite';
 }
 
 /** Sessions for a cohort, soonest-first (undated last). */
@@ -796,7 +848,7 @@ function mam_lms_set_session_status(int $id, string $to, ?int $by = null): array
  */
 function mam_lms_mark_attendance_all(int $sessionId, string $status, ?int $markedBy = null,
                                      bool $onlyUnmarked = true, ?string $notes = null): array {
-    $sess = mam_db_row('SELECT id, cohort_id FROM class_sessions WHERE id = ?', [$sessionId]);
+    $sess = mam_db_row('SELECT id, cohort_id, mode FROM class_sessions WHERE id = ?', [$sessionId]);
     if (!$sess) throw new RuntimeException('session_not_found');
     if (!in_array($status, ['present', 'absent', 'late', 'excused'], true)) throw new RuntimeException('invalid_status');
 
@@ -836,7 +888,7 @@ function mam_lms_mark_attendance_all(int $sessionId, string $status, ?int $marke
  *  record per (session, student). Validates the session + status. Returns the
  *  row id. Throws session_not_found / invalid_status. */
 function mam_lms_mark_attendance(int $sessionId, int $studentId, string $status, ?int $markedBy = null, ?string $notes = null): int {
-    $sess = mam_db_row('SELECT id, cohort_id FROM class_sessions WHERE id = ?', [$sessionId]);
+    $sess = mam_db_row('SELECT id, cohort_id, mode FROM class_sessions WHERE id = ?', [$sessionId]);
     if (!$sess) throw new RuntimeException('session_not_found');
     if (!in_array($status, ['present', 'absent', 'late', 'excused'], true)) throw new RuntimeException('invalid_status');
     // The student must actually be on this session's cohort roster. Without this,
@@ -858,7 +910,9 @@ function mam_lms_mark_attendance(int $sessionId, int $studentId, string $status,
             // Explicit, though it matches the column default: the other three
             // writers each mean something different, and a row whose method is
             // whatever the schema happened to default to is not a record.
-            'status' => $status, 'notes' => $notes, 'marked_by' => $markedBy, 'method' => 'instructor']);
+            'status' => $status, 'notes' => $notes, 'marked_by' => $markedBy, 'method' => 'instructor',
+            // The register records how the class actually ran — the session's mode, not a default 'onsite'.
+            'mode' => in_array((string) ($sess['mode'] ?? ''), MAM_LMS_SESSION_MODES, true) ? (string) $sess['mode'] : 'onsite']);
     }
     mam_audit('lms_attendance_mark', 'class_session', $sessionId, ['student' => $studentId, 'status' => $status]);
     return $id;
@@ -2447,9 +2501,11 @@ function mam_lms_student_waitlists(int $studentId): array {
  *  time_of_day (HH:MM), duration_min, kind, title_prefix, location, room,
  *  skip_dates (string[]).  Hard-capped at 104 sessions per call.
  *
- *  Returns ['session_ids' => int[], 'conflicts' => array[]] — conflicts is a
- *  warn-only list of proposed slots that overlap an existing session on the
- *  same instructor or room (creation is not blocked; the UI surfaces them). */
+ *  Returns ['session_ids' => int[], 'conflicts' => array[], 'skipped' => array[]] —
+ *  conflicts is a warn-only list of slots that overlap another session (same
+ *  teacher, room or learner; creation is not blocked, the UI surfaces them);
+ *  skipped lists the holiday/break dates and the dates this class already
+ *  meets. Slots come from mam_sched_slots(), shared with the admin timetable. */
 function mam_lms_bulk_create_sessions(int $cohortId, array $rule, int $actorId): array {
     $co = mam_db_row('SELECT id, instructor_id FROM cohorts WHERE id = ?', [$cohortId]);
     if (!$co) throw new RuntimeException('cohort_not_found');
@@ -2478,38 +2534,42 @@ function mam_lms_bulk_create_sessions(int $cohortId, array $rule, int $actorId):
     $skipDates   = isset($rule['skip_dates']) && is_array($rule['skip_dates'])
         ? array_fill_keys($rule['skip_dates'], true) : [];
 
-    $instructorId = $co['instructor_id'] !== null ? (int)$co['instructor_id'] : 0;
+    // ONE series builder (classes audit §6.6): the slots, closures, clash check
+    // and "already has a session then" rule are scheduling.php's, the same as
+    // the admin timetable. The instructor's rule stays warn-only on a clash —
+    // a clashing slot is still created and listed in `conflicts` — and a
+    // holiday or an existing session is skipped (`skipped`).
+    $plan = mam_sched_slots($cohortId, [
+        'from' => $start->format('Y-m-d'), 'to' => $end->format('Y-m-d'), 'days' => $days,
+        'time' => $timeOfDay, 'duration' => $durationMin, 'room' => (string) $room,
+        'instructor_id' => $co['instructor_id'] !== null ? (int)$co['instructor_id'] : 0,
+    ], array_keys($skipDates), 104);
     $ids = [];
     $conflicts = [];
-    $cur = $start;
+    $skipped = [];
     $num = 1;
-    while ($cur <= $end && count($ids) < 104) {
-        $dow = (int)$cur->format('w');
-        $ds  = $cur->format('Y-m-d');
-        if (in_array($dow, $days, true) && !isset($skipDates[$ds])) {
-            $scheduledAt = $ds . ' ' . $timeOfDay . ':00';
-            // Warn (don't block) on instructor/room clashes for this slot. Run
-            // BEFORE inserting so sibling slots in this same batch aren't flagged.
-            if ($instructorId > 0 || $room !== null) {
-                $hit = mam_lms_detect_conflicts($instructorId, $scheduledAt, $durationMin, null, $room);
-                if ($hit) $conflicts[] = ['date' => $ds, 'scheduled_at' => $scheduledAt, 'with' => $hit];
-            }
-            $id = mam_lms_create_session($cohortId, [
-                'title'        => $titlePrefix !== '' ? $titlePrefix . ' ' . $num : null,
-                'scheduled_at' => $scheduledAt,
-                'duration_min' => $durationMin,
-                'kind'         => $kind,
-                'location'     => $location,
-                'room'         => $room,
-                'created_by'   => $actorId,
-            ]);
-            $ids[] = $id;
-            $num++;
+    foreach ($plan as $slot) {
+        if ($slot['status'] === 'closed' || $slot['status'] === 'exists') {
+            $skipped[] = ['date' => $slot['date'], 'why' => $slot['status'], 'closure' => $slot['closure']];
+            continue;
         }
-        $cur = $cur->modify('+1 day');
+        if ($slot['status'] === 'clash') $conflicts[] = ['date' => $slot['date'], 'scheduled_at' => $slot['at'], 'with' => $slot['with']];
+        $ids[] = mam_lms_create_session($cohortId, [
+            'title'        => $titlePrefix !== '' ? $titlePrefix . ' ' . $num : null,
+            'scheduled_at' => $slot['at'],
+            'duration_min' => $durationMin,
+            'kind'         => $kind,
+            'location'     => $location,
+            'room'         => $room,
+            'mode'         => isset($rule['mode']) ? (string) $rule['mode'] : null,
+            'created_by'   => $actorId,
+        ]);
+        $num++;
     }
-    mam_audit('lms_bulk_create_sessions', 'cohort', $cohortId, ['count' => count($ids), 'conflicts' => count($conflicts), 'by' => $actorId]);
-    return ['session_ids' => $ids, 'conflicts' => $conflicts];
+    // Every online or hybrid session gets its link now, as on the admin path.
+    foreach ($ids as $sid) { try { mam_meeting_ensure($sid); } catch (\Throwable $e) { mam_log('warn', 'meeting_ensure_failed', ['session' => $sid, 'err' => $e->getMessage()]); } }
+    mam_audit('lms_bulk_create_sessions', 'cohort', $cohortId, ['count' => count($ids), 'conflicts' => count($conflicts), 'skipped' => count($skipped), 'by' => $actorId]);
+    return ['session_ids' => $ids, 'conflicts' => $conflicts, 'skipped' => $skipped];
 }
 
 /** Preview dates (Y-m-d) that a bulk rule would generate — no DB writes. */
@@ -2528,7 +2588,8 @@ function mam_lms_bulk_sessions_preview(array $rule): array {
     $cur = $start;
     while ($cur <= $end && count($dates) < 104) {
         $ds = $cur->format('Y-m-d');
-        if (in_array((int)$cur->format('w'), $days, true) && !isset($skipDates[$ds])) $dates[] = $ds;
+        // A holiday or break is skipped here exactly as the create skips it.
+        if (in_array((int)$cur->format('w'), $days, true) && !isset($skipDates[$ds]) && !mam_sched_closure_on($ds)) $dates[] = $ds;
         $cur = $cur->modify('+1 day');
     }
     return $dates;

@@ -1168,7 +1168,7 @@ function mam_console_cohorts(): array {
     $rows = mam_console_rows('coh.rows',
         "SELECT c.id, c.title, c.term, c.status, c.capacity, c.mode, c.schedule_days, c.schedule_time,
                 c.legacy_class_id, co.code course_code, co.name course_name, l.code level_code,
-                p.code program_code, u.name instructor, c.instructor_id,
+                p.code program_code, p.name program_name, u.name instructor, c.instructor_id,
                 (SELECT COUNT(DISTINCT ce.student_id) FROM course_enrollments ce
                   WHERE ce.cohort_id = c.id AND ce.status IN ('active','pending')) fill,
                 (SELECT COUNT(*) FROM class_waitlist w WHERE w.cohort_id = c.id AND w.status = 'waiting') waiting
@@ -1184,6 +1184,13 @@ function mam_console_cohorts(): array {
         $r['pct'] = $cap ? min(100, mam_console_pct((int) $r['fill'], $cap)) : 0;
         $r['is_full'] = $cap !== null && (int) $r['fill'] >= $cap;
         $r['no_instructor'] = ((int) $r['instructor_id']) <= 0;
+        // Two classes of one course and level differ by programme and term, so
+        // both are said on the card (classes audit §3.4): the programme unless it
+        // is the standard one, and the term — a summer intake, or year-round.
+        $r['programme_label'] = ($r['program_code'] ?? null) !== null && (string) $r['program_code'] !== MAM_LMS_DEFAULT_PROGRAMME
+            ? (string) ($r['program_name'] ?: $r['program_code']) : '';
+        $term = trim((string) ($r['term'] ?? ''));
+        $r['term_label'] = preg_match('/^SUMMER-(\d{4})$/', $term, $tm) ? 'Summer ' . $tm[1] : ($term !== '' ? $term : 'Year-round');
     }
     unset($r);
     return [

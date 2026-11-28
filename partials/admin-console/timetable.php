@@ -281,8 +281,9 @@ $byLink = fn(string $v, string $text) => '<a href="' . ac_h(ac_url('timetable', 
             <input class="ac-input" type="number" name="dur" min="15" max="480" step="5" value="<?= ac_h((string) ($pi['duration'] ?? '')) ?>" placeholder="60"></label>
           <label class="ac-field"><span class="ac-label">Mode</span>
             <select class="ac-select" name="mode">
+              <option value=""<?= (string) ($pi['mode'] ?? '') === '' ? ' selected' : '' ?>>The class's own</option>
               <?php foreach (['onsite' => 'In person', 'online' => 'Online', 'hybrid' => 'Hybrid'] as $mv => $mt): ?>
-                <option value="<?= $mv ?>"<?= ($pi['mode'] ?? 'onsite') === $mv ? ' selected' : '' ?>><?= $mt ?></option>
+                <option value="<?= $mv ?>"<?= (string) ($pi['mode'] ?? '') === $mv ? ' selected' : '' ?>><?= $mt ?></option>
               <?php endforeach; ?>
             </select></label>
         </div>
@@ -393,7 +394,7 @@ $byLink = fn(string $v, string $text) => '<a href="' . ac_h(ac_url('timetable', 
             </select></label>
           <label class="ac-field"><span class="ac-label">Mode</span>
             <select class="ac-select" name="mode">
-              <option value="onsite">In person</option><option value="online">Online</option><option value="hybrid">Hybrid</option>
+              <option value="">The class's own</option><option value="onsite">In person</option><option value="online">Online</option><option value="hybrid">Hybrid</option>
             </select></label>
           <label class="ac-field"><span class="ac-label">Room</span>
             <select class="ac-select" name="room_id">

@@ -704,6 +704,52 @@ function mam_space_queue(array $user): array {
     return ['held' => $held, 'to_mark' => $toMark];
 }
 
+/* ─── Space marks in the rest of the system (classes audit §3.10) ────────── */
+
+/**
+ * Handed-in space work waiting for a mark, from the classes this instructor
+ * teaches (mam_teaches, via cohort_staff) — the instructor Marking screen's
+ * `spaces` list. Marking from there posts the same `review` action to
+ * /api/spaces, so it is the same mam_space_review() and the same record.
+ */
+function mam_space_marking_queue_for_instructor(int $instructorId, int $limit = 50): array {
+    [$teach, $targs] = mam_teaching_cohort_sql('s.cohort_id', $instructorId);
+    $rows = mam_db_all(
+        "SELECT p.id, p.space_id, s.title AS space_title, t.title AS task_title, u.name AS student_name,
+                COALESCE(p.max_score, t.points, 10) AS max_score, p.created_at AS submitted_at
+           FROM space_posts p
+           JOIN class_spaces s ON s.id = p.space_id
+           LEFT JOIN space_tasks t ON t.id = p.task_id
+           LEFT JOIN users u ON u.id = p.author_id
+          WHERE $teach AND s.status <> 'archived'
+            AND p.kind = 'submission' AND p.status <> 'removed' AND p.reviewed_at IS NULL
+          ORDER BY p.created_at, p.id LIMIT " . max(1, min(200, $limit)), $targs);
+    foreach ($rows as &$r) { $r['id'] = (int) $r['id']; $r['space_id'] = (int) $r['space_id']; $r['max_score'] = (int) $r['max_score']; }
+    unset($r);
+    return $rows;
+}
+
+/**
+ * A student's OWN marked space work, newest first: task, mark out of what,
+ * what the teacher said, when. Marks are private (rules above), so this takes
+ * the student and nobody else's id; a guardian reaches it only through
+ * mam_parent_child_detail(), under the 'reports' grant.
+ */
+function mam_space_marked_work(int $studentId, int $limit = 20): array {
+    $rows = mam_db_all(
+        "SELECT p.id, s.title AS space_title, COALESCE(t.title, 'Handed-in work') AS task_title,
+                p.score, COALESCE(p.max_score, t.points, 10) AS max_score, p.feedback, p.reviewed_at AS marked_at
+           FROM space_posts p
+           JOIN class_spaces s ON s.id = p.space_id
+           LEFT JOIN space_tasks t ON t.id = p.task_id
+          WHERE p.author_id = ? AND p.kind = 'submission' AND p.status <> 'removed'
+            AND p.reviewed_at IS NOT NULL AND p.score IS NOT NULL
+          ORDER BY p.reviewed_at DESC, p.id DESC LIMIT " . max(1, min(100, $limit)), [$studentId]);
+    foreach ($rows as &$r) { $r['id'] = (int) $r['id']; $r['score'] = (int) $r['score']; $r['max_score'] = (int) $r['max_score']; }
+    unset($r);
+    return $rows;
+}
+
 /* ─── Telling people ────────────────────────────────────────────────────── */
 
 function mam_space_notify_class(array $s, string $title, ?string $body, int $exceptId): void {

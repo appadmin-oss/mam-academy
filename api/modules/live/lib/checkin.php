@@ -358,11 +358,14 @@ function mam_checkin_clock_out(int $studentId, int $sessionId, ?int $nowTs = nul
 function mam_checkin_set_status(int $sessionId, int $studentId, string $status, ?string $mode = null, ?int $by = null, ?string $note = null): array {
     if (!in_array($status, MAM_ATTENDANCE_STATUSES, true)) throw new InvalidArgumentException('invalid_status');
     if ($mode !== null && !in_array($mode, MAM_ATTENDANCE_MODES, true)) throw new InvalidArgumentException('invalid_mode');
-    if (!mam_db_row('SELECT id FROM class_sessions WHERE id = ?', [$sessionId])) throw new RuntimeException('session_not_found');
+    $sess = mam_db_row('SELECT id, mode FROM class_sessions WHERE id = ?', [$sessionId]);
+    if (!$sess) throw new RuntimeException('session_not_found');
     $now = date('Y-m-d H:i:s');
     $existing = mam_db_row('SELECT id, status FROM session_attendance WHERE session_id = ? AND student_id = ?', [$sessionId, $studentId]);
     $fields = ['status' => $status, 'marked_by' => $by, 'updated_at' => $now];
     if ($mode !== null) $fields['mode'] = $mode;
+    // A NEW mark with no mode takes the session's — never the column default 'onsite'.
+    elseif (!$existing && in_array((string) ($sess['mode'] ?? ''), MAM_ATTENDANCE_MODES, true)) $fields['mode'] = (string) $sess['mode'];
     if ($note !== null) $fields['notes'] = $note;
     if ($existing) mam_db_update('session_attendance', $fields, ['id' => (int) $existing['id']]);
     else mam_db_insert('session_attendance', array_merge(['session_id' => $sessionId, 'student_id' => $studentId, 'method' => 'instructor'], $fields));

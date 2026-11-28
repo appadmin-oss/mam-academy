@@ -626,6 +626,19 @@
               + '<span class="p-chip' + (x.band && x.band !== 'Not yet' ? ' is-good' : '') + '">' + esc(res) + '</span></button>';
           }).join('') + '</div></section>';
       }
+      /* Work marked in a class space (spaces.php). Only the student's own —
+         marks are private, and the provider takes no other id. */
+      var sm = d.space_marks || [];
+      if (sm.length) {
+        html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">Marked in your class space</span></div><div class="p-rows">'
+          + sm.map(function (w) {
+            return '<div class="p-row s-space-mark"><span class="p-row-main">'
+              + '<span class="p-title">' + esc(w.task_title) + '</span>'
+              + '<span class="p-caption">' + esc([w.space_title, w.marked_at ? 'Marked ' + String(w.marked_at).slice(0, 10) : ''].filter(Boolean).join(' · ')) + '</span>'
+              + (w.feedback ? '<span class="p-body">' + esc(w.feedback) + '</span>' : '')
+              + '</span><span class="p-chip p-num">' + esc(w.score + ' of ' + w.max_score) + '</span></div>';
+          }).join('') + '</div></section>';
+      }
       if ((lx.certificates || []).length) {
         html += '<section class="p-card is-flush"><div class="p-card-head"><span class="p-label">Certificates</span></div><div class="p-rows">'
           + lx.certificates.map(function (ct) {

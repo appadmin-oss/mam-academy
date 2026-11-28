@@ -102,8 +102,8 @@ function mam_sched_rule(int $cohortId, array $in): array {
     if ($to < $from) throw new InvalidArgumentException('to_before_from');
     if ((strtotime($to) - strtotime($from)) > 400 * 86400) throw new InvalidArgumentException('range_too_long');
 
-    $mode = (string) ($in['mode'] ?? 'onsite');
-    if (!in_array($mode, MAM_SCHED_MODES, true)) $mode = 'onsite';
+    // No mode chosen → the class's own (cohorts.mode), never a blanket 'onsite'.
+    $mode = mam_lms_session_mode($cohortId, isset($in['mode']) && $in['mode'] !== '' ? (string) $in['mode'] : null);
     $roomId = (int) ($in['room_id'] ?? 0) ?: null;
     if ($roomId && !mam_db_row('SELECT id FROM rooms WHERE id = ?', [$roomId])) $roomId = null;
     if ($mode === 'online') $roomId = null;   // an online class occupies no room
@@ -156,6 +156,48 @@ function mam_sched_learner_conflicts(int $cohortId, string $at, int $dur, ?int $
 }
 
 /**
+ * The ONE weekly slot generator, shared by the admin timetable
+ * (mam_sched_plan_series) and the instructor's bulk series
+ * (mam_lms_bulk_create_sessions). $r needs from, to (Y-m-d), days (0=Sun..6),
+ * time (HH:MM), duration, room (name, '' for none) and instructor_id. Dates in
+ * $skip are left out entirely; at most $cap slots. Each slot is
+ * ['date','at','status','with','closure'] with status:
+ *   ok       — free
+ *   clash    — overlaps another session (`with` lists them: teacher, room or learner)
+ *   exists   — this cohort already has a live session at that time
+ *   closed   — a holiday or break (`closure`)
+ */
+function mam_sched_slots(int $cohortId, array $r, array $skip = [], int $cap = 200): array {
+    $existing = [];
+    foreach (mam_db_all("SELECT scheduled_at FROM class_sessions WHERE cohort_id = ? AND status IN ('scheduled','held') AND scheduled_at IS NOT NULL", [$cohortId]) as $row) {
+        $existing[substr((string) $row['scheduled_at'], 0, 16)] = true;
+    }
+    $skip = array_fill_keys(array_map('strval', $skip), true);
+    $days = array_map('intval', (array) $r['days']);
+    $slots = [];
+    $cur = new DateTimeImmutable($r['from'] . ' 12:00:00', new DateTimeZone('UTC'));
+    $end = new DateTimeImmutable($r['to'] . ' 12:00:00', new DateTimeZone('UTC'));
+    while ($cur <= $end && count($slots) < $cap) {
+        $date = $cur->format('Y-m-d');
+        if (in_array((int) $cur->format('w'), $days, true) && !isset($skip[$date])) {
+            $at = $date . ' ' . $r['time'] . ':00';
+            $slot = ['date' => $date, 'at' => $at, 'status' => 'ok', 'with' => [], 'closure' => null];
+            if (isset($existing[substr($at, 0, 16)])) {
+                $slot['status'] = 'exists';
+            } elseif ($c = mam_sched_closure_on($date)) {
+                $slot['status'] = 'closed'; $slot['closure'] = $c;
+            } else {
+                $hit = mam_sched_conflicts((int) $r['instructor_id'], $at, (int) $r['duration'], (string) $r['room'], null, $cohortId);
+                if ($hit) { $slot['status'] = 'clash'; $slot['with'] = $hit; }
+            }
+            $slots[] = $slot;
+        }
+        $cur = $cur->modify('+1 day');
+    }
+    return $slots;
+}
+
+/**
  * Plan a weekly series without writing anything. Each slot is one of:
  *   ok       — will be created
  *   clash    — overlaps another session (`with` lists them)
@@ -164,30 +206,7 @@ function mam_sched_learner_conflicts(int $cohortId, string $at, int $dur, ?int $
  */
 function mam_sched_plan_series(int $cohortId, array $in): array {
     $r = mam_sched_rule($cohortId, $in);
-    $existing = [];
-    foreach (mam_db_all("SELECT scheduled_at FROM class_sessions WHERE cohort_id = ? AND status IN ('scheduled','held') AND scheduled_at IS NOT NULL", [$cohortId]) as $row) {
-        $existing[substr((string) $row['scheduled_at'], 0, 16)] = true;
-    }
-    $slots = [];
-    $cur = strtotime($r['from'] . ' 12:00:00');
-    $end = strtotime($r['to'] . ' 12:00:00');
-    while ($cur <= $end && count($slots) < 200) {
-        $date = date('Y-m-d', $cur);
-        if (in_array((int) date('w', $cur), $r['days'], true)) {
-            $at = $date . ' ' . $r['time'] . ':00';
-            $slot = ['date' => $date, 'at' => $at, 'status' => 'ok', 'with' => [], 'closure' => null];
-            if (isset($existing[substr($at, 0, 16)])) {
-                $slot['status'] = 'exists';
-            } elseif ($c = mam_sched_closure_on($date)) {
-                $slot['status'] = 'closed'; $slot['closure'] = $c;
-            } else {
-                $hit = mam_sched_conflicts($r['instructor_id'], $at, $r['duration'], $r['room'], null, $cohortId);
-                if ($hit) { $slot['status'] = 'clash'; $slot['with'] = $hit; }
-            }
-            $slots[] = $slot;
-        }
-        $cur = strtotime('+1 day', $cur);
-    }
+    $slots = mam_sched_slots($cohortId, $r);
     $count = ['ok' => 0, 'clash' => 0, 'exists' => 0, 'closed' => 0];
     foreach ($slots as $s) $count[$s['status']]++;
     return ['rule' => $r, 'slots' => $slots, 'count' => $count];
@@ -212,10 +231,10 @@ function mam_sched_create_series(int $cohortId, array $in, int $actorId, string 
         foreach ($plan['slots'] as $s) {
             if ($s['status'] === 'ok' || ($s['status'] === 'clash' && $onClash === 'create')) {
                 $id = mam_lms_create_session($cohortId, [
-                    'scheduled_at' => $s['at'], 'duration_min' => $r['duration'],
+                    'scheduled_at' => $s['at'], 'duration_min' => $r['duration'], 'mode' => $r['mode'],
                     'kind' => 'class', 'room' => $r['room'] !== '' ? $r['room'] : null, 'created_by' => $actorId,
                 ]);
-                mam_db_update('class_sessions', ['mode' => $r['mode'], 'room_id' => $r['room_id']], ['id' => $id]);
+                mam_db_update('class_sessions', ['room_id' => $r['room_id']], ['id' => $id]);
                 $plan['created'][] = $id;
             }
         }
@@ -247,7 +266,7 @@ function mam_sched_add_session(int $cohortId, array $in, int $actorId, bool $for
     $at = mam_sched_datetime((string) ($in['at'] ?? ''));
     $dur = (int) ($in['duration'] ?? 60);
     if ($dur < 15 || $dur > 480) throw new InvalidArgumentException('bad_duration');
-    $mode = in_array((string) ($in['mode'] ?? ''), MAM_SCHED_MODES, true) ? (string) $in['mode'] : 'onsite';
+    $mode = mam_lms_session_mode($cohortId, isset($in['mode']) && $in['mode'] !== '' ? (string) $in['mode'] : null);
     $roomId = $mode === 'online' ? null : ((int) ($in['room_id'] ?? 0) ?: null);
     $room = mam_sched_room_name($roomId);
     $kind = in_array((string) ($in['kind'] ?? ''), ['class', 'exam', 'revision', 'makeup'], true) ? (string) $in['kind'] : 'class';
@@ -257,9 +276,9 @@ function mam_sched_add_session(int $cohortId, array $in, int $actorId, bool $for
     $id = mam_lms_create_session($cohortId, [
         'title' => trim((string) ($in['title'] ?? '')) !== '' ? mb_substr(trim((string) $in['title']), 0, 160) : null,
         'scheduled_at' => $at, 'duration_min' => $dur, 'kind' => $kind,
-        'room' => $room !== '' ? $room : null, 'created_by' => $actorId,
+        'room' => $room !== '' ? $room : null, 'mode' => $mode, 'created_by' => $actorId,
     ]);
-    mam_db_update('class_sessions', ['mode' => $mode, 'room_id' => $roomId], ['id' => $id]);
+    mam_db_update('class_sessions', ['room_id' => $roomId], ['id' => $id]);
     try { mam_meeting_ensure($id); } catch (\Throwable $e) { mam_log('warn', 'meeting_ensure_failed', ['session' => $id, 'err' => $e->getMessage()]); }
     mam_audit('sched_session_add', 'class_session', $id, ['cohort' => $cohortId, 'forced' => $force && (bool) $clashes, 'by' => $actorId]);
     return ['id' => $id, 'clashes' => $clashes];

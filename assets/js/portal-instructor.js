@@ -345,11 +345,15 @@
     paint(loading('Loading the marking queue…'));
     screenReq('marking').then(function (d) {
       S.marking = d;
-      var q = d.queue || [], lq = d.lessons || [], xq = d.exams || [];
-      if (!q.length && !lq.length && !xq.length) { paint(h1('Marking') + empty('circle-check', 'Nothing waiting to be marked.')); return; }
-      if (!q.length) { paint(h1('Marking', (lq.length + xq.length) + ' lesson ' + plural(lq.length + xq.length, 'item', 'items') + ' waiting, oldest first') + lessonMarking(lq) + examMarking(xq)); return; }
+      var q = d.queue || [], lq = d.lessons || [], xq = d.exams || [], sq = d.spaces || [];
+      if (!q.length && !lq.length && !xq.length && !sq.length) { paint(h1('Marking') + empty('circle-check', 'Nothing waiting to be marked.')); return; }
+      if (!q.length) {
+        var other = lq.length + xq.length + sq.length;
+        paint(h1('Marking', other + ' ' + plural(other, 'item', 'items') + ' waiting, oldest first') + lessonMarking(lq) + examMarking(xq) + spaceMarking(sq));
+        return;
+      }
       paint(h1('Marking', q.length + ' ' + plural(q.length, 'performance', 'performances') + ' waiting, oldest first')
-        + lessonMarking(lq) + examMarking(xq)
+        + lessonMarking(lq) + examMarking(xq) + spaceMarking(sq)
         + '<section class="p-card is-flush"><div class="p-rows">'
         + q.map(function (s) {
           var sub = [s.title, s.days != null ? s.days + 'd waiting' : null].filter(Boolean).join(' · ');
@@ -364,6 +368,25 @@
         + '<div class="p-notice p-gap-t"><i class="fa-solid fa-headphones" aria-hidden="true"></i>'
         + '<span>' + esc(d.audio_only_notice) + '</span></div>');
     }).catch(function (err) { paint(h1('Marking') + empty('triangle-exclamation', errOf(err, 'Could not load the queue.'))); });
+  }
+
+  /**
+   * Work handed in to a class space (api/modules/community/lib/spaces.php) from
+   * the classes this teacher teaches. The mark is the space's own review — the
+   * same record the space shows — so it posts to /api/spaces, not a copy.
+   */
+  function spaceMarking(sq) {
+    if (!sq.length) return '';
+    return '<h2 class="p-label p-gap-t">Class space work</h2>' + sq.map(function (w) {
+      var sub = [w.space_title, w.submitted_at ? 'handed in ' + String(w.submitted_at).slice(0, 10) : null].filter(Boolean).join(' · ');
+      return '<section class="p-card i-lsn" data-space-card="' + esc(w.id) + '">'
+        + '<div class="p-title">' + esc(w.student_name || 'A student') + ' — ' + esc(w.task_title || 'Handed-in work') + '</div>'
+        + (sub ? '<p class="p-caption">' + esc(sub) + '</p>' : '')
+        + '<div class="i-lsn-row p-gap-t"><label class="p-field"><span>' + esc('Mark out of ' + w.max_score) + '</span>'
+        + '<input type="number" inputmode="numeric" min="0" max="' + esc(w.max_score) + '" step="1" data-space-score></label></div>'
+        + '<label class="p-field p-gap-t"><span>What you would say to them</span><textarea maxlength="3000" data-space-feedback></textarea></label>'
+        + '<button type="button" class="p-primary" data-space-mark="' + esc(w.id) + '">Save the mark</button></section>';
+    }).join('');
   }
 
   /**
@@ -1037,6 +1060,16 @@
       return;
     }
     var lm = e.target && e.target.closest && e.target.closest('[data-lsn-mark]');
+    var spm = e.target.closest && e.target.closest('[data-space-mark]');
+    if (spm) {
+      var spCard = spm.closest('[data-space-card]');
+      var spScore = (spCard.querySelector('[data-space-score]') || {}).value;
+      if (spScore === '' || spScore == null) { toast('Give a mark first.', 'bad'); return; }
+      write(spm, API.request('spaces', { method: 'POST', body: { action: 'review', post_id: Number(spm.dataset.spaceMark),
+        score: Number(spScore), feedback: (spCard.querySelector('[data-space-feedback]') || {}).value || '' } }),
+        function () { renderMarking(); }, 'Marked — the student has been told.');
+      return;
+    }
     if (lm) {
       var card = lm.closest('[data-lsn-card]'), awards = {}, comments = {};
       Array.prototype.slice.call(card.querySelectorAll('[data-check]')).forEach(function (it) {

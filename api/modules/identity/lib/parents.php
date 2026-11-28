@@ -438,6 +438,9 @@ function mam_parent_child_detail(int $parentId, int $studentId): array {
         // and what they have already played. The single most useful thing a
         // guardian can be told, and it was previously nowhere in this payload.
         'recitals'     => function_exists('mam_recital_for_guardian') ? mam_recital_for_guardian($studentId) : ['upcoming' => [], 'past' => []],
+        // Work the child handed in to a class space and a teacher marked. Under
+        // 'reports', like every other mark, so a billing-only guardian sees none.
+        'space_marks'  => mam_space_marked_work($studentId),
     ]);
 }
 
@@ -462,6 +465,7 @@ const MAM_PARENT_DETAIL_GRANTS = [
     'programme'           => 'reports',
     'recitals'            => 'reports',
     'value_kpis'          => 'reports',
+    'space_marks'         => 'reports',
     'consent'             => 'reports',   // seeing it; CHANGING it needs 'consents'
 ];
 

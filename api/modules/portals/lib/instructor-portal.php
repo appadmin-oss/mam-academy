@@ -480,7 +480,10 @@ function mam_iportal_marking(int $instructorId): array {
         'lessons' => mam_iportal_try(fn() => function_exists('mam_lesson_marking_queue') ? mam_lesson_marking_queue($instructorId, 50) : [], []),
         /* Exam sittings with written answers to mark or an appeal to answer
            (lesson-exams.php) — only students this teacher teaches. */
-        'exams' => mam_iportal_try(fn() => function_exists('mam_exam_teacher_queue') ? mam_exam_teacher_queue($instructorId) : [], [])];
+        'exams' => mam_iportal_try(fn() => function_exists('mam_exam_teacher_queue') ? mam_exam_teacher_queue($instructorId) : [], []),
+        /* Unmarked work handed in to a class space (spaces.php) of a cohort this
+           teacher teaches. Marked here with the space's own review action. */
+        'spaces' => mam_iportal_try(fn() => mam_space_marking_queue_for_instructor($instructorId), [])];
 }
 
 /** The teach-back queue, carrying the sentence that keeps it formative. */

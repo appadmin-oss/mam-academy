@@ -418,6 +418,11 @@ function mam_sportal_learn(int $studentId): array {
         'convention' => 'The 80% mark is a standard the academy chose and reviews. It is not a fact about music.',
         'enrolments' => $enrolments,
         'weeks'      => $weeks,
+        /* Work marked in a class space (spaces.php) — the student's own, and only
+           theirs. A failure costs the card, never the screen. */
+        'space_marks'=> (function () use ($studentId) {
+            try { return mam_space_marked_work($studentId); } catch (Throwable $e) { return []; }
+        })(),
         /* The syllabus as lessons, with where this student stands on each
            (api/modules/learning/lib/lessons.php). In the same payload so the screen is still one
            request; a failure here costs the card, never the screen. */

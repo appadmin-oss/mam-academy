@@ -86,7 +86,15 @@ Pinned by `api/tests/test_teaching_model.php`.
      with the same title.
    - A year-round Crash enrolment can land in the SUMMER class, because the
      term is ignored.
-   - Status: **open.**
+   - Status: **the summer mix-up is fixed** (2026-11-28): every year-round
+     resolver (`mam_lms_find_cohort()`, so enrol-complete, add-course and
+     promotion) skips `SUMMER-<year>` classes; only `mam_summer_cohort()` uses
+     them. **The KTAMS/Standard split is kept on purpose** — the programme stays
+     in the key — but a new class is now titled "Course — Level · Programme"
+     (the standard programme unnamed), and the console's cohort cards show the
+     programme and the term (summer or year-round). Existing titles were not
+     renamed. "Assign course" now passes the student's known level and
+     programme, so it reuses the levelled class.
 5. **Changing the teacher leaves the old one with access.** The plain admin
    edit leaves the old teacher on each enrolment, and "owns the class" checks
    no status. **Fixed** (v111): every lead change goes through
@@ -98,12 +106,20 @@ Pinned by `api/tests/test_teaching_model.php`.
 8. **Online and onsite don't match.**
    - The class's mode is never used for its sessions.
    - Check-in told onsite students they were "expected to be online".
-   - Status: the **message is fixed**; inheriting the mode is open.
+   - Status: **fixed** (2026-11-28). `mam_lms_create_session()` takes the
+     class's mode unless one is chosen, so every create path inherits it
+     (admin series and single, instructor series and single); the timetable
+     form's default is "The class's own". A register mark the teacher makes
+     records the session's mode, not 'onsite'.
 9. **Capacity counts pending students that nobody can see** (the seat rule
    uses active + pending, both portals show active + completed). **Open.**
 10. **Marks made in a class space go nowhere else.** They never reach the
-    Marking queue, the gradebook or the student's Learn screen. **Open**
-    (part of the learning pipeline, restructure plan §2.4).
+    Marking queue, the gradebook or the student's Learn screen. **Mostly
+    fixed** (2026-11-28): unmarked space work from the classes a teacher
+    teaches is on their Marking screen and is marked there with the space's
+    own review; the student's Learn screen lists their marked space work; a
+    guardian gets it in the child detail only under the 'reports' grant.
+    Still open: the gradebook and the mastery score do not count it.
 
 ## 4. The target: one Teaching domain
 
@@ -162,10 +178,18 @@ current bug happened.
    columns stay as compatibility copies. Console: Enrol & staffing → Teaching
    staff. Still open: the enrolment's own `instructor_id` column (kept as the
    one-to-one teacher) and `instructor_assignments` as "may teach".
-5. Class key: term + course + level + age band, so the KTAMS duplicates and
-   the summer/Crash mix-up stop.
-6. One series builder; the class's mode is the default for its sessions; no
+5. ◐ Class key. ✅ The summer/Crash mix-up stopped; titles and the console
+   name the programme and term; "assign course" passes the known level
+   (2026-11-28). Deliberately not done: merging KTAMS with Standard (the
+   programme stays in the key) and a real `term_id` / age band on the key.
+6. ◐ ✅ One series builder: `mam_sched_slots()` is shared by the admin
+   timetable and the instructor's bulk series, so both skip closures and dates
+   the class already meets, check teacher/room/learner clashes and create
+   meeting links; the instructor's stays warn-only and returns `skipped`. ✅ The
+   class's mode is the default for its sessions and their register. Open: no
    class space created on view.
-7. Class-space marks feed the learning pipeline.
+7. ◐ Class-space marks reach Marking, Learn and the guardian (reports grant)
+   (2026-11-28). Open: the gradebook and mastery score. Pinned by
+   `api/tests/test_classes_followups.php`.
 8. Capacity uses the enrolment status set; honour the requested teacher;
    drop the legacy tables.
