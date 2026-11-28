@@ -200,7 +200,7 @@ function mam_checkin_self(int $studentId, int $sessionId, ?float $lat = null, ?f
  * prominently. Times are naive-local strings throughout, matching the rest of
  * the scheduling code — never a `Z`-suffixed instant.
  */
-function mam_checkin_window(string $scheduledAt, int $durationMin = 60, ?int $nowTs = null): array {
+function mam_checkin_window(string $scheduledAt, int $durationMin = 60, ?int $nowTs = null, ?string $mode = null): array {
     $cfg     = mam_checkin_config();
     $startTs = strtotime($scheduledAt);
     if ($startTs === false) throw new RuntimeException('session_unscheduled');
@@ -226,8 +226,11 @@ function mam_checkin_window(string $scheduledAt, int $durationMin = 60, ?int $no
         'seconds_to_start' => $startTs - $now,
         'seconds_to_ready' => $readyTs - $now,
         'state'            => $state,
-        'message'          => 'Your class begins at ' . $t($startTs)
-                            . '. You are expected to be online and ready no later than ' . $t($readyTs) . '.',
+        // Said for the class it is: an onsite class used to tell students they
+        // were "expected to be online".
+        'message'          => 'Your class begins at ' . $t($startTs) . '. You are expected to be '
+                            . ($mode === 'online' ? 'online and ready' : ($mode === 'hybrid' ? 'ready, in the room or online,' : ($mode === 'onsite' ? 'in the room and ready' : 'ready')))
+                            . ' no later than ' . $t($readyTs) . '.',
     ];
 }
 
@@ -293,7 +296,7 @@ function mam_checkin_next_class(int $studentId): ?array {
         'teachback_required' => (int) ($lesson['teachback_required'] ?? 0) === 1,
         'preparation'  => $prep,
         'teachback'    => $teachback,
-        'window'       => mam_checkin_window((string) $sess['scheduled_at'], (int) ($sess['duration_min'] ?? 60)),
+        'window'       => mam_checkin_window((string) $sess['scheduled_at'], (int) ($sess['duration_min'] ?? 60), null, isset($sess['session_mode']) ? (string) $sess['session_mode'] : null),
         'attendance'   => $att ?: null,
     ];
 }

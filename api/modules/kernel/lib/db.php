@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 109;
+const MAM_SCHEMA_TARGET = 110;
 
 /**
  * Open (and cache) the PDO connection.
@@ -4323,6 +4323,15 @@ function mam_db_migrate(PDO $db): void {
         // the submitted identity and the reason. NULL = no hold.
         109 => "
             ALTER TABLE applications ADD COLUMN identity_hold TEXT;
+        ",
+        // v110 — session times written by the instructor form as the browser's
+        // '2026-11-28T08:07' are brought to the one stored format
+        // ('2026-11-28 08:07:00'). Format only: the time itself is unchanged.
+        110 => "
+            UPDATE class_sessions SET scheduled_at = REPLACE(scheduled_at, 'T', ' ') || ':00'
+             WHERE scheduled_at LIKE '____-__-__T__:__';
+            UPDATE class_sessions SET scheduled_at = REPLACE(scheduled_at, 'T', ' ')
+             WHERE scheduled_at LIKE '____-__-__T__:__:__';
         ",
     ];
 

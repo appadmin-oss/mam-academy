@@ -4013,3 +4013,11 @@ INSERT INTO schema_version (version) VALUES (108) ON DUPLICATE KEY UPDATE versio
 -- is held for review instead of overwriting that person's record.
 ALTER TABLE applications ADD COLUMN identity_hold TEXT NULL;
 INSERT INTO schema_version (version) VALUES (109) ON DUPLICATE KEY UPDATE version = version;
+
+-- v110 — session times stored as '…T…' (the instructor form's datetime-local) are
+-- normalised to 'Y-m-d H:i:s'. Format only; the time is unchanged.
+UPDATE class_sessions SET scheduled_at = CONCAT(REPLACE(scheduled_at, 'T', ' '), ':00')
+ WHERE scheduled_at LIKE '____-__-__T__:__';
+UPDATE class_sessions SET scheduled_at = REPLACE(scheduled_at, 'T', ' ')
+ WHERE scheduled_at LIKE '____-__-__T__:__:__';
+INSERT INTO schema_version (version) VALUES (110) ON DUPLICATE KEY UPDATE version = version;

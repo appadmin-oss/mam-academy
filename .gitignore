@@ -17,6 +17,7 @@ api/storage/uploads/*
 # `git status`, where the repo's own rule is to stage paths explicitly —
 # so a `git add -A` would have committed a runtime lock.
 api/storage/.run-jobs.lock
+api/storage/.jobs-heartbeat.json
 
 # Faithful writes its last run here (npx @faithful/cli verify …)
 .faithful/

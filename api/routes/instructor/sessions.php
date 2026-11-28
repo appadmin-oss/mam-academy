@@ -252,7 +252,7 @@ try {
     if ($cohortId <= 0) mam_fail('validation', 422, ['fields' => ['cohort_id']]);
     if (!$ownsCohort($cohortId)) mam_fail('forbidden', 403);
 
-    $scheduledAt = isset($in['scheduled_at']) ? (string)$in['scheduled_at'] : null;
+    $scheduledAt = mam_lms_norm_datetime(isset($in['scheduled_at']) ? (string)$in['scheduled_at'] : null);
     $durMin      = isset($in['duration_min']) ? (int)$in['duration_min'] : 60;
 
     // Conflict check before single-session create (instructor + room).

@@ -224,12 +224,30 @@ function mam_enrol_resolve(int $appId, array $overrides = []): array
     /* ── where they would land ───────────────────────────────────────────── */
     // Resolved read-only, so the admin sees the actual class and teacher before
     // committing rather than discovering them afterwards.
-    if ($out['course'] && function_exists('mam_lms_ensure_cohort')) {
+    /* ⚠️ READ-ONLY, for real. This used to call mam_lms_ensure_cohort(), which
+       CREATES a cohort when none matches — and this runs whenever the console
+       draws an application, so merely opening one made an empty class (seen in
+       a browser run). Now it looks up; when no class exists yet it says one will
+       be made, and mam_enrol_complete() makes it when the admin confirms. */
+    if ($out['course'] && function_exists('mam_lms_find_cohort')) {
         try {
-            $cohortId = mam_lms_ensure_cohort($out['course']['id'], $out['level']['id'] ?? null, $out['programme']['id'] ?? null);
-            $co = mam_db_row('SELECT * FROM cohorts WHERE id = ?', [$cohortId]);
+            $cohortId = mam_lms_find_cohort($out['course']['id'], $out['level']['id'] ?? null, $out['programme']['id'] ?? null);
+            $co = $cohortId ? mam_db_row('SELECT * FROM cohorts WHERE id = ?', [$cohortId]) : null;
+            if (!$co) {
+                $out['cohort'] = ['id' => null, 'new' => true, 'capacity' => null, 'filled' => 0, 'full' => false,
+                    'title' => mam_lms_cohort_default_title($out['course']['id'], $out['level']['id'] ?? null)];
+                $out['notes'][] = 'No class exists yet for this course and level; a new one will be created on enrolment.';
+                $dflt = (int) (mam_lms_default_instructor($out['course']['id'], $out['level']['id'] ?? null) ?? 0);
+                $instrId = (int) ($overrides['instructor'] ?? 0) ?: $dflt;
+                if ($instrId) {
+                    $iu = mam_db_row('SELECT id, name, email FROM users WHERE id = ?', [$instrId]);
+                    if ($iu) $out['instructor'] = ['id' => (int) $iu['id'], 'name' => (string) $iu['name'], 'email' => (string) $iu['email']];
+                }
+            }
             if ($co) {
-                $seats = function_exists('mam_lms_cohort_fill_count') ? (int) mam_lms_cohort_fill_count($cohortId) : 0;
+                // mam_lms_cohort_fill_count() returns an ARRAY; (int) of it was
+                // always 1, so "filled" read 1 and "full" was wrong.
+                $seats = function_exists('mam_lms_cohort_fill_count') ? (int) (mam_lms_cohort_fill_count($cohortId)['enrolled'] ?? 0) : 0;
                 $cap   = $co['capacity'] === null ? null : (int) $co['capacity'];
                 $out['cohort'] = ['id' => $cohortId, 'title' => (string) ($co['title'] ?? ''),
                                   'capacity' => $cap, 'filled' => $seats,

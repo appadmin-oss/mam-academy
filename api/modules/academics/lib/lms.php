@@ -656,18 +656,29 @@ function mam_lms_link_enrollment_cohort(int $enrollmentId, int $cohortId): void 
  * writer it's a non-issue, and on MySQL a rare duplicate-for-a-tuple is a
  * data-quality nit (dedupe-able later), not a correctness bug.
  */
-function mam_lms_ensure_cohort(int $courseId, ?int $levelId, ?int $programId): int {
+/** The active cohort for (course, level, programme), or null. A pure lookup — never creates. */
+function mam_lms_find_cohort(int $courseId, ?int $levelId, ?int $programId): ?int {
     $where = 'course_id = ? AND legacy_class_id IS NULL AND status = ?';
     $args  = [$courseId, 'active'];
     if ($levelId === null)   { $where .= ' AND level_id IS NULL'; }   else { $where .= ' AND level_id = ?';   $args[] = $levelId; }
     if ($programId === null) { $where .= ' AND program_id IS NULL'; } else { $where .= ' AND program_id = ?'; $args[] = $programId; }
     $row = mam_db_row("SELECT id FROM cohorts WHERE $where ORDER BY id LIMIT 1", $args);
-    if ($row) return (int)$row['id'];
+    return $row ? (int) $row['id'] : null;
+}
 
+/** The title a cohort for (course, level) is created with. */
+function mam_lms_cohort_default_title(int $courseId, ?int $levelId): string {
     $c = mam_db_row('SELECT name FROM courses WHERE id = ?', [$courseId]);
     $title = $c ? (string)$c['name'] : ('Course #' . $courseId);
     if ($levelId !== null) { $l = mam_db_row('SELECT name FROM levels WHERE id = ?', [$levelId]); if ($l) $title .= ' — ' . $l['name']; }
-    return mam_lms_create_cohort(['course_id' => $courseId, 'level_id' => $levelId, 'program_id' => $programId, 'title' => $title]);
+    return $title;
+}
+
+function mam_lms_ensure_cohort(int $courseId, ?int $levelId, ?int $programId): int {
+    $found = mam_lms_find_cohort($courseId, $levelId, $programId);
+    if ($found !== null) return $found;
+    return mam_lms_create_cohort(['course_id' => $courseId, 'level_id' => $levelId, 'program_id' => $programId,
+        'title' => mam_lms_cohort_default_title($courseId, $levelId)]);
 }
 
 /* ───────────────────────── Sessions / scheduling (L2) ────────────────────
@@ -686,6 +697,23 @@ function mam_lms_session_can_transition(string $from, string $to): bool {
     return isset($g[$from]) && in_array($to, $g[$from], true);
 }
 
+/**
+ * One storage format for a session time: 'Y-m-d H:i:s'. An instructor's form
+ * posts the browser's datetime-local value ('2026-11-28T08:07'), which was stored
+ * verbatim — and every day-window query ("<= day 23:59:59") and the clash check
+ * compare text, so such a session vanished from the day's check-in and its
+ * clashes went unreported. Unparseable input is returned unchanged.
+ */
+function mam_lms_norm_datetime(?string $v): ?string {
+    if ($v === null) return null;
+    $t = trim($v);
+    if ($t === '') return null;
+    if (preg_match('/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(?::(\d{2}))?$/', $t, $m)) {
+        return $m[1] . ' ' . $m[2] . ':' . ($m[3] ?? '00');
+    }
+    return $t;
+}
+
 /** Schedule a session for a cohort. Validates the cohort exists. Returns the id. */
 function mam_lms_create_session(int $cohortId, array $d): int {
     if (!mam_db_row('SELECT id FROM cohorts WHERE id = ?', [$cohortId])) throw new RuntimeException('cohort_not_found');
@@ -694,7 +722,7 @@ function mam_lms_create_session(int $cohortId, array $d): int {
     $id = mam_db_insert('class_sessions', [
         'cohort_id'    => $cohortId,
         'title'        => isset($d['title']) ? (string)$d['title'] : null,
-        'scheduled_at' => $d['scheduled_at'] ?? null,
+        'scheduled_at' => mam_lms_norm_datetime(isset($d['scheduled_at']) ? (string) $d['scheduled_at'] : null),
         'duration_min' => isset($d['duration_min']) ? max(1, (int)$d['duration_min']) : 60,
         'kind'         => $kind,
         'location'     => $d['location'] ?? null,
@@ -2538,6 +2566,7 @@ function mam_lms_reschedule_session(int $sessionId, string $newScheduledAt, ?str
     if (!$sess) throw new RuntimeException('session_not_found');
     if ((string)$sess['status'] !== 'scheduled') throw new RuntimeException('illegal_transition');
     $old = $sess['scheduled_at'];
+    $newScheduledAt = (string) mam_lms_norm_datetime($newScheduledAt);
     mam_db_update('class_sessions', ['scheduled_at' => $newScheduledAt], ['id' => $sessionId]);
     mam_db_insert('session_history', [
         'session_id'    => $sessionId,
