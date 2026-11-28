@@ -32,14 +32,10 @@ if (!$sheet) mam_fail('not_found', 404);
 if (!mam_user_has_role($user, 'admin')) {
     $uid = (int) $user['id'];
     $studentId = (int) (mam_db_row('SELECT student_id FROM submissions WHERE id = ?', [$submissionId])['student_id'] ?? 0);
-    $teaches = mam_db_row(
-        "SELECT 1 AS ok FROM course_enrollments ce
-           LEFT JOIN cohorts co ON co.id = ce.cohort_id
-          WHERE ce.student_id = ? AND (co.instructor_id = ? OR ce.instructor_id = ?)
-          LIMIT 1", [$studentId, $uid, $uid])
+    $teaches = mam_teaches_student($uid, $studentId)   // teaching.php
         ?: mam_db_row(
         "SELECT 1 AS ok FROM submissions s JOIN assignments a ON a.id = s.assignment_id
-          WHERE s.id = ? AND " . mam_iportal_assignment_mine_sql('a'),
+          WHERE s.id = ? AND " . mam_iportal_assignment_mine_sql('a', $uid),
         array_merge([$submissionId], mam_iportal_assignment_mine_params($uid)));
     if (!$teaches) mam_fail('forbidden', 403);
 }

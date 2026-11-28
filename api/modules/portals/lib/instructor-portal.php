@@ -64,6 +64,8 @@ function mam_iportal_home(int $instructorId): array {
     $now = mam_session_wall(time() - 2 * 3600);
     $dayEnd = mam_session_today() . ' 23:59:59';
 
+    // Their sessions today: every session of a class they lead or assist, and the one a cover is for (teaching.php).
+    [$tsess, $tsargs] = mam_teaching_session_sql('cs', $instructorId);
     $sessions = mam_db_all(
         "SELECT cs.id, cs.title, cs.scheduled_at, cs.duration_min, cs.room, cs.mode, cs.status,
                 co.id AS cohort_id, co.title AS cohort_title,
@@ -71,10 +73,10 @@ function mam_iportal_home(int $instructorId): array {
                   WHERE ce.cohort_id = co.id AND ce.status IN ('active','completed')) AS roster
            FROM class_sessions cs
            JOIN cohorts co ON co.id = cs.cohort_id
-          WHERE co.instructor_id = ?
+          WHERE $tsess
             AND cs.scheduled_at >= ? AND cs.scheduled_at <= ?
             AND cs.status IN ('scheduled','held')
-          ORDER BY cs.scheduled_at", [$instructorId, $now, $dayEnd]);
+          ORDER BY cs.scheduled_at", array_merge($tsargs, [$now, $dayEnd]));
 
     $next = $sessions ? $sessions[0] : null;
     if ($next) {
@@ -116,16 +118,19 @@ function mam_iportal_home(int $instructorId): array {
  * class's assignments onto its cohort), and it was why an assignment set to a
  * COHORT never reached anybody's marking queue.
  */
-function mam_iportal_assignment_mine_sql(string $a = 'a'): string {
+function mam_iportal_assignment_mine_sql(string $a = 'a', int $instructorId = 0): string {
+    // The cohorts they teach come from teaching.php; the params function binds them.
+    $n = count(mam_instructor_cohort_ids($instructorId));
+    $in = $n ? implode(',', array_fill(0, $n, '?')) : 'NULL';
     return "({$a}.author_id = ?
-          OR EXISTS (SELECT 1 FROM cohorts mco WHERE mco.id = {$a}.cohort_id AND mco.instructor_id = ?)
-          OR EXISTS (SELECT 1 FROM assignment_groups mag JOIN cohorts mgc ON mgc.id = mag.cohort_id
-                      WHERE mag.id = {$a}.group_id AND mgc.instructor_id = ?))";
+          OR {$a}.cohort_id IN ($in)
+          OR EXISTS (SELECT 1 FROM assignment_groups mag WHERE mag.id = {$a}.group_id AND mag.cohort_id IN ($in)))";
 }
 
 /** @return int[] the bound parameters for mam_iportal_assignment_mine_sql(). */
 function mam_iportal_assignment_mine_params(int $instructorId): array {
-    return [$instructorId, $instructorId, $instructorId];
+    $ids = mam_instructor_cohort_ids($instructorId);
+    return array_merge([$instructorId], $ids, $ids);
 }
 
 /**
@@ -144,7 +149,7 @@ function mam_iportal_actions(int $instructorId): array {
            FROM submissions s
            JOIN assignments a ON a.id = s.assignment_id
            JOIN users u ON u.id = s.student_id
-          WHERE " . mam_iportal_assignment_mine_sql() . " AND s.status = 'submitted'
+          WHERE " . mam_iportal_assignment_mine_sql('a', $instructorId) . " AND s.status = 'submitted'
             AND NOT EXISTS (SELECT 1 FROM submission_reviews sr WHERE sr.submission_id = s.id)
           ORDER BY s.submitted_at
           LIMIT 50", mam_iportal_assignment_mine_params($instructorId));
@@ -177,12 +182,13 @@ function mam_iportal_actions(int $instructorId): array {
     }
 
     // Registers for sessions that have already started and have no marks at all.
+    [$osq, $osa] = mam_teaching_session_sql('cs', $instructorId);
     $open = (int) (mam_db_row(
         "SELECT COUNT(*) c FROM class_sessions cs
            JOIN cohorts co ON co.id = cs.cohort_id
-          WHERE co.instructor_id = ? AND cs.status = 'scheduled' AND cs.scheduled_at < ?
+          WHERE $osq AND cs.status = 'scheduled' AND cs.scheduled_at < ?
             AND NOT EXISTS (SELECT 1 FROM session_attendance sa WHERE sa.session_id = cs.id)",
-        [$instructorId, mam_session_now()])['c'] ?? 0);
+        array_merge($osa, [mam_session_now()]))['c'] ?? 0);
     if ($open > 0) {
         $out[] = ['kind' => 'register', 'count' => $open,
                   'label' => $open . ' register' . ($open === 1 ? '' : 's') . ' not taken',
@@ -314,14 +320,15 @@ function mam_iportal_is_admin(): bool {
  * course_enrollments by mam_legacy_carry() and is no longer read.
  */
 function mam_iportal_students(int $instructorId): array {
+    [$tq, $targs] = mam_teaching_enrolment_sql('ce', $instructorId);
+    [$hq, $hargs] = mam_teaching_cohort_sql('cs.cohort_id', $instructorId);
     $rows = mam_db_all(
         "SELECT DISTINCT u.id, u.name, u.avatar_url
            FROM users u
            JOIN course_enrollments ce ON ce.student_id = u.id
-           LEFT JOIN cohorts co ON co.id = ce.cohort_id
-          WHERE (co.instructor_id = ? OR ce.instructor_id = ?)
+          WHERE $tq
             AND ce.status IN ('active','completed')
-          ORDER BY u.name", [$instructorId, $instructorId]);
+          ORDER BY u.name", $targs);
 
     $out = [];
     foreach ($rows as $r) {
@@ -342,16 +349,16 @@ function mam_iportal_students(int $instructorId): array {
                FROM course_enrollments ce
                LEFT JOIN cohorts co ON co.id = ce.cohort_id
                LEFT JOIN levels l ON l.id = COALESCE(ce.level_id, co.level_id)
-              WHERE ce.student_id = ? AND (co.instructor_id = ? OR ce.instructor_id = ?)
+              WHERE ce.student_id = ? AND $tq
                 AND ce.status IN ('active','completed')
-              ORDER BY ce.id DESC LIMIT 1", [$sid, $instructorId, $instructorId]);
+              ORDER BY ce.id DESC LIMIT 1", array_merge([$sid], $targs));
         $att = mam_db_row(
             "SELECT COUNT(*) total,
                     SUM(CASE WHEN sa.status IN ('present','late','excused','left_early') THEN 1 ELSE 0 END) attended
                FROM session_attendance sa
                JOIN class_sessions cs ON cs.id = sa.session_id
                JOIN cohorts co ON co.id = cs.cohort_id
-              WHERE sa.student_id = ? AND co.instructor_id = ?", [$sid, $instructorId]);
+              WHERE sa.student_id = ? AND $hq", array_merge([$sid], $hargs));
         $bits = [];
         if (!empty($ctx['level_name'])) $bits[] = (string) $ctx['level_name'];
         if ((int) ($att['total'] ?? 0) > 0) {
@@ -382,12 +389,12 @@ function mam_iportal_students(int $instructorId): array {
  * profile, which is the thing being refused.
  */
 function mam_iportal_attention(int $studentId, int $instructorId): ?string {
+    [$hq, $hargs] = mam_teaching_cohort_sql('cs.cohort_id', $instructorId);
     $recent = mam_db_all(
         "SELECT sa.status FROM session_attendance sa
            JOIN class_sessions cs ON cs.id = sa.session_id
-           JOIN cohorts co ON co.id = cs.cohort_id
-          WHERE sa.student_id = ? AND co.instructor_id = ?
-          ORDER BY cs.scheduled_at DESC LIMIT 3", [$studentId, $instructorId]);
+          WHERE sa.student_id = ? AND $hq
+          ORDER BY cs.scheduled_at DESC LIMIT 3", array_merge([$studentId], $hargs));
     if (count($recent) === 3) {
         $absent = 0;
         foreach ($recent as $r) if (in_array((string) $r['status'], ['absent', 'unauthorised'], true)) $absent++;
@@ -458,7 +465,7 @@ function mam_iportal_marking(int $instructorId): array {
            FROM submissions s
            JOIN assignments a ON a.id = s.assignment_id
            JOIN users u ON u.id = s.student_id
-          WHERE " . mam_iportal_assignment_mine_sql() . " AND s.status = 'submitted'
+          WHERE " . mam_iportal_assignment_mine_sql('a', $instructorId) . " AND s.status = 'submitted'
             AND NOT EXISTS (SELECT 1 FROM submission_reviews sr WHERE sr.submission_id = s.id)
           ORDER BY s.submitted_at
           LIMIT 50", mam_iportal_assignment_mine_params($instructorId));
@@ -537,15 +544,18 @@ function mam_iportal_report(int $instructorId, int $studentId = 0): array {
     /* The cohort this instructor teaches them in — it names the course and the
        level the report is ABOUT, and a student taught by two instructors must
        get the cohort belonging to the caller, not whichever row sorts first. */
+    // The caller's own class for this student (teaching.php), so a student taught
+    // by two instructors gets the cohort belonging to the caller.
+    [$rq, $rargs] = mam_teaching_cohort_sql('co.id', $instructorId);
     $cohort = mam_db_row(
         "SELECT co.id, co.title, co.term, c.name AS course_name, l.name AS level_name, l.trinity_grades
            FROM course_enrollments ce
            JOIN cohorts co ON co.id = ce.cohort_id
            LEFT JOIN courses c ON c.id = co.course_id
            LEFT JOIN levels  l ON l.id = co.level_id
-          WHERE ce.student_id = ? AND co.instructor_id = ?
+          WHERE ce.student_id = ? AND $rq
             AND ce.status IN ('active','completed')
-          ORDER BY co.id DESC LIMIT 1", [$studentId, $instructorId]);
+          ORDER BY co.id DESC LIMIT 1", array_merge([$studentId], $rargs));
 
     $draft = mam_db_row(
         "SELECT id, status, instructor_comment, band_low, band_high, term_label
@@ -557,14 +567,14 @@ function mam_iportal_report(int $instructorId, int $studentId = 0): array {
     $pub = is_array($m) ? mam_iportal_try(fn() => mam_mastery_publishable($m), $m) : null;
     $band = $pub['band'] ?? null;
 
+    [$rq2, $rargs2] = mam_teaching_cohort_sql('cs.cohort_id', $instructorId);
     $att = mam_db_row(
         "SELECT COUNT(*) total,
                 SUM(CASE WHEN sa.status IN ('present','late','excused','left_early') THEN 1 ELSE 0 END) attended,
                 SUM(CASE WHEN sa.status = 'late' THEN 1 ELSE 0 END) lates
            FROM session_attendance sa
            JOIN class_sessions cs ON cs.id = sa.session_id
-           JOIN cohorts co ON co.id = cs.cohort_id
-          WHERE sa.student_id = ? AND co.instructor_id = ?", [$studentId, $instructorId]);
+          WHERE sa.student_id = ? AND $rq2", array_merge([$studentId], $rargs2));
     $attTotal = (int) ($att['total'] ?? 0);
     $attPct = $attTotal > 0 ? (int) round(((int) $att['attended'] / $attTotal) * 100) : null;
 

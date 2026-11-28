@@ -84,7 +84,7 @@ function mam_cal_feed_sessions(string $kind, int $subject, ?string $from = null,
     switch ($kind) {
         case 'student':  $where = "cs.cohort_id IN (SELECT cohort_id FROM course_enrollments WHERE student_id = ? AND status IN $live)"; $args = [$subject]; break;
         case 'guardian': $where = "cs.cohort_id IN (SELECT ce.cohort_id FROM course_enrollments ce JOIN parent_links pl ON pl.student_id = ce.student_id WHERE pl.parent_id = ? AND ce.status IN $live)"; $args = [$subject]; break;
-        case 'instructor': $where = '(co.instructor_id = ? OR cs.substitute_id = ?)'; $args = [$subject, $subject]; break;
+        case 'instructor': [$where, $args] = mam_teaching_session_sql('cs', (int) $subject); break; // teaching.php: their classes + the sessions they cover
         case 'room':     $where = 'cs.room_id = ?'; $args = [$subject]; break;
         case 'cohort':   $where = 'cs.cohort_id = ?'; $args = [$subject]; break;
         default: return [];

@@ -353,10 +353,11 @@ function mam_exam_teacher_queue(?int $teacherId): array {
              WHERE (s.pending = 1 OR (s.appealed_at IS NOT NULL AND s.appeal_outcome IS NULL))";
     $args = [];
     if ($teacherId !== null) {
-        $sql .= " AND EXISTS (SELECT 1 FROM course_enrollments ce LEFT JOIN cohorts co ON co.id = ce.cohort_id
+        [$tq, $targs] = mam_teaching_enrolment_sql('ce', $teacherId);
+        $sql .= " AND EXISTS (SELECT 1 FROM course_enrollments ce
                    WHERE ce.student_id = s.student_id AND ce.course_id = s.course_id AND ce.status IN ('active','completed')
-                     AND (ce.instructor_id = ? OR co.instructor_id = ?))";
-        $args = [$teacherId, $teacherId];
+                     AND $tq)";
+        $args = $targs;
     }
     $out = [];
     foreach (mam_db_all($sql . ' ORDER BY s.id LIMIT 100', $args) as $s) {

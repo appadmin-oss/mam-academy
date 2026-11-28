@@ -18,11 +18,10 @@ if (!$session) mam_fail('not_found', 404);
 
 // Admin can write to any session; instructors only to their cohorts.
 if (!in_array('admin', mam_user_roles($u), true)) {
-    $owns = mam_db_row(
-        'SELECT id FROM course_enrollments WHERE cohort_id = ? AND instructor_id = ? AND status IN (?,?) LIMIT 1',
-        [(int)$session['cohort_id'], (int)$u['id'], 'active', 'pending']
-    );
-    if (!$owns) mam_fail('forbidden', 403);
+    // The session's lesson notes belong to whoever teaches it: the class's staff
+    // or the cover booked for it (teaching.php). Used to be "named on an
+    // enrolment in the cohort", which refused the lead and the cover.
+    if (!mam_teaches_session((int)$u['id'], $sessionId)) mam_fail('forbidden', 403);
 }
 
 mam_lesson_record_save(

@@ -47,13 +47,13 @@ if ($cohortId) {
         // The instructor must actually teach this student: the enrolment's own
         // instructor, or the instructor of the cohort it sits in. That cohort
         // is stamped on the row so the work reaches the right marking queue.
+        [$tq, $targs] = mam_teaching_enrolment_sql('ce', (int)$u['id']); // teaching.php
         $own = mam_db_row(
             "SELECT ce.cohort_id FROM course_enrollments ce
-               LEFT JOIN cohorts co ON co.id = ce.cohort_id
-              WHERE ce.student_id = ? AND (ce.instructor_id = ? OR co.instructor_id = ?)
+              WHERE ce.student_id = ? AND $tq
                 AND ce.status IN ('active','completed')
               ORDER BY ce.status = 'active' DESC, ce.id DESC LIMIT 1",
-            [$studentId, (int)$u['id'], (int)$u['id']]
+            array_merge([$studentId], $targs)
         );
         if (!$own) mam_fail('forbidden', 403);
     } else {

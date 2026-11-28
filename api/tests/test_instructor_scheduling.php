@@ -12,12 +12,18 @@ $other = mam_db_insert('users', ['email' => 't_isch_oth@x.dev', 'password_hash' 
 $stu   = mam_db_insert('users', ['email' => 't_isch_stu@x.dev', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Pupil P', 'status' => 'active']);
 
 $cid = mam_lms_create_cohort(['title' => 'Tutor Cohort']);
-// The instructor "owns" the cohort by teaching an active enrolment linked to it.
 $pianoId = (int)mam_db_row("SELECT id FROM courses WHERE code = 'piano'")['id'];
 $eid = mam_db_insert('course_enrollments', ['student_id' => $stu, 'course_id' => $pianoId, 'status' => 'active', 'instructor_id' => $ins, 'cohort_id' => $cid]);
 
 // ── Ownership ──
-t_ok(mam_lms_instructor_owns_cohort($ins, $cid), 'instructor who teaches an enrolment in the cohort owns it');
+/* Changed 2026-11-28 (teaching model, teaching.php): being named on ONE
+   student's enrolment used to make an instructor own the whole cohort — the
+   bug the classes audit found (and they kept it after that student withdrew).
+   A class is owned by its staff; the enrolment's teacher reaches that student. */
+t_ok(!mam_lms_instructor_owns_cohort($ins, $cid), 'being named on one enrolment does NOT make an instructor own the cohort');
+t_ok(mam_teaches_student($ins, $stu), '…it makes them the teacher of that student');
+mam_cohort_set_lead($cid, $ins, null);
+t_ok(mam_lms_instructor_owns_cohort($ins, $cid), 'the cohort\'s lead owns it');
 t_ok(!mam_lms_instructor_owns_cohort($other, $cid), 'an unrelated instructor does not own the cohort');
 $mine = array_map(function ($c) { return (int)$c['id']; }, mam_lms_instructor_cohorts($ins));
 t_ok(in_array($cid, $mine, true), 'instructor_cohorts lists the owned cohort');

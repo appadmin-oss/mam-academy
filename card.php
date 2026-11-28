@@ -27,6 +27,8 @@ require_once MAM_API_ROOT . '/modules/kernel/lib/session.php';
 // ever open their own card.
 require_once MAM_API_ROOT . '/modules/kernel/lib/csrf.php';
 require_once MAM_API_ROOT . '/modules/identity/lib/auth.php';
+require_once MAM_API_ROOT . '/modules/academics/lib/session-time.php';
+require_once MAM_API_ROOT . '/modules/academics/lib/teaching.php'; // who teaches whom
 require_once MAM_API_ROOT . '/modules/integrations/lib/mailer.php';
 require_once MAM_API_ROOT . '/modules/comms/lib/automations.php';
 require_once MAM_API_ROOT . '/modules/identity/lib/cards.php';
@@ -87,12 +89,7 @@ $isInstructor = ($userRole === 'instructor');
 /* An instructor may view the card of a student they TEACH (lead on the cohort,
    or named on the enrolment) — not every child's card in the academy. */
 $teachesHolder = function (int $holderId) use ($userId): bool {
-    return (bool) mam_db_row(
-        "SELECT 1 FROM course_enrollments ce LEFT JOIN cohorts co ON co.id = ce.cohort_id
-          WHERE ce.student_id = ? AND ce.status IN ('active','pending','completed')
-            AND (ce.instructor_id = ? OR co.instructor_id = ?) LIMIT 1",
-        [$holderId, $userId, $userId]
-    );
+    return mam_teaches_student($userId, $holderId); // teaching.php — a current teacher of that student
 };
 
 // Look up card.

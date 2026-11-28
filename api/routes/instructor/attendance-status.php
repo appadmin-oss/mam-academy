@@ -30,13 +30,7 @@ if (!in_array($status, MAM_ATTENDANCE_STATUSES, true)) {
 // An instructor may only mark sessions in a cohort they teach; an admin may
 // mark any. Checked here rather than in the lib, which has no notion of caller.
 if ((string) $u['role'] !== 'admin') {
-    $ok = mam_db_row(
-        "SELECT 1 FROM class_sessions cs
-           JOIN cohorts co ON co.id = cs.cohort_id
-          WHERE cs.id = ? AND (co.instructor_id = ? OR cs.substitute_id = ?) LIMIT 1",
-        [$sessionId, $uid, $uid]
-    );
-    if (!$ok) mam_fail('forbidden', 403);
+    if (!mam_teaches_session($uid, $sessionId)) mam_fail('forbidden', 403); // teaching.php
 }
 
 try {

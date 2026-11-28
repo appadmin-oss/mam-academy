@@ -409,8 +409,11 @@ function mam_enrol_complete(int $appId, array $overrides = [], ?int $actorId = n
             // carries it too, because mam_lms_instructor_cohorts() keys off
             // EITHER, and setting only one leaves the roster invisible to the
             // instructor who is supposed to teach it.
-            if (!(int) ($co['instructor_id'] ?? 0)) {
-                mam_db_update('cohorts', ['instructor_id' => $instr], ['id' => $cohortId]);
+            // A class with no teacher yet gets this one as its LEAD, through the
+            // one writer (teaching.php: cohort_staff + the compatibility column).
+            if (!mam_cohort_lead_id($cohortId)) {
+                try { mam_cohort_set_lead($cohortId, $instr, $actorId); }
+                catch (Throwable $e) { $steps[] = ['step' => 'instructor', 'ok' => false, 'detail' => 'Class teacher not set: ' . $e->getMessage()]; }
             }
             if ($studentId) {
                 // mam_db_update() only builds `col = ?` conditions, so the

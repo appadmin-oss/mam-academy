@@ -13,7 +13,7 @@ declare(strict_types=1);
 
 return [
     'name'    => 'community',
-    'depends' => ['comms', 'identity', 'integrations', 'kernel', 'learning', 'live', 'safeguarding'],
+    'depends' => ['academics', 'comms', 'identity', 'integrations', 'kernel', 'learning', 'live', 'safeguarding'],
     'libs'    => [
         'spaces',
         'recital',

@@ -129,9 +129,7 @@ function mam_space_update(int $id, array $in, int $by): void {
 
 /** Is this person a teacher of the space's cohort? */
 function mam_space_teaches_cohort(int $cohortId, int $uid): bool {
-    return (bool) mam_db_row("SELECT 1 FROM cohorts co WHERE co.id = ? AND co.instructor_id = ?
-                               UNION SELECT 1 FROM course_enrollments ce WHERE ce.cohort_id = ? AND ce.instructor_id = ?",
-        [$cohortId, $uid, $cohortId, $uid]);
+    return mam_teaches($uid, $cohortId); // teaching.php — lead, assistant, or cover on its day
 }
 
 /** A student's role in a space from membership alone (never via a guardian). */
@@ -187,14 +185,15 @@ function mam_space_is_staff(?string $role): bool { return $role === 'teacher' ||
  */
 function mam_space_ensure_for_user(array $user): void {
     $uid = (int) $user['id'];
+    [$teach, $targs] = mam_teaching_cohort_sql('co.id', $uid);
     $rows = mam_db_all(
         "SELECT DISTINCT co.id FROM cohorts co
            LEFT JOIN class_spaces s ON s.cohort_id = co.id
           WHERE s.id IS NULL AND COALESCE(co.status, 'active') = 'active'
-            AND (co.instructor_id = ?
+            AND ($teach
                  OR EXISTS (SELECT 1 FROM course_enrollments ce WHERE ce.cohort_id = co.id AND ce.status IN ('active','completed')
-                             AND (ce.student_id = ? OR ce.instructor_id = ?)))
-          LIMIT 20", [$uid, $uid, $uid]);
+                             AND ce.student_id = ?))
+          LIMIT 20", array_merge($targs, [$uid]));
     foreach ($rows as $r) {
         try { mam_space_for_cohort((int) $r['id']); } catch (Throwable $e) { /* a race with another request made it first */ }
     }
@@ -210,15 +209,15 @@ function mam_space_list_for(array $user): array {
     } else {
         $people = [$uid];
         foreach (mam_db_all("SELECT student_id FROM parent_links WHERE parent_id = ?", [$uid]) as $l) $people[] = (int) $l['student_id'];
+        [$teach, $targs] = mam_teaching_cohort_sql('s.cohort_id', $uid);
         $in = implode(',', array_fill(0, count($people), '?'));
         $rows = mam_db_all(
             "SELECT DISTINCT s.id FROM class_spaces s
                LEFT JOIN space_members m ON m.space_id = s.id AND m.user_id IN ($in) AND m.status = 'active'
                LEFT JOIN cohorts co ON co.id = s.cohort_id
                LEFT JOIN course_enrollments ce ON ce.cohort_id = s.cohort_id AND ce.student_id IN ($in) AND ce.status IN ('active','completed')
-               LEFT JOIN course_enrollments ct ON ct.cohort_id = s.cohort_id AND ct.instructor_id = ?
-              WHERE m.id IS NOT NULL OR co.instructor_id = ? OR ct.id IS NOT NULL OR (s.visibility = 'class' AND ce.id IS NOT NULL)",
-            array_merge($people, $people, [$uid, $uid]));
+              WHERE m.id IS NOT NULL OR $teach OR (s.visibility = 'class' AND ce.id IS NOT NULL)",
+            array_merge($people, $people, $targs));
         foreach ($rows as $r) $ids[] = (int) $r['id'];
     }
     $out = [];
@@ -254,9 +253,13 @@ function mam_space_members(array $s): array {
     $sid = (int) $s['id']; $cid = (int) ($s['cohort_id'] ?? 0);
     $people = [];
     if ($cid > 0) {
-        foreach (mam_db_all("SELECT DISTINCT u.id, u.name FROM cohorts co JOIN users u ON u.id = co.instructor_id WHERE co.id = ?
-                              UNION SELECT DISTINCT u.id, u.name FROM course_enrollments ce JOIN users u ON u.id = ce.instructor_id WHERE ce.cohort_id = ?", [$cid, $cid]) as $r) {
-            $people[(int) $r['id']] = ['id' => (int) $r['id'], 'name' => (string) $r['name'], 'role' => 'teacher', 'how' => 'class'];
+        // The class's current staff (teaching.php), not every teacher ever named on an enrolment.
+        foreach (mam_cohort_staff($cid) as $r) {
+            if (!mam_teaches((int) $r['instructor_id'], $cid)) continue; // a cover only on their day
+            $people[(int) $r['instructor_id']] = ['id' => (int) $r['instructor_id'], 'name' => (string) $r['instructor_name'], 'role' => 'teacher', 'how' => 'class'];
+        }
+        if ($lead = mam_cohort_lead_id($cid)) {
+            $people[$lead] ??= ['id' => $lead, 'name' => (string) (mam_db_row('SELECT name FROM users WHERE id = ?', [$lead])['name'] ?? ''), 'role' => 'teacher', 'how' => 'class'];
         }
         if ($s['visibility'] === 'class') {
             foreach (mam_db_all("SELECT DISTINCT u.id, u.name FROM course_enrollments ce JOIN users u ON u.id = ce.student_id

@@ -278,6 +278,66 @@ $ended = array_values(array_filter($d['roster'] ?? [], fn($r) => empty($r['live'
               . 'records held on paper are being loaded, and the wrong one to stay in.')
         . ' The verdict is checked again at the moment you save. Students whose enrolment carried the old instructor, or none, follow the cohort; a deliberate one-off stays.'); ?>
 
+      <?php /* ── Teaching staff (cohort_staff) ───────────────────────── */
+        $staff = $d['staff'] ?? []; $today = (string) ($d['staff_today'] ?? '');
+        $roleWords = ['lead' => 'Lead', 'assistant' => 'Assistant', 'cover' => 'Cover']; ?>
+      <?php ac_card_open('Teaching staff', count(array_filter($staff, fn($s) => ($s['ends_on'] ?? null) === null || (string) $s['ends_on'] >= $today)) . ' current'); ?>
+        <div class="ac-tablewrap">
+          <table class="ac-table">
+            <thead><tr><th>Who</th><th>Role</th><th>From</th><th>Until</th><th></th></tr></thead>
+            <tbody>
+              <?php if (!$staff): ?>
+                <?php ac_table_empty(5, 'Nobody is recorded as teaching this class yet.'); ?>
+              <?php else: foreach ($staff as $st):
+                $ended = ($st['ends_on'] ?? null) !== null && (string) $st['ends_on'] < $today; ?>
+                <tr>
+                  <td><?= ac_h((string) $st['instructor_name']) ?>
+                    <?php if (!empty($st['session_at'])): ?><div class="ac-sub">Session <?= ac_h(substr((string) $st['session_at'], 0, 16)) ?></div><?php endif; ?></td>
+                  <td><?= ac_pill($roleWords[$st['role']] ?? (string) $st['role'], $ended ? 'ink' : ($st['role'] === 'lead' ? 'good' : 'accent')) ?></td>
+                  <td><?= ac_h((string) ($st['starts_on'] ?? '')) ?></td>
+                  <td><?= $ended ? 'Ended ' . ac_h((string) $st['ends_on']) . (!empty($st['ended_reason']) ? ' · ' . ac_h((string) $st['ended_reason']) : '')
+                              : ac_h((string) ($st['ends_on'] ?? 'open')) ?></td>
+                  <td class="ac-num">
+                    <?php if (!$ended && $st['role'] !== 'lead'): ?>
+                      <?php ac_action_btn('cohort_staff_end', 'roster', $back + ['cohort_id' => $sel, 'staff_id' => (int) $st['id']],
+                          'End', 'ac-btn ac-btn--sm', 'They lose access to this class from today. End it?'); ?>
+                    <?php endif; ?>
+                  </td>
+                </tr>
+              <?php endforeach; endif; ?>
+            </tbody>
+          </table>
+        </div>
+        <div class="ac-cardbody">
+          <?php ac_form('cohort_staff_add', 'roster', $back + ['cohort_id' => $sel], 'class="ac-inline"'); ?>
+            <label class="ac-field"><span class="ac-label">Add a teacher</span>
+              <select class="ac-select" name="instructor_id" required>
+                <option value="">— pick somebody —</option>
+                <?php foreach ($d['instructors'] ?? [] as $i): ?>
+                  <option value="<?= (int) $i['id'] ?>"><?= ac_h((string) $i['name']) ?></option>
+                <?php endforeach; ?>
+              </select></label>
+            <label class="ac-field"><span class="ac-label">As</span>
+              <select class="ac-select" name="role">
+                <option value="assistant">Assistant</option>
+                <option value="cover">Cover</option>
+              </select></label>
+            <label class="ac-field"><span class="ac-label">For one session (cover)</span>
+              <select class="ac-select" name="session_id">
+                <option value="0">— dates below —</option>
+                <?php foreach ($d['upcoming'] ?? [] as $u): ?>
+                  <option value="<?= (int) $u['id'] ?>"><?= ac_h(substr((string) $u['scheduled_at'], 0, 16) . ' · ' . (string) ($u['title'] ?? 'Session')) ?></option>
+                <?php endforeach; ?>
+              </select></label>
+            <label class="ac-field"><span class="ac-label">From</span><input class="ac-input" type="date" name="starts_on"></label>
+            <label class="ac-field"><span class="ac-label">Until</span><input class="ac-input" type="date" name="ends_on"></label>
+            <button type="submit" class="ac-btn ac-btn--primary">Add</button>
+          <?php ac_form_end(); ?>
+        </div>
+      <?php ac_card_close('A lead is changed above. An assistant teaches the whole class between their dates; a cover teaches '
+          . 'one session, or the class between two dates. Every addition is checked against the safeguarding gate. '
+          . 'Ending a row stops access from today; the history stays.'); ?>
+
       <?php /* ── Upcoming sessions ───────────────────────────────────── */ ?>
       <?php ac_card_open('Coming up', count($d['upcoming'] ?? []) . ' scheduled',
           '<a class="ac-btn ac-btn--sm" href="' . ac_h(ac_url('timetable', ['cohort' => $sel])) . '">Open in the timetable</a>'); ?>

@@ -678,7 +678,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // and whether it is open is curriculum work, like cohort_edit beside it.
         'cohort_enrol' => 'enrollments', 'cohort_transfer' => 'enrollments', 'cohort_withdraw' => 'enrollments',
         'cohort_enrolment_status' => 'enrollments', 'cohort_waitlist_remove' => 'enrollments',
-        'cohort_instructor_set' => 'curriculum', 'cohort_archive' => 'curriculum', 'cohort_reopen' => 'curriculum',
+        'cohort_instructor_set' => 'curriculum', 'cohort_staff_add' => 'curriculum', 'cohort_staff_end' => 'curriculum', 'cohort_archive' => 'curriculum', 'cohort_reopen' => 'curriculum',
         // Scheduling (console Timetable): the same capability that edits a class.
         'sched_series' => 'curriculum', 'sched_session_add' => 'curriculum', 'sched_reschedule' => 'curriculum', 'sched_cancel' => 'curriculum',
         'sched_meeting_backfill' => 'curriculum', 'sched_feed' => 'curriculum', 'sched_integrations_save' => 'settings', 'sched_kapso_test' => 'settings',
@@ -2216,7 +2216,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $cid = (int)($_POST['course_id'] ?? 0);
         if ($cid > 0) $updates['course_id'] = $cid;
         $iid = (int)($_POST['instructor_id'] ?? 0);
-        $updates['instructor_id'] = $iid > 0 ? $iid : null;
+        $leadNow = mam_cohort_lead_id($cohortId);
         $cap = (int)($_POST['capacity'] ?? 0);
         if ($cap > 0) $updates['capacity'] = max(1, min(500, $cap));
         $starts = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_POST['starts_on'] ?? '')) ? $_POST['starts_on'] : null;
@@ -2231,6 +2231,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             mam_db_update('cohorts', $updates, ['id' => $cohortId]);
             mam_audit('cohort_edit', 'cohort', $cohortId, $updates);
         }
+        // The teacher changes only through teaching.php (vetting, history, enrolments follow).
+        if (($iid > 0 ? $iid : null) !== $leadNow) {
+            try { mam_cohort_set_lead($cohortId, $iid > 0 ? $iid : null, $adminUser ? (int) $adminUser['id'] : null); }
+            catch (Throwable $e) { header('Location: ?v=courseenroll&err=' . urlencode('Cohort saved, but the teacher was not changed: ' . $e->getMessage())); exit; }
+        }
         header('Location: ?v=courseenroll&ok=' . urlencode('Cohort #' . $cohortId . ' updated.')); exit;
     }
 
@@ -2241,7 +2246,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
        CODE that mam_cohort_error_words() turns into the sentence shown here.
        Every write is audited inside the lib. */
     if (in_array($action, ['cohort_enrol', 'cohort_transfer', 'cohort_withdraw', 'cohort_enrolment_status',
-                           'cohort_waitlist_remove', 'cohort_instructor_set', 'cohort_archive', 'cohort_reopen'], true)) {
+                           'cohort_waitlist_remove', 'cohort_instructor_set', 'cohort_staff_add', 'cohort_staff_end',
+                           'cohort_archive', 'cohort_reopen'], true)) {
         $cohortId = (int)($_POST['cohort_id'] ?? 0);
         $back = function (string $kind, string $msg) use (&$cohortId) {
             header('Location: ?v=roster' . ($cohortId > 0 ? '&cohort=' . $cohortId : '') . '&' . $kind . '=' . urlencode($msg)); exit;
@@ -2288,6 +2294,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                                 : 'Instructor removed. Nobody can open this roster until somebody is assigned.';
                 if ($r['warning'] !== '') $msg .= ' Recorded as a safeguarding gap: ' . $r['warning'];
                 $back('ok', $msg);
+            }
+            if ($action === 'cohort_staff_add') {
+                $date = fn(string $k) => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)($_POST[$k] ?? '')) ? (string) $_POST[$k] : null;
+                $sess = (int)($_POST['session_id'] ?? 0);
+                mam_cohort_staff_add($cohortId, (int)($_POST['instructor_id'] ?? 0), (string)($_POST['role'] ?? ''),
+                                          $sess > 0 ? $sess : null, $date('starts_on'), $date('ends_on'), $actor);
+                $back('ok', 'Added to the class\'s teaching staff. The safeguarding gate was checked, and any gap recorded.');
+            }
+            if ($action === 'cohort_staff_end') {
+                mam_cohort_staff_end((int)($_POST['staff_id'] ?? 0), 'ended_by_admin', $actor);
+                $back('ok', 'Ended. They no longer teach this class; the record stays.');
             }
             if ($action === 'cohort_archive') {
                 mam_cohort_archive($cohortId, $actor);

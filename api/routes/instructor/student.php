@@ -26,11 +26,10 @@ if (!$isAdmin && function_exists('mam_vetting_may_see_child') && !mam_vetting_ma
     mam_fail('clearance_required', 403, ['message' => 'Your safeguarding clearance is not complete, so this child\'s record is closed to you. The office can see what is missing.']);
 }
 $meId    = (int)$u['id'];
-// A course the caller teaches: either assigned as the enrolment's instructor OR
-// the owner of its cohort. course_enrollments.instructor_id is often NULL (set
-// later by admin), so cohort ownership must also grant the drill-down — matching
-// mam_lms_instructor_owns_cohort — else a legitimately-teaching instructor 403s.
-$cscope  = $isAdmin ? '' : ' AND (ce.instructor_id = ' . $meId . ' OR coh.instructor_id = ' . $meId . ')';
+// A course the caller teaches (teaching.php): a class they are on the staff of
+// (lead, assistant, cover today), or an enrolment that names them.
+[$tq, $targs] = $isAdmin ? ['1 = 1', []] : mam_teaching_enrolment_sql('ce', $meId);
+$cscope  = ' AND ' . $tq;
 
 // The courses/cohorts the caller teaches this student in.
 $courses = mam_db_all(
@@ -41,7 +40,7 @@ $courses = mam_db_all(
        LEFT JOIN levels l    ON l.id  = ce.level_id
        LEFT JOIN cohorts coh ON coh.id = ce.cohort_id
       WHERE ce.student_id = ?$cscope ORDER BY co.name",
-    [$sid]
+    array_merge([$sid], $targs)
 );
 
 // An instructor may only view a student they teach.

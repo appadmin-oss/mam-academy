@@ -184,15 +184,16 @@ function mam_preclass_teachback_review(int $teachbackId, int $reviewerId, string
 
 /** Submitted teach-backs awaiting review across an instructor's cohorts. */
 function mam_preclass_instructor_queue(int $instructorId, string $status = 'submitted'): array {
+    [$tq, $targs] = mam_teaching_cohort_sql('co.id', $instructorId); // teaching.php
     return mam_db_all(
         "SELECT tb.*, u.name AS student_name, l.title AS module_title, co.title AS cohort_title
            FROM teachbacks tb
            JOIN lessons l ON l.id = tb.lesson_id
            JOIN cohorts co ON co.id = l.cohort_id
            LEFT JOIN users u ON u.id = tb.student_id
-          WHERE co.instructor_id = ? AND tb.status = ?
+          WHERE $tq AND tb.status = ?
           ORDER BY tb.created_at ASC",
-        [$instructorId, $status]
+        array_merge($targs, [$status])
     );
 }
 

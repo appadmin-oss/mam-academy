@@ -60,6 +60,13 @@ function mam_cohort_words(string $code, array $ctx = []): string {
         'has_waitlist'         => 'This cohort has ' . (int) ($ctx['n'] ?? 0) . ' student' . (((int) ($ctx['n'] ?? 0)) === 1 ? '' : 's')
                                 . ' waiting. Place or remove them first; closing it would strike them off silently.',
         'not_archived'         => 'That cohort is not closed.',
+        'bad_role'             => 'Choose assistant or cover. The lead is changed with "Change the instructor".',
+        'bad_date'             => 'Give the dates as day, month and year.',
+        'bad_dates'            => 'The end date is before the start date.',
+        'cover_needs_dates'    => 'A cover teaches one session or the class between two dates. Pick a session, or give both dates.',
+        'session_not_in_cohort'=> 'That session belongs to another class.',
+        'staff_not_found'      => 'That teaching record no longer exists.',
+        'use_set_lead'         => 'The lead is changed with "Change the instructor", so the class is never left without one.',
     ];
     return $w[$code] ?? ('Could not do that (' . $code . ').');
 }
@@ -398,37 +405,19 @@ function mam_cohort_instructor_check(int $cohortId, int $instructorId): array {
  * own different instructor (a deliberate one-off) is left alone.
  */
 function mam_cohort_set_instructor(int $cohortId, ?int $instructorId, ?int $actorId): array {
-    $c = mam_cohort_row($cohortId);
-    $old = (int) ($c['instructor_id'] ?? 0);
-    $new = ($instructorId !== null && $instructorId > 0) ? $instructorId : null;
-    $warning = '';
-    if ($new !== null) {
-        $u = mam_db_row("SELECT id, role, status FROM users WHERE id = ?", [$new]);
-        $isInstr = $u && ($u['status'] ?? '') === 'active' && (($u['role'] ?? '') === 'instructor'
-            || mam_db_row("SELECT 1 AS x FROM user_roles WHERE user_id = ? AND role = 'instructor'", [$new]));
-        if (!$isInstr) throw new RuntimeException('instructor_not_found');
-        $chk = mam_vetting_check_assignment($new, $cohortId);
-        if (!$chk['allow']) throw new RuntimeException('vetting_required: ' . $chk['reason']);
-        $warning = (string) $chk['reason'];
+    // One writer for who teaches a class: teaching.php. It keeps the vetting
+    // check, moves the enrolments that followed the old teacher, ends (never
+    // deletes) the previous lead's row, and keeps cohorts.instructor_id in step.
+    mam_cohort_row($cohortId);
+    $r = mam_cohort_set_lead($cohortId, $instructorId, mam_lms_actor_id($actorId));
+    // The console's own audit action, as before (set_lead writes cohort_lead_set too).
+    if ($r['changed']) {
+        mam_audit('console_cohort_instructor', 'cohort', $cohortId, [
+            'from' => $r['from'], 'to' => $r['to'], 'moved' => $r['moved'], 'gate_warning' => $r['warning'] ?: null,
+            'by' => mam_lms_actor_id($actorId),
+        ]);
     }
-    if ($new === $old || ($new === null && $old <= 0)) {
-        return ['from' => $old ?: null, 'to' => $new, 'moved' => 0, 'warning' => $warning, 'changed' => false];
-    }
-    mam_db_update('cohorts', ['instructor_id' => $new], ['id' => $cohortId]);
-    $st = mam_db()->prepare(
-        "UPDATE course_enrollments SET instructor_id = ?
-          WHERE cohort_id = ? AND status IN ('pending','active')
-            AND (instructor_id IS NULL OR instructor_id = ?)");
-    $st->execute([$new, $cohortId, $old]);
-    $moved = $st->rowCount();
-    if ($new !== null && !empty($c['course_id'])) {
-        mam_lms_remember_instructor($new, (int) $c['course_id'], $c['level_id'] !== null ? (int) $c['level_id'] : null);
-    }
-    mam_audit('console_cohort_instructor', 'cohort', $cohortId, [
-        'from' => $old ?: null, 'to' => $new, 'moved' => $moved, 'gate_warning' => $warning ?: null,
-        'by' => mam_lms_actor_id($actorId),
-    ]);
-    return ['from' => $old ?: null, 'to' => $new, 'moved' => $moved, 'warning' => $warning, 'changed' => true];
+    return $r;
 }
 
 /**

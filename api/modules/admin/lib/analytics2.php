@@ -180,6 +180,8 @@ function mam_analytics2_instructor_cohorts(int $instructorId): array {
  * Bucketed in PHP for cross-driver date maths.
  */
 function mam_analytics2_arrival(int $instructorId, int $limit = 500): array {
+    // Every class they have taught (teaching.php, 'history'): arrival patterns are about the past.
+    [$hq, $hargs] = mam_teaching_cohort_sql('co.id', $instructorId, null, 'history');
     $rows = [];
     try {
         $rows = mam_db_all(
@@ -187,9 +189,9 @@ function mam_analytics2_arrival(int $instructorId, int $limit = 500): array {
                FROM session_attendance sa
                JOIN class_sessions cs ON cs.id = sa.session_id
                JOIN cohorts co ON co.id = cs.cohort_id
-              WHERE (co.instructor_id = ? OR co.id IN (SELECT cohort_id FROM course_enrollments WHERE instructor_id = ? AND cohort_id IS NOT NULL))
+              WHERE $hq
               ORDER BY cs.scheduled_at DESC LIMIT " . max(1, $limit),
-            [$instructorId, $instructorId]
+            $hargs
         );
     } catch (\Throwable $e) { return ['buckets' => [], 'checked_in' => 0, 'no_shows' => 0, 'punctual_pct' => null]; }
     $b = ['early' => 0, 'on_time' => 0, 'late' => 0, 'very_late' => 0]; $checked = 0; $noshow = 0;
@@ -211,6 +213,8 @@ function mam_analytics2_arrival(int $instructorId, int $limit = 500): array {
 
 /** At-risk students across an instructor's cohorts (name + cohort + reason bits). */
 function mam_analytics2_instructor_at_risk(int $instructorId, int $limit = 30): array {
+    // The classes they teach now (teaching.php).
+    [$tq, $targs] = mam_teaching_cohort_sql('co.id', $instructorId);
     try {
         return mam_db_all(
             "SELECT DISTINCT u.id AS student_id, u.name, co.title AS cohort
@@ -218,10 +222,10 @@ function mam_analytics2_instructor_at_risk(int $instructorId, int $limit = 30): 
                JOIN lessons l  ON l.id = lp.lesson_id
                JOIN cohorts co ON co.id = l.cohort_id
                JOIN users u    ON u.id = lp.student_id
-              WHERE (co.instructor_id = ? OR co.id IN (SELECT cohort_id FROM course_enrollments WHERE instructor_id = ? AND cohort_id IS NOT NULL))
+              WHERE $tq
                 AND (lp.status IN ('remedial','carried_forward') OR lp.attempts >= 2)
               ORDER BY u.name LIMIT " . max(1, $limit),
-            [$instructorId, $instructorId]
+            $targs
         );
     } catch (\Throwable $e) { return []; }
 }
@@ -304,12 +308,13 @@ function mam_analytics2_instructor_performance(): array {
             $r['completion_pct'] = null;
         }
         $r['formative_only'] = true;   // see MAM_ANALYTICS_INSTRUCTOR_NOTICE
+        [$iq, $iargs] = mam_teaching_cohort_sql('l.cohort_id', (int) $r['instructor_id']);   // teaching.php
         $r['interventions'] = (int) mam_analytics2_scalar(
             "SELECT COUNT(DISTINCT lp.student_id) FROM lesson_progress lp
                JOIN lessons l ON l.id = lp.lesson_id
-              WHERE l.cohort_id IN (SELECT id FROM cohorts WHERE instructor_id = ?)
+              WHERE $iq
                 AND (lp.status IN ('remedial','carried_forward') OR lp.attempts >= 2)",
-            [(int) $r['instructor_id']]
+            $iargs
         );
         unset($r['passed'], $r['graded'], $r['avg_sq']);
     }

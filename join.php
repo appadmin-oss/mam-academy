@@ -29,6 +29,7 @@ require_once MAM_API_ROOT . '/modules/kernel/lib/validation.php';
 require_once MAM_API_ROOT . '/modules/kernel/lib/session.php';
 require_once MAM_API_ROOT . '/modules/identity/lib/auth.php';
 require_once MAM_API_ROOT . '/modules/academics/lib/session-time.php'; // scheduled_at is Lagos wall-clock
+require_once MAM_API_ROOT . '/modules/academics/lib/teaching.php';     // who teaches a class (cohort_staff)
 
 function mam_env(string $key, $default = null) {
     static $env = null;
@@ -81,14 +82,10 @@ $userId   = (int)$currentUser['id'];
 // instructor bypassed the enrolment check and could walk session ids.)
 $userRole = (string)$currentUser['role'];
 $isAdmin  = mam_user_has_role($currentUser, 'admin');
-/** Does the signed-in instructor teach this cohort (lead, substitute for this session, or named on an enrolment)? */
-$teaches = function (int $cohortId, int $leadId, int $substituteId = 0) use ($currentUser, $userId): bool {
+/** Does the signed-in instructor teach this class — or, for a session link, cover that session? (teaching.php) */
+$teaches = function (int $cohortId, int $sessionId = 0) use ($currentUser, $userId): bool {
     if (!mam_user_has_role($currentUser, 'instructor')) return false;
-    if ($leadId === $userId || ($substituteId > 0 && $substituteId === $userId)) return true;
-    return (bool) mam_db_row(
-        "SELECT 1 FROM course_enrollments WHERE cohort_id = ? AND instructor_id = ? AND status IN ('active','completed') LIMIT 1",
-        [$cohortId, $userId]
-    );
+    return $sessionId > 0 ? mam_teaches_session($userId, $sessionId) : mam_teaches($userId, $cohortId);
 };
 
 $h = fn(string $s) => htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE);
@@ -111,7 +108,7 @@ if ($type === 'session' && $id > 0) {
         $sessionTitle = (string)($sess['title'] ?: 'Session #' . $id);
         $meetingLink  = $sess['meeting_link'] ? (string)$sess['meeting_link'] : null;
 
-        if (!$isAdmin && !$teaches((int)$sess['cohort_id'], (int)$sess['instructor_id'], (int)($sess['substitute_id'] ?? 0))) {
+        if (!$isAdmin && !$teaches((int)$sess['cohort_id'], (int)$sess['id'])) {
             // Check course_enrollment for the cohort
             $enrolled = mam_db_row(
                 "SELECT 1 FROM course_enrollments WHERE cohort_id = ? AND student_id = ? AND status IN ('active','completed')",
@@ -137,7 +134,7 @@ if ($type === 'session' && $id > 0) {
         );
         $meetingLink = $sess ? (string)$sess['meeting_link'] : null;
 
-        if (!$isAdmin && !$teaches((int)$co['id'], (int)$co['instructor_id'])) {
+        if (!$isAdmin && !$teaches((int)$co['id'])) {
             $enrolled = mam_db_row(
                 "SELECT 1 FROM course_enrollments WHERE cohort_id = ? AND student_id = ? AND status IN ('active','completed')",
                 [(int)$co['id'], $userId]

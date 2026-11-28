@@ -399,8 +399,7 @@ function mam_media_student_reader(int $studentId, array $user): bool {
     if (mam_user_has_role($user, 'instructor')) {
         // Teaching a child is not enough while uncleared, once the academy enforces (vetting.php).
         if (function_exists('mam_vetting_may_see_child') && !mam_user_has_role($user, 'admin') && !mam_vetting_may_see_child($uid, $studentId)) return false;
-        if (mam_db_row('SELECT 1 FROM course_enrollments ce LEFT JOIN cohorts co ON co.id = ce.cohort_id
-                         WHERE ce.student_id = ? AND (co.instructor_id = ? OR ce.instructor_id = ?)', [$studentId, $uid, $uid])) return true;
+        if (mam_teaches_student($uid, $studentId)) return true; // teaching.php — a current teacher of this student
     }
     return function_exists('mam_parent_can_view') && mam_parent_can_view($uid, $studentId);
 }

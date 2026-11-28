@@ -452,7 +452,7 @@ function mam_summer_cohort(int $courseId, int $year, string $courseName): int {
     if ($row) {
         // Adopt a remembered instructor onto an existing unowned summer cohort.
         if (empty($row['instructor_id']) && $instructorId) {
-            try { mam_db_update('cohorts', ['instructor_id' => $instructorId], ['id' => (int)$row['id']]); }
+            try { mam_cohort_set_lead((int)$row['id'], (int)$instructorId, null); }
             catch (Throwable $e) { /* best-effort */ }
         }
         return (int)$row['id'];

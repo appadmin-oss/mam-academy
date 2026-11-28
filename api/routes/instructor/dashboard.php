@@ -22,12 +22,12 @@ $soft = function (callable $fn, $default) {
  * cohort, every enrolment into course_enrollments and every mark into
  * session_attendance, and nothing here reads the old tables.
  *
- * A cohort is this instructor's when it is assigned to them, or when they are
- * the named instructor on an enrolment in it — the same rule as
- * mam_lms_instructor_owns_cohort(), stated once here for the lists below.
+ * A cohort is this instructor's when they are on its staff (teaching.php) —
+ * the same rule as mam_lms_instructor_owns_cohort(). A student whose own
+ * enrolment names them is listed too, under that student's class.
  */
-$mine = "(co.instructor_id = ? OR co.id IN (SELECT cohort_id FROM course_enrollments WHERE instructor_id = ? AND cohort_id IS NOT NULL))";
-$mineArgs = [$instructorId, $instructorId];
+[$mine, $mineArgs] = mam_teaching_cohort_sql('co.id', $instructorId); // teaching.php
+[$tq, $targs] = mam_teaching_enrolment_sql('ce', $instructorId);
 
 $cohorts = $soft(fn () => mam_db_all(
     "SELECT co.id, co.title, co.status, co.capacity, co.mode, co.starts_on, co.ends_on,
@@ -48,9 +48,9 @@ $students = $soft(fn () => mam_db_all(
        FROM course_enrollments ce
        JOIN cohorts co ON co.id = ce.cohort_id
        JOIN users u ON u.id = ce.student_id
-      WHERE (co.instructor_id = ? OR ce.instructor_id = ?) AND ce.status = 'active'
+      WHERE $tq AND ce.status = 'active'
       ORDER BY co.title, u.name",
-    [$instructorId, $instructorId]
+    $targs
 ), []);
 
 /**

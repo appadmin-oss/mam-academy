@@ -287,7 +287,10 @@ function mam_sched_audience(int $sessionId): array {
         $in = implode(',', array_fill(0, count($students), '?'));
         $guardians = array_map('intval', array_column(mam_db_all("SELECT DISTINCT parent_id FROM parent_links WHERE student_id IN ($in)", $students), 'parent_id'));
     }
-    $staff = array_values(array_unique(array_filter([(int) ($s['instructor_id'] ?? 0), (int) ($s['substitute_id'] ?? 0)])));
+    $staff = [(int) ($s['instructor_id'] ?? 0), (int) ($s['substitute_id'] ?? 0)];
+    // Everybody on the class's staff now (teaching.php), assistants included.
+    foreach (mam_cohort_staff((int) $s['cohort_id']) as $st) if ($st['role'] !== 'cover') $staff[] = (int) $st['instructor_id'];
+    $staff = array_values(array_unique(array_filter($staff)));
     return ['students' => $students, 'guardians' => array_values(array_diff($guardians, $students)), 'staff' => array_values(array_diff($staff, $students, $guardians))];
 }
 

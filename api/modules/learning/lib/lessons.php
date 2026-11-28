@@ -678,11 +678,7 @@ function mam_lesson_submit(int $studentId, int $lessonId, array $answers): array
  * the route's capability check instead and never reach this.
  */
 function mam_lesson_instructor_teaches(int $instructorId, int $studentId, int $courseId): bool {
-    return mam_db_row(
-        "SELECT 1 FROM course_enrollments ce LEFT JOIN cohorts co ON co.id = ce.cohort_id
-          WHERE ce.student_id = ? AND ce.course_id = ? AND ce.status IN ('active','completed')
-            AND (ce.instructor_id = ? OR co.instructor_id = ?) LIMIT 1",
-        [$studentId, $courseId, $instructorId, $instructorId]) !== null;
+    return mam_teaches_student($instructorId, $studentId, $courseId); // teaching.php
 }
 
 /**
@@ -697,10 +693,11 @@ function mam_lesson_marking_queue(?int $instructorId, int $limit = 100): array {
              WHERE (p.pending = 1 OR p.marks LIKE '%\"by\":\"ai\"%')";
     $args = [];
     if ($instructorId !== null) {
-        $sql .= " AND EXISTS (SELECT 1 FROM course_enrollments ce LEFT JOIN cohorts co ON co.id = ce.cohort_id
+        [$tq, $targs] = mam_teaching_enrolment_sql('ce', $instructorId);
+        $sql .= " AND EXISTS (SELECT 1 FROM course_enrollments ce
                    WHERE ce.student_id = p.student_id AND ce.course_id = m.course_id AND ce.status IN ('active','completed')
-                     AND (ce.instructor_id = ? OR co.instructor_id = ?))";
-        $args = [$instructorId, $instructorId];
+                     AND $tq)";
+        $args = $targs;
     }
     $sql .= ' ORDER BY p.pending DESC, p.updated_at, p.id LIMIT ' . max(1, min(500, $limit));
     $rows = mam_db_all($sql, $args);

@@ -316,9 +316,8 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
      `SUMMER-<year>` cohort via `mam_summer_cohort()` (keyed on `(course_id, term)` so it
      never collides with `mam_lms_ensure_cohort()`'s tuple), and enrols them. The cohort AND
      the enrolment both take the remembered instructor (`mam_lms_default_instructor`) —
-     `mam_lms_instructor_cohorts()` keys off `cohort.instructor_id` OR
-     `enrolment.instructor_id`, so setting neither left summer students on a roster no
-     instructor could open. Idempotent.
+     the cohort's through `mam_cohort_set_lead()`, so the class has a lead in
+     `cohort_staff` (see gotcha #16). Idempotent.
      Summer status is now a real state machine (`mam_summer_can_transition()`), and the
      application window honours each bound independently (`mam_summer_window_open()`) —
      it used to be enforced only when BOTH settings were set.
@@ -786,6 +785,24 @@ if($u==='/'){chdir($DOC);require $DOC.'/index.php';return true;} http_response_c
      named the CDN, so the one field anybody reaches for during an incident was
      useless, and the two writers disagreed about the same request. It was the
      only direct `REMOTE_ADDR` read outside the resolver itself.
+
+16. **Who teaches is ONE model: `cohort_staff` + `teaching.php` (schema v111).**
+   Lead / assistant / cover, each with `starts_on`/`ends_on` (Lagos days), a cover
+   optionally tied to one `session_id`. Ask, never re-derive:
+   `mam_teaches($i, $cohort, $at, 'teach'|'history')`, `mam_teaches_student()`,
+   `mam_teaches_session()` (a cover reaches only their session),
+   `mam_instructor_cohort_ids()` and the SQL forms `mam_teaching_cohort_sql()` /
+   `_enrolment_sql()` / `_session_sql()`. Write only through
+   `mam_cohort_set_lead()` / `mam_cohort_staff_add()` / `mam_cohort_staff_end()`
+   (vetting-checked, audited; a row is ENDED, never deleted, so 'history' keeps a
+   past teacher's read access). `cohorts.instructor_id` (= lead) and
+   `class_sessions.substitute_id` (= cover) are compatibility copies kept in step;
+   a cohort with no lead row falls back to `cohorts.instructor_id`, and the
+   nightly `cohort_staff_backfill` heals a stray raw write. An enrolment's own
+   `instructor_id` reaches THAT student only — it never makes anyone own the
+   class. Admin bypass and vetting stay with each caller. Busy/clash checks are
+   about availability, not access, and deliberately still read the columns.
+   `test_teaching_model.php` holds a static guard against inline copies.
 
 ## Security posture (don't weaken)
 
@@ -1382,7 +1399,7 @@ nothing links to a module. The rules, each a bug NGG shipped before it had it:
   "converge" brings their cohort across (gotcha #2) — never guess a course from a
   class's free-text discipline.
 - **A teacher acts only on students they teach on that course**
-  (`mam_lesson_instructor_teaches()`: the enrolment's instructor or its cohort's),
+  (`mam_lesson_instructor_teaches()` → `mam_teaches_student()`, gotcha #16),
   for marking, ticking and viewing alike; an admin reaches everyone.
 - ⚠️ **"Why it is tempting" lines are keyed by option NUMBER (`2: …`), never by
   line position.** A browser drops a textarea's leading blank line, so the

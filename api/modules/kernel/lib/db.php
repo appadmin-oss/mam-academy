@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 110;
+const MAM_SCHEMA_TARGET = 111;
 
 /**
  * Open (and cache) the PDO connection.
@@ -4332,6 +4332,40 @@ function mam_db_migrate(PDO $db): void {
              WHERE scheduled_at LIKE '____-__-__T__:__';
             UPDATE class_sessions SET scheduled_at = REPLACE(scheduled_at, 'T', ' ')
              WHERE scheduled_at LIKE '____-__-__T__:__:__';
+        ",
+        // v111 — cohort_staff: who teaches a class, in one place, with a role and
+        // dates (academics/lib/teaching.php). Backfilled from the two places a
+        // class's teacher used to live: cohorts.instructor_id (the lead) and
+        // class_sessions.substitute_id (cover for that one session). An
+        // enrolment's own instructor_id is deliberately NOT carried: it names the
+        // teacher of THAT student, never of the whole class.
+        111 => "
+            CREATE TABLE IF NOT EXISTS cohort_staff (
+              id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+              cohort_id          INTEGER NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE,
+              instructor_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              role               TEXT NOT NULL CHECK (role IN ('lead','assistant','cover')),
+              session_id         INTEGER REFERENCES class_sessions(id) ON DELETE CASCADE,
+              starts_on          TEXT,
+              ends_on            TEXT,
+              assigned_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+              vetting_checked_at TEXT,
+              ended_reason       TEXT,
+              created_at         TEXT DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_cstaff_instr ON cohort_staff(instructor_id, ends_on);
+            CREATE INDEX IF NOT EXISTS idx_cstaff_cohort ON cohort_staff(cohort_id);
+            INSERT INTO cohort_staff (cohort_id, instructor_id, role)
+              SELECT co.id, co.instructor_id, 'lead' FROM cohorts co
+               WHERE co.instructor_id IS NOT NULL
+                 AND EXISTS (SELECT 1 FROM users u WHERE u.id = co.instructor_id)
+                 AND NOT EXISTS (SELECT 1 FROM cohort_staff x WHERE x.cohort_id = co.id AND x.role = 'lead' AND x.ends_on IS NULL);
+            INSERT INTO cohort_staff (cohort_id, instructor_id, role, session_id, starts_on, ends_on)
+              SELECT cs.cohort_id, cs.substitute_id, 'cover', cs.id, substr(cs.scheduled_at, 1, 10), substr(cs.scheduled_at, 1, 10)
+                FROM class_sessions cs
+               WHERE cs.substitute_id IS NOT NULL AND cs.cohort_id IS NOT NULL
+                 AND EXISTS (SELECT 1 FROM users u WHERE u.id = cs.substitute_id)
+                 AND NOT EXISTS (SELECT 1 FROM cohort_staff x WHERE x.session_id = cs.id AND x.role = 'cover');
         ",
     ];
 

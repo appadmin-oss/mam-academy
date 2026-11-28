@@ -57,6 +57,12 @@ A cover teacher can open the live call but cannot take the register they were
 brought in for. A teacher who taught one withdrawn student keeps owning the
 whole class.
 
+**Since v111 (teaching model, `teaching.php`):** A is unchanged. C teaches only
+the student whose enrolment names them, never owns the class, and loses even
+that student on withdrawal. D sees, registers, clocks in and writes lesson notes
+for the one session they cover, on its day, and nothing else of the class.
+Pinned by `api/tests/test_teaching_model.php`.
+
 ## 3. Faults, most serious first
 
 1. **Times are an hour apart.** The admin timetable saves the time as typed
@@ -83,7 +89,9 @@ whole class.
    - Status: **open.**
 5. **Changing the teacher leaves the old one with access.** The plain admin
    edit leaves the old teacher on each enrolment, and "owns the class" checks
-   no status. **Open.**
+   no status. **Fixed** (v111): every lead change goes through
+   `mam_cohort_set_lead()`, which ends the old lead's row; they keep read-only
+   history and lose current access.
 6. **The teacher chosen at approval differs from the class's teacher.** The
    student's requested teacher is stored and never read. **Open.**
 7. **The enrolment preview's seat count was always 1.** **Fixed.**
@@ -138,10 +146,22 @@ current bug happened.
    format; check-in message by mode (2026-11-28).
 2. Time zone, per §5: one helper for reading and writing, migrate existing
    rows, and fix the 6 different reading styles.
-3. `mam_teaches()` / `mam_enrolled_in()` replace the ~41 copies. This
-   fixes rows C and D in §2.
-4. `cohort_staff`: backfill it from the four teacher columns, then send
-   every teacher change through one function that runs the vetting check.
+3. ✅ `mam_teaches()` / `mam_teaches_student()` / `mam_teaches_session()` /
+   `mam_enrolled_in()` replace the inline copies (about 50 sites across 30
+   files); a static guard in `test_teaching_model.php` stops them returning.
+   Rows C and D in §2 are fixed (2026-11-28). Deliberately left: the busy and
+   clash checks (`lms.php` conflict detection, `slot-finder.php`), which ask
+   whether a person is free rather than who may act; the gradebook's fallbacks
+   for unmigrated enrolments; display joins naming the lead; progress-report
+   fine attribution; analytics grouping by lead.
+4. ✅ `cohort_staff` (v111): lead | assistant | cover with dates, a cover
+   optionally tied to one session; backfilled from `cohorts.instructor_id` and
+   `class_sessions.substitute_id`, and healed nightly by the job runner. Every
+   change goes through `mam_cohort_set_lead()` / `mam_cohort_staff_add()` /
+   `mam_cohort_staff_end()`, each running the vetting check. The two old
+   columns stay as compatibility copies. Console: Enrol & staffing → Teaching
+   staff. Still open: the enrolment's own `instructor_id` column (kept as the
+   one-to-one teacher) and `instructor_assignments` as "may teach".
 5. Class key: term + course + level + age band, so the KTAMS duplicates and
    the summer/Crash mix-up stop.
 6. One series builder; the class's mode is the default for its sessions; no

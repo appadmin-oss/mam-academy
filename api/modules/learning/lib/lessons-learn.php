@@ -257,7 +257,7 @@ function mam_lesson_placement_list(?int $teacherId, int $courseId): array {
               LEFT JOIN cohorts co ON co.id = ce.cohort_id
              WHERE ce.course_id = ? AND ce.status IN ('active','completed')";
     $args = [$courseId];
-    if ($teacherId !== null) { $sql .= ' AND (ce.instructor_id = ? OR co.instructor_id = ?)'; $args[] = $teacherId; $args[] = $teacherId; }
+    if ($teacherId !== null) { [$tq, $targs] = mam_teaching_enrolment_sql('ce', $teacherId); $sql .= ' AND ' . $tq; $args = array_merge($args, $targs); }
     $out = [];
     foreach (mam_db_all($sql . ' ORDER BY u.name', $args) as $r) {
         $placed = mam_lesson_placed_level((int) $r['id'], $courseId, $r['level_id'] !== null ? (int) $r['level_id'] : null);

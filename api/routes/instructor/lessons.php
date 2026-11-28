@@ -39,9 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         // A teacher sees only the courses they teach this child; another teacher's course is not theirs to tick.
         if ($admin || mam_lesson_instructor_teaches($uid, $sid, $cid)) $courses[] = $c;
     }
-    if (!$courses && !$admin && !mam_db_row(
-        "SELECT 1 FROM course_enrollments ce LEFT JOIN cohorts co ON co.id = ce.cohort_id
-          WHERE ce.student_id = ? AND (ce.instructor_id = ? OR co.instructor_id = ?) LIMIT 1", [$sid, $uid, $uid])) {
+    if (!$courses && !$admin && !mam_teaches_student($uid, $sid)) { // teaching.php
         mam_fail('not_your_student', 403);
     }
     mam_ok(['student' => ['id' => (int) $stu['id'], 'name' => (string) $stu['name']], 'courses' => $courses,
@@ -111,9 +109,7 @@ if ($action === 'material') {
     $m = $lid > 0 ? mam_db_row('SELECT course_id FROM modules WHERE id = ?', [$lid]) : null;
     if (!$m) mam_fail('lesson_not_found', 404);
     // A teacher sends material for a course they teach; the office decides whether it goes live.
-    if (!$admin && !mam_db_row("SELECT 1 FROM course_enrollments ce LEFT JOIN cohorts co ON co.id = ce.cohort_id
-            WHERE ce.course_id = ? AND ce.status IN ('active','completed') AND (ce.instructor_id = ? OR co.instructor_id = ?) LIMIT 1",
-            [(int) $m['course_id'], $uid, $uid])) {
+    if (!$admin && !mam_instructor_student_ids($uid, (int) $m['course_id'])) { // teaching.php: teaches somebody on this course
         mam_fail('not_your_course', 403);
     }
     try { mam_ok(['material_id' => mam_lesson_material_submit($uid, $lid, $in), 'status' => 'pending']); }

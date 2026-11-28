@@ -14,9 +14,9 @@ $isAdmin = mam_user_has_role($u, 'admin');
 
 /** The lesson must belong to a cohort this user teaches (admins any). */
 $ownsLesson = function (int $lessonId) use ($me, $isAdmin): bool {
-    $row = mam_db_row('SELECT co.instructor_id FROM lessons l JOIN cohorts co ON co.id = l.cohort_id WHERE l.id = ?', [$lessonId]);
+    $row = mam_db_row('SELECT l.cohort_id FROM lessons l WHERE l.id = ?', [$lessonId]);
     if (!$row) return false;
-    return $isAdmin || (int) ($row['instructor_id'] ?? 0) === $me;
+    return $isAdmin || mam_teaches($me, (int) $row['cohort_id']); // teaching.php
 };
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {

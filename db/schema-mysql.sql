@@ -4021,3 +4021,40 @@ UPDATE class_sessions SET scheduled_at = CONCAT(REPLACE(scheduled_at, 'T', ' '),
 UPDATE class_sessions SET scheduled_at = REPLACE(scheduled_at, 'T', ' ')
  WHERE scheduled_at LIKE '____-__-__T__:__:__';
 INSERT INTO schema_version (version) VALUES (110) ON DUPLICATE KEY UPDATE version = version;
+
+-- v111 — cohort_staff: who teaches a class (lead / assistant / cover), with dates
+-- (academics/lib/teaching.php). Backfilled from cohorts.instructor_id (lead) and
+-- class_sessions.substitute_id (cover for that session). An enrolment's own
+-- instructor_id is NOT carried: it names that student's teacher, not the class's.
+CREATE TABLE IF NOT EXISTS cohort_staff (
+  id                 INT AUTO_INCREMENT PRIMARY KEY,
+  cohort_id          INT NOT NULL,
+  instructor_id      INT NOT NULL,
+  role               VARCHAR(12) NOT NULL,
+  session_id         INT NULL,
+  starts_on          DATE NULL,
+  ends_on            DATE NULL,
+  assigned_by        INT NULL,
+  vetting_checked_at DATETIME NULL,
+  ended_reason       VARCHAR(60) NULL,
+  created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_cstaff_instr (instructor_id, ends_on),
+  KEY idx_cstaff_cohort (cohort_id),
+  CONSTRAINT chk_cstaff_role CHECK (role IN ('lead','assistant','cover')),
+  CONSTRAINT fk_cstaff_cohort  FOREIGN KEY (cohort_id)     REFERENCES cohorts(id)        ON DELETE CASCADE,
+  CONSTRAINT fk_cstaff_instr   FOREIGN KEY (instructor_id) REFERENCES users(id)          ON DELETE CASCADE,
+  CONSTRAINT fk_cstaff_session FOREIGN KEY (session_id)    REFERENCES class_sessions(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cstaff_by      FOREIGN KEY (assigned_by)   REFERENCES users(id)          ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO cohort_staff (cohort_id, instructor_id, role)
+  SELECT co.id, co.instructor_id, 'lead' FROM cohorts co
+   WHERE co.instructor_id IS NOT NULL
+     AND EXISTS (SELECT 1 FROM users u WHERE u.id = co.instructor_id)
+     AND NOT EXISTS (SELECT 1 FROM cohort_staff x WHERE x.cohort_id = co.id AND x.role = 'lead' AND x.ends_on IS NULL);
+INSERT INTO cohort_staff (cohort_id, instructor_id, role, session_id, starts_on, ends_on)
+  SELECT cs.cohort_id, cs.substitute_id, 'cover', cs.id, DATE(cs.scheduled_at), DATE(cs.scheduled_at)
+    FROM class_sessions cs
+   WHERE cs.substitute_id IS NOT NULL AND cs.cohort_id IS NOT NULL
+     AND EXISTS (SELECT 1 FROM users u WHERE u.id = cs.substitute_id)
+     AND NOT EXISTS (SELECT 1 FROM cohort_staff x WHERE x.session_id = cs.id AND x.role = 'cover');
+INSERT INTO schema_version (version) VALUES (111) ON DUPLICATE KEY UPDATE version = version;

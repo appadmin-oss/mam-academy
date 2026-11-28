@@ -51,9 +51,9 @@ try {
         $tid = (int) ($in['teachback_id'] ?? 0);
         if ($tid < 1) mam_fail('validation', 422, ['fields' => ['teachback_id']]);
         // Ownership via lesson → cohort.
-        $own = mam_db_row('SELECT co.instructor_id FROM teachbacks tb JOIN lessons l ON l.id = tb.lesson_id JOIN cohorts co ON co.id = l.cohort_id WHERE tb.id = ?', [$tid]);
+        $own = mam_db_row('SELECT l.cohort_id FROM teachbacks tb JOIN lessons l ON l.id = tb.lesson_id WHERE tb.id = ?', [$tid]);
         if (!$own) mam_fail('not_found', 404);
-        if (!$isAdmin && (int) ($own['instructor_id'] ?? 0) !== $me) mam_fail('forbidden', 403);
+        if (!$isAdmin && !mam_teaches($me, (int) $own['cohort_id'])) mam_fail('forbidden', 403); // teaching.php
         $decision      = mam_str($in, 'decision', 16);
         $understanding = array_key_exists('understanding', $in) ? (int) $in['understanding'] : null;
         $feedback      = array_key_exists('feedback', $in) ? (mam_str($in, 'feedback', 500) ?: null) : null;

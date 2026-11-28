@@ -574,17 +574,18 @@ function mam_lms2_calendar_token_mint(int $userId, string $scope = 'sessions'): 
  *  cohort) and those they teach. Used to build the ICS feed. */
 function mam_lms2_user_upcoming_sessions(int $userId, string $since, int $limit = 200): array {
     $limit = max(1, min(500, $limit));
+    [$tq, $targs] = mam_teaching_session_sql('cs', $userId); // the sessions they teach (teaching.php)
     return mam_db_all(
         "SELECT cs.id, cs.title, cs.scheduled_at, cs.duration_min, cs.location, cs.room, co.title AS cohort_title
            FROM class_sessions cs
            JOIN cohorts co ON co.id = cs.cohort_id
           WHERE cs.status = 'scheduled' AND cs.scheduled_at >= ?
-            AND ( co.instructor_id = ?
+            AND ( $tq
                   OR cs.cohort_id IN (SELECT cohort_id FROM course_enrollments
                                        WHERE student_id = ? AND cohort_id IS NOT NULL
                                          AND status NOT IN ('withdrawn','cancelled','rejected','failed')) )
           ORDER BY cs.scheduled_at ASC LIMIT " . $limit,
-        [$since, $userId, $userId]
+        array_merge([$since], $targs, [$userId])
     );
 }
 
@@ -659,6 +660,7 @@ function mam_lms2_instructor_worklist(int $instructorId, int $limit = 8): array
         }
     };
     $now = mam_session_now(); // compared with scheduled_at (Lagos wall-clock)
+    [$tq, $targs] = mam_teaching_session_sql('cs', $instructorId); // the sessions they teach (teaching.php)
 
     // The next session they are due to teach, from either model: a cohort they
     // own, or one where they are the substitute.
@@ -666,10 +668,10 @@ function mam_lms2_instructor_worklist(int $instructorId, int $limit = 8): array
         "SELECT cs.id, cs.title, cs.scheduled_at, cs.duration_min, cs.mode, cs.meeting_link,
                 co.title AS cohort_title, co.id AS cohort_id
            FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id
-          WHERE (co.instructor_id = ? OR cs.substitute_id = ?)
+          WHERE $tq
             AND cs.status = 'scheduled' AND cs.scheduled_at >= ?
           ORDER BY cs.scheduled_at ASC LIMIT 1",
-        [$instructorId, $instructorId, $now]
+        array_merge($targs, [$now])
     ), null);
     if ($next) {
         $mins = (int) round(((mam_session_ts((string) $next['scheduled_at']) ?? false) - time()) / 60);
@@ -691,9 +693,9 @@ function mam_lms2_instructor_worklist(int $instructorId, int $limit = 8): array
                     AND j.payload LIKE '%\"session_id\":' || cs.id || '%'
                   ORDER BY j.id DESC LIMIT 1) AS deadline_at
            FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id
-          WHERE co.instructor_id = ? AND cs.status = 'held'
+          WHERE $tq AND cs.status = 'held'
           ORDER BY cs.scheduled_at DESC LIMIT " . max(1, min(50, $limit * 3)),
-        [$instructorId]
+        $targs
     ), []);
 
     $due = [];
@@ -726,10 +728,10 @@ function mam_lms2_instructor_worklist(int $instructorId, int $limit = 8): array
     $unmarked = $soft(static fn () => mam_db_all(
         "SELECT cs.id, cs.title, cs.scheduled_at, co.title AS cohort_title
            FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id
-          WHERE co.instructor_id = ? AND cs.status = 'held'
+          WHERE $tq AND cs.status = 'held'
             AND NOT EXISTS (SELECT 1 FROM session_attendance sa WHERE sa.session_id = cs.id)
           ORDER BY cs.scheduled_at DESC LIMIT " . max(1, min(50, $limit)),
-        [$instructorId]
+        $targs
     ), []);
 
     // Work handed in and not yet looked at.

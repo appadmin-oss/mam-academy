@@ -1217,8 +1217,10 @@ function mam_console_roster(array $q = []): array {
         $staff = mam_console_rows('ros.staff',
             "SELECT DISTINCT u.id, u.name, u.email FROM users u
               WHERE u.id = (SELECT instructor_id FROM cohorts WHERE id = ?)
-                 OR u.id IN (SELECT instructor_id FROM course_enrollments WHERE cohort_id = ? AND instructor_id IS NOT NULL)",
-            [$sel, $sel]);
+                 OR u.id IN (SELECT instructor_id FROM cohort_staff WHERE cohort_id = ? AND (ends_on IS NULL OR ends_on >= ?))
+                 OR u.id IN (SELECT instructor_id FROM course_enrollments WHERE cohort_id = ? AND instructor_id IS NOT NULL
+                              AND status IN ('active','pending'))",
+            [$sel, $sel, mam_session_today(), $sel]);
         foreach ($staff as &$s) {
             $s['gate'] = mam_console_try('ros.gate', fn() => mam_vetting_may_teach_minors((int) $s['id']), null);
         }
@@ -1323,6 +1325,10 @@ function mam_console_roster_extra(array $q, int $sel, ?array $cohort, array $ros
         }
         // Same course first — the commonest move is another time slot of one class.
         usort($out['transfer_to'], fn($a, $b) => [(int) !$a['same_course'], $a['title']] <=> [(int) !$b['same_course'], $b['title']]);
+
+        // Who teaches the class (teaching.php): lead, assistants and covers, ended rows too.
+        $out['staff'] = mam_console_try('ros.staff', fn() => mam_cohort_staff($sel, true), []);
+        $out['staff_today'] = mam_session_today();
 
         $out['outcome'] = mam_cohort_outcome_now();
         $out['outcome_line'] = mam_cohort_outcome_line($out['outcome']);

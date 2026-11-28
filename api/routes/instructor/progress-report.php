@@ -17,6 +17,10 @@ $isAdmin = in_array('admin', mam_user_roles($u), true);
 
 $ownsSession = function (int $sessionId) use ($me, $isAdmin): bool {
     if ($isAdmin) return (bool)mam_db_row('SELECT 1 FROM class_sessions WHERE id = ?', [$sessionId]);
+    // The class's teachers and the cover booked for this session (teaching.php) —
+    // they were refused the report they are expected to write — or a teacher
+    // named on a student's own enrolment in that class (a 1:1 placement).
+    if (mam_teaches_session($me, $sessionId)) return true;
     return (bool)mam_db_row(
         "SELECT 1 FROM class_sessions cs
            JOIN course_enrollments ce ON ce.cohort_id = cs.cohort_id

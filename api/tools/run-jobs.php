@@ -70,6 +70,12 @@ $step('session_reminders', function () {
 $step('birthdays', function () {
     if (function_exists('mam_automation_ktams_birthday_sweep')) printf("birthdays  : KTAMS notes sent %d\n", mam_automation_ktams_birthday_sweep());
 });
+// Who teaches a class lives in cohort_staff (teaching.php). Heals any cohort whose
+// instructor_id was written around mam_cohort_set_lead(); idempotent.
+$step('cohort_staff_backfill', function () {
+    if (!function_exists('mam_cohort_staff_backfill')) return;
+    printf("teaching   : staff rows healed %d\n", mam_cohort_staff_backfill());
+});
 $step('card_expiry', function () {
     if (!function_exists('mam_automation_card_expiry_sweep')) return;
     $ce = mam_automation_card_expiry_sweep();

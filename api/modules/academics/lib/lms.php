@@ -632,6 +632,11 @@ function mam_lms_create_cohort(array $d): int {
         'status'          => $d['status'] ?? 'active',
     ]);
     mam_audit('lms_cohort_create', 'cohort', $id, ['title' => $d['title'] ?? null]);
+    // Who teaches lives in cohort_staff (teaching.php); the column above is its mirror.
+    if (!empty($d['instructor_id']) && (int) $d['instructor_id'] > 0) {
+        mam_db_insert('cohort_staff', ['cohort_id' => $id, 'instructor_id' => (int) $d['instructor_id'], 'role' => 'lead',
+            'starts_on' => mam_session_today(), 'created_at' => gmdate('Y-m-d H:i:s')]);
+    }
     return $id;
 }
 
@@ -898,6 +903,9 @@ function mam_lms_student_session_attendance(int $studentId, ?int $cohortId = nul
 /** Cohorts an instructor is responsible for: any cohort holding an active
  *  enrolment they teach, or one assigned directly to them. With counts. */
 function mam_lms_instructor_cohorts(int $instructorId): array {
+    // The classes they teach (teaching.php). Being named on ONE student's
+    // enrolment no longer makes the whole class theirs.
+    [$teach, $targs] = mam_teaching_cohort_sql('co.id', $instructorId);
     return mam_db_all(
         "SELECT co.id, co.title, co.status, co.legacy_class_id, c.name AS course_name, l.name AS level_name,
                 -- Cohort model only: a class's roster was carried into
@@ -907,22 +915,18 @@ function mam_lms_instructor_cohorts(int $instructorId): array {
            FROM cohorts co
            LEFT JOIN courses c ON c.id = co.course_id
            LEFT JOIN levels l  ON l.id = co.level_id
-          WHERE co.instructor_id = ?
-             OR co.id IN (SELECT cohort_id FROM course_enrollments WHERE instructor_id = ? AND cohort_id IS NOT NULL)
+          WHERE $teach
           ORDER BY co.id DESC",
-        [$instructorId, $instructorId]
+        $targs
     );
 }
 
-/** Whether an instructor is responsible for a cohort (teaches an enrolment in
- *  it, or it's assigned to them). Admins bypass this at the route layer. */
+/** Whether an instructor teaches a cohort now. Admins bypass this at the route layer. */
 function mam_lms_instructor_owns_cohort(int $instructorId, int $cohortId): bool {
-    return mam_db_row(
-        "SELECT 1 FROM cohorts co
-          WHERE co.id = ? AND (co.instructor_id = ?
-            OR co.id IN (SELECT cohort_id FROM course_enrollments WHERE instructor_id = ? AND cohort_id IS NOT NULL))",
-        [$cohortId, $instructorId, $instructorId]
-    ) !== null;
+    // One definition (teaching.php): lead, assistant, or cover on its day. A
+    // teacher named on one student's enrolment no longer owns the class — and
+    // never kept it after that student withdrew, which it used to.
+    return mam_teaches($instructorId, $cohortId);
 }
 
 /** Active/completed students enrolled in a cohort — the attendance roster. */
@@ -1240,6 +1244,10 @@ function mam_lms_instructor_gradebook(int $instructorId): array {
     // Primary query — requires cohort_id column (added in v19).
     // Falls back to a cohort-free variant when the column is absent on
     // un-migrated MySQL; callers handle null cohort_id gracefully.
+    // Their classes (teaching.php — including a cover teacher on the day) plus
+    // any student whose own enrolment names them. Was the enrolment's teacher
+    // only, so the lead of a class saw none of a student another path had named.
+    [$teach, $targs] = mam_teaching_cohort_sql('ce.cohort_id', $instructorId);
     try {
         return mam_db_all(
             "SELECT ce.id, ce.status, ce.cohort_id,
@@ -1253,9 +1261,9 @@ function mam_lms_instructor_gradebook(int $instructorId): array {
                LEFT JOIN cohorts co ON co.id = ce.cohort_id
                LEFT JOIN levels l   ON l.id = ce.level_id
                LEFT JOIN results r  ON r.enrollment_id = ce.id
-              WHERE ce.instructor_id = ? AND ce.status = 'active'
+              WHERE ($teach OR ce.instructor_id = ?) AND ce.status = 'active'
               ORDER BY co.title, su.name, c.name",
-            [$instructorId]
+            array_merge($targs, [$instructorId])
         );
     } catch (\Throwable $e) {
         mam_log('warn', 'gradebook_primary_failed', ['err' => $e->getMessage()]);
@@ -2581,8 +2589,17 @@ function mam_lms_reschedule_session(int $sessionId, string $newScheduledAt, ?str
 
 /** Assign or clear the substitute instructor for a session. */
 function mam_lms_set_session_substitute(int $sessionId, ?int $subId, int $actorId): void {
-    $sess = mam_db_row('SELECT id, substitute_id FROM class_sessions WHERE id = ?', [$sessionId]);
+    $sess = mam_db_row('SELECT id, cohort_id, substitute_id FROM class_sessions WHERE id = ?', [$sessionId]);
     if (!$sess) throw new RuntimeException('session_not_found');
+    // A cover teacher is a cohort_staff row (teaching.php), so they can take the
+    // register and see the roster for THAT session — the compatibility column
+    // alone opened the video call and nothing else. Vetting is checked there.
+    foreach (mam_db_all("SELECT id FROM cohort_staff WHERE session_id = ? AND role = 'cover' AND ended_reason IS NULL", [$sessionId]) as $old) {
+        mam_cohort_staff_end((int) $old['id'], 'replaced', $actorId ?: null);
+    }
+    if ($subId !== null && $subId > 0 && $sess['cohort_id'] !== null) {
+        mam_cohort_staff_add((int) $sess['cohort_id'], $subId, 'cover', $sessionId, null, null, $actorId ?: null);
+    }
     mam_db_update('class_sessions', ['substitute_id' => $subId], ['id' => $sessionId]);
     mam_db_insert('session_history', [
         'session_id'    => $sessionId,

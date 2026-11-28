@@ -15,9 +15,10 @@ $me      = (int) $u['id'];
 $isAdmin = mam_user_has_role($u, 'admin');
 
 $ownsSession = function (int $sessionId) use ($me, $isAdmin): bool {
-    $row = mam_db_row('SELECT co.instructor_id FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id WHERE cs.id = ?', [$sessionId]);
-    if (!$row) return false;
-    return $isAdmin || (int) ($row['instructor_id'] ?? 0) === $me;
+    if (!mam_db_row('SELECT 1 FROM class_sessions WHERE id = ?', [$sessionId])) return false;
+    // The class's teachers and the cover booked for this session (teaching.php);
+    // a cover could not clock in for the session they were brought in to teach.
+    return $isAdmin || mam_teaches_session($me, $sessionId);
 };
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {

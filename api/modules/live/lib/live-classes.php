@@ -96,8 +96,10 @@ function mam_live_session(int $sid): ?array {
 /** teacher | student | admin, or null. A teacher is the cohort's, the enrolment's, or the substitute. */
 function mam_live_role(array $sess, array $user): ?string {
     $uid = (int) $user['id']; $cid = (int) ($sess['cohort_id'] ?? 0);
-    if ((int) ($sess['substitute_id'] ?? 0) === $uid) return 'teacher';
-    if ($cid > 0 && function_exists('mam_space_teaches_cohort') && mam_space_teaches_cohort($cid, $uid)) return 'teacher';
+    // The class's teachers and the cover booked for this session (teaching.php).
+    if (!empty($sess['id']) && mam_teaches_session($uid, (int) $sess['id'])) return 'teacher';
+    if (empty($sess['id']) && (int) ($sess['substitute_id'] ?? 0) === $uid) return 'teacher';
+    if ($cid > 0 && mam_teaches($uid, $cid)) return 'teacher';
     if (mam_user_has_role($user, 'admin')) return 'admin';
     if ($cid > 0 && mam_db_row("SELECT 1 FROM course_enrollments WHERE cohort_id = ? AND student_id = ? AND status IN ('active','completed')", [$cid, $uid])) return 'student';
     return null;

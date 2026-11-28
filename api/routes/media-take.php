@@ -57,14 +57,9 @@ $allowed   = ($studentId === $uid);
 if (!$allowed && function_exists('mam_user_has_role') && mam_user_has_role($u, 'admin')) $allowed = true;
 
 if (!$allowed && function_exists('mam_user_has_role') && mam_user_has_role($u, 'instructor')) {
-    // A teacher of this student: the enrolment's instructor or its cohort's.
-    // Cohort model only — the legacy class roster is retired (mam_legacy_carry()).
-    $cohort = mam_db_row(
-        'SELECT 1 FROM course_enrollments ce LEFT JOIN cohorts co ON co.id = ce.cohort_id
-          WHERE ce.student_id = ? AND (co.instructor_id = ? OR ce.instructor_id = ?)',
-        [$studentId, $uid, $uid]
-    );
-    if ($cohort) $allowed = true;
+    // A teacher of this student now (teaching.php). Used to accept ANY enrolment
+    // that ever named them — so a replaced teacher kept a child's recordings.
+    if (mam_teaches_student($uid, $studentId)) $allowed = true;
 }
 
 // No guardian path. A recorded take is in MAM_PARENT_NEVER ('takes'): no
