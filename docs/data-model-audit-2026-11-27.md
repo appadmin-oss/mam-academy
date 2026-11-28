@@ -192,8 +192,22 @@ Two owner decisions are needed first:
 - **Direction: B, module by module, identity first. But v2 is also
   faulted** and must be audited and corrected before any module moves onto
   it. The target is "v2-corrected", not v2 as it stands.
-- **Child identity:** every child gets **their own person record and a
-  username to sign in**. A parent's email is stored as the guardian contact,
-  never as the child's identity. **Students may also have their own email
-  address, as NextGenGen provides them.** The design follows NGG's scheme,
-  studied before building.
+- **Identity (corrected 2026-11-28).** MAM teaches **adults as well as
+  children**, so the model is not child-first:
+  - **Every learner, adult or child, has their own person record and a
+    system-issued username** (e.g. `MAM-26-0014`, never reused). The
+    username always works, whatever happens to email.
+  - **Students may have their own email, as on NextGenGen**, where a
+    member's own address sits on their record and is used to reach them and
+    to sign in. It is **optional, verified, and not unique**: siblings may
+    share a family inbox, in which case a "Who's signing in?" picker
+    appears (NGG's fix). An adult normally signs in with their own email.
+    NGG does **not** create academy mailboxes; if MAM ever wants
+    `@academy` addresses, that is a separate, consented feature.
+  - **A guardian is a separate person, linked by a dated, scoped
+    guardianship.** Under 18 only by default: an adult learner has no
+    guardian unless they nominate one, and at 18 every guardianship comes
+    up for review.
+  - **A parent's email is never the child's identity.** Matching at
+    admission is on email plus date of birth (or name), and suspected
+    duplicates go to staff review.

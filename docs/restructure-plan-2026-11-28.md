@@ -1,0 +1,215 @@
+# MAM restructure: what the research found, and the plan
+
+| | |
+|---|---|
+| **Owner** | Academy technical lead (delivery); academy owner (the decisions marked ⚖️) |
+| **Version** | 1.0 — 2026-11-28 |
+| **Evidence** | Twelve audits and research tracks run 2026-11-27/28 on the latest branch: code structure, data, frontend, docs, v2 schema, identity (NGG and external), architecture, operations, security, smart features, finance, learner/instructor/guardian links, learning structure (pending), end-to-end journeys (pending) |
+| **Related** | `api/modules/README.md`, `docs/data-model-audit-2026-11-27.md`, `docs/live-data-migration-plan.md` |
+
+## 1. Where MAM stands
+
+MAM is not bad at its rules: frozen FX, refund calendar, safeguarding gate,
+NDPA register and mastery bands are all careful work. It is bad at
+**structure**. Features were added beside what existed instead of into it, so
+most concepts now exist two to seven times. The research measured:
+
+| Area | What is duplicated or missing |
+|---|---|
+| Code | 1,555 global functions loaded on every request; a 3,234-line admin if-chain beside the API; a second admin write path that drifted from the first |
+| Schema | Two hand-synced schemas (SQLite strings in PHP, a MySQL file); a migrator that hides its own errors and runs ~19 queries on **every** request on MySQL; a third, dormant v2 schema that is itself faulted |
+| People | `users` + `customers` + five application tables joined by **email**, which has already merged parents with children in real data |
+| Teaching | ~22 copies of "does this instructor teach this learner", with 6 different status sets; a former teacher keeps access to a cohort's videos forever |
+| Guardians | Scope enforced on some screens and not others; removing a guardian leaves thread and billing access; adults get guardians by default; nothing happens at 18 |
+| Money | 3 invoice concepts, 5 payment concepts, 7 ways of storing an amount; no double entry; refunds of online fee payments stay credited; settlement can stop halfway with nothing to finish it; Flutterwave cannot settle USD |
+| Smart features | AI placement, triage, advisor, progress narrative and practice coach are **built but unreachable**; analytics duplicated three ways and some console figures are wrong |
+| Operations | No monitoring, no off-site backup, no tested restore, no deploy process; a missing cron silently stops payment reconciliation, reminders and FX updates |
+| Security | Nine verified holes, **fixed 2026-11-28** (see §5) |
+
+## 2. The target
+
+A **modular monolith** on the same hosting: one PHP application, split into
+domain modules with measured boundaries, one schema source, one write path per
+rule. No framework rewrite; each step keeps the site live and the suite green.
+
+```
+api/modules/<module>/
+  module.php      manifest: libs, depends (measured by test_module_boundaries.php)
+  lib/            today's functions → tomorrow's classes (Mam\<Module>\…)
+  routes.php      the module's routes (step 2)
+  migrations/     the module's schema changes, one file each (step 4)
+```
+
+### 2.1 People and identity (first module to move)
+
+From NextGenGen's lessons, the v2 audit, and Nigerian and international
+practice (NDPA 2023 s.31, GAID 2025, Google and Microsoft education accounts,
+Clever and Khan Academy):
+
+- **people**: one row per human, child or adult. Holds full name exactly as
+  typed and date of birth. The identity is the person, never an address.
+- **contact_points**: email, phone, WhatsApp. Not unique, so a family inbox
+  can sit on several people. Verified flag.
+- **accounts**: one per person who signs in. `username` is unique and
+  system-issued (`MAM-26-0014`, never reused). `login_email` is optional, the
+  person's own, verified, and may be shared (then a "Who's signing in?"
+  picker appears). Managed flag for under-13s: no self-service recovery; the
+  guardian or office resets.
+- **credentials**: password, and a QR badge for young children if wanted.
+- **memberships**: learner, guardian or staff. One person can be all three.
+- **guardianships**: guardian person → learner person, with relationship,
+  scope (billing / standard / full), consent record, start and end dates,
+  bill-payer flag and review date. Under 18 only by default; at 18 the
+  guardianship goes to review (the learner re-consents or it ends). An adult
+  learner has none unless they nominate someone.
+- **Matching** at admission is on email + date of birth (or name). Never
+  merged automatically; a staff review queue decides.
+
+### 2.2 Teaching
+
+- **cohort_staff** (cohort, instructor, role lead / assistant / cover, start
+  and end dates, single session for cover, vetting checked at). Ending an
+  assignment closes the row, so history keeps its teacher.
+- **One predicate**, `mam_teaches(instructor, learner, at, purpose)`, which
+  every one of the ~22 copies calls. Vetting is folded in whenever the
+  learner is a minor. A `historical` purpose gives read-only access to
+  past marking.
+- Vetting is re-checked when a minor joins a cohort and when cover is
+  assigned.
+
+### 2.3 Finance (from the finance audit)
+
+- **accounts** (family, adult learner, sponsor, corporate) with a billing
+  currency; members with roles and payment shares.
+- **price_books** with effective dates.
+- **invoices**: application, term or store, frozen at issue. Changes after
+  issue are credit notes.
+- **adjustments**: waiver, aid, sibling, code, credit note; each with a reason
+  and an approver.
+- **payments** and **allocations**. Unallocated money is account credit, and
+  can move to a sibling's invoice.
+- **refunds**, applied through allocations and the published refund schedule.
+- **A double-entry ledger** (transactions whose entries sum to zero per
+  currency): AR, cash per channel, gateway fees, deferred tuition recognised
+  over the term, aid expense, instructor payables. Every console money
+  figure reads from it.
+- **Settlement as an outbox**: one transaction records the payment, its
+  allocations and the ledger entries. Enrolment, email and stock are
+  retryable jobs.
+- **Money is always an integer in minor units plus currency**, with FX quotes
+  stored (rate, source, time).
+
+### 2.4 Learning
+
+Pending the learning-structure audit. Constraints already known: one scoring
+pipeline (evidence → mark → result → mastery → report → certificate), and the
+academy's refusals stay (no automatic scoring of a child's playing, no
+rankings, bands with a coverage floor, human-ratified reports).
+
+### 2.5 v2: corrected, not adopted as-is
+
+Keep from v2:
+- minor units and frozen FX
+- `row_version`
+- idempotency and webhook tables
+- the hash-chained audit log
+- `legacy_reference_map`
+- one cohort/enrolment spine
+- guardian scopes
+
+Cut:
+- tenants and every `tenant_id`
+- translations
+- custom fields
+- outbox without a worker
+- API clients
+- ULIDs except on tables exposed in URLs
+
+Change:
+- RESTRICT (not CASCADE) on academic, money and safeguarding records
+- the identity core above
+- one applications table with a `kind` and course choices as references
+- give v1's newer features a home in v2: safeguarding concerns, incidents,
+  collectors, media, spaces, live classes, lessons and exams
+
+## 3. Making MAM smarter: ranked by value and how much is already built
+
+| # | Capability | Status | Notes |
+|---|---|---|---|
+| 1 | **At-risk learner watch-list** (attendance trend, practice gap, overdue lessons, unpaid fees, ages ~11 and 15–17 when dropout peaks) — **staff only** | 3 versions exist; merge and give it a screen | Never shown to a student; money is a reason, never a sanction |
+| 2 | **Turn on what is built**: AI placement and triage on the admissions card, an AI provider setting, progress narrative and practice coach in the new portals | Built, unreachable | One settings field plus UI |
+| 3 | **Make-up credit engine** with self-booking offers | Mostly built (`makeup.php`, slot finder) | The strongest retention lever in the market research |
+| 4 | **Recurring payments**: Paystack card authorisation and Direct Debit, with smart retries | Not built | ~40% of churn comes from failed payments (Recurly) |
+| 5 | **A dedicated bank account number per family** (Paystack virtual accounts) | Not built | Bank transfers reconcile themselves |
+| 6 | **Guardian weekly digest** (attendance, teacher's note, practice, next class) | Partly built | Parental involvement predicts the motivation that keeps students |
+| 7 | **WhatsApp utility messages** (reminders, receipts, make-up offers) | Transport built (Kapso) | Free inside the 24-hour window; needs Meta-approved templates |
+| 8 | **Teacher copilot**: drafts termly report comments and lesson plans for a teacher to approve | Gateway built | ~31% planning time saved in a UK trial of 259 teachers; names pseudonymised before sending |
+| 9 | **Smart waitlist auto-offer** with a time-limited hold | Partly built | |
+| 10 | **Outage-resilient online classes**: automatic credit when a session fails, low-bandwidth mode | Not built | 281 major outages in two months (NCC) |
+
+Not recommended, and against MAM's own refusals:
+- audio AI that scores a child's playing;
+- rankings of children. The studio leaderboard does this today; the
+  owner decides ⚖️.
+
+## 4. Order of work
+
+Each step ships alone, keeps the suite green, and has a runbook with an owner
+and a version date, per the organisation's operating standard.
+
+| Step | What | Size |
+|---|---|---|
+| 0 | ✅ Libraries into 15 modules with measured boundaries · ✅ nine security holes closed | done |
+| 1 | **Operations baseline**: cron heartbeat and health alerts, off-site backup with a restore drill, checkout never fetches FX live, no per-request migration on MySQL, isolated job sweeps, an HTML 500 page, opcache confirmed, roles memoised (removes 73 of the dashboard's 122 queries) | 1–2 weeks |
+| 2 | **Money safety on v1**: recoverable settlement (outbox job), refunds that reverse fee credits, Flutterwave parity, correct console money figures | 1–2 weeks |
+| 3 | **Tooling**: PHP ≥ 8.2, PHPStan baseline, Rector dry-run, a deploy pipeline with release folders and an explicit migrate step | 1–2 weeks |
+| 4 | **One migration source**: one file per migration, baseline frozen at v108, MySQL schema generated and checked | 1 week |
+| 5 | **Identity module onto the corrected model**, live data per `docs/live-data-migration-plan.md` (review queues for every ambiguous person) | 3–4 weeks |
+| 6 | **Teaching and guardianship**: `cohort_staff`, `mam_teaches()`, dated guardianships with age review | 2–3 weeks |
+| 7 | **Finance module** onto accounts, invoices, allocations and ledger | 4–6 weeks |
+| 8 | **Learning module** onto one scoring pipeline | after its audit |
+| 9 | **Routes and the 137 admin actions into their modules**: one write path, deny-by-default everywhere | 2–3 weeks |
+| 10 | **Smart features**, top of §3 first, as their modules land | ongoing |
+
+## 5. Fixed already (2026-11-28)
+
+Each was verified against a local copy and is pinned by
+`test_access_hardening.php`:
+
+1. Any instructor could join any class's meeting.
+2. Any instructor could open any student's ID card.
+3. A manager-tier admin could mark an application paid without a payment;
+   16 actions had no permission entry (now deny by default).
+4. The break-glass login had no limit on guesses.
+5. Any admin tier could export every user, payment and applicant.
+6. Exported CSV cells could run as spreadsheet formulas.
+7. Admin create-user reported a failed invite as sent.
+8. A billing-only guardian received the child's marks and attendance.
+9. Guardians could replay recordings of a child playing (`takes`), and any
+   guardian could change consent.
+
+Still open from the security review (medium and low):
+- child headshots are public and survive erasure;
+- an open redirect after login;
+- Apache may mark API responses as publicly cacheable;
+- integration secrets are stored in plaintext in settings;
+- debug tokens are passed in the query string;
+- password-reset single use is not atomic;
+- any instructor can read every material file.
+
+## 6. Decisions waiting on the owner ⚖️
+
+1. **Billing currency per family** (invoices default to USD while every card
+   charge is in NGN), and **which gateway takes USD** from the diaspora.
+2. **Child login for young children**: username and password only, or also a
+   printable QR badge?
+3. **Academy email addresses for students**: not needed for NGG parity, since
+   NGG uses the student's own address. Build it only if wanted, as a
+   separately consented feature.
+4. **The studio leaderboard**, which ranks children by a microphone score.
+5. **Who reviews the identity queue** during the move: the merged
+   parent/child records found in real data.
+6. **Name the safeguarding officer and switch the vetting gate to
+   `enforce`** (outstanding from the handoff).
+7. **File the Data Privacy Impact Assessment** required by GAID 2025
+   Art. 28(3)(m) for student records.
