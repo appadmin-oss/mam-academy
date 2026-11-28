@@ -405,7 +405,7 @@ function mam_parent_weekly_status(int $studentId): array {
 function mam_parent_child_detail(int $parentId, int $studentId): array {
     if (!mam_parent_can_view($parentId, $studentId)) throw new RuntimeException('forbidden');
     $report = function_exists('mam_progress_report_data') ? mam_progress_report_data($studentId) : [];
-    return [
+    return mam_parent_detail_scoped($parentId, $studentId, [
         'student'   => $report['student'] ?? mam_db_row('SELECT id, name, enrollment_ref FROM users WHERE id = ?', [$studentId]),
         'weekly'    => mam_parent_weekly_status($studentId),
         'academic'  => $report['academic'] ?? null,
@@ -432,7 +432,49 @@ function mam_parent_child_detail(int $parentId, int $studentId): array {
         // and what they have already played. The single most useful thing a
         // guardian can be told, and it was previously nowhere in this payload.
         'recitals'     => function_exists('mam_recital_for_guardian') ? mam_recital_for_guardian($studentId) : ['upcoming' => [], 'past' => []],
-    ];
+    ]);
+}
+
+/**
+ * Which parts of the child detail each grant opens. The detail used to check
+ * only that a link existed, so a BILLING-only guardian received marks,
+ * attendance, teacher feedback and consents — the access scope was honoured by
+ * the dashboard, reports and fees routes, and not by this one.
+ */
+const MAM_PARENT_DETAIL_GRANTS = [
+    'announcements'       => 'announcements',
+    'weekly'              => 'attendance',
+    'attendance'          => 'attendance',
+    'sessions'            => 'attendance',
+    'upcoming_sessions'   => 'timetable',
+    'reschedule_history'  => 'timetable',
+    'academic'            => 'reports',
+    'results'             => 'reports',
+    'instructor_feedback' => 'reports',
+    'achievements'        => 'reports',
+    'wins'                => 'reports',
+    'programme'           => 'reports',
+    'recitals'            => 'reports',
+    'value_kpis'          => 'reports',
+    'consent'             => 'reports',   // seeing it; CHANGING it needs 'consents'
+];
+
+/**
+ * Withhold what the guardian's scope does not grant. A withheld key stays in
+ * the payload, emptied (null or []), so a portal reading it shows "—" rather
+ * than breaking; `withheld` names them and `scope` says why.
+ */
+function mam_parent_detail_scoped(int $parentId, int $studentId, array $detail): array {
+    $withheld = [];
+    foreach (MAM_PARENT_DETAIL_GRANTS as $key => $grant) {
+        if (!array_key_exists($key, $detail)) continue;
+        if (mam_parent_scope_allows($parentId, $studentId, $grant)) continue;
+        $detail[$key] = is_array($detail[$key]) && array_is_list($detail[$key]) ? [] : null;
+        $withheld[] = $key;
+    }
+    $detail['scope']    = mam_parent_scope($parentId, $studentId);
+    $detail['withheld'] = $withheld;
+    return $detail;
 }
 
 /**

@@ -67,7 +67,8 @@ if (!$allowed && function_exists('mam_user_has_role') && mam_user_has_role($u, '
     if ($cohort) $allowed = true;
 }
 
-if (!$allowed && function_exists('mam_parent_can_view') && mam_parent_can_view($uid, $studentId)) $allowed = true;
+// No guardian path. A recorded take is in MAM_PARENT_NEVER ('takes'): no
+// access scope reaches it, however wide. (A linked guardian used to pass here.)
 
 if (!$allowed) { $deny(403, 'forbidden'); return; }
 

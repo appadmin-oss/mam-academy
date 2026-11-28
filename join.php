@@ -74,8 +74,21 @@ if (!$currentUser) {
 }
 
 $userId   = (int)$currentUser['id'];
+// Admins may open any class. An instructor is NOT staff for this purpose: being
+// an instructor somewhere must not open every other teacher's class of children.
+// They pass only for a class they teach — see $teaches below. (Was: any
+// instructor bypassed the enrolment check and could walk session ids.)
 $userRole = (string)$currentUser['role'];
-$isStaff  = in_array($userRole, ['admin', 'instructor'], true);
+$isAdmin  = mam_user_has_role($currentUser, 'admin');
+/** Does the signed-in instructor teach this cohort (lead, substitute for this session, or named on an enrolment)? */
+$teaches = function (int $cohortId, int $leadId, int $substituteId = 0) use ($currentUser, $userId): bool {
+    if (!mam_user_has_role($currentUser, 'instructor')) return false;
+    if ($leadId === $userId || ($substituteId > 0 && $substituteId === $userId)) return true;
+    return (bool) mam_db_row(
+        "SELECT 1 FROM course_enrollments WHERE cohort_id = ? AND instructor_id = ? AND status IN ('active','completed') LIMIT 1",
+        [$cohortId, $userId]
+    );
+};
 
 $h = fn(string $s) => htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE);
 
@@ -86,7 +99,7 @@ $errorCode = '';
 
 if ($type === 'session' && $id > 0) {
     $sess = mam_db_row(
-        "SELECT cs.id, cs.title, cs.meeting_link, cs.cohort_id, co.instructor_id
+        "SELECT cs.id, cs.title, cs.meeting_link, cs.cohort_id, cs.substitute_id, co.instructor_id
            FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id
           WHERE cs.id = ?",
         [$id]
@@ -97,7 +110,7 @@ if ($type === 'session' && $id > 0) {
         $sessionTitle = (string)($sess['title'] ?: 'Session #' . $id);
         $meetingLink  = $sess['meeting_link'] ? (string)$sess['meeting_link'] : null;
 
-        if (!$isStaff && (int)$sess['instructor_id'] !== $userId) {
+        if (!$isAdmin && !$teaches((int)$sess['cohort_id'], (int)$sess['instructor_id'], (int)($sess['substitute_id'] ?? 0))) {
             // Check course_enrollment for the cohort
             $enrolled = mam_db_row(
                 "SELECT 1 FROM course_enrollments WHERE cohort_id = ? AND student_id = ? AND status IN ('active','completed')",
@@ -123,7 +136,7 @@ if ($type === 'session' && $id > 0) {
         );
         $meetingLink = $sess ? (string)$sess['meeting_link'] : null;
 
-        if (!$isStaff && (int)$co['instructor_id'] !== $userId) {
+        if (!$isAdmin && !$teaches((int)$co['id'], (int)$co['instructor_id'])) {
             $enrolled = mam_db_row(
                 "SELECT 1 FROM course_enrollments WHERE cohort_id = ? AND student_id = ? AND status IN ('active','completed')",
                 [(int)$co['id'], $userId]

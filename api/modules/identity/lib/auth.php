@@ -386,9 +386,26 @@ function mam_require_admin(): void {
     $expectedUser = mam_env('ADMIN_USER', '');
     $expectedHash = mam_env('ADMIN_PASSWORD_HASH', '');
 
+    // The break-glass credential is a super admin that skips every tier check,
+    // so guessing at it must cost something. Failures (never successes) are
+    // counted per IP and, across all IPs, for the credential itself — the
+    // second bucket is what stops a guesser spreading attempts over many
+    // addresses. Fail CLOSED: if the limiter's table is unreadable, refuse.
+    $basicTried = $user !== '' && $user !== null && $expectedUser && $expectedHash;
+    if ($basicTried && function_exists('mam_rate_limit_check')) {
+        mam_rate_limit_check('breakglass_ip', (string) mam_client_ip(), 10, true);
+        mam_rate_limit_check('breakglass_all', 'credential', 50, true);
+    }
+
     $basicOk = (bool) ($expectedUser && $expectedHash && $user
         && hash_equals($expectedUser, $user)
         && password_verify($pass, $expectedHash));
+
+    if ($basicTried && !$basicOk && function_exists('mam_rate_limit_record')) {
+        mam_rate_limit_record('breakglass_ip', (string) mam_client_ip(), 900);
+        mam_rate_limit_record('breakglass_all', 'credential', 3600);
+        mam_log('warn', 'breakglass_auth_failed', []);
+    }
 
     // A caller who IS signed in, just not as an admin, has failed an
     // AUTHORISATION check — not an authentication one, and certainly not a

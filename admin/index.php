@@ -184,6 +184,17 @@ function mam_admin_sched_clash_text(array $clashes): string {
 }
 /* ── end scheduling helpers ── */
 
+/** One CSV row, safe to open in a spreadsheet: a cell beginning with = + - @ or a
+ *  tab/CR is prefixed with an apostrophe so it is shown as text, never run as a
+ *  formula. Names and messages here come from public forms. */
+function mam_admin_csv_row($out, array $row): void {
+    $safe = array_map(static function ($v) {
+        $v = (string) ($v ?? '');
+        return ($v !== '' && strpbrk($v[0], "=+-@\t\r") !== false) ? "'" . $v : $v;
+    }, array_values($row));
+    fputcsv($out, $safe);
+}
+
 if ($view === 'export') {
     $type = $_GET['type'] ?? 'applications.csv';
 
@@ -510,26 +521,36 @@ window.onload = function() {
 </body></html><?php exit; }
 
     $filename = preg_replace('/[^A-Za-z0-9._-]/', '', basename($type));
+    // Each list needs the capability that owns its contents. These used to have
+    // no check at all, so any admin tier could download every user, payment and
+    // applicant (names, emails, phones of children's families).
+    $exportCaps = ['applications' => 'admissions', 'payments' => 'fees', 'newsletter' => 'messages',
+                   'messages' => 'messages', 'users' => 'users'];
+    $exportCap = null;
+    foreach ($exportCaps as $prefix => $cap) { if (str_starts_with($filename, $prefix)) { $exportCap = $cap; break; } }
+    if ($exportCap === null) { http_response_code(404); echo 'Unknown export.'; exit; }
+    if ($adminUser && !mam_admin_can($adminUser, $exportCap)) { http_response_code(403); echo 'Forbidden — your admin level does not include this export.'; exit; }
+    mam_audit('csv_export', 'export', 0, ['type' => $filename]);
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     $out = fopen('php://output', 'w');
     if (str_starts_with($filename, 'applications')) {
-        fputcsv($out, ['reference', 'name', 'email', 'phone', 'country', 'pathway', 'mode', 'discipline', 'age', 'total_usd', 'status', 'created_at']);
+        mam_admin_csv_row($out, ['reference', 'name', 'email', 'phone', 'country', 'pathway', 'mode', 'discipline', 'age', 'total_usd', 'status', 'created_at']);
         foreach (mam_db_all('SELECT a.reference, c.first_name, c.last_name, c.email, c.phone, c.country, a.pathway, a.mode, a.discipline, c.age_range AS age, a.total_usd, a.status, a.created_at FROM applications a LEFT JOIN customers c ON c.id = a.customer_id ORDER BY a.created_at DESC') as $r) {
-            fputcsv($out, [$r['reference'], mam_name($r['first_name'] ?? null, $r['last_name'] ?? null), $r['email'], $r['phone'], $r['country'], $r['pathway'], $r['mode'], $r['discipline'], $r['age'], $r['total_usd'], $r['status'], $r['created_at']]);
+            mam_admin_csv_row($out, [$r['reference'], mam_name($r['first_name'] ?? null, $r['last_name'] ?? null), $r['email'], $r['phone'], $r['country'], $r['pathway'], $r['mode'], $r['discipline'], $r['age'], $r['total_usd'], $r['status'], $r['created_at']]);
         }
     } elseif (str_starts_with($filename, 'payments')) {
-        fputcsv($out, ['reference', 'provider', 'status', 'amount', 'currency', 'verified_at', 'created_at']);
-        foreach (mam_db_all('SELECT reference, provider, status, amount, currency, verified_at, created_at FROM payments ORDER BY created_at DESC') as $r) fputcsv($out, $r);
+        mam_admin_csv_row($out, ['reference', 'provider', 'status', 'amount', 'currency', 'verified_at', 'created_at']);
+        foreach (mam_db_all('SELECT reference, provider, status, amount, currency, verified_at, created_at FROM payments ORDER BY created_at DESC') as $r) mam_admin_csv_row($out, $r);
     } elseif (str_starts_with($filename, 'newsletter')) {
-        fputcsv($out, ['email', 'source', 'status', 'created_at']);
-        foreach (mam_db_all('SELECT email, source, status, created_at FROM newsletter ORDER BY created_at DESC') as $r) fputcsv($out, $r);
+        mam_admin_csv_row($out, ['email', 'source', 'status', 'created_at']);
+        foreach (mam_db_all('SELECT email, source, status, created_at FROM newsletter ORDER BY created_at DESC') as $r) mam_admin_csv_row($out, $r);
     } elseif (str_starts_with($filename, 'messages')) {
-        fputcsv($out, ['id', 'name', 'email', 'phone', 'topic', 'message', 'status', 'created_at']);
-        foreach (mam_db_all('SELECT id, name, email, phone, topic, message, status, created_at FROM messages ORDER BY created_at DESC') as $r) fputcsv($out, $r);
+        mam_admin_csv_row($out, ['id', 'name', 'email', 'phone', 'topic', 'message', 'status', 'created_at']);
+        foreach (mam_db_all('SELECT id, name, email, phone, topic, message, status, created_at FROM messages ORDER BY created_at DESC') as $r) mam_admin_csv_row($out, $r);
     } elseif (str_starts_with($filename, 'users')) {
-        fputcsv($out, ['id', 'email', 'name', 'role', 'status', 'last_login', 'created_at']);
-        foreach (mam_db_all('SELECT id, email, name, role, status, last_login, created_at FROM users ORDER BY created_at DESC') as $r) fputcsv($out, $r);
+        mam_admin_csv_row($out, ['id', 'email', 'name', 'role', 'status', 'last_login', 'created_at']);
+        foreach (mam_db_all('SELECT id, email, name, role, status, last_login, created_at FROM users ORDER BY created_at DESC') as $r) mam_admin_csv_row($out, $r);
     }
     fclose($out);
     exit;
@@ -605,10 +626,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         mam_admin_console_return((string) $_POST['_console']);
     }
 
-    // RBAC: gate sensitive actions to the right admin tier in one place.
-    // Operational actions (course/enrolment/messages/orders/own-account) are
-    // omitted → allowed for managers; everything here is super-only. Basic-Auth
-    // admins (no $adminUser row) are the break-glass super and skip the check.
+    // RBAC: every action is named here with the capability it needs, in one
+    // place; an action that is not named is refused (deny by default). Basic-Auth
+    // admins (no $adminUser row) are the break-glass super and skip the tier check.
     $actionCaps = [
         // The console's "Run migrations" button (System health). The same
         // capability the API route uses; there is no shell on production, so
@@ -694,8 +714,34 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'seed_starter' => 'settings',
         'survey_create' => 'support', 'survey_status' => 'support',
         'ticket_reply' => 'support', 'ticket_assign' => 'support', 'ticket_resolve' => 'support',
+        // Operational work managers do. These used to be ABSENT from the map,
+        // which meant "allowed for every tier": deny-by-default (below) needs
+        // them named. Each cap is one a manager already holds, so managers
+        // keep exactly the access they had — except the money cases below.
+        'app_status' => 'admissions', 'app_bulk_status' => 'admissions', 'app_note' => 'admissions',
+        'app_assign' => 'admissions', 'resend_confirmation' => 'admissions', 'summer_set_status' => 'admissions',
+        'course_approve' => 'enrollments', 'student_course_assign' => 'enrollments',
+        'course_promote' => 'enrollments', 'waitlist_promote' => 'enrollments',
+        'store_order_status' => 'store_orders', 'msg_status' => 'messages',
     ];
-    if (isset($actionCaps[$action]) && $adminUser && !mam_admin_can($adminUser, $actionCaps[$action])) {
+    // An admin's own account: every tier may act on itself.
+    $selfActions = ['change_own_account', 'session_revoke', 'session_revoke_others', 'notif_read_all'];
+    // Deny by default. An action with no entry used to be allowed for every
+    // tier, which is how 16 handlers (including marking an application PAID)
+    // reached managers unchecked. A new handler must now be named above.
+    if ($action !== '' && !isset($actionCaps[$action]) && !in_array($action, $selfActions, true)) {
+        mam_log('warn', 'admin_action_unmapped', ['action' => substr((string) $action, 0, 60)]);
+        header('Location: ?err=' . urlencode('That action is not recognised.')); exit;
+    }
+    // Saying money arrived is a finance decision. 'paid' (and 'enrolled', which
+    // implies it) provisions an account, sends an invite and issues an ID card
+    // with no payment on record, so it needs `fees`, like confirming a bank
+    // transfer — not the `admissions` cap that moves an application along.
+    $requiredCap = $actionCaps[$action] ?? null;
+    $postedStatus = (string) ($_POST['status'] ?? '');
+    if (in_array($action, ['app_status', 'app_bulk_status'], true) && in_array($postedStatus, ['paid', 'enrolled'], true)) $requiredCap = 'fees';
+    if ($action === 'summer_set_status' && $postedStatus === 'enrolled') $requiredCap = 'fees';
+    if ($requiredCap !== null && $adminUser && !mam_admin_can($adminUser, $requiredCap)) {
         header('Location: ?err=' . urlencode('Your admin level does not permit that action.')); exit;
     }
 
@@ -1034,7 +1080,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     }
 
     // Admissions pipeline (A2): internal notes + assignee. Both are operational
-    // (omitted from the super-only $actionCaps map) so admissions managers can
+    // (mapped to `admissions` in $actionCaps) so admissions managers can
     // triage. actor/author ids fall back to null for break-glass Basic-Auth.
     if ($action === 'app_note') {
         $aid  = (int)($_POST['app_id'] ?? 0);

@@ -14,6 +14,9 @@ if ($sid < 1) mam_fail('validation', 422, ['fields' => ['student_id']]);
 
 $isAdmin = function_exists('mam_user_has_role') ? mam_user_has_role($u, 'admin') : ($u['role'] === 'admin');
 if (!$isAdmin && !mam_parent_can_view((int) $u['id'], $sid)) mam_fail('forbidden', 403);
+// Changing consent is a Full-access grant ('consents'), not something every
+// linked guardian may do — a billing-only payer must not switch media consent.
+if (!$isAdmin && !mam_parent_scope_allows((int) $u['id'], $sid, 'consents')) mam_fail('forbidden', 403, ['reason' => 'scope']);
 
 mam_consent_set($sid, [
     'media'                => !empty($in['media']),

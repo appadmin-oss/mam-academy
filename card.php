@@ -80,6 +80,16 @@ $userId   = (int)$currentUser['id'];
 $userRole = (string)$currentUser['role'];
 $isAdmin  = ($userRole === 'admin');
 $isInstructor = ($userRole === 'instructor');
+/* An instructor may view the card of a student they TEACH (lead on the cohort,
+   or named on the enrolment) — not every child's card in the academy. */
+$teachesHolder = function (int $holderId) use ($userId): bool {
+    return (bool) mam_db_row(
+        "SELECT 1 FROM course_enrollments ce LEFT JOIN cohorts co ON co.id = ce.cohort_id
+          WHERE ce.student_id = ? AND ce.status IN ('active','pending','completed')
+            AND (ce.instructor_id = ? OR co.instructor_id = ?) LIMIT 1",
+        [$holderId, $userId, $userId]
+    );
+};
 
 // Look up card.
 $card = $serial !== '' ? mam_db_row('SELECT * FROM id_cards WHERE serial = ?', [$serial]) : null;
@@ -92,7 +102,7 @@ if (!$card) {
     $cardFound = true;
     // Permission check.
     $ownCard = ((int)$card['user_id'] === $userId);
-    if (!$ownCard && !$isAdmin && !$isInstructor) {
+    if (!$ownCard && !$isAdmin && !($isInstructor && $teachesHolder((int)$card['user_id']))) {
         http_response_code(403);
         $cardFound = false;
         $msg = 'You do not have permission to view this card.';

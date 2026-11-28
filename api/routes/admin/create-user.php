@@ -39,7 +39,10 @@ if ($role === 'student') {
 }
 
 // The user already exists; a mail issue must not fail the admin action.
-$invited = (bool) mam_auth_send_invite($id, $role, 'account_invite');
+$invite  = mam_auth_send_invite($id, $role, 'account_invite');
+// Report whether the email actually went: the function returns an array, and
+// casting it to bool said "invited" even when sending failed.
+$invited = is_array($invite) ? (bool) ($invite['sent'] ?? false) : (bool) $invite;
 
 mam_audit('create', 'user', $id, ['role' => $role, 'email' => $email]);
 mam_ok(['user_id' => $id, 'invited' => $invited]);
