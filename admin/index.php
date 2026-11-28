@@ -860,7 +860,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $me    = mam_current_user();
         if ($sid < 1 || $email === '') { header('Location: ?v=guardians&err=' . urlencode('Enter a student id and guardian email.')); exit; }
         try { $gl = mam_parent_link($email, $sid, $rel, $me ? (int)$me['id'] : null); }
-        catch (\Throwable $e) { header('Location: ?v=guardians&err=' . urlencode('Could not link this guardian.')); exit; }
+        catch (\Throwable $e) { header('Location: ?v=guardians&err=' . urlencode($e->getMessage() === 'same_as_student' ? "That is the student's own email — a student cannot be their own guardian." : 'Could not link this guardian.')); exit; }
         // A guardian account made just now is sent an invitation. It used to be
         // made with a password nobody was given, so the guardian could never sign in.
         $gInv = !empty($gl['account_created']) ? !empty(mam_auth_send_invite((int) $gl['parent_id'], 'parent', 'guardian_invite')['sent']) : null;
@@ -1015,6 +1015,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             // student account and email them their credentials.
             if (in_array($status, ['paid', 'enrolled'], true)) {
                 $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$id]);
+                if ($app && $app['customer_id'] && mam_application_identity_held($app) !== null) {
+                    // Held for identity review: no account is made from an email
+                    // that belongs to somebody else. Complete enrolment asks.
+                    header('Location: ?v=applications' . $back . '&ok=' . urlencode('Status updated. No account was made: this application is held because its email belongs to someone else — see Complete the enrolment.'));
+                    exit;
+                }
                 if ($app && $app['customer_id']) {
                     try {
                         $prov = mam_ensure_student_user((int)$app['customer_id']);
@@ -2847,6 +2853,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // `level` is legitimately blank-able: the form offers "no level", and
         // array_filter would drop it and silently fall back to the application.
         if (isset($_POST['level']) && $_POST['level'] === '') $overrides['level'] = '';
+        // The office's confirmation that a held application is the same person
+        // as the one who already holds its email (schema v109).
+        if (!empty($_POST['identity_confirmed'])) $overrides['identity_confirmed'] = true;
         try {
             $res = mam_enrol_complete($id, $overrides, ((int)($adminUser['id'] ?? 0)) ?: null);
         } catch (Throwable $e) {
@@ -2865,6 +2874,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $appId = (int)($_POST['app_id'] ?? 0);
         $app   = $appId ? mam_db_row('SELECT id, customer_id, pathway FROM applications WHERE id = ?', [$appId]) : null;
         if (!$app || !$app['customer_id']) { header('Location: ?v=applications&err=' . urlencode('Application or customer not found.')); exit; }
+        if (mam_application_identity_held($appId) !== null) {
+            header('Location: ?v=applications&app=' . $appId . '&err=' . urlencode('This application is held: its email belongs to someone else. Confirm the person under Complete the enrolment first.')); exit;
+        }
         $courseCode = trim((string)($_POST['course_code'] ?? ''));
         $levelCode  = trim((string)($_POST['level_code'] ?? ''));
         if ($courseCode === '' || $levelCode === '') { header('Location: ?v=applications&app=' . $appId . '&err=' . urlencode('Pick a course and level.')); exit; }

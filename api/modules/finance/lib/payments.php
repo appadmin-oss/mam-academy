@@ -268,6 +268,14 @@ function mam_payment_settle_tuition(int $appId): ?string {
     mam_db_update('applications', ['status' => 'paid', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $appId]);
     $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$appId]);
     if (!$app || !$app['customer_id']) return null;
+    // Held for identity review (schema v109): the email belongs to a different
+    // person, so making an account from it would put this applicant into theirs.
+    // The money is recorded (status 'paid' above); the office finishes the
+    // placement from the backlog. A settled payment never fails over this.
+    if (function_exists('mam_application_identity_held') && mam_application_identity_held($app) !== null) {
+        mam_log('warn', 'settle_identity_held', ['app_id' => $appId]);
+        return 'identity_review';
+    }
     // Governed by the 'payment_provision' automation (admin ?v=automations).
     // Default on — turning it off marks the application paid but leaves portal
     // provisioning + the welcome email to a manual step.

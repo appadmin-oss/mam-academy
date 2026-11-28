@@ -68,8 +68,23 @@ $db = mam_db();
 $db->beginTransaction();
 try {
     // Upsert customer
-    $cust = mam_db_row('SELECT id FROM customers WHERE email = ?', [$v['email']]);
-    if ($cust) {
+    $cust = mam_db_row('SELECT id, first_name, last_name, dob FROM customers WHERE email = ?', [$v['email']]);
+    $identityHold = null;
+    if ($cust && ($why = mam_identity_conflict($cust, ['first_name' => $v['firstName'], 'last_name' => $v['lastName'], 'dob' => $v['dob'] ?? null])) !== null) {
+        /* The address belongs to a DIFFERENT person (most often a parent applying
+           for a child with their own email). Never rewrite them: their record is
+           left exactly as it is, the submitted identity is kept on the
+           application, and the application is held for the office — nothing
+           provisions or enrols from it until somebody confirms (enrol-complete.php). */
+        $customerId = (int) $cust['id'];
+        $identityHold = json_encode(['reason' => $why, 'existing_customer_id' => $customerId, 'at' => date('c'),
+            'submitted' => array_filter([
+                'first_name' => $v['firstName'], 'last_name' => $v['lastName'], 'dob' => $v['dob'] ?? null,
+                'sex' => $v['sex'] ?? null, 'phone' => $v['phone'] ?? null, 'age_range' => $v['ageRange'] ?? null,
+                'country' => $v['country'] ?? null, 'city' => $v['city'] ?? null,
+            ], static fn($x) => $x !== null && $x !== '')], JSON_UNESCAPED_UNICODE);
+        mam_log('warn', 'application_identity_held', ['customer_id' => $customerId, 'reason' => $why]);
+    } elseif ($cust) {
         $customerId = (int)$cust['id'];
         /* A value this submission does not carry must never write NULL over one an
            earlier application stored. The registration-photo bug (6fd1028) returned
@@ -113,6 +128,7 @@ try {
         'reference'              => $reference,
         'idempotency_key'        => $idemKey ?: null,
         'customer_id'            => $customerId,
+        'identity_hold'          => $identityHold,
         'pathway'                => $v['pathway'],
         'mode'                   => $v['mode'],
         'level'                  => $v['level'] ?: null,

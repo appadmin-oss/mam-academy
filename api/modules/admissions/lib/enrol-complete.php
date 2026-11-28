@@ -57,6 +57,65 @@ function mam_enrol_programme_code(?string $pathway, ?string $track): ?string
     ][strtolower(trim((string) $pathway))] ?? null;
 }
 
+/* ── identity hold (schema v109) ─────────────────────────────────────────────
+   Identity is still keyed on email in v1 (customers.email is UNIQUE), so an
+   application whose address already belongs to someone else used to REWRITE
+   that person — a parent applying for a child turned the parent's record into
+   the child's, and enrolment then put the child's course in the parent's
+   account. Until the identity module gives every person their own record
+   (docs/restructure-plan-2026-11-28.md §2.1), such an application is HELD: the
+   existing person is left untouched, the submitted identity is kept on the
+   application, and nothing provisions or enrols from it until somebody
+   confirms it really is the same person. */
+
+/** Lower-case, letters only, single spaces — for comparing names typed twice. */
+function mam_identity_norm_name(?string $first, ?string $last): string {
+    $s = mb_strtolower(trim((string) $first . ' ' . (string) $last));
+    $s = preg_replace('/[^\p{L}\s]+/u', '', $s) ?? $s;
+    return trim(preg_replace('/\s+/u', ' ', $s) ?? $s);
+}
+
+/**
+ * Why this submission is NOT the person already holding the address, or null
+ * when nothing says so. Conservative: a name that differs, or two dates of
+ * birth that differ. A missing value never counts as a difference.
+ */
+function mam_identity_conflict(array $existing, array $submitted): ?string {
+    $a = mam_identity_norm_name($existing['first_name'] ?? null, $existing['last_name'] ?? null);
+    $b = mam_identity_norm_name($submitted['first_name'] ?? null, $submitted['last_name'] ?? null);
+    if ($a !== '' && $b !== '' && $a !== $b) return 'name_differs';
+    $da = trim((string) ($existing['dob'] ?? '')); $db = trim((string) ($submitted['dob'] ?? ''));
+    if ($da !== '' && $db !== '' && substr($da, 0, 10) !== substr($db, 0, 10)) return 'dob_differs';
+    return null;
+}
+
+/** The hold on an application (decoded), or null when there is none. */
+function mam_application_identity_held($app): ?array {
+    if (is_int($app)) $app = mam_db_row('SELECT id, identity_hold FROM applications WHERE id = ?', [$app]) ?: [];
+    $raw = (string) ($app['identity_hold'] ?? '');
+    if ($raw === '') return null;
+    $h = json_decode($raw, true);
+    return is_array($h) ? $h : ['reason' => 'held'];
+}
+
+/** Release a hold once a person has confirmed the identity. Audited. */
+function mam_application_identity_release(int $appId, ?int $actorId): void {
+    mam_db_update('applications', ['identity_hold' => null, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $appId]);
+    if (function_exists('mam_audit')) mam_audit('application_identity_confirmed', 'application', $appId, ['by' => $actorId]);
+}
+
+/** A sentence for the office: who applied, and who already holds the address. */
+function mam_application_identity_hold_text(array $hold, ?array $cust): string {
+    $sub = trim(($hold['submitted']['first_name'] ?? '') . ' ' . ($hold['submitted']['last_name'] ?? ''));
+    $sdob = (string) ($hold['submitted']['dob'] ?? '');
+    $ex = $cust ? trim(($cust['first_name'] ?? '') . ' ' . ($cust['last_name'] ?? '')) : '';
+    return sprintf(
+        'This application was made for %s%s, but its email already belongs to %s. Their record was left unchanged. '
+        . 'Enrol only if this is the same person; if it is a different person (for example a child applying with a parent\'s email), '
+        . 'they need their own email before they can be enrolled — do not enrol them into this account.',
+        $sub !== '' ? $sub : 'someone', $sdob !== '' ? ' (born ' . $sdob . ')' : '', $ex !== '' ? $ex : 'another person');
+}
+
 /**
  * Work out what enrolling this applicant would mean, without doing it.
  *
@@ -146,6 +205,11 @@ function mam_enrol_resolve(int $appId, array $overrides = []): array
                        . 'back, take a fresh application.'];
             $out['ready'] = false;
             return $out;
+        }
+        $hold = mam_application_identity_held($app);
+        if ($hold !== null && empty($overrides['identity_confirmed'])) {
+            $out['blockers'][] = ['field' => 'identity', 'options' => [],
+                'why' => mam_application_identity_hold_text($hold, $cust)];
         }
         $u = mam_db_row('SELECT id, email, name FROM users WHERE LOWER(email) = LOWER(?)', [$cust['email']]);
         $out['student'] = [
@@ -372,6 +436,11 @@ function mam_enrol_complete(int $appId, array $overrides = [], ?int $actorId = n
         ]);
     }
 
+    // The office confirmed this was the same person (identity_confirmed), and
+    // the enrolment went through: the hold has done its job.
+    if (!empty($overrides['identity_confirmed']) && mam_application_identity_held($app) !== null) {
+        mam_application_identity_release((int) $app['id'], $actorId);
+    }
     return ['ok' => true, 'steps' => $steps, 'plan' => $plan, 'student_id' => $studentId,
             'error' => null];
 }

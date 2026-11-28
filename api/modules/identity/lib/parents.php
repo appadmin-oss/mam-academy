@@ -41,9 +41,15 @@ function mam_parent_provision(string $email, ?string $name = null, ?string $phon
  *  Idempotent. Returns ['parent_id','student_id','password','created']. */
 function mam_parent_link(string $parentEmail, int $studentId, string $relationship = 'guardian', ?int $by = null): array {
     if ($studentId <= 0) throw new InvalidArgumentException('bad_student');
-    $stu = mam_db_row("SELECT id FROM users WHERE id = ?", [$studentId]);
+    $stu = mam_db_row("SELECT id, email FROM users WHERE id = ?", [$studentId]);
     if (!$stu) throw new RuntimeException('student_not_found');
+    // A student is never their own guardian. The application path already
+    // refused an address equal to the student's; this admin path did not, and
+    // linked the student to themselves AND gave their login the parent role.
+    // Checked BEFORE provisioning, which is what adds that role.
+    if (strcasecmp(trim($parentEmail), trim((string) $stu['email'])) === 0) throw new InvalidArgumentException('same_as_student');
     $prov = mam_parent_provision($parentEmail);
+    if ((int) $prov['user']['id'] === $studentId) throw new InvalidArgumentException('same_as_student');
     $parentId = (int) $prov['user']['id'];
     $exists = mam_db_row('SELECT id FROM parent_links WHERE parent_id = ? AND student_id = ?', [$parentId, $studentId]);
     $created = false;

@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 108;
+const MAM_SCHEMA_TARGET = 109;
 
 /**
  * Open (and cache) the PDO connection.
@@ -4279,6 +4279,13 @@ function mam_db_migrate(PDO $db): void {
         108 => "
             ALTER TABLE assignments ADD COLUMN cohort_id INTEGER REFERENCES cohorts(id) ON DELETE SET NULL;
             CREATE INDEX IF NOT EXISTS idx_assignments_cohort ON assignments(cohort_id);
+        ",
+        // v109 — an application whose email already belongs to a DIFFERENT person
+        // (typically a parent applying for a child with their own address) is held
+        // for a human instead of overwriting that person's record. The JSON holds
+        // the submitted identity and the reason. NULL = no hold.
+        109 => "
+            ALTER TABLE applications ADD COLUMN identity_hold TEXT;
         ",
     ];
 

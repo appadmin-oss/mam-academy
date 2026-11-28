@@ -564,8 +564,10 @@ function mam_card_send_email(array $card, string $email, string $name): void {
     $safeName = htmlspecialchars($name, ENT_QUOTES);
     $safeSerial = htmlspecialchars($serial, ENT_QUOTES);
 
-    $body = mam_email_layout(
-        "Your MAM Academy ID card is ready",
+    // mam_email_layout() takes ONE options array. This passed two strings, so
+    // every card email died with a TypeError (logged on every account creation
+    // and cohort enrolment) and no card email was ever sent.
+    $body = mam_email_layout(['preheader' => 'Your MAM Academy ID card is ready', 'body' =>
         "<p style='margin:0 0 16px'>Hi {$safeName},</p>"
         . "<p style='margin:0 0 16px'>Your MAM Academy ID card has been issued. "
         . "Your card serial number is:</p>"
@@ -578,8 +580,8 @@ function mam_card_send_email(array $card, string $email, string $name): void {
         . mam_email_button($cardUrl, 'View &amp; Print Your Card')
         . "<p style='margin:24px 0 0;font-size:13px;color:#7A6A56'>"
         . "Your card is attached to this email as a PDF and image file. "
-        . "You can print it or show it on your phone.</p>"
-    );
+        . "You can print it or show it on your phone.</p>",
+    ]);
 
     $attachments = [];
     $png = mam_card_generate_png($card, $name);

@@ -239,6 +239,39 @@ Each was verified against a local copy and is pinned by
 11. **Learning:** a cohort rank and percentile were sent to students, to
     guardians and to the printable report, against the academy's refusal
     to rank children.
+12. **Identity (found by driving /apply in a browser):** a parent applying
+    for a child with their own email **rewrote the parent's record into the
+    child's**, and enrolment then put the child's course in the parent's
+    account. Such an application is now **held** (schema v109,
+    `applications.identity_hold`):
+    - the existing person is left untouched;
+    - the submitted identity is kept on the application;
+    - settlement records the money but makes no account from it;
+    - marking paid, Auditer placement and Complete enrolment all refuse until
+      the office ticks "same person";
+    - a different person must get their own email until the identity module
+      lands.
+
+    `test_identity_hold.php`.
+13. An admin could link a student as their own guardian, which also gave the
+    student's login the parent role.
+14. The student ID-card email crashed with a TypeError on every send, so no
+    card email was ever delivered.
+
+Still open from the browser run:
+- **Session times are an hour apart** between the admin timetable (Lagos
+  time) and student check-in (read as UTC), so check-in opens at the wrong
+  time.
+- **An adult learner cannot be invoiced:** an invoice needs a guardian as
+  payer.
+- **Scholarship applications don't appear in the console.**
+- **Opening an application in the console creates an empty cohort.**
+- **Work marked in a class space never reaches the Marking queue or the
+  student's Learn screen.**
+- **The instructor "Book your interview" link is a dead end:** it leads to
+  the student $5 booking page.
+- **The card-payment fallback message is wrong**, and the bank-transfer
+  choice sends no bank details.
 
 Still open from the security review (medium and low):
 - child headshots are public and survive erasure;

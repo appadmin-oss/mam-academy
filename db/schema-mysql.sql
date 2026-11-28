@@ -4008,3 +4008,8 @@ INSERT INTO schema_version (version) VALUES (107) ON DUPLICATE KEY UPDATE versio
 ALTER TABLE assignments ADD COLUMN cohort_id INT NULL;
 ALTER TABLE assignments ADD INDEX idx_assignments_cohort (cohort_id);
 INSERT INTO schema_version (version) VALUES (108) ON DUPLICATE KEY UPDATE version = version;
+
+-- v109 — identity hold: an application whose email belongs to a different person
+-- is held for review instead of overwriting that person's record.
+ALTER TABLE applications ADD COLUMN identity_hold TEXT NULL;
+INSERT INTO schema_version (version) VALUES (109) ON DUPLICATE KEY UPDATE version = version;

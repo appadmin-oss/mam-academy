@@ -219,9 +219,12 @@ $type   = (string) ($d['type'] ?? '');
               $pick = static fn($k) => (string) ($rz[$k]['code'] ?? '');
               $pickInstr = (int) ($rz['instructor']['id'] ?? 0);
             ?>
-            <?php foreach ($rz['blockers'] ?? [] as $bk): ?>
+            <?php $identityBlock = false; foreach ($rz['blockers'] ?? [] as $bk): if (is_array($bk) && ($bk['field'] ?? '') === 'identity') $identityBlock = true; ?>
               <p class="ac-sub">⚠ <?= ac_h(is_array($bk) ? (string) ($bk['why'] ?? '') : (string) $bk) ?></p>
             <?php endforeach; ?>
+            <?php if ($identityBlock): ?>
+              <label class="ac-field"><span class="ac-label"><input type="checkbox" name="identity_confirmed" value="1"> I have checked: this application is for the same person who already holds this email</span></label>
+            <?php endif; ?>
             <div class="ac-grid ac-grid--2">
               <label class="ac-field"><span class="ac-label">Course</span>
                 <select class="ac-select" name="course" required>
