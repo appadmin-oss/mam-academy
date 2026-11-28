@@ -99,6 +99,39 @@ Clever and Khan Academy):
 - **Money is always an integer in minor units plus currency**, with FX quotes
   stored (rate, source, time).
 
+**Done on v1 now (2026-11-28), ahead of the module move** — the audit's live
+faults, each pinned by `test_finance_fixes.php` and each reproduced on the
+unfixed code first:
+- **Settlement is recoverable.** The `pending → succeeded` claim and a
+  `settle_effects` job are one transaction; the effects run at once and the
+  job is marked done, or the job runner finishes them later
+  (`mam_payment_settle_effects()`, idempotent per purpose). Console → Ledger
+  lists "Settled, not yet finished" (the job backlog plus pre-job payments
+  whose effect is visibly missing) with a **Finish** button
+  (`payment_settle_finish`, `settings` cap). A held identity stays held.
+- **Refunds reverse the fee credit.** An admin refund voids the linked
+  `fee_payments` row, so the balance is owed again. A Paystack
+  `refund.processed` sets `gateway_state = 'refunded'` (out of every console
+  paid figure) and voids the fee credit; the payment row and what it paid for
+  are left to a person, as the guard rules already required.
+- **An adult learner (18+, known age, no guardian) is their own payer**:
+  invoice, review and **Pay online** in the student portal
+  (`POST /api/student/fee-pay`). Unknown age is never treated as adult.
+- **Console money compares like with like**: Collected is fee money received
+  per invoice at its frozen rate (desk cash included) against billed; aid is
+  converted per invoice; store revenue is integer cents from settled payments.
+- **Bank-confirmed payments settle through `mam_payment_settle()`**, so a
+  confirmed fee transfer credits its invoice.
+- **Only a unique-constraint violation reads as "already recorded"**
+  (`mam_db_is_unique_violation()`); an outage now leaves the job pending.
+- **Flutterwave**: non-200 on a processing error (the retry is processed, not
+  acknowledged), a second charge is flagged `refund_due`, and any currency but
+  NGN is refused **explicitly** (logged `flw_currency_refused`, recorded as a
+  payment event). Test/live: every charge is re-read with this install's own
+  key; `mam_flw_mode()` is logged beside refusals.
+- Left for the owner (§6): billing currency per family, and which gateway
+  takes USD.
+
 ### 2.4 Learning (from the learning-structure audit)
 
 Today there are:
@@ -257,13 +290,21 @@ Each was verified against a local copy and is pinned by
     student's login the parent role.
 14. The student ID-card email crashed with a TypeError on every send, so no
     card email was ever delivered.
+15. **Finance (the finance audit, §2.3):** settlement recoverable with a
+    console Finish; refunds give the invoice balance back; adult learners
+    invoiced and paying online; console money like with like; bank
+    confirmations through the one settlement; unique-only "already recorded";
+    Flutterwave retries, duplicate and NGN-only refusals.
+    `test_finance_fixes.php`.
+16. **Guardian threads never notified anybody**: the notice's link was an
+    array, a TypeError the post swallowed. Each participant now gets a link to
+    their own screen (an instructor has no thread screen yet, so theirs opens
+    the portal).
 
 Still open from the browser run:
 - **Session times are an hour apart** between the admin timetable (Lagos
   time) and student check-in (read as UTC), so check-in opens at the wrong
   time.
-- **An adult learner cannot be invoiced:** an invoice needs a guardian as
-  payer.
 - **Scholarship applications don't appear in the console.**
 - **Opening an application in the console creates an empty cohort.**
 - **Work marked in a class space never reaches the Marking queue or the

@@ -431,6 +431,14 @@ function mam_paystack_handle_gateway_event(string $eventType, array $data): arra
     }
     $pid = (int) $payment['id'];
     mam_payment_set_gateway_state($pid, $state);
+    // Money actually returned. gateway_state = 'refunded' takes it out of
+    // Collected; the fee credit it made is voided so the invoice balance comes
+    // back. The payment row stays settled and what it paid for is left to a
+    // person (section 6's rule) — mam_payment_refund_apply()'s 'gateway' scope.
+    if ($state === 'refunded' && in_array((string) $payment['status'], ['succeeded', 'refunded'], true)) {
+        try { mam_payment_refund_apply($payment, 'Paystack refund processed', null, 'gateway'); }
+        catch (\Throwable $e) { mam_log('error', 'paystack_refund_apply_failed', ['ref' => (string) $payment['reference'], 'err' => $e->getMessage()]); }
+    }
     $kind = str_replace('.', '_', $eventType);
     mam_payment_event($pid, (string) $payment['reference'], $kind, [
         'tx_ref' => $txRef, 'amount' => (int) ($data['amount'] ?? ($data['transaction']['amount'] ?? 0)),

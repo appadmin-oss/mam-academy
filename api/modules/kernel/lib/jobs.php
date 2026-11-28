@@ -58,6 +58,11 @@ function mam_job_handlers(): array {
     return [
         // A safe, always-available no-op (used by tests + as a heartbeat).
         'noop' => function (array $p): bool { return true; },
+        // A settled payment's effects (finance/payments.php), queued with the claim.
+        'settle_effects' => function (array $p): bool {
+            if (!function_exists('mam_payment_settle_effects_job')) return false;
+            return mam_payment_settle_effects_job($p);
+        },
 
         // Auto-progression on pass: promote a finalized, passed enrolment to the
         // same course at the next level. Idempotent (promote won't duplicate), so

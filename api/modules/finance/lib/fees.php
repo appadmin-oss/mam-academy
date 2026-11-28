@@ -223,6 +223,10 @@ function mam_fee_invoice_open(int $studentId, ?int $guardianId = null, ?int $act
             if (($rank[$sc] ?? 0) > $best) { $best = $rank[$sc] ?? 0; $guardianId = (int) $g['id']; }
         }
     }
+    // An adult learner with no guardian pays their own invoice. `guardian_id`
+    // is the invoice's PAYER; for a self-paying adult it is the student. An
+    // invoice for an adult used to have no payer and could never be issued.
+    if ($guardianId === null && mam_fee_student_self_pays($studentId)) $guardianId = $studentId;
 
     $seq = 1 + (int) (mam_db_row('SELECT COUNT(*) AS n FROM fee_invoices WHERE student_id = ?', [$studentId])['n'] ?? 0);
     $ref = mam_fee_ref($studentId, $termLabel, $seq);
@@ -1249,6 +1253,15 @@ function mam_fee_online_quote(string $currency, int $feeMinor): array {
 }
 
 /**
+ * Does this student pay their own fees? Only an ADULT (date of birth says 18 or
+ * over — unknown age is never treated as adult) with no linked guardian.
+ */
+function mam_fee_student_self_pays(int $studentId): bool {
+    if (function_exists('mam_parent_guardians_of') && mam_parent_guardians_of($studentId)) return false;
+    return function_exists('mam_vetting_student_is_minor') && mam_vetting_student_is_minor($studentId) === false;
+}
+
+/**
  * Open a gateway charge for (part of) an invoice. Does NOT talk to the gateway —
  * the route does — so this is testable and the refusals are the library's.
  *
@@ -1259,7 +1272,10 @@ function mam_fee_online_start(int $parentId, int $invoiceId, ?int $feeMinor, str
     $inv = mam_db_row('SELECT * FROM fee_invoices WHERE id = ?', [$invoiceId]);
     if (!$inv) throw new RuntimeException('invoice_not_found');
     $sid = (int) $inv['student_id'];
-    if (!mam_parent_can_view($parentId, $sid) || !mam_parent_scope_allows($parentId, $sid, 'payments')) {
+    // The payer: a guardian with the payments grant, or the adult student
+    // paying their own invoice (named as its payer, mam_fee_student_self_pays).
+    $selfPayer = $parentId === $sid && (int) $inv['guardian_id'] === $sid;
+    if (!$selfPayer && (!mam_parent_can_view($parentId, $sid) || !mam_parent_scope_allows($parentId, $sid, 'payments'))) {
         throw new RuntimeException('forbidden');
     }
     if (!in_array($inv['status'], ['issued', 'part_paid'], true)) throw new RuntimeException('not_payable');
@@ -1325,6 +1341,9 @@ function mam_payment_settle_fee(array $payment, ?array $providerData = null): vo
             return;
         }
         if (mam_db_row('SELECT 1 FROM fee_payments WHERE invoice_id = ? AND reference = ?', [$invId, $ref])) return;
+        // Idempotent for a fully-unapplied payment too (nothing credited, the
+        // whole sum recorded as owed back): a re-run must not record it twice.
+        if (mam_db_row('SELECT 1 FROM fee_online_unapplied WHERE reference = ?', [$ref])) return;
 
         $cur  = (string) $inv['currency'];
         $due  = in_array($inv['status'], ['issued', 'part_paid'], true) ? (int) $inv['total_minor'] - (int) $inv['paid_minor'] : 0;
@@ -1345,13 +1364,25 @@ function mam_payment_settle_fee(array $payment, ?array $providerData = null): vo
             try {
                 mam_db_insert('fee_online_unapplied', ['reference' => $ref, 'invoice_id' => $invId, 'over_minor' => $over,
                     'currency' => $cur, 'status' => 'open', 'created_at' => date('Y-m-d H:i:s')]);
-            } catch (\Throwable $e) { /* UNIQUE(reference): already recorded */ }
+            } catch (\Throwable $e) {
+                // Only a UNIQUE(reference) clash means "already recorded". Anything
+                // else is money the family is owed with no record of it — this used
+                // to swallow every error as if it were a duplicate.
+                if (!mam_db_is_unique_violation($e)) {
+                    mam_log('error', 'fee_online_unapplied_failed', ['ref' => $ref, 'err' => $e->getMessage()]);
+                    throw $e;
+                }
+            }
             mam_log('warn', 'fee_online_overpaid', ['ref' => $ref, 'invoice' => $invId, 'over_minor' => $over]);
             mam_audit('fee_online_overpaid', 'fee_invoice', $invId, ['ref' => $ref, 'over_minor' => $over, 'currency' => $cur]);
         }
         mam_fee_online_receipt($payment, $inv, $take, $over);
     } catch (\Throwable $e) {
+        // Logged AND rethrown: settlement runs this as a retryable job
+        // (mam_payment_settle_effects), and a swallowed failure read as "done" —
+        // money taken, invoice never credited, nothing to retry it.
         mam_log('error', 'fee_online_settle_failed', ['ref' => $ref, 'err' => $e->getMessage()]);
+        throw $e;
     }
 }
 

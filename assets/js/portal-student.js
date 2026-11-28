@@ -799,7 +799,10 @@
               + '<span class="p-caption">' + esc([i.issued_on ? 'Issued ' + fmtDate(i.issued_on) : null,
                   i.due_on ? 'due ' + fmtDate(i.due_on) : null].filter(Boolean).join(' · ')) + '</span></span>'
               + '<span class="p-chip' + (over ? ' is-bad' : (i.status === 'paid' ? ' is-good' : '')) + '">'
-              + esc(over ? 'Overdue' : String(i.status || '').replace('_', ' ')) + '</span></div>';
+              + esc(over ? 'Overdue' : String(i.status || '').replace('_', ' ')) + '</span>'
+              /* An adult paying their own invoice (the server sets self_pay). */
+              + (Number(i.self_pay) === 1 ? '<button type="button" class="p-action" data-feepay="' + esc(i.id) + '">Pay online</button>' : '')
+              + '</div>';
           }).join('') + '</div></section>';
       }
 
@@ -1553,6 +1556,12 @@
       return;
     }
 
+    var fp = t.closest('[data-feepay]');
+    if (fp) {
+      write(fp, API.request('student/fee-pay', { method: 'POST', body: { invoice_id: Number(fp.dataset.feepay) } }),
+        function (r) { if (r && r.authorization_url) location.href = r.authorization_url; });
+      return;
+    }
     if (t.closest('#cardClaim')) {
       write(t.closest('#cardClaim'), API.request('student/id-card', { method: 'POST', body: {} }),
         function () { renderCard(); }, 'Your card is ready. A copy is on its way to your email.');

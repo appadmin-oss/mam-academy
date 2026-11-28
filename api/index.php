@@ -271,6 +271,8 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     $r->get ('/portal',              $f('student/portal.php'),              [mw_role('student')]);
     // The student's own ID card: claim it when enrolled and none was issued.
     $r->post('/id-card',             $f('student/id-card.php'),             [mw_csrf(), mw_role('student'), mw_rate_limit('student_id_card', 5, 600)]);
+    // An adult student pays their own fee invoice (they are its payer).
+    $r->post('/fee-pay',             $f('student/fee-pay.php'),             [mw_csrf(), mw_role('student'), mw_rate_limit('fee_pay', 20, 3600)]);
     // Waitlist: join or leave a cohort queue when class is at capacity.
     $r->get ('/waitlist',            $f('student/waitlist.php'),            [mw_role('student')]);
     $r->post('/waitlist',            $f('student/waitlist.php'),            [mw_csrf(), mw_role('student'), mw_rate_limit('student_waitlist', 20, 600)]);

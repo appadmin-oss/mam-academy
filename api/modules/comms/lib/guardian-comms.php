@@ -258,11 +258,27 @@ function mam_thread_post(int $threadId, int $userId, string $body): int {
         if (function_exists('mam_notify')) {
             try {
                 mam_notify((int) $p['user_id'], 'thread.message', (string) $t['subject'],
-                    mb_substr($body, 0, 240), ['thread' => $threadId, 'channels' => $ch['channels']]);
-            } catch (\Throwable $e) { /* a notification must not fail a post */ }
+                    mb_substr($body, 0, 240), mam_thread_link((string) $p['role']));
+            } catch (\Throwable $e) { mam_log('error', 'thread_notify_failed', ['thread' => $threadId, 'err' => $e->getMessage()]); }
         }
     }
     return $id;
+}
+
+/**
+ * Where a participant reads their threads, by the role they hold in the
+ * thread. A guardian has the portal's Messages screen; an admin or the office
+ * has the console's Communications screen. An instructor has no thread screen
+ * yet, so the notice opens their portal (it still says who wrote and what).
+ * (This used to pass an ARRAY as the link; under strict types that is a
+ * TypeError the try below swallowed, so no participant was ever notified.)
+ */
+function mam_thread_link(string $role): string {
+    return match ($role) {
+        'guardian'   => '/portal/parent/#messages',
+        'instructor' => '/portal/instructor/',
+        default      => '/admin/console.php?v=comms',
+    };
 }
 
 /** Mark a thread read up to now, for one participant. */

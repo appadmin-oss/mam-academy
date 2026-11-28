@@ -506,7 +506,8 @@ function mam_sportal_money(int $studentId): array {
     $invoices = [];
     try {
         $invoices = mam_db_all(
-            'SELECT id, public_ref, status, total_minor, currency, due_on, issued_on
+            'SELECT id, public_ref, status, total_minor, paid_minor, currency, due_on, issued_on,
+                    CASE WHEN guardian_id = student_id AND status IN (\'issued\',\'part_paid\') AND total_minor > paid_minor THEN 1 ELSE 0 END AS self_pay
                FROM fee_invoices WHERE student_id = ? ORDER BY id DESC LIMIT 12', [$studentId]);
     } catch (Throwable $e) {}
     /* ⚠️ `mam_accountability_list()` takes a STATUS, not a subject — passing

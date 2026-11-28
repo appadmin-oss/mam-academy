@@ -113,6 +113,11 @@ try {
         $status = $data['status'] ?? null;
         // Confirm amount AND currency — guard against a tampered inline amount.
         $currencyOk = strtoupper((string)($data['currency'] ?? 'NGN')) === 'NGN';
+        if ($status === 'successful' && !$currencyOk) {
+            // Flutterwave is NGN-only here (which gateway takes USD is the owner's call): refuse, say so.
+            mam_log('warn', 'flw_currency_refused', ['ref' => $ref, 'currency' => (string) ($data['currency'] ?? ''), 'source' => 'verify', 'mode' => mam_flw_mode()]);
+            mam_payment_event((int) $payment['id'], $ref, 'currency_refused', ['provider' => 'flutterwave', 'currency' => (string) ($data['currency'] ?? ''), 'why' => 'Flutterwave is accepted in NGN only', 'source' => 'verify']);
+        }
         // Bind the verified transaction to THIS payment WITHOUT being brittle.
         // `transaction_id` is client-supplied, so `verify_by_id` can return ANY
         // successful charge — but we must not hard-fail a genuine verification
@@ -129,7 +134,9 @@ try {
         if ($status === 'successful' && !$ok) {
             mam_log('warn', 'flw_amount_or_currency_mismatch', ['ref' => $ref, 'paid' => $data['amount'] ?? 0, 'expected' => $payment['amount'], 'currency' => $data['currency'] ?? '', 'tx_ref' => $verifiedRef, 'cross_bound' => $crossBound]);
         }
-        $providerRef = $data['tx_ref'] ?? ($data['flw_ref'] ?? $ref);
+        // The gateway's own charge id, as the webhook stores it — so a repeat is
+        // recognised and a second charge is not (mam_flw_apply_tx()).
+        $providerRef = $data['flw_ref'] ?? ($data['tx_ref'] ?? $ref);
     } else {
         mam_fail('unsupported_provider', 400);
     }

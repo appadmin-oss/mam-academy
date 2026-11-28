@@ -403,6 +403,32 @@ function mam_console_outstanding_cents(): int {
           WHERE status IN ('issued','part_paid')", [], 0);
 }
 
+/**
+ * SQL turning an amount in an INVOICE's own minor units into USD cents at that
+ * invoice's frozen rate (alias `i` = fee_invoices). USD is already cents; NGN
+ * kobo ÷ the frozen naira-per-dollar rate is cents. Anything else uses the
+ * invoice's own total ratio. Never sums minor units across currencies.
+ */
+function mam_console_invoice_usd_sql(string $minorExpr): string {
+    return "CASE WHEN i.currency = 'USD' THEN ($minorExpr)
+                 WHEN i.currency = 'NGN' AND i.fx_rate_usd_ngn > 0 THEN CAST(ROUND(($minorExpr) / i.fx_rate_usd_ngn) AS INTEGER)
+                 WHEN i.total_minor > 0 THEN CAST(ROUND(($minorExpr) * 1.0 * i.total_usd_cents / i.total_minor) AS INTEGER)
+                 ELSE 0 END";
+}
+
+/**
+ * Money RECEIVED against fee invoices, in USD cents at each invoice's frozen
+ * rate — the like-for-like partner of "billed" (fee_invoices.total_usd_cents).
+ * `paid_minor` is kept from fee_payments (recorded, never void), so a voided or
+ * refunded payment leaves it. "Collected / billed" used to divide EVERY
+ * succeeded payment (booking fees, store sales, wallet reschedules) by fee
+ * invoices only, and to miss cash and transfers recorded at the desk.
+ */
+function mam_console_fee_collected_cents(): int {
+    return (int) mam_console_scalar('money.fee_collected',
+        "SELECT COALESCE(SUM(" . mam_console_invoice_usd_sql('i.paid_minor') . "), 0) FROM fee_invoices i WHERE i.status <> 'void'", [], 0);
+}
+
 function mam_console_collected_cents(): int {
     return (int) mam_console_scalar('money.collected',
         "SELECT COALESCE(SUM(amount_usd_cents), 0) FROM payments WHERE " . MAM_CONSOLE_PAID, [], 0);
@@ -416,7 +442,7 @@ function mam_console_collected_cents(): int {
  * Collected, the ledger's accounts and the currency breakdown all read zero
  * whatever had come in, beside a legacy screen showing the real revenue.
  */
-const MAM_CONSOLE_PAID = "status = 'succeeded'";
+const MAM_CONSOLE_PAID = "status = 'succeeded' AND (gateway_state IS NULL OR gateway_state <> 'refunded')";
 
 /**
  * A charge with nothing to apply it to: an APPLICATION charge (tuition or a
@@ -913,9 +939,26 @@ function mam_console_ledger(): array {
           WHERE p.status = 'pending_bank_transfer'
           ORDER BY p.created_at ASC, p.id ASC LIMIT 200");
 
+    // Settlement reconciliation: money taken whose effects (credit, enrolment,
+    // order release) have not run yet — the job the claim queued, plus the
+    // pre-job payments whose effect is visibly missing. Each has a Finish.
+    $unfinished = [];
+    foreach (mam_console_try('led.settle', fn() => mam_payment_settle_backlog(100), []) ?: [] as $b) {
+        $unfinished[] = ['reference' => $b['reference'], 'purpose' => (string) ($b['payment']['purpose'] ?? ''),
+                         'why' => $b['job_status'] === 'failed' ? 'effects failed: ' . (string) $b['last_error'] : 'effects queued, not yet run',
+                         'attempts' => $b['attempts'], 'since' => $b['queued_at']];
+    }
+    $queued = array_column($unfinished, 'reference');
+    foreach (mam_console_try('led.legacy', fn() => mam_payment_effects_missing_legacy(100), []) ?: [] as $m) {
+        if (in_array($m['reference'], $queued, true)) continue;
+        $unfinished[] = ['reference' => $m['reference'], 'purpose' => (string) ($m['purpose'] ?? ''),
+                         'why' => (string) $m['missing'], 'attempts' => 0, 'since' => null];
+    }
+
     return [
         'rows' => $rows,
         'awaiting' => $awaiting,
+        'unfinished' => $unfinished,
         'accounts' => [
             ['label' => 'Tuition & fees received', 'cents' => mam_console_int('led.tuition',
                 "SELECT COALESCE(SUM(amount_usd_cents),0) FROM payments WHERE " . MAM_CONSOLE_PAID . " AND (purpose IS NULL OR purpose <> 'store')")],
@@ -924,8 +967,11 @@ function mam_console_ledger(): array {
             ['label' => 'Student receivable', 'cents' => mam_console_outstanding_cents()],
             ['label' => 'Suspense · unmatched', 'cents' => mam_console_int('led.susp',
                 "SELECT COALESCE(SUM(amount_usd_cents),0) FROM payments WHERE " . MAM_CONSOLE_SUSPENSE)],
+            // Per invoice, at its frozen rate — credits used to be summed in raw
+            // minor units across currencies and shown as dollars.
             ['label' => 'Gift aid credited',  'cents' => -mam_console_int('led.aid',
-                "SELECT COALESCE(SUM(amount_minor),0) FROM fee_invoice_credits")],
+                "SELECT COALESCE(SUM(" . mam_console_invoice_usd_sql('c.amount_minor') . "),0)
+                   FROM fee_invoice_credits c JOIN fee_invoices i ON i.id = c.invoice_id WHERE i.status <> 'void'")],
         ],
         'by_currency' => $byCur,
         'unpriced'    => $unpriced,
@@ -2008,13 +2054,17 @@ function mam_console_store(): array {
            FROM store_items ORDER BY name LIMIT 120");
     $oos = array_values(array_filter($items, fn($i) => (int) ($i['active'] ?? 0) === 1 && $i['stock'] !== null && (int) $i['stock'] <= 0));
 
+    // Revenue from what the gateway actually took, in integer cents
+    // (payments.amount_usd_cents, refunded excluded by status) — not from the
+    // float store_orders.total_usd.
     $sum = mam_console_row('st.sum',
-        "SELECT COUNT(*) n, COALESCE(SUM(total_usd),0) usd FROM store_orders WHERE status IN ('paid','delivered')");
+        "SELECT (SELECT COUNT(*) FROM store_orders WHERE status IN ('paid','delivered')) n,
+                (SELECT COALESCE(SUM(amount_usd_cents),0) FROM payments WHERE purpose = 'store' AND " . MAM_CONSOLE_PAID . ") cents");
 
     return ['orders' => $orders, 'items' => $items, 'out_of_stock' => $oos,
         'pending' => mam_console_int('st.pend', "SELECT COUNT(*) FROM store_orders WHERE status = 'pending'"),
         'awaiting' => mam_console_int('st.await', "SELECT COUNT(*) FROM store_orders WHERE status = 'paid'"),
-        'revenue_usd' => (float) ($sum['usd'] ?? 0), 'orders_n' => (int) ($sum['n'] ?? 0)];
+        'revenue_usd' => (int) ($sum['cents'] ?? 0) / 100, 'orders_n' => (int) ($sum['n'] ?? 0)];
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -2211,7 +2261,7 @@ function mam_console_reports(): array {
     $median = $days ? $days[(int) floor((count($days) - 1) / 2)] : null;
 
     $billed = mam_console_int('rp.billed', "SELECT COALESCE(SUM(total_usd_cents),0) FROM fee_invoices WHERE status <> 'void'");
-    $collected = mam_console_collected_cents();
+    $collected = mam_console_fee_collected_cents(); // like with like: received against those same invoices
 
     $byCohort = mam_console_rows('rp.coh',
         "SELECT c.id, c.title,
@@ -2223,8 +2273,13 @@ function mam_console_reports(): array {
     foreach ($byCohort as &$c) $c['rate'] = (int) $c['marks'] > 0 ? mam_console_pct((int) $c['present'], (int) $c['marks']) : null;
     unset($c);
 
+    // Aid actually credited to invoices, per kind, in USD cents at each
+    // invoice's rate. It used to add award amounts in mixed currencies (and
+    // percentage awards as nothing) and print the sum as dollars.
     $aid = mam_console_rows('rp.aid',
-        "SELECT kind, COALESCE(SUM(amount_minor),0) minor, COUNT(*) n FROM fee_aid_awards GROUP BY kind");
+        "SELECT c.kind, COALESCE(SUM(" . mam_console_invoice_usd_sql('c.amount_minor') . "),0) usd_cents, COUNT(*) n
+           FROM fee_invoice_credits c JOIN fee_invoices i ON i.id = c.invoice_id
+          WHERE i.status <> 'void' GROUP BY c.kind");
 
     return [
         'kpis' => [

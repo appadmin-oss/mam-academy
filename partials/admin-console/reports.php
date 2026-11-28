@@ -71,8 +71,8 @@ declare(strict_types=1);
           <div class="ac-note">Nothing awarded yet.</div>
         <?php else: ?>
           <div class="ac-defs">
-            <?php $aidTotal = 0; foreach ($d['aid'] as $a): $aidTotal += (int) $a['minor']; ?>
-              <?php ac_def(ucfirst((string) $a['kind']) . ' (' . (int) $a['n'] . ')', ac_h(mam_console_usd((int) $a['minor']))); ?>
+            <?php $aidTotal = 0; foreach ($d['aid'] as $a): $aidTotal += (int) $a['usd_cents']; ?>
+              <?php ac_def(ucfirst((string) $a['kind']) . ' (' . (int) $a['n'] . ')', ac_h(mam_console_usd((int) $a['usd_cents']))); ?>
             <?php endforeach; ?>
             <?php ac_def('Share of billed', (int) ($d['billed'] ?? 0) > 0
                 ? mam_console_pct($aidTotal, (int) $d['billed']) . '%' : '—'); ?>

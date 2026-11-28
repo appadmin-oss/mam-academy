@@ -4456,3 +4456,13 @@ function mam_db_all(string $sql, array $params = []): array {
     $stmt->execute($params);
     return $stmt->fetchAll();
 }
+
+/** Is this exception a UNIQUE-constraint clash (MySQL 1062 / SQLite "UNIQUE constraint failed")? */
+function mam_db_is_unique_violation(Throwable $e): bool {
+    if ($e instanceof PDOException) {
+        $code = (int) ($e->errorInfo[1] ?? 0);
+        if ($code === 1062) return true;
+        if ($code === 19 || $code === 2067 || $code === 1555) return stripos($e->getMessage(), 'UNIQUE') !== false;
+    }
+    return stripos($e->getMessage(), 'UNIQUE constraint failed') !== false || stripos($e->getMessage(), 'Duplicate entry') !== false;
+}

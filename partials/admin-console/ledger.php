@@ -60,6 +60,39 @@ $mayMoney = isset($adminUser) ? (!$adminUser || mam_admin_can($adminUser, 'setti
   <?php ac_card_close('Confirming settles what the transfer paid for exactly as an automatic payment would: an application is provisioned and enrolled, a store order released.'); ?>
 <?php endif; ?>
 
+<?php if ($d['unfinished'] ?? []): ?>
+  <?php ac_banner('warn', 'fa-triangle-exclamation',
+    '<strong>' . count($d['unfinished']) . ' settled payment' . (count($d['unfinished']) === 1 ? '' : 's')
+    . ' with work still to finish.</strong> The money was taken; what it paid for has not been applied yet.'); ?>
+  <?php ac_card_open('Settled, not yet finished', count($d['unfinished']) . ' to reconcile',
+      '<span class="ac-cardmeta">Finishing runs the same code the gateway runs</span>'); ?>
+    <div class="ac-tablewrap">
+      <table class="ac-table">
+        <thead><tr><th>Reference</th><th>What is missing</th><th class="ac-num">Tries</th><th>Finish</th></tr></thead>
+        <tbody>
+          <?php foreach ($d['unfinished'] as $u): ?>
+            <tr>
+              <td class="ac-mono"><?= ac_h((string) $u['reference']) ?>
+                <div class="ac-sub"><?= ac_h(str_replace('_', ' ', (string) ($u['purpose'] ?: 'tuition'))) ?></div></td>
+              <td><?= ac_h((string) $u['why']) ?></td>
+              <td class="ac-num"><?= (int) $u['attempts'] ?></td>
+              <td>
+                <?php if ($mayMoney): ?>
+                  <?php ac_form('payment_settle_finish', 'ledger', ['reference' => (string) $u['reference']]); ?>
+                    <button type="submit" class="ac-btn ac-btn--primary ac-btn--sm">Finish</button>
+                  <?php ac_form_end(); ?>
+                <?php else: ?>
+                  <span class="ac-sub">Finance finishes these</span>
+                <?php endif; ?>
+              </td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  <?php ac_card_close('Finishing is safe to repeat: each effect checks whether it already happened. A payment held for an identity check stays held.'); ?>
+<?php endif; ?>
+
 <div class="ac-cols ac-cols--main">
   <div class="ac-stack">
   <?php ac_card_open('Payments', count($d['rows'] ?? []) . ' most recent',

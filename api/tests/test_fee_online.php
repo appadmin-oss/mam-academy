@@ -93,8 +93,10 @@ $FN_guards = (string) file_get_contents(dirname(__DIR__) . '/modules/finance/lib
 t_ok(str_contains($FN_guards, 'mam_payment_amount_ok('), 'the shared Paystack check uses the one comparison');
 foreach (['payment-verify.php', 'webhook-paystack.php', 'webhook-flutterwave.php'] as $FN_f) {
     $FN_s = (string) file_get_contents(dirname(__DIR__) . '/routes/' . $FN_f);
-    t_ok(str_contains($FN_s, 'mam_payment_amount_ok(') || str_contains($FN_s, 'mam_paystack_apply_tx('), "$FN_f uses the one comparison");
+    t_ok(str_contains($FN_s, 'mam_payment_amount_ok(') || str_contains($FN_s, 'mam_paystack_apply_tx(') || str_contains($FN_s, 'mam_flw_apply_tx('), "$FN_f uses the one comparison");
 }
+$FN_flw = (string) file_get_contents(dirname(__DIR__) . '/modules/finance/lib/flutterwave.php');
+t_ok(str_contains($FN_flw, 'mam_payment_amount_ok('), "the shared Flutterwave decision (mam_flw_apply_tx) uses the one comparison");
 
 t_group('fee online — the console counts money that was actually settled');
 

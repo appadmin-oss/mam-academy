@@ -715,7 +715,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'record_placement' => 'admissions',
         'enrol_complete'  => 'admissions',
         'store_item_save' => 'store_catalog', 'store_item_delete' => 'store_catalog',
-        'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings',
+        'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings', 'payment_settle_finish' => 'settings',
         // Destructive record deletions + bulk seeding are super-only — a manager
         // must not be able to permanently remove applications/classes/enrolments.
         'app_delete' => 'settings',
@@ -3240,20 +3240,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // the admin marker into a valid JSON object instead.
         $prObj = mam_payment_response_merge($p['provider_response'] ?? null, ['admin_refund' => ['note' => $note, 'at' => date('c')]]);
         mam_db_update('payments', [
-            'status' => 'refunded',
             'provider_response' => $prObj,
             'updated_at' => date('Y-m-d H:i:s'),
         ], ['id' => $pid]);
-        // Reverse the related subject so the customer portal reflects reality.
+        // Reverse the related subject so the customer portal reflects reality —
+        // ONE implementation shared with the Paystack refund webhook, which now
+        // also reverses an online fee payment's credit on its invoice.
         $purpose = (string)($p['purpose'] ?? 'tuition');
-        if ($purpose === 'store') {
-            $o = mam_db_row('SELECT id FROM store_orders WHERE reference = ?', [$p['reference']]);
-            if ($o) mam_db_update('store_orders', ['status' => 'refunded', 'updated_at' => date('Y-m-d H:i:s')], ['id' => (int)$o['id']]);
-        } elseif ($purpose === 'booking_fee' && !empty($p['application_id'])) {
-            mam_db_update('applications', ['booking_fee_paid_at' => null], ['id' => (int)$p['application_id']]);
-        } elseif (!empty($p['application_id'])) {
-            mam_db_update('applications', ['status' => 'in_review'], ['id' => (int)$p['application_id']]);
-        }
+        mam_payment_refund_apply($p, $note, $adminUser ? (int) $adminUser['id'] : null);
         mam_audit('payment_refund', 'payment', $pid, ['note' => $note, 'purpose' => $purpose]);
         header('Location: ?v=payments&ok=' . urlencode('Marked refunded. What it paid for has been reversed.')); exit;
     }
@@ -3264,6 +3258,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // to 'succeeded' and propagates the success to the linked subject
     // (booking_fee_paid_at, application 'paid', or store_orders 'delivered')
     // exactly as the auto-verify code path would have.
+    if ($action === 'payment_settle_finish') {
+        // Finish a settled payment's effects (credit, enrolment, order release):
+        // queue the idempotent job and run the queue now.
+        $ref = trim((string) ($_POST['reference'] ?? ''));
+        try {
+            $fin = mam_payment_settle_finish($ref);
+            $pr = mam_db_row('SELECT id FROM payments WHERE reference = ?', [$ref]);
+            mam_audit('payment_settle_finish', 'payment', $pr ? (int) $pr['id'] : null, ['ref' => $ref, 'job' => $fin['job_id'], 'ok' => $fin['ok']]);
+            if ($fin['ok']) { header('Location: ?v=ledger&ok=' . urlencode('Finished ' . $ref . '.')); exit; }
+            header('Location: ?v=ledger&err=' . urlencode('Could not finish ' . $ref . ' yet: ' . (string) $fin['error'] . ' (it stays on the list and the job runner retries it)')); exit;
+        } catch (\Throwable $e) {
+            header('Location: ?v=ledger&err=' . urlencode('Could not finish ' . $ref . ': ' . $e->getMessage())); exit;
+        }
+    }
+
     if ($action === 'payment_confirm_bank') {
         $pid = (int)($_POST['payment_id'] ?? 0);
         $note = trim((string)($_POST['note'] ?? ''));
@@ -3272,37 +3281,22 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!$p) { header('Location: ?v=payments&err=' . urlencode('Payment not found')); exit; }
         if (($why = mam_payment_admin_refusal($p, 'payment_confirm_bank', $note, !empty($_POST['checked']))) !== null) { header('Location: ?v=payments&err=' . urlencode($why)); exit; }
 
-        mam_db_update('payments', [
-            'status'            => 'succeeded',
-            'provider_response' => mam_payment_response_merge($p['provider_response'] ?? null, ['admin_confirm' => ['note' => $note, 'at' => date('c')]]),
-            'verified_at'       => date('Y-m-d H:i:s'),
-            'updated_at'        => date('Y-m-d H:i:s'),
-        ], ['id' => $pid]);
-
-        // Mirror the success effects of an automatic provider verify.
+        // Through the ONE settlement path the gateways use (mam_payment_settle):
+        // the race-safe claim, the queued effects job, store stock and receipt,
+        // the closed-target guard (money for a cancelled application or order is
+        // marked refund-due instead of granting anything), and the identity hold.
+        // This used to mark the row succeeded and re-implement part of the
+        // effects by hand — no stock decrement, no receipt, no closed check.
         $purpose = (string)($p['purpose'] ?? 'tuition');
-        if ($purpose === 'store') {
-            $o = mam_db_row('SELECT id, items_json, customer_email, reference FROM store_orders WHERE reference = ?', [$p['reference']]);
-            if ($o) {
-                $items = json_decode((string)$o['items_json'], true) ?: [];
-                $hasPhysical = false;
-                foreach ($items as $i) if (($i['goods_type'] ?? '') === 'physical') { $hasPhysical = true; break; }
-                mam_db_update('store_orders', [
-                    'status' => $hasPhysical ? 'paid' : 'delivered',
-                    'delivered_at' => $hasPhysical ? null : date('Y-m-d H:i:s'),
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ], ['id' => (int)$o['id']]);
-            }
-        } elseif ($purpose === 'booking_fee' && !empty($p['application_id'])) {
-            mam_db_update('applications', ['booking_fee_paid_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')], ['id' => (int)$p['application_id']]);
-        } elseif (!empty($p['application_id'])) {
-            // Provision student portal + auto-enroll + generate enrollment ref,
-            // exactly as the automatic webhook path does via mam_payment_verify.
-            $settleTag = mam_payment_settle_tuition((int)$p['application_id']);
-            mam_log('info', 'bank_confirm_settle', ['payment_id' => $pid, 'app_id' => $p['application_id'], 'result' => $settleTag]);
-        }
+        $raw = mam_payment_response_merge($p['provider_response'] ?? null, ['admin_confirm' => ['note' => $note, 'at' => date('c')]]);
+        $settle = mam_payment_settle($p, null, $raw, (string) ($p['provider_reference'] ?? '') ?: null);
+        mam_log('info', 'bank_confirm_settle', ['payment_id' => $pid, 'purpose' => $purpose, 'result' => $settle]);
+        if (!$settle['ok']) { header('Location: ?v=payments&err=' . urlencode('Could not confirm that payment — see the log.')); exit; }
         mam_audit('payment_confirm_bank', 'payment', $pid, ['note' => $note, 'purpose' => $purpose]);
-        header('Location: ?v=payments&ok=' . urlencode('Transfer confirmed. What it paid for has been settled.')); exit;
+        $okMsg = !empty($settle['refund_due']) ? 'Transfer confirmed, but what it paid for had closed — it is marked refund due.'
+            : (!empty($settle['effects_pending']) ? 'Transfer confirmed. Settling what it paid for is queued and will finish on the next job run.'
+            : 'Transfer confirmed. What it paid for has been settled.');
+        header('Location: ?v=payments&ok=' . urlencode($okMsg)); exit;
     }
 
     // ─── Resend application confirmation + invoice ───────────────────
