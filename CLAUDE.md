@@ -1982,6 +1982,31 @@ about the `<form>` element itself.
   design's "Pay $5": it submits the application and opens the payment step, it
   does not take a payment.
 
+### The admissions fixes (2026-11-28 — `test_admissions_fixes.php`)
+
+- **Under 18 is a child** (`MAM_ADULT_AGE`, NDPA s.31): a guardian applies,
+  signs and is written to. KTAMS stays the under-16 *programme*.
+- **A child is never filed under the guardian's address.** With no email of
+  their own they get `learner-<hash>@no-email.invalid` (`mam_learner_placeholder_email`,
+  stable per guardian + name + DOB). Use `mam_email_is_erased()` — never a bare
+  `.invalid` check — or a live child reads as an erasure. `mam_send()` redirects
+  a placeholder to the guardian (`mam_mail_route_placeholder`); no invite is
+  minted for one.
+- **Decisions live in `admissions/lib/decisions.php`**: `mam_admissions_decide()`
+  (Paid/Enrolled are not decisions; a refusal needs a reason; offer / waitlist /
+  refusal are emailed) and `mam_summer_set_status()` — the ONE summer
+  implementation, used by the console form and the JSON route (identity hold,
+  real enrolment, invites, card, email).
+- **No raw `applications.status` writes**: settlement, refund and `app_delete`
+  go through `mam_admissions_transition()`. `paid → in_review` exists for refunds.
+- **Complete enrolment with the $5 unpaid needs a recorded waiver**
+  (`applications.fee_waiver`, `mam_enrol_record_waiver`); the Auditer placement
+  goes through `mam_enrol_complete()`, which now activates a pending enrolment.
+- Instruments that are not courses are *flagged for the assessment*
+  (`mam_enrol_needs_assessment`); `rhythm`/`metamusic` alias to real codes.
+- Instructor candidates are told the panel emails an interview time — `/book`
+  is the applicant fee page and is not for them.
+
 ## The admin console (`admin/console.php`) — the 2026-08 redesign
 
 Thirty-one screens, built 2026-08-20 and **re-navigated 2026-09-17** when the
