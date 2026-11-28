@@ -63,4 +63,10 @@ $GE_src = static fn(string $rel) => (string) file_get_contents(dirname(__DIR__) 
 t_ok(str_contains($GE_src('modules/finance/lib/payments.php'), 'mam_application_link_guardian($app, $studentId)'), 'payment settlement');
 t_ok(str_contains($GE_src('modules/admissions/lib/enrol-complete.php'), 'mam_application_link_guardian($app, (int) $studentId, $actorId)'), '"Complete enrolment", which reports it as a step');
 t_ok(str_contains($GE_src('modules/admissions/lib/auditer.php'), 'mam_application_link_guardian($gApp'), 'an Auditer placement');
-t_ok(str_contains((string) file_get_contents(dirname(__DIR__, 2) . '/admin/index.php'), 'mam_application_link_guardian($app,'), 'and an admin marking the application paid');
+// (Changed 2026-11-28, admissions fix 5: an admin marking an application
+// "paid" or "enrolled" used to make an account here — with no course. That path
+// is gone; a status change makes no account, so the three above are all of them.)
+$GE_adm = (string) file_get_contents(dirname(__DIR__, 2) . '/admin/index.php');
+$GE_as  = substr($GE_adm, (int) strpos($GE_adm, "if (\$action === 'app_status')"));
+$GE_as  = substr($GE_as, 0, (int) strpos($GE_as, "if (\$action === 'summer_set_status')"));
+t_ok($GE_as !== '' && !str_contains($GE_as, 'mam_ensure_student_user'), 'an admin status change makes no account at all, so it has no guardian to link');

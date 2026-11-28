@@ -12,18 +12,45 @@
  *      HMAC-signed over (invite id + nonce) so it can't be guessed or
  *      tampered with, and the DB row is the single source of truth for
  *      "already used" / "expired".
- *   4. Submitting the form stores the application, CONSUMES the invite
- *      (status 'used' — the link is never reusable), and directs the
- *      candidate to book their faculty interview appointment.
+ *   4. Submitting the form stores the application and CONSUMES the invite
+ *      (status 'used' — the link is never reusable). The candidate is told the
+ *      panel will email them a time for the interview.
+ *
+ * The candidate used to be sent to /book to "book your interview". /book is the
+ * APPLICANT's booking-fee page: it needs an MAM- application reference, asks for
+ * the $5 registration and opens the assessment calendar — none of which is an
+ * instructor interview, so every candidate hit "We need your application
+ * reference". Rather than bolt a second, fee-less booking mode onto it, the
+ * wording is now honest: the panel emails a time (admissions fix 4).
  */
 declare(strict_types=1);
 
 const MAM_FACULTY_INVITE_DAYS = 7;
 
+/**
+ * The instructor-application status machine (admissions fix 4). The handler
+ * used to write any of the four statuses over any other, so a declined
+ * candidate could be "approved" from a stale screen without anyone reopening
+ * them, and an approved one silently declined after their account was made.
+ * `approved` → `approved` stays allowed: it re-runs the (idempotent) promotion,
+ * which is how an account that failed to be created is retried.
+ */
+function mam_faculty_app_transitions(): array {
+    return [
+        'submitted' => ['reviewing', 'approved', 'declined'],
+        'reviewing' => ['approved', 'declined'],
+        'declined'  => ['reviewing'],
+        'approved'  => ['approved'],
+    ];
+}
 
-/** Where a submitted candidate books their interview. */
-function mam_faculty_book_url(): string {
-    return rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/book';
+function mam_faculty_app_can_transition(string $from, string $to): bool {
+    return in_array($to, mam_faculty_app_transitions()[$from] ?? [], true);
+}
+
+/** The words a status is shown as. */
+function mam_faculty_app_status_label(string $s): string {
+    return ['submitted' => 'Received', 'reviewing' => 'With the panel', 'approved' => 'Approved', 'declined' => 'Declined'][$s] ?? ucfirst($s);
 }
 
 /** The application-form URL for an invite row (must be approved/invited). */

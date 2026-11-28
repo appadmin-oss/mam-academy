@@ -16,6 +16,10 @@ if (!empty($v['errors'])) mam_fail('validation', 422, ['fields' => $v['errors']]
 
 $res = mam_scholarship_create($v['data'], mam_client_ip());
 
+// A confirmation to the applicant and a notice to the office, after the reply.
+$schRef = $res['reference'];
+mam_after_response(function () use ($schRef) { mam_scholarship_notify($schRef); });
+
 mam_ok([
     'submitted' => true,
     'reference' => $res['reference'],

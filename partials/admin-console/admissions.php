@@ -5,9 +5,11 @@ declare(strict_types=1);
 $detail = $d['detail'] ?? null;
 $stage  = (string) ($d['stage'] ?? '');
 $type   = (string) ($d['type'] ?? '');
+$tc     = $d['types'] ?? [];
 ?>
 <?php ac_head('Applications',
-    'One board, four intake types · ' . (int) ($d['types']['all'] ?? 0) . ' applications',
+    'Year-round, summer and the MAM Scholars Initiative · '
+    . ((int) ($tc['programme'] ?? 0) + (int) ($tc['summer'] ?? 0) + (int) ($tc['scholarship'] ?? 0)) . ' applications',
     '<a class="ac-btn" href="' . ac_h(ac_url('admissions', ['stage' => 'submitted'])) . '">Needs a first look</a>'
     . '<a class="ac-btn" href="' . ac_h(ac_url('funnel')) . '">Where they stop</a>'); ?>
 
@@ -18,6 +20,7 @@ $type   = (string) ($d['type'] ?? '');
     '<a class="ac-btn ac-btn--sm" href="' . ac_h(ac_url('admissions', ['stage' => 'submitted'])) . '">Open them</a>'); ?>
 <?php endif; ?>
 
+<?php if ($type === '' || $type === 'assess'): ?>
 <div class="ac-tabs">
   <?php foreach ($d['stages'] ?? [] as $s): ?>
     <a class="ac-tab" href="<?= ac_h(ac_url('admissions', ['stage' => $s['key'], 'type' => $type])) ?>"
@@ -36,20 +39,34 @@ $type   = (string) ($d['type'] ?? '');
     <button type="submit" class="ac-btn ac-btn--sm">Find</button>
   </form>
 </div>
+<?php endif; ?>
 
 <div class="ac-tabs">
   <?php
-    $typeLabels = ['all' => 'All types', 'programme' => 'Programme', 'summer' => 'Summer',
-                   'scholarship' => 'Scholarship', 'audition' => 'Audition'];
-    foreach ($typeLabels as $k => $label):
-      $n = (int) ($d['types'][$k] ?? 0);
-      $href = ac_url('admissions', ['stage' => $stage, 'type' => $k === 'all' ? null : $k]); ?>
-    <a class="ac-tab" href="<?= ac_h($href) ?>" <?= ($type === $k || ($type === '' && $k === 'all')) ? 'aria-current="true"' : '' ?>>
-      <?= ac_h($label) ?><span class="ac-tabn"><?= $n ?></span>
+    /* The intakes. "Needs assessment" replaced an Audition filter that every
+       application matched: /apply sends auditer=true for everybody, because
+       every applicant books the assessment. */
+    $typeLabels = ['' => ['Year-round', 'programme'], 'assess' => ['Needs assessment', 'assess'],
+                   'summer' => ['Summer', 'summer'], 'scholarship' => ['Scholars Initiative', 'scholarship']];
+    foreach ($typeLabels as $k => [$label, $countKey]):
+      $href = ac_url('admissions', ['type' => $k]); ?>
+    <a class="ac-tab" href="<?= ac_h($href) ?>" <?= $type === $k ? 'aria-current="true"' : '' ?>>
+      <?= ac_h($label) ?><span class="ac-tabn"><?= (int) ($tc[$countKey] ?? 0) ?></span>
     </a>
   <?php endforeach; ?>
-  <span class="ac-tabnote">Summer applications are kept in their own table, so this board counts them but does not list them yet.</span>
+  <?php if ($type === 'summer' || $type === 'scholarship'): ?>
+    <form method="get" class="ac-row ac-push">
+      <input type="hidden" name="v" value="admissions">
+      <input type="hidden" name="type" value="<?= ac_h($type) ?>">
+      <input class="ac-input ac-input--sm ac-searchbox" type="search" name="q" aria-label="Search by name, email or reference"
+             value="<?= ac_h($d['q'] ?? '') ?>" placeholder="Name or reference…">
+      <button type="submit" class="ac-btn ac-btn--sm">Find</button>
+    </form>
+  <?php endif; ?>
 </div>
+
+<?php if ($type === 'summer'): include __DIR__ . '/_admissions-summer.php'; return; endif; ?>
+<?php if ($type === 'scholarship'): include __DIR__ . '/_admissions-scholarship.php'; return; endif; ?>
 
 <div class="ac-cols ac-cols--main">
   <div class="ac-card">
@@ -72,7 +89,10 @@ $type   = (string) ($d['type'] ?? '');
                     (string) ($r['program'] ?? ''), (string) ($r['discipline'] ?? ''),
                     $r['level'] ? 'Level ' . (string) $r['level'] : '', (string) ($r['reference'] ?? '')])) ?></div>
               </td>
-              <td><?= ac_tag((string) (($r['pathway'] ?? '') === 'scholarship' ? 'scholarship' : 'programme')) ?></td>
+              <td><?= ac_tag(['standard' => 'Standard', 'certified-musician' => 'Certified', 'grand-musician' => 'Grand',
+                                 'crash' => 'Crash', 'meta-order' => 'MetaMusic'][(string) ($r['pathway'] ?? '')] ?? 'Year-round') ?>
+                <?php if ((int) ($r['needs_assessment'] ?? 0) === 1): ?><?= ac_pill('Assess', 'warn') ?><?php endif; ?>
+                <?php if ((string) ($r['identity_hold'] ?? '') !== ''): ?><?= ac_pill('Held', 'bad') ?><?php endif; ?></td>
               <td><?= ac_status((string) $r['status'], mam_console_status_label((string) $r['status'])) ?></td>
               <td class="ac-num">
                 <?php if ($days > 5): ?><span class="ac-pill ac-pill--bad"><?= $days ?>d</span>
@@ -109,18 +129,25 @@ $type   = (string) ($d['type'] ?? '');
             <?php
               ac_def('Requested', ac_h(ac_join([
                   (string) ($detail['program'] ?? ''), (string) ($detail['discipline'] ?? ''),
-                  $detail['level'] ? 'Level ' . (string) $detail['level'] : ''])) ?: '—');
+                  $detail['level'] ? 'Level ' . (string) $detail['level'] : 'Level: set at the assessment'])) ?: '—');
+              if ((string) ($detail['courses_label'] ?? '') !== '') ac_def('Disciplines', ac_h((string) $detail['courses_label']));
+              if (!empty($detail['assessment'])) ac_def('Assessment', ac_pill('Needs assessment', 'warn') . ' <span class="ac-subi">' . ac_h((string) $detail['assessment']) . '</span>');
               ac_def('Mode', ac_h((string) ($detail['mode'] ?? '—')));
-              ac_def('Contact', ac_h((string) ($detail['email'] ?? '—')));
-              ac_def('Guardian', ac_h((string) ($detail['parent_name'] ?? '') ?: 'Not named'));
+              $ownEmail = (string) ($detail['email'] ?? '');
+              ac_def('Learner email', ac_h(mam_email_is_placeholder($ownEmail) ? 'None of their own' : ($ownEmail ?: '—')));
+              ac_def('Guardian', ac_h(ac_join([(string) ($detail['parent_name'] ?? ''), (string) ($detail['parent_email'] ?? '')]) ?: 'Not named'));
+              if (!empty($detail['contact']['email'])) ac_def('We write to', ac_h((string) $detail['contact']['email']) . ($detail['contact']['guardian'] ? ' <span class="ac-subi">the guardian</span>' : ''));
+              $tri = static fn($v) => $v === null || $v === '' ? 'Not answered' : ((int) $v === 1 ? 'Yes' : 'No');
+              ac_def('Photos · recordings', ac_h($tri($detail['photo_consent'] ?? null) . ' · ' . $tri($detail['media_consent'] ?? null)));
               ac_def('Prior study', ac_h((string) ($detail['experience'] ?? '—')));
               $r = $detail['readiness'] ?? null;
               if (is_array($r)) {
                   ac_def('Readiness', ac_status((string) ($r['signal'] ?? 'review'))
                       . ' <span class="ac-subi">advisory only</span>');
               }
+              // Words, not the stored code ("pending_bank_transfer").
               ac_def('Money', $detail['payments']
-                  ? ac_h((string) ($detail['payments'][0]['status'] ?? '')) . ' · '
+                  ? ac_h(mam_console_payment_status_label((string) ($detail['payments'][0]['status'] ?? ''), (string) ($detail['payments'][0]['purpose'] ?? ''))) . ' · '
                     . ac_h((string) ($detail['payments'][0]['currency'] ?? '')) . ' '
                     . ac_h(number_format((float) ($detail['payments'][0]['amount'] ?? 0), 2))
                   : 'No payment recorded');
@@ -138,9 +165,12 @@ $type   = (string) ($d['type'] ?? '');
                 <?php
                   // Offer only the moves the state machine allows from here, so a
                   // choice that would be refused is never on the list. `expired`
-                  // is the sweep's to set, not a person's.
+                  // is the sweep's to set, not a person's. Paid and Enrolled are
+                  // not decisions (decisions.php): they made an account and an ID
+                  // card with no course. Money is recorded when it arrives, and a
+                  // student is enrolled with Complete the enrolment below.
                   $cur = (string) $detail['status'];
-                  $legal = array_diff(mam_admissions_transitions()[$cur] ?? [], ['expired']);
+                  $legal = array_values(array_intersect(mam_admissions_transitions()[$cur] ?? [], MAM_ADMISSIONS_DECISIONS));
                 ?>
                 <?php if (!$legal): ?>
                   <span class="ac-sub">Final — <?= ac_h(mam_console_status_label($cur)) ?>. Nothing further to decide.</span>
@@ -155,13 +185,13 @@ $type   = (string) ($d['type'] ?? '');
               </label>
               <label class="ac-field">
                 <span class="ac-label">Reason the family can read</span>
-                <textarea class="ac-textarea" name="reason" rows="3"
-                  placeholder="Required for a refusal. Written to the audit log either way."></textarea>
+                <textarea class="ac-textarea" name="reason" rows="3" maxlength="255"
+                  placeholder="Required for “Not this intake” — it is emailed to the family in these words. Kept in the history either way."></textarea>
               </label>
             </div>
             <div class="ac-row ac-mt">
               <button type="submit" class="ac-btn ac-btn--primary">Save the decision</button>
-              <span class="ac-hint">Now: <?= ac_h(mam_console_status_label((string) $detail['status'])) ?>. Only the moves allowed from this stage are listed.</span>
+              <span class="ac-hint">Now: <?= ac_h(mam_console_status_label((string) $detail['status'])) ?>. An offer, a waiting-list place or a refusal is emailed to <?= ac_h(!empty($detail['contact']['guardian']) ? 'the guardian' : 'the applicant') ?>.</span>
             </div>
           <?php ac_form_end(); ?>
         </div>
@@ -257,18 +287,29 @@ $type   = (string) ($d['type'] ?? '');
                  sometimes right, but it must never be done by accident. */
               $payRows = $detail['payments'] ?? [];
               $paid = array_values(array_filter($payRows, fn($p) => in_array((string) ($p['status'] ?? ''), ['succeeded', 'paid'], true)));
+              $latestWords = $payRows ? mam_console_payment_status_label((string) ($payRows[0]['status'] ?? ''), (string) ($payRows[0]['purpose'] ?? '')) : '';
             ?>
             <div class="ac-banner <?= $paid ? 'ac-banner--good' : 'ac-banner--warn' ?> ac-mt">
               <i class="fa-solid <?= $paid ? 'fa-circle-check' : 'fa-triangle-exclamation' ?>"></i>
               <div>
                 <strong><?= $paid
                     ? 'Paid: ' . ac_h((string) ($paid[0]['currency'] ?? '')) . ' ' . ac_h(number_format((float) ($paid[0]['amount'] ?? 0), 2)) . ' (' . ac_h((string) ($paid[0]['reference'] ?? '')) . ')'
-                    : ($payRows ? 'No successful payment recorded — latest attempt: ' . ac_h((string) ($payRows[0]['status'] ?? '')) : 'No payment recorded') ?></strong>
+                    : ($payRows ? 'No successful payment recorded — latest: ' . ac_h($latestWords) : 'No payment recorded') ?></strong>
                 <div>Class: <?= ac_h(trim(($rz['course']['name'] ?? 'the course chosen above') . ' · ' . ($rz['level']['name'] ?? 'no level') . ' · ' . ($rz['programme']['name'] ?? 'no programme'))) ?><?= isset($rz['cohort']['title']) ? ' — ' . ac_h((string) $rz['cohort']['title']) : '' ?></div>
               </div>
             </div>
+            <?php if (empty($detail['fee_settled'])): ?>
+              <?php /* The $5 registration is unpaid: enrolling is a recorded WAIVER,
+                       with a reason (admin/index.php enrol_complete refuses without). */ ?>
+              <label class="ac-field ac-mt"><span class="ac-label"><input type="checkbox" name="waive_fee" value="1">
+                Waive the registration fee — it has not been paid</span></label>
+              <label class="ac-field"><span class="ac-label">Why it is waived (kept on the application)</span>
+                <input class="ac-input" name="waiver_reason" maxlength="500" placeholder="For example: MAM Scholar, fee covered by the award"></label>
+            <?php elseif (!empty($detail['fee_waiver'])): ?>
+              <p class="ac-sub ac-mt">Registration fee waived: <?= ac_h((string) (json_decode((string) $detail['fee_waiver'], true)['reason'] ?? '')) ?></p>
+            <?php endif; ?>
             <label class="ac-field ac-mt"><span class="ac-label"><input type="checkbox" name="confirm_enrol" value="1" required>
-              I have checked the payment status and the class above<?= $paid ? '' : ', and want to enrol this student without a recorded payment' ?></span></label>
+              I have checked the payment status and the class above</span></label>
             <div class="ac-row ac-mt">
               <button type="submit" class="ac-btn ac-btn--primary">Enrol this student</button>
             </div>

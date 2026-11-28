@@ -27,7 +27,9 @@ function mam_invoice_policy(): array {
 
 /** Has this application settled its processing fee (so it owes nothing)? */
 function mam_invoice_paid(array $app): bool {
-    if (in_array((string)($app['status'] ?? ''), ['paid', 'enrolled', 'accepted'], true)) return true;
+    // 'accepted' is an OFFER, not a payment, and is not counted as one: an
+    // accepted applicant who never paid the processing fee still owes it.
+    if (in_array((string)($app['status'] ?? ''), ['paid', 'enrolled'], true)) return true;
     if (!empty($app['booking_fee_paid_at'])) return true;
     $appId = (int)($app['id'] ?? 0);
     if ($appId > 0 && mam_db_row("SELECT 1 AS x FROM payments WHERE application_id = ? AND status = 'succeeded' LIMIT 1", [$appId])) return true;

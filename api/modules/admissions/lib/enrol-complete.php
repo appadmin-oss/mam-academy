@@ -57,6 +57,44 @@ function mam_enrol_programme_code(?string $pathway, ?string $track): ?string
     ][strtolower(trim((string) $pathway))] ?? null;
 }
 
+/* ── instrument → course (admissions fix 10, 2026-11-28) ──────────────────────
+   `applications.discipline` holds what the applicant chose, which is not always
+   a course code. Two are the same course under an older name (`rhythm` is the
+   course `rhythm_pitch`, `metamusic` is `meta_music`) and are mapped. The rest
+   — violin, trumpet, flute, clarinet, bass, performance, "Help me choose",
+   "multiple" — are instruments or answers the academy does not teach as a
+   course of their own. Such an application is FLAGGED FOR THE ASSESSMENT: the
+   MAM Auditer decides what the applicant studies and the office picks the
+   course then, rather than the application reading as simply "unplaceable". */
+
+/** Older application values that name a real course under another code. */
+const MAM_DISCIPLINE_ALIASES = ['rhythm' => 'rhythm_pitch', 'metamusic' => 'meta_music', 'meta-music' => 'meta_music'];
+
+/** The course code an application's discipline maps to (an alias resolved), or
+ *  null when it names no active course. */
+function mam_enrol_course_code(?string $discipline): ?string {
+    $d = strtolower(trim((string) $discipline));
+    if ($d === '') return null;
+    $d = MAM_DISCIPLINE_ALIASES[$d] ?? $d;
+    $row = mam_db_row('SELECT code FROM courses WHERE code = ? AND active = 1', [$d]);
+    return $row ? (string) $row['code'] : null;
+}
+
+/**
+ * Why this application must be settled at the assessment, or null. A sentence a
+ * family or the office can read: the instrument is not a course of its own, or
+ * the applicant was not sure of their level.
+ */
+function mam_enrol_needs_assessment(array $app): ?string {
+    $why = [];
+    $disc = strtolower(trim((string) ($app['discipline'] ?? '')));
+    if ($disc === 'undecided') $why[] = 'the instrument is chosen with you at the assessment';
+    elseif ($disc !== '' && mam_enrol_course_code($disc) === null) $why[] = 'the course for ' . str_replace('_', ' ', $disc) . ' is settled at the assessment';
+    $levelled = in_array((string) ($app['pathway'] ?? ''), ['standard', 'certified-musician', 'grand-musician'], true);
+    if ($levelled && trim((string) ($app['level'] ?? '')) === '') $why[] = 'the starting level is set by the assessment';
+    return $why ? ucfirst(implode('; ', $why)) . '.' : null;
+}
+
 /* ── identity hold (schema v109) ─────────────────────────────────────────────
    Identity is still keyed on email in v1 (customers.email is UNIQUE), so an
    application whose address already belongs to someone else used to REWRITE
@@ -144,21 +182,27 @@ function mam_enrol_resolve(int $appId, array $overrides = []): array
             'blockers' => [], 'notes' => []];
 
     /* ── course ──────────────────────────────────────────────────────────── */
-    $courseCode = (string) ($overrides['course'] ?? $app['discipline'] ?? '');
+    $asked = (string) ($overrides['course'] ?? $app['discipline'] ?? '');
+    // An older value that names a real course under another code is mapped.
+    $courseCode = mam_enrol_course_code($asked) ?? $asked;
     if ($courseCode !== '') {
         $c = mam_db_row('SELECT id, code, name FROM courses WHERE code = ? AND active = 1', [$courseCode]);
         if ($c) $out['course'] = ['id' => (int) $c['id'], 'code' => $c['code'], 'name' => $c['name']];
     }
     if (!$out['course']) {
         // The applicant named an instrument the academy does not teach as a
-        // course — violin and clarinet both appear in the live data. Offering
-        // the catalogue is the honest response; guessing a near-match would
-        // enrol somebody in the wrong subject.
+        // course of its own (violin, trumpet, "Help me choose"…). The application
+        // is flagged for the assessment, and the office picks the course the
+        // assessment decided; guessing a near-match would enrol somebody in the
+        // wrong subject.
+        $out['assessment'] = true;
         $out['blockers'][] = [
             'field'   => 'course',
-            'why'     => $courseCode === ''
+            'why'     => $asked === ''
                 ? 'The application does not say which instrument or subject.'
-                : sprintf('The application asks for "%s", which is not one of the courses on offer.', $courseCode),
+                : ($asked === 'undecided'
+                    ? 'Flagged for the assessment: the applicant asked us to help choose the instrument. Pick the course the assessment settled on.'
+                    : sprintf('Flagged for the assessment: "%s" is not taught as a course of its own. Pick the course the assessment settled on.', $asked)),
             'options' => mam_db_all('SELECT code, name FROM courses WHERE active = 1 ORDER BY kind DESC, name'),
         ];
     }
@@ -206,7 +250,9 @@ function mam_enrol_resolve(int $appId, array $overrides = []): array
         // the four in the live backlog are theirs — so without this guard the
         // "clear the backlog" button would rebuild a person the academy was
         // asked to forget, and email them a password.
-        if (str_ends_with(strtolower(trim((string) $cust['email'])), '.invalid')) {
+        // (A `@no-email.invalid` placeholder is a live child with no address of
+        // their own, not an erasure — mam_email_is_erased() tells them apart.)
+        if (mam_email_is_erased((string) $cust['email'])) {
             $out['blockers'][] = ['field' => 'erased', 'options' => [],
                 'why' => 'This applicant asked to be erased. Their application is kept so the '
                        . 'numbers still add up, but they cannot be enrolled. If they have come '
@@ -313,11 +359,13 @@ function mam_enrol_complete(int $appId, array $overrides = [], ?int $actorId = n
                sent: the provisioner made a password and nobody received it. The
                invitation is sent now, and the step says whether it went. */
             $invited = ($studentId && !empty($prov['created'])) ? mam_auth_send_invite($studentId, 'student', 'portal_welcome') : null;
+            $noOwnEmail = mam_email_is_placeholder((string) ($prov['user']['email'] ?? $plan['student']['email'] ?? ''));
             $steps[] = ['step' => 'account', 'ok' => (bool) $studentId,
                         'detail' => !$studentId ? 'Account was not created.'
                             : (empty($prov['created']) ? 'Already had a portal account.'
+                            : ($noOwnEmail ? 'Student record created. They have no email of their own, so their guardian\'s account is the way in.'
                             : (!empty($invited['sent']) ? 'Portal account created; an invitation to set a password was emailed.'
-                                        : 'Portal account created, but the invitation could not be sent — send one from the member record.'))];
+                                        : 'Portal account created, but the invitation could not be sent — send one from the member record.')))];
             if (!$studentId) return ['ok' => false, 'steps' => $steps, 'plan' => $plan,
                                      'error' => 'The portal account could not be created, so nothing else was attempted.'];
         } catch (Throwable $e) {
@@ -340,6 +388,11 @@ function mam_enrol_complete(int $appId, array $overrides = [], ?int $actorId = n
                 : 'The guardian could not be linked (' . $g['reason'] . ').')];
     }
 
+    /* 1c — the photo / recording consent given at intake, onto the account. */
+    if (function_exists('mam_application_record_consent') && mam_application_record_consent($app, (int) $studentId, $actorId)) {
+        $steps[] = ['step' => 'consent', 'ok' => true, 'detail' => 'Photo and recording consent from the application recorded.'];
+    }
+
     /* 2 — the course enrolment, which resolves the cohort and instructor */
     try {
         $r = mam_lms_add_course(
@@ -353,6 +406,7 @@ function mam_enrol_complete(int $appId, array $overrides = [], ?int $actorId = n
         // caller that reads it as an int gets 0 and thinks it failed.
         $enrolId = (int) ($r['id'] ?? 0);
         $status  = (string) ($r['status'] ?? '');
+        $pendingEnrol = $status === 'pending' ? $enrolId : 0;
         if ($status === 'waitlisted') {
             $steps[] = ['step' => 'course', 'ok' => true, 'waitlisted' => true,
                         'detail' => sprintf('The class is full, so %s is on the waiting list at position %d. They move up automatically when a place frees.',
@@ -373,6 +427,7 @@ function mam_enrol_complete(int $appId, array $overrides = [], ?int $actorId = n
                     'error' => 'The course enrolment failed: ' . $why];
         }
         $cohortId = 0;
+        $pendingEnrol = 0;
     }
 
     /* 3 — the instructor, ACTUALLY assigned, then the class named */
@@ -445,6 +500,20 @@ function mam_enrol_complete(int $appId, array $overrides = [], ?int $actorId = n
                     'detail' => 'Class: ' . (string) ($co['title'] ?? ('#' . $cohortId))];
     }
 
+    /* 3b — this IS the approval. mam_lms_add_course() leaves a new enrolment
+       'pending' unless self-service auto-approve is on, so "Enrol this student"
+       used to end with a student whose enrolment still waited for an approval
+       nobody was asked for — absent from the class's roster and gradebook. The
+       instructor (and the safeguarding gate) were settled in step 3. */
+    if (!empty($pendingEnrol)) {
+        try {
+            mam_lms_transition((int) $pendingEnrol, 'active', $actorId, 'enrolment completed');
+            $steps[] = ['step' => 'approved', 'ok' => true, 'detail' => 'Enrolment made active.'];
+        } catch (Throwable $e) {
+            $steps[] = ['step' => 'approved', 'ok' => false, 'detail' => 'The enrolment is still waiting for approval: ' . $e->getMessage()];
+        }
+    }
+
     /* 4 — move the application on, through the audited state machine */
     if (($app['status'] ?? '') !== 'enrolled') {
         try {
@@ -472,6 +541,34 @@ function mam_enrol_complete(int $appId, array $overrides = [], ?int $actorId = n
     }
     return ['ok' => true, 'steps' => $steps, 'plan' => $plan, 'student_id' => $studentId,
             'error' => null];
+}
+
+/* ── the registration fee, waived on the record (admissions fix 5) ──────────
+   "Complete the enrolment" used to go ahead with the $5 registration unpaid,
+   behind a tick that said only "I have checked the payment status". Enrolling
+   somebody who has not paid is sometimes right — a scholar, a hardship case —
+   but it is a WAIVER, and a waiver needs a person, a reason and a date. */
+
+/** Has the registration (booking) fee been paid, or already waived? */
+function mam_enrol_fee_settled(array $app): bool {
+    if (!empty($app['booking_fee_paid_at']) || !empty($app['fee_waiver'])) return true;
+    if (in_array((string) ($app['status'] ?? ''), ['paid', 'enrolled'], true)) return true;
+    return (bool) mam_db_row("SELECT 1 AS x FROM payments WHERE application_id = ? AND status = 'succeeded' LIMIT 1", [(int) ($app['id'] ?? 0)]);
+}
+
+/**
+ * Record that the registration fee is waived for this application: who, when,
+ * why — on the application (fee_waiver), as an admissions note the office sees,
+ * and in the audit log. Throws reason_required on an empty reason.
+ */
+function mam_enrol_record_waiver(int $appId, ?int $by, string $reason): array {
+    $reason = trim($reason);
+    if ($reason === '') throw new RuntimeException('reason_required');
+    $w = ['by' => $by, 'at' => date('c'), 'reason' => mb_substr($reason, 0, 500)];
+    mam_db_update('applications', ['fee_waiver' => json_encode($w, JSON_UNESCAPED_UNICODE), 'updated_at' => date('Y-m-d H:i:s')], ['id' => $appId]);
+    try { mam_admissions_note($appId, $by, 'Registration fee waived at enrolment: ' . $w['reason']); } catch (Throwable $e) { /* the column + audit are the record */ }
+    mam_audit('registration_fee_waived', 'application', $appId, $w);
+    return $w;
 }
 
 /**

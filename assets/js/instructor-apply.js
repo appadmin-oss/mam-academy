@@ -876,7 +876,6 @@
     window.MAM_API.request('faculty-apply', { method: 'POST', body: body })
       .then(function (r) {
         clearDraft();
-        if (r && r.book_url) $('facBookBtn').href = r.book_url;
         if (r && r.reference) $('facRef').textContent = 'Your reference: ' + r.reference;
         setState('done');
         form.hidden = true;
@@ -886,7 +885,7 @@
         $('facExit').hidden = true;
         $('facResume').hidden = true;
         $('facDone').hidden = false;
-        announce.textContent = 'Application submitted. Please book your interview.';
+        announce.textContent = 'Application submitted. We will email you a time for your interview.';
         window.scrollTo({ top: 0, behavior: scrollBehavior() });
       })
       .catch(function (e2) {

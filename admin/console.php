@@ -95,6 +95,7 @@ $providers = [
     'auditions'      => fn() => mam_console_auditions(),
     'bursaries'      => fn() => mam_console_bursaries(),
     'funnel'         => fn() => mam_console_funnel(),
+    'faculty'        => fn() => mam_console_faculty($_GET),
     'students'       => fn() => mam_console_students($_GET),
     'cohorts'        => fn() => mam_console_cohorts(),
     'roster'         => fn() => mam_console_roster($_GET),

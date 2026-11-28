@@ -573,6 +573,16 @@ function mam_auth_invite(int $userId, int $ttl = MAM_INVITE_TTL_SEC): ?array {
  * support question this produces and the answer has to be in the log.
  */
 function mam_auth_send_invite(int $userId, string $role = 'student', string $context = 'account_invite'): ?array {
+    // A learner with no email of their own (a `@no-email.invalid` placeholder)
+    // signs in through nobody's inbox: no link is minted. Their guardian has their
+    // own account and invitation; a set-password link for the CHILD's account
+    // sent to the guardian would set a password nobody could sign in with, since
+    // the username is the placeholder.
+    $who = mam_db_row('SELECT email FROM users WHERE id = ?', [$userId]);
+    if ($who && function_exists('mam_email_is_placeholder') && mam_email_is_placeholder((string) $who['email'])) {
+        mam_log('info', 'invite_skipped_no_email', ['user' => $userId, 'context' => $context]);
+        return null;
+    }
     $inv = mam_auth_invite($userId);
     if (!$inv) return null;
     // `sent` says whether the email actually left. The link exists either way

@@ -14,60 +14,32 @@ if ($method === 'POST') {
     $valid  = ['submitted', 'confirmed', 'waitlisted', 'enrolled', 'cancelled', 'rejected'];
     if (!$id || !in_array($status, $valid, true)) mam_fail('invalid_params', 422);
 
-    $app = mam_db_row('SELECT id, reference, status FROM summer_applications WHERE id = ?', [$id]);
-    if (!$app) mam_fail('not_found', 404);
+    // Enrolling makes an account and a class place, like marking a year-round
+    // application enrolled — the console form requires `fees` for it, so the
+    // JSON twin does too (the route itself needs `admissions`; it used to need
+    // only `view`, so a read-only admin could enrol a child).
+    $me = mam_current_user();
+    if ($status === 'enrolled' && $me && !mam_admin_can($me, 'fees')) mam_fail('forbidden', 403);
 
-    $from = (string)$app['status'];
-    // Enforce the lifecycle (was: any status → any status, so a rejected place
-    // could be walked back to 'enrolled' and a cancelled one re-confirmed).
-    // Re-asserting the current status stays a no-op so the UI can be idempotent.
-    if ($from !== $status && !mam_summer_can_transition($from, $status)) {
-        mam_fail('illegal_transition', 409, ['from' => $from, 'to' => $status]);
+    // ONE implementation with the console form (decisions.php): the state
+    // machine, the refusal reason, the identity hold, the enrolment, the
+    // invitations, the ID card and the family's email.
+    try {
+        $res = mam_summer_set_status($id, $status, (int)($me['id'] ?? 0) ?: null,
+            isset($input['reason']) ? (string)$input['reason'] : null,
+            ['identity_confirmed' => !empty($input['identity_confirmed'])]);
+    } catch (RuntimeException $e) {
+        $code = $e->getMessage();
+        if ($code === 'not_found') mam_fail('not_found', 404);
+        if ($code === 'illegal_transition') mam_fail('illegal_transition', 409, ['message' => mam_summer_refusal($code)]);
+        mam_fail($code, 422, ['message' => mam_summer_refusal($code)]);
     }
+    if (!empty($res['held'])) mam_fail('identity_held', 409, ['message' => $res['message']]);
 
-    $wasEnrolled = ($from === 'enrolled');
-    if ($from !== $status) {
-        mam_db_update('summer_applications',
-            ['status' => $status, 'updated_at' => date('Y-m-d H:i:s')],
-            ['id' => $id]
-        );
-        mam_audit('update', 'summer_application', $id, ['from' => $from, 'to' => $status]);
-    }
-
-    // Becoming 'enrolled' must actually put the child on the LMS: a full student
-    // account, a guardian link, and an enrolment into the crash-programme
-    // SUMMER-<year> cohort for their discipline. Previously this flipped the
-    // status column and minted a card, leaving "enrolled" summer students off
-    // every roster and mark sheet.
-    $enrolment = null;
-    if ($status === 'enrolled' && !$wasEnrolled) {
-        try {
-            $enrolment = mam_summer_enrol($id, (int)(mam_current_user()['id'] ?? 0) ?: null);
-        } catch (\Throwable $e) {
-            mam_log('error', 'summer_enrol_failed', ['summer_app' => $id, 'err' => $e->getMessage()]);
-        }
-        // A LINK to choose a password, never a password. Sent here rather than
-        // inside mam_summer_enrol() so the provisioner stays testable without a
-        // mailer, and so a failed send cannot roll back an enrolment that already
-        // happened — the admin can re-issue from the users screen.
-        if ($enrolment && function_exists('mam_auth_send_invite')) {
-            if (!empty($enrolment['invite'])) {
-                mam_auth_send_invite((int) $enrolment['user_id'], 'student', 'summer_student_invite');
-            }
-            // The guardian gets their own invitation to their own account — the
-            // same link would set the CHILD's password, and a guardian portal a
-            // parent cannot open is not oversight.
-            if (!empty($enrolment['guardian_invite']) && !empty($enrolment['guardian_id'])) {
-                mam_auth_send_invite((int) $enrolment['guardian_id'], 'parent', 'summer_guardian_invite');
-            }
-        }
-        // Automation #9: issue ID card when summer application is enrolled.
-        if (mam_automation_on('id_card_issue')) mam_card_mint_for_summer_app($id);
-    }
-
+    $ref = (string)(mam_db_row('SELECT reference FROM summer_applications WHERE id = ?', [$id])['reference'] ?? '');
     mam_ok([
-        'ok' => true, 'reference' => $app['reference'], 'status' => $status,
-        'enrolment' => $enrolment,
+        'ok' => true, 'reference' => $ref, 'status' => $status,
+        'enrolment' => $res['enrolment'], 'emailed' => $res['emailed'], 'message' => $res['message'],
     ]);
 }
 

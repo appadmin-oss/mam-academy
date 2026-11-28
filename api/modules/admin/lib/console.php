@@ -218,6 +218,11 @@ function mam_console_nav(): array {
             ['key' => 'auditions',  'label' => 'Auditions',            'cap' => 'admissions'],
             ['key' => 'funnel',     'label' => 'Intake funnel',        'cap' => null],
             ['key' => 'bursaries',  'label' => 'Bursaries & awards',   'cap' => null],
+            /* Who wants to teach: teaching requests and instructor applications.
+               The handlers always existed; their only screen was the retired
+               legacy dashboard, so a candidate's application went nowhere a
+               person could see it (admissions fix 4). `users`, like the handlers. */
+            ['key' => 'faculty',    'label' => 'Faculty applications', 'cap' => 'users'],
         ]],
         /* Students & families: the people the academy serves, and the two
            desks that talk to them — what goes out (Communications) and what
@@ -354,6 +359,9 @@ function mam_console_badges(): array {
     // The library's own count, not a second copy of its query: one answer to
     // "how many need somebody now", which is what mam_sg_open_count() says it is.
     $b['safeguarding'] = (int) mam_console_try('badge.safeguarding', fn() => mam_sg_open_count(), 0);
+    $b['faculty'] = mam_console_int('badge.faculty',
+        "SELECT (SELECT COUNT(*) FROM faculty_invites WHERE status = 'requested')
+              + (SELECT COUNT(*) FROM instructor_applications WHERE status IN ('submitted','reviewing'))");
     $b['bursaries'] = mam_console_int('badge.bursaries',
         "SELECT COUNT(*) FROM bursary_applications WHERE status IN ('submitted','assessing')");
     return array_filter($b, fn($n) => $n > 0);
@@ -678,15 +686,84 @@ function mam_console_health(): array {
    2. Admissions
    ───────────────────────────────────────────────────────────────────────── */
 
+/** SQL: the applications flagged for the assessment (admissions fix 10) — an
+ *  instrument that is not a course of its own, or "not sure" of the level. The
+ *  same rule as mam_enrol_needs_assessment(), for a filter. */
+function mam_console_assessment_sql(): string {
+    return "((COALESCE(a.discipline, '') NOT IN (SELECT code FROM courses WHERE active = 1)
+              AND COALESCE(a.discipline, '') NOT IN ('" . implode("','", array_keys(MAM_DISCIPLINE_ALIASES)) . "'))
+          OR (a.pathway IN ('standard','certified-musician','grand-musician') AND COALESCE(a.level, '') = ''))";
+}
+
+/** A payment's status as a person reads it — never the stored code. */
+function mam_console_payment_status_label(string $status, ?string $purpose = null): string {
+    $what = ['booking_fee' => 'Registration fee', 'tuition' => 'Tuition', 'fee' => 'Fee', 'store' => 'Store order'][(string) $purpose] ?? 'Payment';
+    $state = [
+        'succeeded' => 'paid', 'pending_bank_transfer' => 'awaiting the bank transfer', 'pending' => 'started, not paid',
+        'failed' => 'failed', 'refunded' => 'refunded', 'abandoned' => 'not completed', 'cancelled' => 'cancelled',
+    ][$status] ?? str_replace('_', ' ', $status);
+    return $what . ' ' . $state;
+}
+
 /**
- * The intake board. One table across every intake type, which is what the
- * design's "one table, four intake types" means — v1 keeps summer in its own
- * table, so this UNIONs it in rather than pretending the divergence isn't there.
+ * The intake board. Year-round applications, with the two other intakes v1
+ * keeps in their own tables — summer and the MAM Scholars Initiative — listed
+ * from THOSE tables (they used to be counted and never shown: the scholarship
+ * filter read the applications table's pathway for a value nothing writes).
  */
 function mam_console_admissions(array $q = []): array {
     $stage = (string) ($q['stage'] ?? '');
     $type  = (string) ($q['type'] ?? '');
     $search = trim((string) ($q['q'] ?? ''));
+    if (!in_array($type, ['', 'assess', 'summer', 'scholarship'], true)) $type = '';
+
+    $types = [
+        'programme'   => mam_console_int('adm.t.prog', "SELECT COUNT(*) FROM applications"),
+        'assess'      => mam_console_int('adm.t.assess', "SELECT COUNT(*) FROM applications a WHERE a.status NOT IN ('cancelled','expired','enrolled') AND " . mam_console_assessment_sql()),
+        'summer'      => mam_console_int('adm.t.sum', "SELECT COUNT(*) FROM summer_applications"),
+        'scholarship' => mam_console_int('adm.t.sch', "SELECT COUNT(*) FROM scholarship_applications"),
+    ];
+    $base = ['types' => $types, 'stage' => $stage, 'type' => $type, 'q' => $search,
+             'stages' => mam_console_funnel_stages(), 'rows' => [], 'detail' => null,
+             'summer_rows' => [], 'summer_detail' => null, 'scholar_rows' => [], 'scholar_detail' => null,
+             'stale' => mam_console_int('adm.stale',
+                 "SELECT COUNT(*) FROM applications WHERE status IN ('pending','submitted') AND created_at < ?",
+                 [gmdate('Y-m-d H:i:s', time() - 5 * 86400)])];
+    $like = '%' . $search . '%';
+
+    if ($type === 'summer') {
+        $w = $search !== '' ? 'WHERE (reference LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)' : '';
+        $base['summer_rows'] = mam_console_rows('adm.sum.rows',
+            "SELECT id, reference, first_name, last_name, email, guardian_name, discipline, status, session_year,
+                    age_at_submission, identity_hold, created_at
+               FROM summer_applications $w ORDER BY id DESC LIMIT 200", $search !== '' ? [$like, $like, $like, $like] : []);
+        $sid = (int) ($q['app'] ?? 0) ?: (int) ($base['summer_rows'][0]['id'] ?? 0);
+        if ($sid > 0) {
+            $d = mam_console_row('adm.sum.detail', "SELECT * FROM summer_applications WHERE id = ?", [$sid]);
+            if ($d) {
+                $d['legal'] = mam_summer_transitions()[(string) $d['status']] ?? [];
+                $h = (string) ($d['identity_hold'] ?? '') !== '' ? json_decode((string) $d['identity_hold'], true) : null;
+                $d['hold_text'] = is_array($h) ? mam_summer_identity_hold_text($h) : null;
+                $d['enrolment'] = mam_console_row('adm.sum.enr',
+                    "SELECT ce.status, co.title FROM course_enrollments ce JOIN cohorts co ON co.id = ce.cohort_id
+                       JOIN users u ON u.id = ce.student_id
+                      WHERE LOWER(u.email) = LOWER(?) AND co.term = ? ORDER BY ce.id DESC LIMIT 1",
+                    [(string) $d['email'], 'SUMMER-' . (int) ($d['session_year'] ?? date('Y'))]);
+                $base['summer_detail'] = $d;
+            }
+        }
+        return $base;
+    }
+
+    if ($type === 'scholarship') {
+        $w = $search !== '' ? 'WHERE (reference LIKE ? OR full_name LIKE ? OR email LIKE ?)' : '';
+        $base['scholar_rows'] = mam_console_rows('adm.sch.rows',
+            "SELECT id, reference, application_reference, full_name, email, age_band, experience, readiness_signal, status, created_at
+               FROM scholarship_applications $w ORDER BY id DESC LIMIT 200", $search !== '' ? [$like, $like, $like] : []);
+        $cid = (int) ($q['app'] ?? 0) ?: (int) ($base['scholar_rows'][0]['id'] ?? 0);
+        if ($cid > 0) $base['scholar_detail'] = mam_console_row('adm.sch.detail', "SELECT * FROM scholarship_applications WHERE id = ?", [$cid]);
+        return $base;
+    }
 
     $where = []; $args = [];
     $stageMap = mam_console_admission_stage_statuses();
@@ -702,51 +779,61 @@ function mam_console_admissions(array $q = []): array {
         $where[] = "a.status IN ($in)";
         foreach ($stageMap[$stage] as $s) $args[] = $s;
     }
-    if ($type === 'scholarship') $where[] = "a.pathway = 'scholarship'";
-    elseif ($type === 'audition') $where[] = "a.auditer_optin = 1";
-    elseif ($type === 'programme') $where[] = "(a.pathway IS NULL OR a.pathway <> 'scholarship')";
+    if ($type === 'assess') {
+        $where[] = "a.status NOT IN ('cancelled','expired','enrolled')";
+        $where[] = mam_console_assessment_sql();
+    }
     if ($search !== '') {
-        $where[] = "(a.reference LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.email LIKE ?)";
-        $like = '%' . $search . '%';
-        array_push($args, $like, $like, $like, $like);
+        $where[] = "(a.reference LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.email LIKE ? OR a.parent_email LIKE ?)";
+        array_push($args, $like, $like, $like, $like, $like);
     }
     $sql = "SELECT a.id, a.reference, a.status, a.pathway, a.program, a.level, a.discipline,
-                   a.created_at, a.total_usd, a.readiness_signal, a.assignee_id, a.session,
+                   a.created_at, a.total_usd, a.readiness_signal, a.assignee_id, a.session, a.identity_hold,
                    c.first_name, c.last_name, c.email, c.phone,
-                   u.name AS assignee
+                   u.name AS assignee,
+                   CASE WHEN " . mam_console_assessment_sql() . " THEN 1 ELSE 0 END AS needs_assessment
               FROM applications a
               LEFT JOIN customers c ON c.id = a.customer_id
               LEFT JOIN users u ON u.id = a.assignee_id"
         . ($where ? ' WHERE ' . implode(' AND ', $where) : '')
         . " ORDER BY a.created_at ASC LIMIT 200";
 
-    $rows = mam_console_rows('adm.rows', $sql, $args);
+    $base['rows'] = mam_console_rows('adm.rows', $sql, $args);
+    $base['stage'] = $stage;
 
-    $types = [
-        'all'         => mam_console_int('adm.t.all', "SELECT COUNT(*) FROM applications"),
-        'programme'   => mam_console_int('adm.t.prog', "SELECT COUNT(*) FROM applications WHERE pathway IS NULL OR pathway <> 'scholarship'"),
-        'summer'      => mam_console_int('adm.t.sum', "SELECT COUNT(*) FROM summer_applications"),
-        'scholarship' => mam_console_int('adm.t.sch', "SELECT COUNT(*) FROM applications WHERE pathway = 'scholarship'"),
-        'audition'    => mam_console_int('adm.t.aud', "SELECT COUNT(*) FROM applications WHERE auditer_optin = 1"),
-    ];
-
-    $detail = null;
     $appId = (int) ($q['app'] ?? 0);
-    if ($appId <= 0 && $rows) $appId = (int) $rows[0]['id'];
-    if ($appId > 0) $detail = mam_console_application($appId);
+    if ($appId <= 0 && $base['rows']) $appId = (int) $base['rows'][0]['id'];
+    if ($appId > 0) $base['detail'] = mam_console_application($appId);
+    return $base;
+}
 
-    return [
-        'rows'   => $rows,
-        'stages' => mam_console_funnel_stages(),
-        'types'  => $types,
-        'stage'  => $stage,
-        'type'   => $type,
-        'q'      => $search,
-        'stale'  => mam_console_int('adm.stale',
-            "SELECT COUNT(*) FROM applications WHERE status IN ('pending','submitted') AND created_at < ?",
-            [gmdate('Y-m-d H:i:s', time() - 5 * 86400)]),
-        'detail' => $detail,
-    ];
+/**
+ * Faculty applications: teaching requests waiting for a yes (faculty_invites
+ * 'requested'), invitations out, and instructor applications with the panel's
+ * detail. Every action posts to the existing handlers in admin/index.php
+ * (faculty_request_review, faculty_invite, faculty_app_status,
+ * faculty_assign_subjects) — nothing here writes.
+ */
+function mam_console_faculty(array $q = []): array {
+    $requests = mam_console_rows('fac.req',
+        "SELECT id, email, name, source, created_at FROM faculty_invites WHERE status = 'requested' ORDER BY id DESC LIMIT 100");
+    $invited = mam_console_rows('fac.inv',
+        "SELECT id, email, name, invited_at, expires_at FROM faculty_invites WHERE status = 'invited' ORDER BY id DESC LIMIT 50");
+    $apps = mam_console_rows('fac.apps',
+        "SELECT id, email, full_name, disciplines, experience_years, location, readiness_signal, status, created_at
+           FROM instructor_applications ORDER BY id DESC LIMIT 200");
+    $detail = null;
+    $id = (int) ($q['app'] ?? 0) ?: (int) ($apps[0]['id'] ?? 0);
+    if ($id > 0) {
+        $detail = mam_console_try('fac.detail', fn() => mam_faculty_application_detail($id), null);
+        if ($detail) {
+            $detail['legal'] = mam_faculty_app_transitions()[(string) $detail['status']] ?? [];
+            $detail['account'] = mam_console_row('fac.acct', "SELECT id, status FROM users WHERE LOWER(email) = LOWER(?)", [(string) $detail['email']]);
+        }
+    }
+    $counts = [];
+    foreach (mam_console_rows('fac.counts', "SELECT status, COUNT(*) n FROM instructor_applications GROUP BY status") as $r) $counts[(string) $r['status']] = (int) $r['n'];
+    return ['requests' => $requests, 'invited' => $invited, 'apps' => $apps, 'detail' => $detail, 'counts' => $counts];
 }
 
 /** The applicant card: everything a first look needs, plus its own history. */
@@ -769,8 +856,13 @@ function mam_console_application(int $id): ?array {
            LEFT JOIN users u ON u.id = n.author_id
           WHERE n.application_id = ? ORDER BY n.created_at DESC LIMIT 10", [$id]);
     $a['payments'] = mam_console_rows('adm.pay',
-        "SELECT reference, provider, status, amount, currency, amount_usd_cents, created_at
+        "SELECT reference, provider, purpose, status, amount, currency, amount_usd_cents, created_at
            FROM payments WHERE application_id = ? ORDER BY created_at DESC", [$id]);
+    // What the office must settle at the assessment, if anything (fix 10), and
+    // whether the registration fee is paid or already waived (fix 5).
+    $a['assessment'] = mam_console_try('adm.assess', fn() => mam_enrol_needs_assessment($a), null);
+    $a['fee_settled'] = (bool) mam_console_try('adm.fee', fn() => mam_enrol_fee_settled($a), false);
+    $a['contact'] = mam_console_try('adm.contact', fn() => mam_application_contact($a), null);
     $a['readiness'] = mam_console_try('adm.readiness',
         fn() => mam_application_readiness($a), null);
     /* ── Student management: what the assign / placement forms offer ──
@@ -1820,32 +1912,37 @@ function mam_console_bursaries(): array {
    ───────────────────────────────────────────────────────────────────────── */
 
 function mam_console_funnel(): array {
+    /* The APPLICATION funnel only. funnel_events also carries the Studio's
+       engagement beacons (tool_open, demo_start…), and counting every sid made
+       "Started" a count of Studio visitors. The form reports apply_start, one
+       apply_step_view per screen (step = the screen's fixed number, see
+       FUNNEL in apply-flow.js), apply_submit and apply_pay (admissions fix 9). */
     $steps = mam_console_rows('fun.steps',
         "SELECT step, COUNT(DISTINCT sid) reached FROM funnel_events
-          WHERE step IS NOT NULL GROUP BY step ORDER BY step");
-    $starts = mam_console_int('fun.starts', "SELECT COUNT(DISTINCT sid) FROM funnel_events");
+          WHERE event IN ('apply_start','apply_step_view') AND step IS NOT NULL GROUP BY step ORDER BY step");
+    $starts = mam_console_int('fun.starts',
+        "SELECT COUNT(DISTINCT sid) FROM funnel_events WHERE event IN ('apply_start','apply_step_view')");
     $submitted = mam_console_int('fun.sub', "SELECT COUNT(*) FROM applications");
-    // Half-finished applications. The draft carries its own status, so a draft
-    // that never became an application is the one that is not 'submitted' — this
-    // is the largest pool in the funnel and nothing reaches it today.
-    $drafts = mam_console_int('fun.drafts',
-        "SELECT COUNT(*) FROM application_drafts WHERE status <> 'submitted'");
 
+    // Screens only some applicants see (Grand's other disciplines, the level, the
+    // style) are not a drop when fewer reach them: they are measured against the
+    // screens everybody sees.
+    $conditional = [7, 8, 9];
     $prev = null; $rows = [];
     foreach ($steps as $s) {
         $n = (int) $s['reached'];
+        $cond = in_array((int) $s['step'], $conditional, true);
         $rows[] = ['step' => (int) $s['step'], 'reached' => $n,
-            'dropped' => $prev === null ? 0 : max(0, $prev - $n),
+            'dropped' => $cond || $prev === null ? 0 : max(0, $prev - $n),
             'pct' => $starts > 0 ? mam_console_pct($n, $starts) : 0];
-        $prev = $n;
+        if (!$cond) $prev = $n;
     }
 
     $byPathway = mam_console_rows('fun.path',
         "SELECT pathway, COUNT(DISTINCT sid) n FROM funnel_events
-          WHERE pathway IS NOT NULL AND pathway <> '' GROUP BY pathway ORDER BY n DESC");
+          WHERE event LIKE 'apply%' AND pathway IS NOT NULL AND pathway <> '' GROUP BY pathway ORDER BY n DESC");
 
-    return ['starts' => $starts, 'submitted' => $submitted, 'steps' => $rows,
-        'drafts' => $drafts, 'by_pathway' => $byPathway,
+    return ['starts' => $starts, 'submitted' => $submitted, 'steps' => $rows, 'by_pathway' => $byPathway,
         'conversion' => $starts > 0 ? mam_console_pct($submitted, $starts) : null];
 }
 
@@ -2704,7 +2801,11 @@ function mam_console_auditions(): array {
         "SELECT a.id, a.reference, a.discipline, a.level, a.status, a.created_at,
                 c.first_name, c.last_name, c.email
            FROM applications a LEFT JOIN customers c ON c.id = a.customer_id
-          WHERE a.auditer_optin = 1 AND a.status IN ('interview_scheduled','audition_scheduled','under_review','pending')
+          -- Booked = the registration (booking) fee is paid and the application is
+          -- still open. It filtered on the Auditer opt-in (every application: /apply sends
+          -- it for everybody) and statuses the state machine never writes, so the
+          -- list was always empty.
+          WHERE a.booking_fee_paid_at IS NOT NULL AND a.status IN ('submitted','in_review','waitlisted','accepted','paid')
           ORDER BY a.created_at LIMIT 40");
     return ['results' => $results, 'booked' => $booked,
         'placement_on' => (bool) mam_console_try('au.auto', fn() => mam_automation_on('auditer_placement'), false)];

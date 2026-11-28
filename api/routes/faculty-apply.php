@@ -8,7 +8,7 @@
  *        410 {error:'invite_used'} / 410 {error:'invite_expired'} / 404 {error:'invite_invalid'}
  *        Without one: 403 {error:'invite_required'} when open applications are off.
  *
- *   POST /api/faculty-apply → { ok, reference, book_url }
+ *   POST /api/faculty-apply → { ok, reference }
  *        body: { token?, email?, full_name, phone?, subjects[], referees[],
  *                bio, qualifications?, teaching_philosophy?, programmes[]?,
  *                teaching_modes[]?, availability[]?, weekly_hours?,
@@ -61,7 +61,7 @@ $email = mam_faculty_applicant_email($inv, $in);
 
 // Honeypot: bots fill every field; humans never see this one. Answer as though
 // it worked — telling a bot it was caught only tells it what to change.
-if (trim((string)($in['website'] ?? '')) !== '') mam_ok(['ok' => true, 'book_url' => mam_faculty_book_url()]);
+if (trim((string)($in['website'] ?? '')) !== '') mam_ok(['ok' => true]);
 
 $v = mam_faculty_validate_full($in);
 if ($v['errors']) mam_fail('validation', 422, ['fields' => $v['errors']]);
@@ -69,10 +69,10 @@ if ($v['errors']) mam_fail('validation', 422, ['fields' => $v['errors']]);
 $id = mam_faculty_application_save($email, $v, mam_client_ip());
 if ($inv) mam_faculty_consume((int)$inv['id']);     // single-use: this link is now dead
 
-$bookUrl = mam_faculty_book_url();
-
-mam_after_response(function () use ($email, $v, $id, $bookUrl) {
-    $adminUrl = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/admin/?v=users#faculty';
+mam_after_response(function () use ($email, $v, $id) {
+    // The console's Faculty applications screen (the old ?v=users#faculty link
+    // named a retired view and an anchor nothing drew).
+    $adminUrl = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/admin/console.php?v=faculty&app=' . (int) $id;
     $notify = (string)mam_env('NOTIFY_EMAIL', mam_env('MAIL_FROM', ''));
     $name = (string)$v['data']['full_name'];
 
@@ -122,15 +122,14 @@ mam_after_response(function () use ($email, $v, $id, $bookUrl) {
             rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/api/policy/FAC-' . $id),
         'faculty_policy', true);
 
-    mam_send($email, 'Next step: book your MAM Academy interview',
-        mam_email_layout(['header' => 'MAM ACADEMY', 'preheader' => 'Your application is in — book your interview appointment.',
+    mam_send($email, 'Your MAM Academy instructor application (FAC-' . $id . ')',
+        mam_email_layout(['header' => 'MAM ACADEMY', 'preheader' => 'Your application is with the faculty panel — we will email you a time to meet.',
             'reason' => 'You received this because you submitted an instructor application to MAM Academy.',
             'body' => "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:20px'>Thank you, " . htmlspecialchars($name) . "</h2>"
-                . "<p style='margin:0 0 10px'>Your instructor application is with our faculty panel. The next step is yours: <strong>book your interview appointment</strong> so we can meet you.</p>"
+                . "<p style='margin:0 0 10px'>Your instructor application (reference <strong>FAC-{$id}</strong>) is with our faculty panel. The panel meets every candidate before an offer, and <strong>we will email you a time for your interview</strong>. There is nothing to book.</p>"
                 . "<p style='margin:0 0 10px;font-size:14px;color:#6B5B49'>Because you would be teaching children, an offer follows safer-recruitment checks: we take up both references and confirm your clearances before any teaching begins.</p>"
-                . "<p style='margin:0 0 10px;font-size:14px;color:#6B5B49'>We have also sent you the <strong>" . htmlspecialchars(MAM_POLICY_INSTRUCTOR_TITLE) . "</strong> in a separate email — the policy you agreed to when you applied. Please keep it.</p>"
-                . mam_email_button($bookUrl, 'Book your appointment')]),
+                . "<p style='margin:0 0 10px;font-size:14px;color:#6B5B49'>We have also sent you the <strong>" . htmlspecialchars(MAM_POLICY_INSTRUCTOR_TITLE) . "</strong> in a separate email — the policy you agreed to when you applied. Please keep it.</p>"]),
         'faculty_application_ack', true);
 });
 
-mam_ok(['ok' => true, 'reference' => 'FAC-' . $id, 'book_url' => $bookUrl]);
+mam_ok(['ok' => true, 'reference' => 'FAC-' . $id]);

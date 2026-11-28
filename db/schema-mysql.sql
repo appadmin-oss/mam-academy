@@ -4068,3 +4068,13 @@ UPDATE student_consents
    SET media_decided_at = updated_at, photo_decided_at = updated_at, data_decided_at = updated_at
  WHERE updated_by IS NOT NULL;
 INSERT INTO schema_version (version) VALUES (112) ON DUPLICATE KEY UPDATE version = version;
+
+-- v113 — admissions fixes: intake consent (three answers, NULL = not answered),
+-- a recorded registration-fee waiver, and the identity hold + decision reason
+-- on summer applications.
+ALTER TABLE applications ADD COLUMN photo_consent TINYINT(1) NULL;
+ALTER TABLE applications ADD COLUMN media_consent TINYINT(1) NULL;
+ALTER TABLE applications ADD COLUMN fee_waiver TEXT NULL;
+ALTER TABLE summer_applications ADD COLUMN identity_hold TEXT NULL;
+ALTER TABLE summer_applications ADD COLUMN decision_reason TEXT NULL;
+INSERT INTO schema_version (version) VALUES (113) ON DUPLICATE KEY UPDATE version = version;

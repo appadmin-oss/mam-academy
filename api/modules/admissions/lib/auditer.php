@@ -107,6 +107,11 @@ function mam_auditer_record(int $customerId, string $recommendedPathway, array $
         $gApp = mam_db_row("SELECT * FROM applications WHERE customer_id = ? AND COALESCE(parent_email, '') <> '' ORDER BY id DESC LIMIT 1", [$customerId]);
         if ($gApp) mam_application_link_guardian($gApp, $studentId, $auditedBy);
     }
+    // The photo / recording consent the newest application gave at intake.
+    if (function_exists('mam_application_record_consent')) {
+        $cApp = mam_db_row('SELECT * FROM applications WHERE customer_id = ? ORDER BY id DESC LIMIT 1', [$customerId]);
+        if ($cApp) mam_application_record_consent($cApp, $studentId, $auditedBy);
+    }
 
     // The capture: one authoritative placement row.
     $out['result_id'] = mam_db_insert('auditer_results', [
@@ -122,6 +127,40 @@ function mam_auditer_record(int $customerId, string $recommendedPathway, array $
     $automationOn = !function_exists('mam_automation_on') || mam_automation_on('auditer_placement');
     if (!$automationOn) { $out['note'] = 'automation_off'; return $out; }
     if ($courseCode === '' || !function_exists('mam_lms_add_course')) { $out['note'] = 'no_course'; return $out; }
+
+    /* Through mam_enrol_complete() — the ONE implementation of account → course
+       → cohort → instructor → application status (admissions fix 5). This used
+       to call mam_lms_add_course() with programme NULL, so the placement landed
+       in a different class from the one Complete enrolment or a payment would
+       choose, no instructor was attached, and the application stayed 'accepted'.
+       The programme comes from the application (its pathway and the applicant's
+       age), exactly as the other two paths resolve it. */
+    $appId = (int) ($opts['application_id'] ?? 0);
+    if ($appId <= 0) {
+        $appRow = mam_db_row("SELECT id FROM applications WHERE customer_id = ? AND status NOT IN ('cancelled','expired') ORDER BY id DESC LIMIT 1", [$customerId]);
+        $appId = $appRow ? (int) $appRow['id'] : 0;
+    }
+    if ($appId > 0 && function_exists('mam_enrol_complete')) {
+        $ov = ['course' => $courseCode, 'level' => $levelCode];
+        if ($programCode !== null) $ov['programme'] = $programCode;
+        try {
+            $done = mam_enrol_complete($appId, $ov, $auditedBy);
+            $course = array_values(array_filter($done['steps'], fn($st) => ($st['step'] ?? '') === 'course'))[0] ?? null;
+            $out['enrolled'] = $done['ok'] && $course && !empty($course['ok']);
+            $out['enrollment_id'] = (int) ($course['enrolment_id'] ?? 0) ?: null;
+            $out['programme'] = $done['plan']['programme']['code'] ?? null;
+            $out['steps'] = $done['steps'];
+            $out['note'] = $done['ok'] ? (!empty($course['waitlisted']) ? 'waitlisted' : 'enrolled') : (string) $done['error'];
+            if ($done['ok'] && function_exists('mam_automation_touch')) mam_automation_touch('auditer_placement');
+        } catch (\Throwable $e) {
+            $out['note'] = 'enrol_failed';
+            if (function_exists('mam_log')) mam_log('warn', 'auditer_enrol_failed', ['student' => $studentId, 'app' => $appId, 'err' => $e->getMessage()]);
+        }
+        return $out;
+    }
+
+    // No application on file (a placement recorded for somebody who never
+    // applied): enrol directly, with the programme that was named.
     try {
         $enr = mam_lms_add_course($studentId, $courseCode, $levelCode ?: null, $programCode, null);
         $out['enrolled'] = true;

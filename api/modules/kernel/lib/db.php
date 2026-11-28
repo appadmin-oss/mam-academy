@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 112;
+const MAM_SCHEMA_TARGET = 113;
 
 /**
  * Open (and cache) the PDO connection.
@@ -4381,6 +4381,24 @@ function mam_db_migrate(PDO $db): void {
             UPDATE student_consents
                SET media_decided_at = updated_at, photo_decided_at = updated_at, data_decided_at = updated_at
              WHERE updated_by IS NOT NULL;
+        ",
+        // v113 — the admissions fixes (2026-11-28).
+        //  • applications.photo_consent / media_consent: asked at intake, three
+        //    answers (1 yes, 0 no, NULL not answered); copied onto student_consents
+        //    when the account is made.
+        //  • applications.fee_waiver: JSON {by, at, reason} when an admin enrols an
+        //    applicant whose registration fee was never paid. NULL = no waiver.
+        //  • summer_applications.identity_hold: the same hold as applications (v109)
+        //    — a summer application on an address that already belongs to another
+        //    person (a sibling's) is not enrolled into that person's account.
+        //  • summer_applications.decision_reason: what the family was told.
+        // All nullable with no DEFAULT (MySQL TEXT cannot carry one).
+        113 => "
+            ALTER TABLE applications ADD COLUMN photo_consent INTEGER;
+            ALTER TABLE applications ADD COLUMN media_consent INTEGER;
+            ALTER TABLE applications ADD COLUMN fee_waiver TEXT;
+            ALTER TABLE summer_applications ADD COLUMN identity_hold TEXT;
+            ALTER TABLE summer_applications ADD COLUMN decision_reason TEXT;
         ",
     ];
 

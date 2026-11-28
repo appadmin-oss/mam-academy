@@ -273,7 +273,9 @@ function mam_payment_target_closed(array $payment): ?string {
                     [(int) ($payment['application_id'] ?? 0)]);
     if (!$a) return 'application_not_found';
     // An erased applicant's address is an RFC 2606 .invalid tombstone (CLAUDE.md, erasure).
-    if (preg_match('/\.invalid$/i', (string) ($a['email'] ?? ''))) return 'application_erased';
+    // A learner with no email of their own carries a `@no-email.invalid`
+    // placeholder and is NOT erased (validation.php, mam_email_is_erased()).
+    if (mam_email_is_erased((string) ($a['email'] ?? ''))) return 'application_erased';
     return in_array((string) $a['status'], MAM_PAY_CLOSED_APP_STATES, true) ? 'application_' . $a['status'] : null;
 }
 

@@ -61,16 +61,12 @@ t_ok(strpos(mam_app_draft_resume_url('MAMK-draft-1'), 't=' . $tok) !== false, 'r
 mam_app_draft_mark_submitted('MAMK-draft-1');
 t_eq(mam_app_draft_load('MAMK-draft-1')['status'], 'submitted', 'a submitted draft is marked submitted');
 
-// ── Abandoned-draft nudge sweep (L3 automation) ──
-// A fresh draft (just saved) is NOT yet eligible (idle < 24h).
-mam_app_draft_save('MAMK-fresh', 'fresh@x.dev', ['currentStep' => 1]);
-t_eq(mam_app_draft_nudge_sweep(24, 168, 50), 0, 'a fresh draft is not nudged (idle < 24h)');
-// An old draft (idle 2 days, within window) IS nudged exactly once.
-mam_app_draft_save('MAMK-stale', 'stale@x.dev', ['currentStep' => 2]);
-mam_db_update('application_drafts', ['updated_at' => date('Y-m-d H:i:s', time() - 48 * 3600)], ['draft_key' => 'MAMK-stale']);
-t_eq(mam_app_draft_nudge_sweep(24, 168, 50), 1, 'a stale draft (idle 2 days) is nudged');
-t_eq(mam_app_draft_load('MAMK-stale')['status'], 'nudged', 'the nudged draft is marked nudged');
-t_eq(mam_app_draft_nudge_sweep(24, 168, 50), 0, 're-running the sweep does not nudge it again');
+// ── Abandoned-draft nudge sweep — REMOVED 2026-11-28 (admissions fix 9) ──
+// Nothing writes application_drafts since the /apply rework, so the sweep could
+// never send anything; it, its job and its cron step are gone. (These three
+// assertions used to exercise it; replaced deliberately.)
+t_ok(!function_exists('mam_app_draft_nudge_sweep'), 'the dead draft-nudge sweep is gone');
+t_ok(!str_contains((string) file_get_contents(MAM_API_ROOT . '/tools/run-jobs.php'), 'draft_nudge'), 'and the cron no longer runs it');
 
 // ── Admissions pipeline (A2) ──
 t_eq(mam_application_stage('in_review', '')['stage'], 'reviewing', 'in_review → reviewing stage');

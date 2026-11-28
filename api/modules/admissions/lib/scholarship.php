@@ -116,12 +116,73 @@ function mam_scholarship_create(array $d, ?string $ip = null): array {
     return ['reference' => $reference, 'status' => 'submitted'];
 }
 
+/** The programme's name, everywhere (it was "NGV Scholarship" on the site and in mail). */
+const MAM_SCHOLARS_NAME = 'MAM Scholars Initiative';
+
+/**
+ * Tell the applicant their application arrived, and the office that there is one
+ * to read (admissions fix 4). Neither used to happen: the submission was stored,
+ * nothing was sent, and nothing in the console listed it. Both through mam_send()
+ * (mail_log). Best-effort: a failed message never loses the application.
+ * Returns ['applicant' => bool, 'office' => bool].
+ */
+function mam_scholarship_notify(string $reference): array {
+    $out = ['applicant' => false, 'office' => false];
+    $row = mam_db_row('SELECT * FROM scholarship_applications WHERE reference = ?', [$reference]);
+    if (!$row) return $out;
+    $h = static fn($x) => htmlspecialchars((string) $x, ENT_QUOTES);
+    $base = rtrim((string) mam_env('APP_URL', 'https://academy.mamcentre.org'), '/');
+    $first = trim(explode(' ', trim((string) $row['full_name']))[0] ?? '') ?: 'there';
+    $p = static fn($t) => "<p style='margin:0 0 12px;font-size:15px;line-height:1.7;color:#4A3624'>$t</p>";
+    $out['applicant'] = mam_send((string) $row['email'], 'Your ' . MAM_SCHOLARS_NAME . ' application (' . $row['reference'] . ')',
+        mam_email_layout(['header' => 'MAM ACADEMY', 'preheader' => 'We have your ' . MAM_SCHOLARS_NAME . ' application.',
+            'reason' => 'You received this because you applied to the ' . MAM_SCHOLARS_NAME . '.',
+            'body' => "<h2 style='font-family:Georgia,serif;margin:0 0 14px;font-size:22px;color:#1A120B'>Thank you, " . $h($first) . '.</h2>'
+                . $p('We have your application to the ' . MAM_SCHOLARS_NAME . '. Your reference is <strong>' . $h($row['reference']) . '</strong>.')
+                . $p('A committee reads every application in full. The requirements we published are guidance, not a pass-or-fail test, and your MAM Auditer assessment informs the decision but never makes it. We will write to you with the outcome.')
+                . $p("You can check where it stands at any time: <a href='" . $h($base . '/status?ref=' . rawurlencode((string) $row['reference'])) . "' style='color:#B8721B;font-weight:600'>your application status</a>, with this reference and this email address.")]),
+        'scholarship_confirmation', true);
+    $notify = (string) mam_env('NOTIFY_EMAIL', '');
+    if ($notify !== '') {
+        $out['office'] = mam_send($notify, 'New ' . MAM_SCHOLARS_NAME . ' application — ' . $row['reference'],
+            mam_email_admin_notice('New ' . MAM_SCHOLARS_NAME . ' application', [
+                'Reference' => (string) $row['reference'], 'Name' => (string) $row['full_name'], 'Email' => (string) $row['email'],
+                'Age band' => (string) ($row['age_band'] ?? '—'), 'Experience' => (string) ($row['experience'] ?? '—'),
+                'Programme application' => (string) ($row['application_reference'] ?? '') ?: 'None linked',
+                'Readiness (advisory)' => (string) ($row['readiness_signal'] ?? '—'),
+            ], ['lede' => (string) $row['full_name'] . ' applied to the ' . MAM_SCHOLARS_NAME . '. The essays are on the console.',
+                'cta' => ['url' => $base . '/admin/console.php?v=admissions&type=scholarship&app=' . (int) $row['id'], 'label' => 'Read the application']]),
+            'scholarship_admin_notice', true, ['reply_to' => (string) $row['email']]);
+    }
+    return $out;
+}
+
+/** The scholarship status as the /status page shows any application: a stage,
+ *  its label and the next step (admissions fix 4 — /status refused SCH- refs). */
+function mam_scholarship_status_view(string $reference, string $email): ?array {
+    $st = mam_scholarship_status($reference, $email);
+    if (!$st) return null;
+    $row = mam_db_row('SELECT full_name FROM scholarship_applications WHERE reference = ?', [$st['reference']]);
+    $map = [
+        'submitted' => ['received', 'Application received', 'The committee reads every application in full. We will write to you with the outcome.'],
+        'reviewing' => ['reviewing', 'With the committee', 'The committee is reading your application. We will write to you with the outcome.'],
+        'awarded'   => ['accepted', 'Awarded', 'Congratulations — watch your email for what happens next.'],
+        'declined'  => ['closed', 'Not awarded this time', 'Thank you for applying. Your email from the committee explains the decision.'],
+    ];
+    [$stage, $label, $next] = $map[$st['status']] ?? $map['submitted'];
+    return [
+        'reference' => $st['reference'], 'first_name' => trim(explode(' ', trim((string) ($row['full_name'] ?? '')))[0] ?? ''),
+        'programme' => MAM_SCHOLARS_NAME, 'status' => $st['status'], 'stage' => $stage, 'stage_label' => $label,
+        'next_step' => $next, 'submitted_at' => $st['submitted_at'], 'is_scholarship' => true,
+    ];
+}
+
 /** Public status lookup — reference + matching email (mirrors application status). */
 function mam_scholarship_status(string $reference, string $email): ?array {
     $reference = trim($reference);
     $email = strtolower(trim($email));
     if ($reference === '' || $email === '') return null;
-    $row = mam_db_row('SELECT reference, status, created_at FROM scholarship_applications WHERE reference = ? AND email = ?', [$reference, $email]);
+    $row = mam_db_row('SELECT reference, status, created_at FROM scholarship_applications WHERE UPPER(reference) = UPPER(?) AND email = ?', [$reference, $email]);
     if (!$row) return null;
     return ['reference' => (string)$row['reference'], 'status' => (string)$row['status'], 'submitted_at' => (string)$row['created_at']];
 }

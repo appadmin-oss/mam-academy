@@ -60,6 +60,30 @@ function mam_consent_set(int $studentId, array $flags, ?int $by = null): void {
 }
 
 /**
+ * Copy the photo / recording consent an application gave at intake onto the
+ * student's account (admissions fix 8). Called wherever the account is made,
+ * next to mam_application_link_guardian(). An unanswered question (NULL) stays
+ * unanswered, and an answer already recorded on the account — the guardian may
+ * have changed it in the portal since — is never overwritten. Returns whether
+ * anything was recorded.
+ */
+function mam_application_record_consent(array $app, int $studentId, ?int $by = null): bool {
+    if ($studentId <= 0) return false;
+    $flags = [];
+    foreach (['photo', 'media'] as $k) {
+        $v = $app[$k . '_consent'] ?? null;
+        if ($v === null || $v === '') continue;
+        $flags[$k] = (int) $v === 1;
+    }
+    if (!$flags) return false;
+    $cur = mam_consent_get($studentId);
+    foreach (array_keys($flags) as $k) if (($cur[$k] ?? null) !== null) unset($flags[$k]);
+    if (!$flags) return false;
+    mam_consent_set($studentId, $flags, $by);
+    return true;
+}
+
+/**
  * The single enforcement gate. Returns true only if the named consent
  * ('media'|'photo'|'data') is explicitly granted. Default-deny, so any media
  * or showcase feature that calls this is safe-by-default for minors.

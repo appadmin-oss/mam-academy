@@ -252,6 +252,45 @@ function mam_email(string $s): ?string {
     return filter_var($s, FILTER_VALIDATE_EMAIL) ? $s : null;
 }
 
+/* ── A learner with no email of their own (admissions fix 8, 2026-11-28) ──────
+   The owner's decision: a child gets their OWN record and may have their own
+   address, but is never filed under the guardian's. customers.email and
+   users.email are UNIQUE NOT NULL, so a child with no address of their own gets
+   a stable, unroutable placeholder under the RFC 2606 `.invalid` TLD, in its own
+   second-level name so it is never mistaken for an erasure tombstone
+   (`@deleted.invalid`). The v2 importer already treats a live `.invalid` row as
+   "a synthetic no-address row", so this is the representation the codebase
+   already expects. It is derived from the guardian's address, the child's name
+   and date of birth, so the same child applying again lands on the same record
+   and a sibling on the same guardian gets a different one. Mail addressed to it
+   is redirected to the linked guardian by the mailer (mam_mail_route_placeholder),
+   and no sign-in invitation is ever minted for it. */
+const MAM_NO_EMAIL_DOMAIN = 'no-email.invalid';
+
+/** Is this a "this learner has no email of their own" placeholder? */
+function mam_email_is_placeholder(?string $email): bool {
+    return str_ends_with(strtolower(trim((string) $email)), '@' . MAM_NO_EMAIL_DOMAIN);
+}
+
+/** Is this an erasure tombstone (or another unroutable synthetic address) — anything
+ *  under `.invalid` EXCEPT the no-email placeholder, which is a live learner. */
+function mam_email_is_erased(?string $email): bool {
+    $e = strtolower(trim((string) $email));
+    return str_ends_with($e, '.invalid') && !mam_email_is_placeholder($e);
+}
+
+/** The stable placeholder address for a learner with no email of their own. */
+function mam_learner_placeholder_email(string $guardianEmail, string $first, string $last, ?string $dob): string {
+    $name = preg_replace('/\s+/u', ' ', mb_strtolower(trim($first . ' ' . $last))) ?? '';
+    $key  = strtolower(trim($guardianEmail)) . '|' . $name . '|' . substr(trim((string) $dob), 0, 10);
+    return 'learner-' . substr(hash('sha256', $key), 0, 16) . '@' . MAM_NO_EMAIL_DOMAIN;
+}
+
+/** Age, in completed years, below which the applicant is a CHILD: NDPA 2023 s.31
+ *  and the Child Rights Act 2003 both put it at 18. A parent or guardian applies
+ *  with every child, signs the class policy, and receives the correspondence. */
+const MAM_ADULT_AGE = 18;
+
 function mam_phone(string $s): ?string {
     $s = preg_replace('/[^\d+\-() ]/', '', trim($s));
     return strlen($s) >= 7 ? $s : null;
@@ -274,8 +313,10 @@ function mam_validate_application(array $in): array {
     if ($out['firstName'] === '') $errors[] = 'firstName';
     if ($out['lastName']  === '') $errors[] = 'lastName';
 
-    $out['email'] = mam_email(mam_str($in, 'email', 120));
-    if (!$out['email']) $errors[] = 'email';
+    // The learner's own address. A child may have none (admissions fix 8): it is
+    // resolved below, once the date of birth and the guardian are known.
+    $rawEmail = mam_str($in, 'email', 120);
+    $out['email'] = mam_email($rawEmail);
 
     $out['phone'] = mam_phone(mam_str($in, 'phone', 24));
     if (!$out['phone']) $errors[] = 'phone';
@@ -293,7 +334,11 @@ function mam_validate_application(array $in): array {
     $levelled = in_array($out['pathway'], ['standard','certified-musician','grand-musician'], true);
     $out['level'] = mam_str($in, 'level', 16);
     if ($levelled) {
-        if (!mam_in($out['level'], array_keys(MAM_LEVELS))) $errors[] = 'level';
+        // "Not sure yet" is a real answer: the level is stored EMPTY (NULL) and the
+        // MAM Auditer assessment sets it. It used to be stored as Pre-Certificate,
+        // so the office could not tell a chosen starting level from a guess.
+        // Pricing estimates an unset level at the starting level (application.php).
+        if ($out['level'] !== '' && !mam_in($out['level'], array_keys(MAM_LEVELS))) $errors[] = 'level';
     } else {
         $out['level'] = ''; // ignored by pricing for crash/meta-order
     }
@@ -433,13 +478,48 @@ function mam_validate_application(array $in): array {
     $out['extraCourses'] = $minorsCarry ? max(0, min(12, (int)($in['extraCourses'] ?? 0))) : 0;
     $out['coursesLabel'] = $minorsCarry ? (mam_str($in, 'coursesLabel', 400) ?: null) : null;
 
-    // Under-16 (KTAMS) students must have a parent/guardian on record.
-    if ($out['programTrack'] === 'KTAMS' && ($out['parentName'] === null || $out['parentName'] === '')) {
+    // A CHILD — under 18 (NDPA 2023 s.31, Child Rights Act 2003) — applies with a
+    // parent or guardian on record, who signs and receives the correspondence. This
+    // was under 16 (the KTAMS programme line), so a 16- or 17-year-old signed the
+    // class policy for themselves and no guardian was ever linked. KTAMS stays the
+    // under-16 PROGRAMME; who must sign is a different question.
+    $out['isMinor'] = $dobProblem === null && $age !== null && $age < MAM_ADULT_AGE;
+    if ($out['isMinor'] && ($out['parentName'] === null || $out['parentName'] === '')) {
         $errors[] = 'parentName';
     }
-    if ($out['programTrack'] === 'KTAMS' && $out['parentEmail'] === null && !in_array('parentEmail', $errors, true)) {
+    if ($out['isMinor'] && $out['parentEmail'] === null && !in_array('parentEmail', $errors, true)) {
         $errors[] = 'parentEmail';
     }
+
+    // The learner's own address. A child's record is never filed under the
+    // guardian's address (that refused the guardian link as `same_as_student` and
+    // gave the child's login the guardian's inbox). A child with no address of
+    // their own — or one who typed the guardian's — gets a placeholder.
+    if ($out['isMinor'] && $out['parentEmail'] !== null && !in_array('parentEmail', $errors, true)
+        && ($out['email'] === null || $out['email'] === $out['parentEmail'])) {
+        if ($rawEmail === '' || $out['email'] !== null) {
+            $out['email'] = mam_learner_placeholder_email($out['parentEmail'], $out['firstName'], $out['lastName'], $out['dob']);
+            $out['emailPlaceholder'] = true;
+        }
+    }
+    if (!$out['email']) $errors[] = 'email';
+    $out['emailPlaceholder'] = !empty($out['emailPlaceholder']);
+
+    // Photo and recording consent, asked at intake (three answers: yes, no, or not
+    // answered yet — NULL is never read as a no on screen, and is a refusal at
+    // the gate, mam_consent_allows()). Recorded on the account when it is made.
+    $tri = static function ($v): ?int {
+        $v = is_string($v) ? strtolower(trim($v)) : $v;
+        if ($v === true || $v === 1 || $v === 'yes' || $v === '1') return 1;
+        if ($v === false || $v === 0 || $v === 'no' || $v === '0') return 0;
+        return null;
+    };
+    $out['photoConsent'] = $tri($in['photoConsent'] ?? null);
+    $out['mediaConsent'] = $tri($in['mediaConsent'] ?? null);
+
+    // How the applicant chose to pay the registration ('card' or 'transfer'). Not
+    // stored: it decides whether the confirmation carries the bank details.
+    $out['payMethod'] = mam_in(mam_str($in, 'payMethod', 16), ['card', 'transfer']) ? mam_str($in, 'payMethod', 16) : null;
 
     // Class policy agreement (online -> home policy, onsite -> onsite policy).
     // policyMode mirrors the chosen learning mode; the signed name is the
@@ -452,8 +532,8 @@ function mam_validate_application(array $in): array {
 
     if (!empty($errors)) mam_fail('validation', 422, ['fields' => $errors, 'messages' => $messages]);
 
-    // KTAMS (under-16): the policy signature must match the guardian's name
-    if ($out['programTrack'] === 'KTAMS' && !empty($out['parentName']) && ($out['policySignedName'] ?? '') !== '') {
+    // A child (under 18): the policy signature must match the guardian's name.
+    if ($out['isMinor'] && !empty($out['parentName']) && ($out['policySignedName'] ?? '') !== '') {
         if (mb_strtolower(trim($out['policySignedName'])) !== mb_strtolower(trim($out['parentName']))) {
             mam_fail('validation', 422, ['fields' => ['policySignedName']]);
         }

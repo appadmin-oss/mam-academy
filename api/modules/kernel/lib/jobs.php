@@ -74,14 +74,6 @@ function mam_job_handlers(): array {
             return true;
         },
 
-        // Abandoned-draft nudge sweep: one gentle "finish your application" email
-        // per eligible server draft (idle 24h–7d, has an email, not yet nudged).
-        'app_draft_nudge' => function (array $p): bool {
-            if (!function_exists('mam_app_draft_nudge_sweep')) return false;
-            mam_app_draft_nudge_sweep();
-            return true;
-        },
-
         // Post-session progress report deadline check (v46).
         // Runs 2 hrs after a session is marked 'held'. For every active student
         // in the cohort without a submitted report, records an instructor fine.

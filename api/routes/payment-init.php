@@ -87,14 +87,19 @@ if ($purpose === 'store') {
             ]);
         }
     }
-    // 'paid' is not the only settled state — admissions may have advanced the
-    // application to 'enrolled'/'accepted' after payment. Treat all three as
-    // already-paid so tuition can't be charged a second time (matches the paid
-    // set used by mam_tuition_status / invoicing).
-    if ($purpose === 'tuition' && in_array((string)($app['status'] ?? ''), ['paid', 'enrolled', 'accepted'], true)) {
+    // Settled tuition is 'paid' or 'enrolled', or a succeeded tuition payment on
+    // record — the same rule as mam_tuition_status(). 'accepted' is NOT paid: it
+    // is the offer, and paying tuition is how a family holds it, so treating it
+    // as paid refused exactly the families who had just been offered a place.
+    if ($purpose === 'tuition' && (in_array((string)($app['status'] ?? ''), ['paid', 'enrolled'], true)
+        || mam_db_row("SELECT 1 AS x FROM payments WHERE application_id = ? AND purpose = 'tuition' AND status = 'succeeded' LIMIT 1", [(int) $app['id']]))) {
         mam_ok(['already_paid' => true, 'purpose' => $purpose, 'reference' => $payRef]);
     }
     $customerEmail = (string)$app['email'];
+    // A child with no email of their own: the guardian pays and gets the receipt.
+    if (mam_email_is_placeholder($customerEmail) && filter_var((string) ($app['parent_email'] ?? ''), FILTER_VALIDATE_EMAIL)) {
+        $customerEmail = strtolower((string) $app['parent_email']);
+    }
     $customerPhone = (string)$app['phone'];
     $customerName  = trim($app['first_name'] . ' ' . $app['last_name']);
 }
@@ -258,6 +263,25 @@ try {
     } elseif ($provider === 'bank') {
         mam_db_update('payments', ['status' => 'pending_bank_transfer'], ['reference' => $ref]);
         mam_audit('init', 'payment', null, ['ref' => $ref, 'provider' => $provider]);
+        /* Switched to transfer AFTER a card attempt (card refused, window closed,
+           or "I'd rather bank-transfer" on /book): the confirmation already sent
+           said nothing about a bank account, so the details go by email now, once.
+           A transfer chosen on /apply carries them in the confirmation itself. */
+        $instructions = mam_bank_instructions($ref, $displayLabel);
+        if ($app && $existing && (string) ($existing['provider'] ?? '') !== 'bank' && (string) ($existing['status'] ?? '') !== 'pending_bank_transfer') {
+            $bankTo = mam_application_contact($app)['email'] ?? null;
+            if ($bankTo) {
+                $bankRef = $ref;
+                mam_after_response(function () use ($bankTo, $bankRef, $instructions) {
+                    mam_send($bankTo, 'MAM Academy — bank transfer details (' . $bankRef . ')',
+                        mam_email_layout(['header' => 'MAM ACADEMY', 'preheader' => 'The account to pay into, and the reference to use.',
+                            'reason' => 'You received this because you chose to pay MAM Academy by bank transfer.',
+                            'body' => "<h2 style='font-family:Georgia,serif;margin:0 0 12px;font-size:20px'>Paying by bank transfer</h2>"
+                                . "<p style='margin:0 0 10px;font-size:15px;line-height:1.7'>" . htmlspecialchars($instructions, ENT_QUOTES) . '</p>']),
+                        'bank_transfer_instructions', true);
+                });
+            }
+        }
         mam_ok([
             'provider' => 'bank',
             'reference' => $ref,
@@ -267,7 +291,7 @@ try {
             'display_currency' => $displayCur,
             'display_amount'   => $displayAmount,
             'bank'         => mam_bank_details(),
-            'instructions' => mam_bank_instructions($ref, $displayLabel),
+            'instructions' => $instructions,
         ]);
     } else {
         mam_fail('unsupported_provider', 400, ['provider' => $provider]);

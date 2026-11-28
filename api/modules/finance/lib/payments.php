@@ -298,8 +298,8 @@ function mam_tuition_status(string $ref, string $email): ?array {
     $row = mam_db_row(
         "SELECT a.id, a.reference, a.status, a.total_usd, a.pathway, c.first_name
            FROM applications a JOIN customers c ON c.id = a.customer_id
-          WHERE a.reference = ? AND LOWER(c.email) = ?",
-        [$ref, $email]
+          WHERE a.reference = ? AND (LOWER(c.email) = ? OR LOWER(COALESCE(a.parent_email, '')) = ?)",
+        [$ref, $email, $email]   // the guardian's address too: a child's tuition is paid by the parent
     );
     if (!$row) return null;
     $amountUsd = (float)$row['total_usd'];
@@ -414,7 +414,23 @@ function mam_payment_settle_booking(int $appId): void {
 /** Tuition: mark paid, provision the student portal, email credentials. Returns a notice tag. */
 function mam_payment_settle_tuition(int $appId): ?string {
     if ($appId <= 0) return null;
-    mam_db_update('applications', ['status' => 'paid', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $appId]);
+    /* Through the admissions state machine (application_events), never a raw
+       write. The raw UPDATE moved an ENROLLED application back to 'paid' and
+       re-opened a CANCELLED one. Now: already enrolled stays enrolled (the money
+       is recorded on the payment, the placement is untouched); a closed
+       application (cancelled / expired) is not re-opened and nothing is
+       provisioned from it — the closed-target guard marks such money refund-due. */
+    $cur = mam_db_row('SELECT status FROM applications WHERE id = ?', [$appId]);
+    if (!$cur) return null;
+    $from = (string) $cur['status'];
+    if (in_array($from, ['cancelled', 'expired'], true)) {
+        mam_log('warn', 'settle_tuition_closed_application', ['app_id' => $appId, 'status' => $from]);
+        return 'application_closed';
+    }
+    if ($from !== 'paid' && $from !== 'enrolled') {
+        try { mam_admissions_transition($appId, 'paid', null, 'tuition payment settled'); }
+        catch (\Throwable $e) { mam_log('warn', 'settle_tuition_transition_failed', ['app_id' => $appId, 'from' => $from, 'err' => $e->getMessage()]); }
+    }
     $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$appId]);
     if (!$app || !$app['customer_id']) return null;
     // Held for identity review (schema v109): the email belongs to a different
@@ -436,6 +452,7 @@ function mam_payment_settle_tuition(int $appId): ?string {
         $provision  = mam_ensure_student_user((int)$app['customer_id']);
         $studentId  = (int)($provision['user']['id'] ?? 0);
         if ($studentId > 0 && function_exists('mam_application_link_guardian')) mam_application_link_guardian($app, $studentId);
+        if ($studentId > 0 && function_exists('mam_application_record_consent')) mam_application_record_consent($app, $studentId);
 
         // Generate the stable enrollment ref (MAM/YY/NNN) — used for QR codes,
         // attendance lookup and the learner-report page. Idempotent: skipped if already set.
@@ -563,8 +580,21 @@ function mam_payment_refund_apply(array $p, string $reason, ?int $actorId = null
         mam_db_update('applications', ['booking_fee_paid_at' => null], ['id' => (int) $p['application_id']]);
         $reversed[] = 'booking';
     } elseif (!empty($p['application_id'])) {
-        mam_db_update('applications', ['status' => 'in_review'], ['id' => (int) $p['application_id']]);
-        $reversed[] = 'application';
+        /* A refunded tuition payment takes a PAID application back to review —
+           through the state machine, so it is in application_events. It used to
+           write 'in_review' over ANY status, re-opening an enrolled or cancelled
+           application. An enrolled student's refund is a withdrawal, decided on
+           their enrolment; a closed application stays closed. */
+        $aid = (int) $p['application_id'];
+        $st = (string) (mam_db_row('SELECT status FROM applications WHERE id = ?', [$aid])['status'] ?? '');
+        if ($st === 'paid') {
+            try {
+                mam_admissions_transition($aid, 'in_review', $actorId, 'tuition refunded' . ($reason !== '' ? ': ' . $reason : ''));
+                $reversed[] = 'application';
+            } catch (\Throwable $e) { mam_log('warn', 'refund_transition_failed', ['app' => $aid, 'err' => $e->getMessage()]); }
+        } elseif ($st !== '') {
+            $reversed[] = 'application_kept_' . $st;
+        }
     }
     mam_audit('payment_refund_applied', 'payment', (int) $p['id'], ['purpose' => $purpose, 'reason' => $reason, 'reversed' => $reversed, 'by' => $actorId, 'scope' => 'admin']);
     return $reversed;

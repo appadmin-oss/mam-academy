@@ -403,11 +403,10 @@
     <!-- Success -->
     <div class="apply-success" id="facDone" hidden>
       <div class="success-emoji" aria-hidden="true">🎼</div>
-      <h2 class="success-h">Application received — one step left</h2>
-      <p class="success-p">Your application is with the faculty panel, and we have emailed you a copy. <strong>Now book your interview</strong> — the panel meets every instructor before an offer, and two of us will be there.</p>
+      <h2 class="success-h">Application received</h2>
+      <p class="success-p">Your application is with the faculty panel, and we have emailed you a copy. The panel meets every instructor before an offer, and two of us will be there: <strong>we will email you a time for your interview</strong>. There is nothing to book.</p>
       <p class="success-ref" id="facRef"></p>
       <div class="success-actions">
-        <a class="btn btn-primary" id="facBookBtn" href="/book"><i class="fa-solid fa-calendar-check" aria-hidden="true"></i> Book your interview</a>
         <a class="btn btn-secondary" href="/"><i class="fa-solid fa-house" aria-hidden="true"></i> Back to home</a>
       </div>
     </div>
@@ -421,9 +420,9 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20261128u"></script>
+<script src="assets/js/config.js?v=20261128v"></script>
 <script src="assets/js/headshot.js?v=20260817a" defer></script>
 <script src="assets/js/main.js?v=20260920"></script>
-<script src="assets/js/instructor-apply.js?v=20260918a" defer></script>
+<script src="assets/js/instructor-apply.js?v=20261128a" defer></script>
 </body>
 </html>

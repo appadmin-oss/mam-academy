@@ -20,6 +20,7 @@ return [
         'faculty',
         'auditer',
         'enrol-complete',
+        'decisions',
         'funnel',
         'referrals',
     ],

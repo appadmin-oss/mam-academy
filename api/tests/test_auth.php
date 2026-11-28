@@ -258,8 +258,12 @@ $ivEns  = substr($ivAuth, (int) strpos($ivAuth, 'function mam_ensure_student_use
 t_ok(strpos($ivEns, 'mam_auth_unusable_password()') !== false && strpos($ivEns, 'random_bytes(5)') === false,
     'the provisioner itself never makes a usable password, so there is no plaintext for any caller to lose or send');
 t_ok(strpos($ivPay, "empty(\$provision['created'])") !== false, 'and settlement invites exactly when an account was created');
-$ivSummer = (string) file_get_contents(dirname(__DIR__) . '/routes/admin/summer.php');
-t_ok(strpos($ivSummer, "mam_auth_send_invite((int) \$enrolment['user_id'], 'student'") !== false,
+// The summer status change is ONE implementation now (decisions.php,
+// mam_summer_set_status), called by both the route and the console form.
+$ivSummer = (string) file_get_contents(dirname(__DIR__) . '/modules/admissions/lib/decisions.php');
+t_ok(strpos((string) file_get_contents(dirname(__DIR__) . '/routes/admin/summer.php'), 'mam_summer_set_status(') !== false,
+    'the summer route goes through the one status implementation');
+t_ok(strpos($ivSummer, "mam_auth_send_invite((int) \$e['user_id'], 'student'") !== false,
     'a summer enrolment invites the child');
 t_ok(strpos($ivSummer, "'parent', 'summer_guardian_invite'") !== false,
     'and the guardian separately — the same link would set the CHILD\'s password');

@@ -23,7 +23,7 @@ No function, route, table or behaviour changed.
 | `safeguarding` | Staff vetting, the safeguarding gate, concerns and incidents | 2 |
 | `finance` | Money: minor units, Paystack, Flutterwave, settlement, payment guards, booking pricing, application invoices, fee invoices and aid, invoice review, wallet, promotions, store | 12 |
 | `academics` | Academic structure: sessions and calendar, courses and cohorts (LMS), legacy-class carry-over, curriculum seed, scheduling, slot finder, rescheduling, make-ups | 12 |
-| `admissions` | Getting in: student, scholarship and faculty applications, Auditer placement, completing an enrolment, funnel, referrals | 7 |
+| `admissions` | Getting in: student, scholarship and faculty applications, Auditer placement, completing an enrolment, decisions, funnel, referrals | 8 |
 | `learning` | Lessons, exams, adaptive questions, pre-class, marking, mastery, progress, termly reports, academic record, accountability, growth, academic email | 14 |
 | `live` | Running a class: clock-in, meeting links, live classes (JaaS), attendance, check-in | 5 |
 | `community` | Class spaces, Recital Hall, repertoire, challenges, achievements, studio leaderboard, practice logs | 7 |
@@ -91,9 +91,11 @@ the two manifests, and update path references with
 These are real couplings the first cut exposed rather than created:
 
 - **The kernel calls into domain modules.**
-  - `jobs.php` drives academics, admissions and learning sweeps.
-  - `validation.php` calls `mam_enrol_resolve` (admissions), the promo
-    discount (finance) and the upload-URL check (integrations).
+  - `jobs.php` drives academics and learning sweeps. (Its one admissions call,
+    the abandoned-draft nudge, was dead and was removed on 2026-11-28, so the
+    kernel no longer depends on admissions.)
+  - `validation.php` calls the promo discount (finance) and the upload-URL
+    check (integrations).
   - `log.php` prunes logs through the identity/NDPA layer.
   - `backup.php` uses identity.
 

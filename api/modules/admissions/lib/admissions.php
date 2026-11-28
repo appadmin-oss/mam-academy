@@ -48,7 +48,9 @@ function mam_admissions_transitions(): array {
         'in_review'  => ['accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled', 'expired'],
         'waitlisted' => ['in_review', 'accepted', 'paid', 'enrolled', 'cancelled', 'expired'],
         'accepted'   => ['paid', 'enrolled', 'cancelled', 'expired'],
-        'paid'       => ['accepted', 'enrolled', 'cancelled'],
+        // in_review: a refunded tuition payment returns the application to the
+        // office (mam_payment_refund_apply), rather than overwriting the status.
+        'paid'       => ['in_review', 'accepted', 'enrolled', 'cancelled'],
         'enrolled'   => [],
         'cancelled'  => [],
         'expired'    => [],
@@ -161,18 +163,27 @@ function mam_application_status(string $reference, string $email): ?array {
     $email     = strtolower(trim($email));
     if ($reference === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return null;
 
+    // The applicant's own address OR the guardian's: a child's application is
+    // followed by the parent who made it, and a child with no email of their own
+    // has only a placeholder nobody can type (admissions fix 8).
     $row = mam_db_row(
-        "SELECT a.reference, a.pathway, a.mode, a.status, a.created_at, a.total_usd,
+        "SELECT a.id, a.reference, a.pathway, a.mode, a.status, a.created_at, a.total_usd,
                 c.first_name,
                 (SELECT pp.status FROM payments pp WHERE pp.application_id = a.id ORDER BY pp.id DESC LIMIT 1) AS payment_status
            FROM applications a
            JOIN customers c ON c.id = a.customer_id
-          WHERE a.reference = ? AND LOWER(c.email) = ?",
-        [$reference, $email]
+          WHERE a.reference = ? AND (LOWER(c.email) = ? OR LOWER(COALESCE(a.parent_email, '')) = ?)",
+        [$reference, $email, $email]
     );
     if (!$row) return null;
 
     $stage = mam_application_stage((string)$row['status'], (string)($row['payment_status'] ?? ''));
+    // "The reason we gave is on your status page" — so it is, for a refusal.
+    if ($stage['stage'] === 'closed') {
+        $why = mam_db_row("SELECT reason FROM application_events WHERE application_id = ? AND to_status = ? AND reason IS NOT NULL AND reason <> '' ORDER BY id DESC LIMIT 1",
+            [(int) $row['id'], (string) $row['status']]);
+        if ($why) $stage['next'] = 'This application is closed. Our reason: ' . (string) $why['reason'];
+    }
     return [
         'reference'      => $row['reference'],
         'first_name'     => $row['first_name'],
@@ -252,38 +263,12 @@ function mam_app_draft_mark_submitted(string $draftKey): void {
     try { mam_db_update('application_drafts', ['status' => 'submitted', 'updated_at' => date('Y-m-d H:i:s')], ['draft_key' => trim($draftKey)]); } catch (\Throwable $e) {}
 }
 
-/**
- * Abandoned-draft nudge sweep (L3 automation): email a one-time "finish your
- * application" magic link to each draft that's been idle in the window
- * (default 24h–7d), has an email, and hasn't been nudged or submitted. Marks
- * each 'nudged' so it's emailed at most once. Returns how many were nudged.
- * Driven by the run-jobs cron. Never throws.
- */
-function mam_app_draft_nudge_sweep(int $minHours = 24, int $maxHours = 168, int $limit = 50): int {
-    $now   = time();
-    $minTs = date('Y-m-d H:i:s', $now - max(1, $minHours) * 3600);  // older than this
-    $maxTs = date('Y-m-d H:i:s', $now - max(2, $maxHours) * 3600);  // but newer than this
-    $sent  = 0;
-    try {
-        $rows = mam_db_all(
-            "SELECT draft_key, email FROM application_drafts
-              WHERE status = 'draft' AND email IS NOT NULL AND email <> ''
-                AND updated_at <= ? AND updated_at >= ?
-              ORDER BY id ASC LIMIT " . max(1, $limit),
-            [$minTs, $maxTs]
-        );
-        foreach ($rows as $r) {
-            if (function_exists('mam_send')) {
-                mam_send((string)$r['email'], 'Finish your MAM Academy application',
-                    mam_email_resume_link(mam_app_draft_resume_url((string)$r['draft_key'])),
-                    'application_draft_nudge', true);
-            }
-            mam_db_update('application_drafts', ['status' => 'nudged', 'updated_at' => date('Y-m-d H:i:s')], ['draft_key' => $r['draft_key']]);
-            $sent++;
-        }
-    } catch (\Throwable $e) { /* best-effort */ }
-    return $sent;
-}
+/* The abandoned-draft nudge sweep (mam_app_draft_nudge_sweep) was REMOVED on
+   2026-11-28 (admissions fix 9). It emailed "finish your application" to rows in
+   application_drafts, and nothing has written a draft since the /apply rework
+   (answers are kept in the visitor's own browser), so the job ran every pass and
+   could never send anything. The helpers above stay: a resume link from the
+   retired wizard still lands on /apply with a note (apply.php). */
 
 // ── Summer Programme ───────────────────────────────────────────────────────
 
@@ -511,7 +496,7 @@ function mam_summer_cohort(int $courseId, int $year, string $courseName): int {
  *               invite:bool,guardian_id:?int,guardian_email:?string,
  *               guardian_invite:bool,account_created:bool}
  */
-function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
+function mam_summer_enrol(int $summerAppId, ?int $actorId = null, array $opts = []): array {
     $app = mam_db_row('SELECT * FROM summer_applications WHERE id = ?', [$summerAppId]);
     if (!$app) throw new InvalidArgumentException('summer_app_not_found');
 
@@ -519,6 +504,37 @@ function mam_summer_enrol(int $summerAppId, ?int $actorId = null): array {
     if ($email === '') throw new RuntimeException('summer_app_no_email');
     $name  = trim((string)$app['first_name'] . ' ' . (string)$app['last_name']);
     $year  = (int)($app['session_year'] ?? 0) ?: (int)date('Y');
+
+    /* 0. The identity hold (admissions fix 2) — the same rule as the year-round
+       path (mam_identity_conflict(), schema v109). Identity is still keyed on
+       email, so a brother's or sister's summer application made on the parent's
+       address found the FIRST child's account below and enrolled the second child
+       into it. When the address already belongs to a person whose name or date of
+       birth differs, nothing is made or enrolled: the hold is stored on the
+       application and the admin is told, until somebody confirms it really is
+       the same person (`identity_confirmed`). */
+    $submitted = ['first_name' => (string) $app['first_name'], 'last_name' => (string) $app['last_name'], 'dob' => $app['dob'] ?? null];
+    $holder = mam_db_row('SELECT id, first_name, last_name, dob FROM customers WHERE LOWER(email) = ?', [$email]);
+    $holderUser = mam_db_row('SELECT id, name FROM users WHERE LOWER(email) = ?', [$email]);
+    $who = $holder ?: ($holderUser ? ['first_name' => (string) $holderUser['name'], 'last_name' => '', 'dob' => null] : null);
+    $why = $who ? mam_identity_conflict($who, $submitted) : null;
+    if ($why !== null && empty($opts['identity_confirmed'])) {
+        $hold = ['reason' => $why, 'at' => date('c'), 'submitted' => array_filter($submitted, static fn($x) => $x !== null && $x !== ''),
+                 'existing_customer_id' => $holder ? (int) $holder['id'] : null,
+                 'existing_user_id' => $holderUser ? (int) $holderUser['id'] : null,
+                 'existing_name' => trim((string) ($who['first_name'] ?? '') . ' ' . (string) ($who['last_name'] ?? ''))];
+        mam_db_update('summer_applications', ['identity_hold' => json_encode($hold, JSON_UNESCAPED_UNICODE), 'updated_at' => date('Y-m-d H:i:s')], ['id' => $summerAppId]);
+        mam_audit('summer_identity_held', 'summer_application', $summerAppId, ['reason' => $why]);
+        mam_log('warn', 'summer_identity_held', ['summer_app' => $summerAppId, 'reason' => $why]);
+        return ['user_id' => 0, 'cohort_id' => null, 'enrollment_id' => null, 'reason' => 'identity_held', 'hold' => $hold,
+                'invite' => false, 'guardian_id' => null, 'guardian_email' => null, 'guardian_invite' => false,
+                'account_created' => false, 'customer_id' => null];
+    }
+    if (!empty($app['identity_hold'])) {
+        // Confirmed by a person (or the conflict has gone): the hold has done its job.
+        mam_db_update('summer_applications', ['identity_hold' => null], ['id' => $summerAppId]);
+        mam_audit('summer_identity_confirmed', 'summer_application', $summerAppId, ['by' => $actorId]);
+    }
 
     // 1. A full student account — reuse any existing one for this email as-is.
     $invite = false;

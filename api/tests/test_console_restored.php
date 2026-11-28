@@ -49,13 +49,13 @@ $CR_pending = [
     'datarights_erase', 'delete_promo_banner', 'dp_assessment_save', 'dp_breach_close',
     'dp_breach_ndpc', 'dp_breach_record', 'dp_breach_subjects', 'dp_note_save', 'dp_processor_save',
     'dp_request_ack', 'dp_request_close', 'dp_request_export', 'dp_request_open', 'dp_retention_run',
-    'module_save', 'rubric_update', 'faculty_app_status', 'faculty_assign_subjects', 'faculty_invite',
-    'faculty_request_review', 'fee_aid_revoke', 'meet_reconcile', 'meet_sync', 'module_import',
+    'module_save', 'rubric_update',
+    'fee_aid_revoke', 'meet_reconcile', 'meet_sync', 'module_import',
     'module_proposal_review', 'module_scaffold', 'notif_read_all',
     'recital_add_item', 'recital_create', 'recital_email', 'recital_recording', 'recital_reorder',
     'recital_status', 'recital_update', 'referral_reward', 'resource_add', 'rubric_create', 'rubric_delete',
     'save_email_branding', 'save_google_meet', 'save_promo_banner', 'seed_starter',
-    'set_student_type', 'store_item_delete', 'store_item_save', 'summer_set_status', 'user_delete', 'vetting_delete',
+    'set_student_type', 'store_item_delete', 'store_item_save', 'user_delete', 'vetting_delete',
 ];
 
 t_group('console — every admin action has a button (the legacy dashboard\'s 83, put back)');

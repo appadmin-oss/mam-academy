@@ -13,7 +13,7 @@ declare(strict_types=1);
 
 return [
     'name'    => 'kernel',
-    'depends' => ['academics', 'admissions', 'finance', 'identity', 'integrations', 'learning'],
+    'depends' => ['academics', 'finance', 'identity', 'integrations', 'learning'],
     'libs'    => [
         'log',
         'response',

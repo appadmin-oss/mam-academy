@@ -47,7 +47,9 @@ $v = mam_validate_application($input);
 // folded in silently; the Grand discount IS surfaced. Server is authoritative.
 $priceInfo = mam_compute_application_price([
     'programme'           => $v['pathway'],
-    'level'               => $v['level'],
+    // "Not sure yet" stores no level (the assessment sets it); the estimate is
+    // priced at the starting level, which is what the form showed.
+    'level'               => $v['level'] !== '' ? $v['level'] : 'precert',
     'mode'                => $v['mode'],
     'extraCourses'        => $v['extraCourses'],
     'includeRegistration' => $v['includeRegistration'],
@@ -147,6 +149,8 @@ try {
         'parent_phone'           => $v['parentPhone'],
         'parent_email'           => $v['parentEmail'],
         'auditer_optin'          => $v['auditer'],
+        'photo_consent'          => $v['photoConsent'],
+        'media_consent'          => $v['mediaConsent'],
         'include_registration'   => $v['includeRegistration'],
         'include_certification'  => $v['includeCertification'],
         'program_track'          => $v['programTrack'],
@@ -185,22 +189,36 @@ $tier = mam_booking_tier();
 $invoiceNumber = 'INV-MAM-' . date('y') . '-' . str_pad((string)$appId, 4, '0', STR_PAD_LEFT);
 $notifyEmail = mam_env('NOTIFY_EMAIL');
 
-mam_after_response(function () use ($v, $app, $customer, $tier, $invoiceNumber, $reference, $total, $notifyEmail) {
+/* Who the correspondence goes to. A CHILD's (under 18) goes to the guardian and
+   greets the guardian — it used to go to whichever address the form put in
+   `email` and say "Welcome aboard, <child>". A child with no email of their own
+   has only a placeholder, which nobody can read. */
+$contact = mam_application_contact($app);
+$toEmail = $contact['email'] ?? $v['parentEmail'] ?? $v['email'];
+/* The bank details, when the applicant chose to pay by transfer. They used to be
+   shown for an instant on screen and then wiped (apply-flow.js), and the email
+   said nothing — so a transfer family had no account to pay into. The reference
+   is the booking-fee payment's own (`<ref>-BK`), as payment-init issues it. */
+$bankText = ($v['payMethod'] ?? null) === 'transfer' ? mam_bank_instructions($reference . '-BK', (string) ($tier['label'] ?? '')) : null;
+$confirmOpts = ['greet' => $contact['greet'], 'learner' => $contact['guardian'] ? $contact['learner'] : null,
+                'bank_instructions' => $bankText, 'assessment' => mam_enrol_needs_assessment($app)];
+
+mam_after_response(function () use ($v, $app, $customer, $tier, $invoiceNumber, $reference, $total, $notifyEmail, $toEmail, $confirmOpts, $contact) {
     // No more .html attachments — the email body now links to web-viewable
     // /api/invoice/{ref} and /api/policy/{ref} pages. Both open in any
     // browser, print clean, save-as-PDF in one shortcut. The previous
     // approach attached .html which most mail clients (Gmail mobile in
     // particular) render as source code.
     mam_send(
-        $v['email'],
+        $toEmail,
         'MAM Academy — Application received (' . $reference . ')',
-        mam_email_application_confirmation($app, $customer, $tier, $invoiceNumber),
+        mam_email_application_confirmation($app, $customer, $tier, $invoiceNumber, $confirmOpts),
         'application_confirmation',
         true
     );
     if (!empty($v['policyMode'])) {
         mam_send(
-            $v['email'],
+            $toEmail,
             'MAM Academy — Your ' . ($v['policyMode'] === 'onsite' ? 'Onsite' : 'Online/Home') . ' Class Policy',
             mam_email_policy($v['policyMode'], (string)$v['policySignedName'], $reference),
             'application_policy',
@@ -217,7 +235,8 @@ mam_after_response(function () use ($v, $app, $customer, $tier, $invoiceNumber, 
                 [
                     'Reference'  => $reference,
                     'Applicant'  => $v['firstName'] . ' ' . $v['lastName'],
-                    'Email'      => $v['email'],
+                    'Email'      => $v['emailPlaceholder'] ? 'No email of their own' : $v['email'],
+                    'Guardian'   => $v['parentEmail'] ? (($v['parentName'] ?: '—') . ' · ' . $v['parentEmail']) : '—',
                     'Phone'      => $v['phone'] ?: '—',
                     'Programme'  => $v['pathway'],
                     'Mode'       => $v['mode'] === 'online' ? 'Online' : 'Onsite',
@@ -231,7 +250,7 @@ mam_after_response(function () use ($v, $app, $customer, $tier, $invoiceNumber, 
             ),
             'application_admin_notice',
             true,
-            ['reply_to' => $v['email']]
+            ['reply_to' => $toEmail]
         );
     }
 });

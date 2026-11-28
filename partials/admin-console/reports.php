@@ -39,7 +39,7 @@ declare(strict_types=1);
           <?php endforeach; ?>
         </div>
       </div>
-    <?php ac_card_close('These are submitted applications by status. The half-finished drafts — the largest pool, and the one nothing reaches — are on the funnel screen.'); ?>
+    <?php ac_card_close('These are submitted applications by status. Where visitors stop inside the form is on the funnel screen.'); ?>
 
     <?php ac_card_open('Attendance by cohort', 'Session to date'); ?>
       <div class="ac-tablewrap">

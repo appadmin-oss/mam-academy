@@ -696,10 +696,12 @@ function mam_email_promo_block(array $exclude = []): string {
 function mam_scholarship(): array {
     return [
         'enabled' => (int)mam_setting_num('scholarship_enabled', 1) === 1,
-        'url'     => (string)mam_setting('scholarship_url', mam_env('SCHOLARSHIP_URL', 'https://mamcentre.org/scholarships/ngv')),
-        'name'    => 'NGV Scholarship',
-        'cta'     => 'Apply for a Scholarship',
-        'blurb'   => 'Can’t afford the fees? The NGV Scholarship helps talented students who genuinely cannot afford tuition study at MAM Academy. If money is the only thing standing in your way, apply — we want to hear from you.',
+        // The academy's own programme and its own form (/scholarship). It was
+        // called by another scheme's name and linked to a page at MAM Centre.
+        'url'     => (string)mam_setting('scholarship_url', mam_env('SCHOLARSHIP_URL', rtrim((string) mam_env('APP_URL', 'https://academy.mamcentre.org'), '/') . '/scholarship')),
+        'name'    => 'MAM Scholars Initiative',
+        'cta'     => 'Apply to the MAM Scholars Initiative',
+        'blurb'   => 'Can’t afford the fees? The MAM Scholars Initiative supports talented students who genuinely cannot afford tuition at MAM Academy. If money is the only thing standing in your way, apply — we want to hear from you.',
     ];
 }
 
@@ -1113,8 +1115,45 @@ function mam_unsubscribe_url(string $email): string {
     return $base . '/api/newsletter/unsubscribe?e=' . rawurlencode(strtolower(trim($email))) . '&t=' . mam_unsubscribe_token($email);
 }
 
+/**
+ * Where mail for a learner with no email of their own goes (admissions fix 8).
+ *
+ * A child applied for without an address gets a `@no-email.invalid` placeholder
+ * (mam_learner_placeholder_email). Every path that writes to "the student" —
+ * the booking confirmation, the invoice reminder, the course welcome — writes to
+ * that address, so the mailer resolves it here, once, to the guardian: first a
+ * linked guardian's account, then the newest application's guardian address.
+ * Null when there is nobody to tell; the send is then skipped and logged, never
+ * attempted at an address that cannot route.
+ */
+function mam_mail_route_placeholder(string $to): ?string {
+    if (!function_exists('mam_email_is_placeholder') || !mam_email_is_placeholder($to)) return $to;
+    try {
+        $g = mam_db_row(
+            "SELECT pu.email FROM users su
+               JOIN parent_links pl ON pl.student_id = su.id
+               JOIN users pu ON pu.id = pl.parent_id
+              WHERE LOWER(su.email) = LOWER(?) AND pu.email IS NOT NULL AND pu.email <> ''
+              ORDER BY pl.id ASC LIMIT 1", [$to]);
+        if ($g && !mam_email_is_placeholder((string) $g['email'])) return strtolower((string) $g['email']);
+        $a = mam_db_row(
+            "SELECT a.parent_email FROM applications a JOIN customers c ON c.id = a.customer_id
+              WHERE LOWER(c.email) = LOWER(?) AND COALESCE(a.parent_email, '') <> ''
+              ORDER BY a.id DESC LIMIT 1", [$to]);
+        if ($a && filter_var((string) $a['parent_email'], FILTER_VALIDATE_EMAIL)) return strtolower((string) $a['parent_email']);
+    } catch (\Throwable $e) { /* resolved as nobody, below */ }
+    return null;
+}
+
 function mam_send(string $to, string $subject, string $body, string $context, bool $html = true, array $opts = []): bool {
   try {
+    // A learner with no email of their own: their mail goes to their guardian.
+    $routed = mam_mail_route_placeholder($to);
+    if ($routed === null) {
+        if (function_exists('mam_log')) mam_log('warn', 'mail_no_deliverable_address', ['context' => $context, 'to' => $to]);
+        return false;
+    }
+    $to = $routed;
     // Marketing emails embed {{UNSUB_URL}} via the layout. When present, fill
     // the visible link AND attach RFC 8058 one-click List-Unsubscribe headers,
     // keyed to the recipient — so every promotional email is CAN-SPAM / GDPR /
@@ -1224,7 +1263,14 @@ function mam_email_contact_autoresponse(string $name, string $topic): string {
     ]);
 }
 
-function mam_email_application_confirmation(array $app, array $customer, ?array $tier = null, string $invoiceNumber = ''): string {
+/**
+ * $opts (admissions fixes 1, 8, 10):
+ *   greet             first name to greet — the GUARDIAN's on a child's application
+ *   learner           the child's first name when the guardian is greeted (null for an adult)
+ *   bank_instructions the transfer details, when the applicant chose bank transfer
+ *   assessment        what the assessment settles (instrument / level), or null
+ */
+function mam_email_application_confirmation(array $app, array $customer, ?array $tier = null, string $invoiceNumber = '', array $opts = []): string {
     // Editorial-grade transactional email — premium feel without leaving
     // Outlook 2007 behind. Light ground, generous whitespace, single
     // accent column, real typographic hierarchy. The invoice + signed
@@ -1232,7 +1278,15 @@ function mam_email_application_confirmation(array $app, array $customer, ?array 
     // source code; they're now standalone web pages linked from here so
     // recipients view + Save-as-PDF directly from their browser.
     $ref      = htmlspecialchars($app['reference'], ENT_QUOTES);
-    $first    = htmlspecialchars(($customer['first_name'] ?? '') ?: 'there', ENT_QUOTES);
+    $first    = htmlspecialchars((string) (($opts['greet'] ?? '') ?: (($customer['first_name'] ?? '') ?: 'there')), ENT_QUOTES);
+    // A child's application greets the guardian who made it, and names the child.
+    $learner  = isset($opts['learner']) && $opts['learner'] !== null && $opts['learner'] !== '' ? htmlspecialchars((string) $opts['learner'], ENT_QUOTES) : null;
+    $bankText = trim((string) ($opts['bank_instructions'] ?? ''));
+    $assess   = trim((string) ($opts['assessment'] ?? ''));
+    // The real policy, not a slogan: a reminder after invoice_due_days and the
+    // application lapses at invoice_expiry_days (finance/invoicing.php). This
+    // said "Bookings without payment release after 48 hours", which nothing did.
+    $pol      = function_exists('mam_invoice_policy') ? mam_invoice_policy() : ['auto' => true, 'due_days' => 3, 'expiry_days' => 14];
     $appUrl   = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/');
     $bookUrl  = htmlspecialchars($appUrl . '/book?ref=' . rawurlencode($app['reference']), ENT_QUOTES);
     $invUrl   = htmlspecialchars($appUrl . '/api/invoice/' . rawurlencode($app['reference']), ENT_QUOTES);
@@ -1243,7 +1297,7 @@ function mam_email_application_confirmation(array $app, array $customer, ?array 
     $hasPolicy = !empty($app['policy_mode']);
 
     $pathwayMap = [
-        'certified-musician' => 'Certified Musician', 'grand-musician' => 'Grand Musician',
+        'standard' => 'Standard', 'certified-musician' => 'Certified Musician', 'grand-musician' => 'Grand Musician',
         'crash' => 'Crash Programme', 'meta-order' => 'The MetaMusic Order',
         // Legacy keys retained for historical applications.
         'pre-cert' => 'Pre-Certification', 'cert' => 'Certification',
@@ -1295,8 +1349,12 @@ function mam_email_application_confirmation(array $app, array $customer, ?array 
       // ── Hero block — large, editorial-style serif headline
       . '<tr><td class="px py" style="padding:32px 44px 4px;text-align:left">'
       .   '<p style="margin:0 0 14px;font-size:11px;letter-spacing:0.16em;text-transform:uppercase;color:#9A6B1E;font-weight:700">Application received</p>'
-      .   '<h1 class="h1" style="margin:0 0 16px;font-family:Georgia,\'Times New Roman\',serif;font-size:32px;line-height:1.18;color:#1A120B;font-weight:700;letter-spacing:-0.005em">Welcome aboard,<br>' . $first . '.</h1>'
-      .   '<p style="margin:0;color:#4A3624;font-size:16px;line-height:1.7">We have your application. Our Admin Officer and the MAM Auditer Judges will review it shortly — the next step is to lock in your seat.</p>'
+      .   ($learner !== null
+            ? '<h1 class="h1" style="margin:0 0 16px;font-family:Georgia,\'Times New Roman\',serif;font-size:32px;line-height:1.18;color:#1A120B;font-weight:700;letter-spacing:-0.005em">Thank you, ' . $first . '.<br>' . $learner . '&rsquo;s application is in.</h1>'
+            . '<p style="margin:0;color:#4A3624;font-size:16px;line-height:1.7">We have ' . $learner . '&rsquo;s application. As their parent or guardian, you will receive everything we send about it, and your own account follows at enrolment. Our Admin Officer and the MAM Auditer Judges will review it shortly — the next step is to lock in the seat.</p>'
+            : '<h1 class="h1" style="margin:0 0 16px;font-family:Georgia,\'Times New Roman\',serif;font-size:32px;line-height:1.18;color:#1A120B;font-weight:700;letter-spacing:-0.005em">Welcome aboard,<br>' . $first . '.</h1>'
+            . '<p style="margin:0;color:#4A3624;font-size:16px;line-height:1.7">We have your application. Our Admin Officer and the MAM Auditer Judges will review it shortly — the next step is to lock in your seat.</p>')
+      .   ($assess !== '' ? '<p style="margin:14px 0 0;color:#4A3624;font-size:15px;line-height:1.7"><strong style="color:#1A120B">At the assessment:</strong> ' . htmlspecialchars($assess, ENT_QUOTES) . '</p>' : '')
       . '</td></tr>'
 
       // ── Reference (large, prominent) and meta in a clean stacked card
@@ -1332,7 +1390,17 @@ function mam_email_application_confirmation(array $app, array $customer, ?array 
       .   '<!--[if !mso]><!-- -->'
       .   '<a href="' . $bookUrl . '" class="btn-primary" style="display:inline-block;background:#1A120B;color:#FBBF24;font-size:14px;font-weight:700;text-decoration:none;padding:18px 36px;border-radius:12px;letter-spacing:0.12em;text-transform:uppercase;mso-padding-alt:0">Reserve my seat &nbsp;→</a>'
       .   '<!--<![endif]-->'
-      .   '<p style="margin:14px 0 0;color:#7A5C3D;font-size:12.5px;line-height:1.6;letter-spacing:0.02em">Slots fill weekly. Bookings without payment release after 48 hours.</p>'
+      .   ($bankText !== ''
+            ? '<table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin:22px 0 0;border:1px solid #ECDFC4;border-radius:12px;background:#FBF4E8"><tr><td style="padding:18px 20px">'
+              . '<p style="margin:0 0 6px;font-size:10.5px;letter-spacing:0.14em;text-transform:uppercase;color:#9A6B1E;font-weight:700">You chose bank transfer</p>'
+              . '<p style="margin:0;color:#1A120B;font-size:15px;line-height:1.7">' . htmlspecialchars($bankText, ENT_QUOTES) . '</p>'
+              . '</td></tr></table>'
+            : '')
+      .   '<p style="margin:14px 0 0;color:#7A5C3D;font-size:12.5px;line-height:1.6;letter-spacing:0.02em">'
+      .     (!empty($pol['auto'])
+              ? 'Slots fill weekly. If the fee is still unpaid after ' . (int) $pol['due_days'] . ' day' . ((int) $pol['due_days'] === 1 ? '' : 's') . ' we send one reminder; an application unpaid after ' . (int) $pol['expiry_days'] . ' days lapses, and a new one is needed.'
+              : 'Slots fill weekly — pay soon to hold your place.')
+      .   '</p>'
       . '</td></tr>'
 
       // ── Documents: links to the web-viewable invoice + policy (NOT attached

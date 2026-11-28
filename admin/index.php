@@ -124,6 +124,8 @@ function mam_admin_console_return(string $screen): void {
            record they acted on, with the verdict beside it. Digits only. */
         // The application a handler names (app_assign, record_placement…), digits only.
         if (isset($q['app']) && is_string($q['app']) && preg_match('/^[1-9][0-9]{0,9}$/', $q['app'])) $keep['app'] = $q['app'];
+        // Which intake list the admissions board was on (summer, Scholars…).
+        if (isset($q['type']) && is_string($q['type']) && in_array($q['type'], ['summer', 'scholarship', 'assess'], true)) $keep['type'] = $q['type'];
         // The part of the screen the form was on (ac_parts), so a save returns to it.
         $part = (string) ($_POST['_part'] ?? '');
         if (preg_match('/^[a-z][a-z0-9-]{0,20}$/', $part)) $keep['part'] = $part;
@@ -992,11 +994,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     if ($action === 'app_bulk_status') {
         $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string)($_POST['ids'] ?? ''))))));
         $status = (string)($_POST['status'] ?? '');
-        $valid = ['submitted', 'in_review', 'accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'];
-        if (!$ids || !in_array($status, $valid, true)) { header('Location: ?v=applications&err=' . urlencode('Select at least one application and a status.')); exit; }
+        // Decisions only (decisions.php): Paid is recorded when money arrives and
+        // Enrolled by Complete the enrolment; a refusal needs its own reason, so
+        // there is no bulk decline. Each offer / waiting-list place is emailed.
+        $valid = ['in_review', 'accepted', 'waitlisted'];
+        if (!$ids || !in_array($status, $valid, true)) { header('Location: ?v=applications&err=' . urlencode('Select at least one application and a status (bulk moves forward only: review, offer or waiting list).')); exit; }
         $ok = 0; $skip = 0;
         foreach (array_slice($ids, 0, 200) as $id) {
-            try { mam_admissions_transition($id, $status, ((int)($adminUser['id'] ?? 0)) ?: null, 'bulk update'); $ok++; }
+            try { mam_admissions_decide($id, $status, ((int)($adminUser['id'] ?? 0)) ?: null, 'bulk update'); $ok++; }
             catch (\Throwable $e) { $skip++; }
         }
         mam_audit('app_bulk_status', 'application', null, ['status' => $status, 'ok' => $ok, 'skipped' => $skip]);
@@ -1009,59 +1014,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $status = (string)($_POST['status'] ?? '');
         // Preserve the detail-card context when the change came from it.
         $back = ((int)($_POST['app'] ?? 0)) ? '&app=' . (int)$_POST['app'] : '';
-        if ($id && in_array($status, ['submitted', 'in_review', 'accepted', 'waitlisted', 'paid', 'enrolled', 'cancelled'], true)) {
-            // Route through the enforced, audited admissions state machine (A2).
-            try {
-                mam_admissions_transition($id, $status, ((int)($adminUser['id'] ?? 0)) ?: null, trim((string)($_POST['reason'] ?? '')) ?: null);
-            } catch (RuntimeException $e) {
-                header('Location: ?v=applications' . $back . '&err=' . urlencode($e->getMessage() === 'illegal_transition' ? "That status change isn't allowed from the current stage." : 'Application not found.'));
-                exit;
-            }
-
-            // When an admin marks a bank-transfer (or any) application as paid
-            // from the dashboard, mirror the verify-payment flow: provision a
-            // student account and email them their credentials.
-            if (in_array($status, ['paid', 'enrolled'], true)) {
-                $app = mam_db_row('SELECT * FROM applications WHERE id = ?', [$id]);
-                if ($app && $app['customer_id'] && mam_application_identity_held($app) !== null) {
-                    // Held for identity review: no account is made from an email
-                    // that belongs to somebody else. Complete enrolment asks.
-                    header('Location: ?v=applications' . $back . '&ok=' . urlencode('Status updated. No account was made: this application is held because its email belongs to someone else — see Complete the enrolment.'));
-                    exit;
-                }
-                if ($app && $app['customer_id']) {
-                    try {
-                        $prov = mam_ensure_student_user((int)$app['customer_id']);
-                        // A link to set a password, never a password: this used to
-                        // email a temporary one in plain text to the applicant.
-                        if (!empty($prov['created'])) {
-                            mam_auth_send_invite((int)$prov['user']['id'], 'student', 'portal_welcome');
-                        }
-                        // And the guardian the application named gets their own account.
-                        mam_application_link_guardian($app, (int)$prov['user']['id'], $adminUser ? (int)$adminUser['id'] : null);
-                        // Issue + email the student ID card on approval (idempotent;
-                        // gated by the id_card_issue automation). This makes approval a
-                        // reliable delivery point for a normal application, mirroring the
-                        // enrolment-activation path — so no approved student is left
-                        // without a card just because they didn't come through a paid
-                        // course enrolment.
-                        if (!empty($prov['user']['id']) && function_exists('mam_card_issue_for_user')
-                            && (!function_exists('mam_automation_on') || mam_automation_on('id_card_issue'))) {
-                            mam_card_issue_for_user((int)$prov['user']['id'], 'student', (string)($app['pathway'] ?? ''));
-                        }
-                    } catch (Throwable $e) {
-                        mam_log('warn', 'admin_provision_failed', ['app_id' => $id, 'err' => $e->getMessage()]);
-                    }
-                }
-            }
-            $flash = ['ok', 'Application updated.'];
-            $label = $status;
-            foreach (mam_console_status_vocabulary() as $v) { if ($v['stored'] === $status) { $label = $v['shown']; break; } }
-            header('Location: ?v=applications' . $back . '&ok=' . urlencode('Decision saved: ' . $label . '.'));
+        if (!$id || $status === '') {
+            // Never a bare "Saved." for a decision that did not happen.
+            header('Location: ?v=applications' . $back . '&err=' . urlencode($id ? 'Choose a status to move this application to.' : 'Application not found.'));
             exit;
         }
-        // Never a bare "Saved." for a decision that did not happen.
-        header('Location: ?v=applications' . $back . '&err=' . urlencode($id ? 'Choose a status to move this application to.' : 'Application not found.'));
+        /* A decision (decisions.php): the state machine, the reason a refusal
+           must carry, and the email to the family. 'paid' and 'enrolled' are not
+           decisions and are refused here: they used to make a portal account and
+           an ID card with NO course — a student nobody was teaching. A payment is
+           recorded when the money arrives; a student is enrolled with Complete the
+           enrolment, which places them in a class. */
+        try {
+            $res = mam_admissions_decide($id, $status, ((int)($adminUser['id'] ?? 0)) ?: null, (string)($_POST['reason'] ?? ''));
+        } catch (RuntimeException $e) {
+            header('Location: ?v=applications' . $back . '&err=' . urlencode(mam_admissions_decide_refusal($e->getMessage())));
+            exit;
+        }
+        $label = $status;
+        foreach (mam_console_status_vocabulary() as $v) { if ($v['stored'] === $status) { $label = $v['shown']; break; } }
+        $mailNote = in_array($status, MAM_ADMISSIONS_DECISIONS_MAILED, true) && $res['changed']
+            ? ($res['emailed'] ? ' The family has been emailed.' : ' The email to the family did not send — check Mail on System health.')
+            : '';
+        header('Location: ?v=applications' . $back . '&ok=' . urlencode('Decision saved: ' . $label . '.' . $mailNote));
         exit;
     }
 
@@ -1071,26 +1046,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // three non-existent helpers and sent the CSRF token under the wrong field
     // name, so status updates 403'd and no card was ever minted.)
     if ($action === 'summer_set_status') {
+        // The ONE implementation (decisions.php, mam_summer_set_status), shared
+        // with POST /api/admin/summer/status: the state machine — this form used
+        // to write any status over any other — the refusal reason, the identity
+        // hold, the real enrolment, the invitations, the ID card and the email.
         $sid   = (int)($_POST['id'] ?? 0);
         $sst   = trim((string)($_POST['status'] ?? ''));
-        $valid = ['submitted', 'confirmed', 'waitlisted', 'enrolled', 'cancelled', 'rejected'];
-        $back  = '?v=summer' . (((int)($_POST['app'] ?? 0)) ? '&app=' . (int)$_POST['app'] : '');
-        if ($sid && in_array($sst, $valid, true)) {
-            $prev = mam_db_row('SELECT status FROM summer_applications WHERE id = ?', [$sid]);
-            if ($prev) {
-                mam_db_update('summer_applications', ['status' => $sst, 'updated_at' => date('Y-m-d H:i:s')], ['id' => $sid]);
-                mam_audit('update', 'summer_application', $sid, ['from' => $prev['status'], 'to' => $sst]);
-                // Issue + email the ID card on the transition INTO 'enrolled'
-                // (idempotent; gated by the id_card_issue automation).
-                if ($sst === 'enrolled' && $prev['status'] !== 'enrolled'
-                    && function_exists('mam_card_mint_for_summer_app')
-                    && (!function_exists('mam_automation_on') || mam_automation_on('id_card_issue'))) {
-                    mam_card_mint_for_summer_app($sid);
-                }
-                header('Location: ' . $back . '&ok=' . urlencode('Status updated.')); exit;
-            }
+        $back  = '?v=summer&type=summer&app=' . $sid;
+        if (!$sid || !in_array($sst, ['submitted', 'confirmed', 'waitlisted', 'enrolled', 'cancelled', 'rejected'], true)) {
+            header('Location: ' . $back . '&err=' . urlencode('Could not update status — pick a valid status.')); exit;
         }
-        header('Location: ' . $back . '&err=' . urlencode('Could not update status — pick a valid status.')); exit;
+        try {
+            $res = mam_summer_set_status($sid, $sst, ((int)($adminUser['id'] ?? 0)) ?: null, (string)($_POST['reason'] ?? ''),
+                ['identity_confirmed' => !empty($_POST['identity_confirmed'])]);
+        } catch (RuntimeException $e) {
+            header('Location: ' . $back . '&err=' . urlencode(mam_summer_refusal($e->getMessage()))); exit;
+        }
+        header('Location: ' . $back . '&' . ($res['ok'] ? 'ok' : 'err') . '=' . urlencode($res['message'])); exit;
     }
 
     // Admissions pipeline (A2): internal notes + assignee. Both are operational
@@ -1950,14 +1922,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // Direct invite: create (or reuse) the request, approve it and send the
         // single-use, 7-day link in one step.
         $email = strtolower(trim((string)($_POST['email'] ?? '')));
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { header('Location: ?v=users&err=' . urlencode('Enter a valid email.') . '#faculty'); exit; }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) { header('Location: ?v=faculty&err=' . urlencode('Enter a valid email.')); exit; }
         $me = mam_current_user();
         $ok = false;
         try {
             $inv = mam_faculty_approve(mam_faculty_request($email, null, 'admin'), $me ? (int)$me['id'] : null);
             if ($inv) $ok = mam_faculty_send_invite($inv);
         } catch (Throwable $e) { /* surfaced below */ }
-        header('Location: ?v=users' . ($ok ? '&ok=' . urlencode('Invite sent — single-use link, valid ' . MAM_FACULTY_INVITE_DAYS . ' days.') : '&err=' . urlencode('Invite email failed to send — check mail settings.')) . '#faculty'); exit;
+        header('Location: ?v=faculty' . ($ok ? '&ok=' . urlencode('Invite sent — single-use link, valid ' . MAM_FACULTY_INVITE_DAYS . ' days.') : '&err=' . urlencode('Invite email failed to send — check mail settings.'))); exit;
     }
     if ($action === 'faculty_request_review') {
         $rid = (int)($_POST['invite_id'] ?? 0);
@@ -1966,19 +1938,31 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($rid > 0 && $decision === 'approve') {
             $ok = false;
             try { $inv = mam_faculty_approve($rid, $me ? (int)$me['id'] : null); if ($inv) $ok = mam_faculty_send_invite($inv); } catch (Throwable $e) {}
-            header('Location: ?v=users' . ($ok ? '&ok=' . urlencode('Approved — application form emailed (single-use, ' . MAM_FACULTY_INVITE_DAYS . ' days).') : '&err=' . urlencode('Approved, but the email failed to send — use "Send form" to retry.')) . '#faculty'); exit;
+            header('Location: ?v=faculty' . ($ok ? '&ok=' . urlencode('Approved — application form emailed (single-use, ' . MAM_FACULTY_INVITE_DAYS . ' days).') : '&err=' . urlencode('Approved, but the email failed to send — use "Send form" to retry.'))); exit;
         }
-        if ($rid > 0 && $decision === 'dismiss') { mam_faculty_dismiss($rid, $me ? (int)$me['id'] : null); }
-        header('Location: ?v=users&ok=1#faculty'); exit;
+        if ($rid > 0 && $decision === 'dismiss') {
+            mam_faculty_dismiss($rid, $me ? (int)$me['id'] : null);
+            header('Location: ?v=faculty&ok=' . urlencode('Request dismissed. Nothing was emailed.')); exit;
+        }
+        header('Location: ?v=faculty&err=' . urlencode('Choose approve or dismiss.')); exit;
     }
     if ($action === 'faculty_app_status') {
         $me  = mam_current_user();
         $fid = (int)($_POST['app_id'] ?? 0);
         $st  = (string)($_POST['status'] ?? '');
         $msg = '1';
-        if ($fid > 0 && in_array($st, ['submitted', 'reviewing', 'approved', 'declined'], true)) {
+        $cur = $fid > 0 ? mam_db_row('SELECT status FROM instructor_applications WHERE id = ?', [$fid]) : null;
+        if (!$cur) { header('Location: ?v=faculty&err=' . urlencode('That application no longer exists.')); exit; }
+        /* The status machine (faculty.php): any of the four used to be written
+           over any other, so a declined candidate could be approved from a stale
+           screen without being reopened. */
+        if (!mam_faculty_app_can_transition((string) $cur['status'], $st)) {
+            header('Location: ?v=faculty&app=' . $fid . '&err=' . urlencode('“' . mam_faculty_app_status_label((string) $cur['status']) . '” cannot move to “' . mam_faculty_app_status_label($st) . '”.')); exit;
+        }
+        if ($fid > 0) {
             mam_db_update('instructor_applications', ['status' => $st], ['id' => $fid]);
-            mam_audit('faculty_app_status', 'instructor_application', $fid, ['status' => $st]);
+            mam_audit('faculty_app_status', 'instructor_application', $fid, ['from' => $cur['status'], 'status' => $st]);
+            if ($msg === '1') $msg = 'Moved to “' . mam_faculty_app_status_label($st) . '”.';
             // Approval gives them an instructor account (mam_faculty_promote_to_instructor),
             // and a new account gets a set-your-password link. Re-saving "approved"
             // is safe: the promotion is idempotent and only a NEW account is invited.
@@ -1999,7 +1983,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 }
             }
         }
-        header('Location: ?v=users&ok=' . urlencode($msg) . '#faculty'); exit;
+        header('Location: ?v=faculty&app=' . $fid . '&ok=' . urlencode($msg)); exit;
     }
     /* Accept an approved candidate's teaching matrix into
        instructor_assignments. This is the payoff for collecting (course, level)
@@ -2225,7 +2209,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             $res = mam_faculty_assign_subjects($fid, (int) $actor['id']);
             $msg = $res['added'] . ' subject' . ($res['added'] === 1 ? '' : 's') . ' assigned'
                  . ($res['already'] ? ', ' . $res['already'] . ' already there' : '') . '.';
-            header('Location: ?v=users&ok=' . urlencode($msg) . '#faculty'); exit;
+            header('Location: ?v=faculty&app=' . $fid . '&ok=' . urlencode($msg)); exit;
         } catch (Throwable $e) {
             // mam_fail() has already answered in prod; this catches the codes
             // it raises so the admin gets a sentence instead of a blank page.
@@ -2234,7 +2218,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                  : (str_contains($code, 'not_an_instructor') ? 'That account exists but is not an instructor.'
                  : (str_contains($code, 'not_approved') ? 'Approve the application before assigning subjects.'
                  : 'Could not assign these subjects.'));
-            header('Location: ?v=users&err=' . urlencode($say) . '#faculty'); exit;
+            header('Location: ?v=faculty&app=' . $fid . '&err=' . urlencode($say)); exit;
         }
     }
 
@@ -2968,6 +2952,18 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         // The office's confirmation that a held application is the same person
         // as the one who already holds its email (schema v109).
         if (!empty($_POST['identity_confirmed'])) $overrides['identity_confirmed'] = true;
+        /* The $5 registration unpaid: enrolling is a WAIVER, ticked and given a
+           reason, recorded on the application and audited — never a silent
+           go-ahead behind the general confirmation (admissions fix 5). */
+        $feeApp = mam_db_row('SELECT * FROM applications WHERE id = ?', [$id]);
+        if (!$feeApp) { header('Location: ?v=applications&err=' . urlencode('Application not found.')); exit; }
+        if (!mam_enrol_fee_settled($feeApp)) {
+            $why = trim((string)($_POST['waiver_reason'] ?? ''));
+            if (empty($_POST['waive_fee']) || $why === '') {
+                header('Location: ?v=applications&app=' . $id . '&err=' . urlencode('The registration fee has not been paid. To enrol anyway, tick “Waive the registration fee” and say why — the waiver is recorded on the application.')); exit;
+            }
+            mam_enrol_record_waiver($id, ((int)($adminUser['id'] ?? 0)) ?: null, $why);
+        }
         try {
             $res = mam_enrol_complete($id, $overrides, ((int)($adminUser['id'] ?? 0)) ?: null);
         } catch (Throwable $e) {
@@ -2994,13 +2990,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if ($courseCode === '' || $levelCode === '') { header('Location: ?v=applications&app=' . $appId . '&err=' . urlencode('Pick a course and level.')); exit; }
         try {
             $res = mam_auditer_record((int)$app['customer_id'], (string)($app['pathway'] ?? ''), [
+                'application_id' => $appId,
                 'course_code' => $courseCode,
                 'level_code'  => $levelCode,
                 'notes'       => (string)($_POST['notes'] ?? ''),
                 'audited_by'  => (int)($adminUser['id'] ?? 0),
             ]);
             $msg = $res['enrolled']
-                ? 'Placement recorded — student enrolled.'
+                ? 'Placement recorded — student enrolled' . (!empty($res['steps']) ? ': ' . implode(' · ', array_map(fn ($st) => ($st['ok'] ? '' : '⚠ ') . $st['detail'], $res['steps'])) : '.')
                 : ($res['note'] === 'automation_off' ? 'Placement recorded (auto-enrol is paused).' : 'Placement recorded (' . $res['note'] . ').');
             header('Location: ?v=applications&app=' . $appId . '&ok=' . urlencode($msg)); exit;
         } catch (\Throwable $e) {
@@ -3171,12 +3168,23 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // We never hard-delete user-visible records (audit + finance integrity);
     // these flip a status column instead so the row stays for history.
     if ($action === 'app_delete') {
+        // Through the state machine (application_events), never a raw write. An
+        // ENROLLED application is refused: the student is in a class, and
+        // cancelling the application would leave a placed student whose record
+        // says they never joined — withdraw the enrolment instead.
         $aid = (int)($_POST['app_id'] ?? 0);
-        if ($aid) {
-            mam_db_update('applications', ['status' => 'cancelled', 'updated_at' => date('Y-m-d H:i:s')], ['id' => $aid]);
-            mam_audit('application_cancel', 'application', $aid);
+        $cur = $aid ? mam_db_row('SELECT status FROM applications WHERE id = ?', [$aid]) : null;
+        if (!$cur) { header('Location: ?v=applications&err=' . urlencode('Application not found.')); exit; }
+        if ((string) $cur['status'] === 'enrolled') {
+            header('Location: ?v=applications&app=' . $aid . '&err=' . urlencode('This applicant is enrolled. Withdraw the enrolment from Teaching → Enrol & staffing instead; the application stays as the record of how they joined.')); exit;
         }
-        header('Location: ?v=applications&ok=1'); exit;
+        try {
+            mam_admissions_transition($aid, 'cancelled', ((int)($adminUser['id'] ?? 0)) ?: null, trim((string)($_POST['reason'] ?? '')) ?: 'cancelled by an admin');
+            mam_audit('application_cancel', 'application', $aid);
+        } catch (RuntimeException $e) {
+            header('Location: ?v=applications&app=' . $aid . '&err=' . urlencode(mam_admissions_decide_refusal($e->getMessage()))); exit;
+        }
+        header('Location: ?v=applications&app=' . $aid . '&ok=' . urlencode('Application cancelled.')); exit;
     }
 
     // ─── User editing (beyond suspend + reset-password) ──────────────
@@ -3390,7 +3398,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
    POST from an old tab still reports what happened. */
 $__consoleFor = [
     'overview' => 'dashboard', 'applications' => 'admissions', 'summer' => 'admissions',
-    'funnel' => 'funnel', 'users' => 'access', 'account' => 'account', 'guardians' => 'guardians',
+    'funnel' => 'funnel', 'faculty' => 'faculty', 'users' => 'access', 'account' => 'account', 'guardians' => 'guardians',
     'payments' => 'invoices', 'storeorders' => 'store', 'storeitems' => 'store', 'store' => 'store', 'orders' => 'store',
     'classes' => 'cohorts', 'courseenroll' => 'roster', 'enrollments' => 'roster', 'schedule' => 'timetable',
     'calendar' => 'calendar', 'recitals' => 'events', 'modules' => 'curriculum', 'curriculum' => 'curriculum',

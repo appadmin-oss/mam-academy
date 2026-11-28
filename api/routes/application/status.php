@@ -10,7 +10,10 @@ declare(strict_types=1);
 $ref   = (string)($_GET['ref'] ?? '');
 $email = (string)($_GET['email'] ?? '');
 
-$st = mam_application_status($ref, $email);
+// A MAM Scholars Initiative reference (SCH-…) is looked up in its own table.
+$st = stripos(trim($ref), 'SCH-') === 0
+    ? mam_scholarship_status_view($ref, $email)
+    : mam_application_status($ref, $email);
 if (!$st) mam_fail('not_found', 404);
 
 mam_ok(['application' => $st]);

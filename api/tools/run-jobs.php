@@ -57,10 +57,6 @@ $step('jobs', function () use ($limit) {
     printf("jobs       : ran %d · done %d · failed %d\n", $s['ran'], $s['done'], $s['failed']);
 });
 
-// Abandoned-draft nudges (A1 × L3): one "finish your application" email per eligible idle draft.
-$step('draft_nudge', function () {
-    if (function_exists('mam_app_draft_nudge_sweep')) printf("draft nudge: emailed %d\n", mam_app_draft_nudge_sweep());
-});
 
 // Session reminders (24h out) + KTAMS birthday notes — each gated by its
 // automation flag and deduped through the events log.

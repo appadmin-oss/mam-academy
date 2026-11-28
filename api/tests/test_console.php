@@ -151,6 +151,7 @@ $CN_providers = [
     'auditions' => fn() => mam_console_auditions(),
     'bursaries' => fn() => mam_console_bursaries(),
     'funnel' => fn() => mam_console_funnel(),
+    'faculty' => fn() => mam_console_faculty([]),
     'students' => fn() => mam_console_students([]),
     'cohorts' => fn() => mam_console_cohorts(),
     'roster' => fn() => mam_console_roster([]),

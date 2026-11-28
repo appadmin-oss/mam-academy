@@ -52,9 +52,9 @@ t_eq($MB_stale, [], 'no manifest declares a dependency it no longer uses — rem
 
 t_group('modules — the kernel does not grow new dependencies');
 
-/* The kernel is meant to depend on nothing. Today it reaches into six modules
+/* The kernel is meant to depend on nothing. Today it reaches into five modules
    (see the README's debt list). This pins that set so it can only shrink. */
-$MB_kernelDebt = ['academics', 'admissions', 'finance', 'identity', 'integrations', 'learning'];
+$MB_kernelDebt = ['academics', 'finance', 'identity', 'integrations', 'learning'];  // admissions left 2026-11-28 (the dead draft-nudge job went)
 $MB_kernelNow  = array_keys($MB_graph['kernel'] ?? []);
 t_eq(array_values(array_diff($MB_kernelNow, $MB_kernelDebt)), [],
     'the kernel calls no module beyond its recorded debt — move the logic to its domain instead');

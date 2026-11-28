@@ -486,8 +486,8 @@ $r->group('/admin', function (MamRouter $r) use ($f) {
     // On-demand self-heal: re-runs criticalRepairs + required-column verification; returns status report.
     $r->get ('/heal',     $f('admin/heal.php'),      [mw_admin_cap('settings'), mw_rate_limit('admin_heal', 10, 300)]);
     // Summer programme admin: list applications + update status.
-    $r->get ('/summer',         $f('admin/summer.php'), [mw_admin_cap('view')]);
-    $r->post('/summer/status',  $f('admin/summer.php'), [mw_csrf(), mw_admin_cap('view')]);
+    $r->get ('/summer',         $f('admin/summer.php'), [mw_admin_cap('admissions')]);
+    $r->post('/summer/status',  $f('admin/summer.php'), [mw_csrf(), mw_admin_cap('admissions')]);
     // Headshot upload for staff fixing a card photo. Same handler as the public
     // route, but admin-gated — so it carries a limit fit for working through a
     // batch of students rather than the tight cap an anonymous form needs.
