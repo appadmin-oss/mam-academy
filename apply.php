@@ -88,8 +88,8 @@ $apIntake = site_intake();
 </div>
 <?php site_a11y_panel(false); ?>
 <script>window.MAM_SITE=<?= json_encode(['fees' => site_fees(), 'intake' => $apIntake], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
-<script src="/assets/js/config.js?v=20261121"></script>
+<script src="/assets/js/config.js?v=20261128u"></script>
 <script src="/assets/js/site.js?v=20261123b" defer></script>
-<script src="/assets/js/apply-flow.js?v=20261121" defer></script>
+<script src="/assets/js/apply-flow.js?v=20261128u" defer></script>
 </body>
 </html>

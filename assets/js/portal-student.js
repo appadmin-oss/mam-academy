@@ -58,16 +58,17 @@
     var d = new Date(String(v).replace(' ', 'T') + (/Z|[+-]\d\d:?\d\d$/.test(String(v)) ? '' : 'Z'));
     return isNaN(d) ? null : d;
   }
-  function fmtTime(v) { var d = dt(v); return d ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''; }
-  function fmtDate(v) { var d = dt(v); return d ? d.toLocaleDateString([], { day: 'numeric', month: 'short' }) : ''; }
+  /* Times are the academy's (Africa/Lagos) and labelled "WAT" — P.timeLagos. */
+  function fmtTime(v) { return P.timeLagos ? P.timeLagos(v) : ''; }
+  function fmtDate(v) { return P.dateLagos ? P.dateLagos(v, { year: undefined }) : ''; }
   function fmtDay(v)  {
     var d = dt(v); if (!d) return '';
-    var today = new Date(), t0 = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    var days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - t0) / 86400000);
+    var key = P.dayKeyLagos(d), today = P.dayKeyLagos(new Date());
+    var days = Math.round((Date.parse(key + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86400000);
     if (days === 0) return 'Today';
     if (days === 1) return 'Tomorrow';
     if (days === -1) return 'Yesterday';
-    return d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' });
+    return P.dateLagos(d, { weekday: 'short', year: undefined });
   }
   function initials(name) {
     return String(name || '?').trim().split(/\s+/).slice(0, 2).map(function (w) { return w[0]; }).join('').toUpperCase();
@@ -1241,7 +1242,7 @@
         var lapsed = c.state && c.state !== 'active';
         html += '<section class="p-card"><div class="p-label">Card number</div>'
           + '<p class="p-title">' + esc(c.display_id || c.serial) + '</p>'
-          + '<p class="p-caption">' + (lapsed ? 'This card has expired. Ask the academy office for a new one.' : 'Valid until ' + esc(c.expires || '')) + '</p>'
+          + '<p class="p-caption">' + (lapsed ? 'This card has expired. Ask the academy office for a new one.' : 'Valid until ' + esc(c.expires_words || c.expires || '')) + '</p>'
           + '<a class="p-action" href="' + esc(c.url) + '" target="_blank" rel="noopener">Open, print or save your card</a></section>';
       } else if (d.eligible) {
         html += '<section class="p-card">' + empty('id-card', 'Your card has not been issued yet. You can get it now — it is also emailed to you.')

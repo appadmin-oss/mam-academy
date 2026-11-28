@@ -73,7 +73,7 @@ $type   = (string) ($d['type'] ?? '');
                     $r['level'] ? 'Level ' . (string) $r['level'] : '', (string) ($r['reference'] ?? '')])) ?></div>
               </td>
               <td><?= ac_tag((string) (($r['pathway'] ?? '') === 'scholarship' ? 'scholarship' : 'programme')) ?></td>
-              <td><?= ac_status((string) $r['status']) ?></td>
+              <td><?= ac_status((string) $r['status'], mam_console_status_label((string) $r['status'])) ?></td>
               <td class="ac-num">
                 <?php if ($days > 5): ?><span class="ac-pill ac-pill--bad"><?= $days ?>d</span>
                 <?php else: ?><?= $days ?>d<?php endif; ?>
@@ -238,6 +238,10 @@ $type   = (string) ($d['type'] ?? '');
                 </select></label>
               <label class="ac-field"><span class="ac-label">Programme</span>
                 <select class="ac-select" name="programme">
+                  <?php /* Nothing preselected unless the application decides it — a
+                           browser otherwise selects the FIRST option, which put adults
+                           into KTAMS (the under-16 programme). */ ?>
+                  <option value=""<?= $pick('programme') === '' ? ' selected' : '' ?>>No programme — choose one if it applies</option>
                   <?php foreach ($detail['programmes'] ?? [] as $pg): ?><option value="<?= ac_h((string) $pg['code']) ?>"<?= $pick('programme') === (string) $pg['code'] ? ' selected' : '' ?>><?= ac_h((string) $pg['name']) ?></option><?php endforeach; ?>
                 </select></label>
               <label class="ac-field"><span class="ac-label">Instructor</span>
@@ -247,6 +251,24 @@ $type   = (string) ($d['type'] ?? '');
                 </select></label>
             </div>
             <p class="ac-hint">Filled in from the application. Change anything that is wrong, then confirm.</p>
+            <?php
+              /* The confirmation step (UX quick win 11): what is about to happen,
+                 with the money first. Enrolling somebody who has not paid is
+                 sometimes right, but it must never be done by accident. */
+              $payRows = $detail['payments'] ?? [];
+              $paid = array_values(array_filter($payRows, fn($p) => in_array((string) ($p['status'] ?? ''), ['succeeded', 'paid'], true)));
+            ?>
+            <div class="ac-banner <?= $paid ? 'ac-banner--good' : 'ac-banner--warn' ?> ac-mt">
+              <i class="fa-solid <?= $paid ? 'fa-circle-check' : 'fa-triangle-exclamation' ?>"></i>
+              <div>
+                <strong><?= $paid
+                    ? 'Paid: ' . ac_h((string) ($paid[0]['currency'] ?? '')) . ' ' . ac_h(number_format((float) ($paid[0]['amount'] ?? 0), 2)) . ' (' . ac_h((string) ($paid[0]['reference'] ?? '')) . ')'
+                    : ($payRows ? 'No successful payment recorded — latest attempt: ' . ac_h((string) ($payRows[0]['status'] ?? '')) : 'No payment recorded') ?></strong>
+                <div>Class: <?= ac_h(trim(($rz['course']['name'] ?? 'the course chosen above') . ' · ' . ($rz['level']['name'] ?? 'no level') . ' · ' . ($rz['programme']['name'] ?? 'no programme'))) ?><?= isset($rz['cohort']['title']) ? ' — ' . ac_h((string) $rz['cohort']['title']) : '' ?></div>
+              </div>
+            </div>
+            <label class="ac-field ac-mt"><span class="ac-label"><input type="checkbox" name="confirm_enrol" value="1" required>
+              I have checked the payment status and the class above<?= $paid ? '' : ', and want to enrol this student without a recorded payment' ?></span></label>
             <div class="ac-row ac-mt">
               <button type="submit" class="ac-btn ac-btn--primary">Enrol this student</button>
             </div>

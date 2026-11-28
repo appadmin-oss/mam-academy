@@ -54,25 +54,13 @@
 
   /* ── Small helpers ──────────────────────────────────────────────────────── */
 
-  function fmtTime(v) {
-    if (!v) return '';
-    var d = new Date(String(v).replace(' ', 'T') + (/Z|[+-]\d\d:?\d\d$/.test(String(v)) ? '' : 'Z'));
-    return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  }
-  /* The "Rest of today" column is a FIGURE in a 58px track, and the design
-     prints "5:30" there — no meridiem. MEASURED: with one, "8:30 PM" wraps to
-     two lines and the row grows by 22px. The meridiem stays on the session
-     card's meta line, where there is room for it and it is read once. */
-  function fmtClock(v) {
-    if (!v) return '';
-    var d = new Date(String(v).replace(' ', 'T') + (/Z|[+-]\d\d:?\d\d$/.test(String(v)) ? '' : 'Z'));
-    return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-  }
-  function fmtDate(v) {
-    if (!v) return '';
-    var d = new Date(String(v).replace(' ', 'T') + (/Z|[+-]\d\d:?\d\d$/.test(String(v)) ? '' : 'Z'));
-    return isNaN(d) ? '' : d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
-  }
+  /* One clock everywhere: the academy's (Africa/Lagos), 12-hour, labelled
+     WAT on a meta line. The narrow "Rest of today" column drops only the
+     label, never the meridiem — it used to be 24-hour beside 12-hour cards
+     on the same screen (UX quick win 25). */
+  function fmtTime(v) { return P.timeLagos ? P.timeLagos(v) : ''; }
+  function fmtClock(v) { return P.timeLagos ? P.timeLagos(v, { label: false }) : ''; }
+  function fmtDate(v) { return P.dateLagos ? P.dateLagos(v) : ''; }
   function initials(name) {
     return String(name || '?').trim().split(/\s+/).slice(0, 2).map(function (w) { return w[0]; }).join('').toUpperCase();
   }
@@ -469,15 +457,8 @@
           + (showVideo ? '' : '<p class="p-meta p-gap-t">' + esc(sheet.audio_only_notice || '') + '</p>')
           + '</section>';
 
-        if (first) html += criterionCard(first);
-
-        if (crit.length > 1) {
-          html += '<section class="p-card is-flush"><div class="p-rows">'
-            + crit.slice(1).map(function (c) {
-              return '<div class="p-row"><span class="p-row-main"><span class="p-title">' + esc(c.label) + '</span></span>'
-                + '<span class="p-caption">' + (c.show_video ? 'Video shown for this one' : 'Not marked') + '</span></div>';
-            }).join('') + '</div></section>';
-        }
+        S.critIdx = 0;
+        html += '<div id="critArea">' + critAreaHtml() + '</div>';
 
         html += '<section class="p-card">'
           + '<div class="p-field"><label for="gradeComment">Comment to the student</label>'
@@ -488,12 +469,54 @@
               ? 'This one is double-marked — 1 in 8 is, to check agreement'
               : '1 in 8 is double-marked to check agreement') + '</span></span></div>'
           + '</div>'
+          + '<p class="p-error" id="gradeErr" role="alert" hidden></p>'
           + '<button type="button" class="p-action p-primary p-gap-t" id="gradeSave">Save and open the next student</button>'
           + '<p class="p-meta p-gap-t">' + esc(sheet.publication_notice || '') + '</p>'
           + '</section></div>';
         paint(html);
       })
       .catch(function (err) { paint(backTo('marking', 'Marking') + empty('triangle-exclamation', errOf(err, 'Could not open the marking sheet.'))); });
+  }
+
+  /* Every criterion on the sheet is markable here, one card at a time, in the
+     server's order. The list underneath says what each one holds — a mark,
+     "Not assessed", or nothing yet — and opens it. Before this only the first
+     criterion had a card, so the other three could never be marked at all. */
+  function critAreaHtml() {
+    var crit = (S.sheet && S.sheet.criteria) || [];
+    var cur = crit[S.critIdx || 0];
+    var html = cur ? criterionCard(cur) : '';
+    if (crit.length > 1) {
+      html += '<section class="p-card is-flush"><div class="p-rows">'
+        + crit.map(function (c, i) {
+          var has = Object.prototype.hasOwnProperty.call(S.marks, c.key);
+          var state = !has ? 'Not marked yet' : (S.marks[c.key] == null ? 'Not assessed' : S.marks[c.key] + ' of ' + c.max);
+          return '<button type="button" class="p-row" data-crit-go="' + i + '"'
+            + (i === (S.critIdx || 0) ? ' aria-current="true"' : '') + '>'
+            + '<span class="p-row-main"><span class="p-title">' + esc(c.label) + '</span>'
+            + '<span class="p-caption">' + esc(c.show_video ? 'Video shown for this one' : 'Audio only') + '</span></span>'
+            + '<span class="p-caption">' + esc(state) + '</span></button>';
+        }).join('') + '</div></section>';
+    }
+    return html;
+  }
+  function paintCrit() {
+    var area = document.getElementById('critArea');
+    if (!area) return;
+    area.innerHTML = critAreaHtml();
+    var cur = ((S.sheet && S.sheet.criteria) || [])[S.critIdx || 0];
+    if (cur && Object.prototype.hasOwnProperty.call(S.marks, cur.key)) {
+      var v = S.marks[cur.key];
+      var btns = Array.prototype.slice.call(area.querySelectorAll('[data-band]'));
+      var pick = null;
+      btns.forEach(function (b) {
+        if (v == null) { if (b.dataset.band === 'none') pick = b; return; }
+        if (b.dataset.band !== 'none' && Number(b.dataset.lo) <= v && (!pick || Number(b.dataset.lo) > Number(pick.dataset.lo))) pick = b;
+      });
+      btns.forEach(function (b) { b.setAttribute('aria-pressed', b === pick ? 'true' : 'false'); });
+      var mv = document.getElementById('markVal');
+      if (mv) mv.textContent = v == null ? '—' : String(v);
+    }
   }
 
   function criterionCard(c) {
@@ -593,7 +616,7 @@
         var rows = [['Instrument', k.instrument], ['Working level', k.working_level],
                     ['Attendance', k.attendance], ['Repertoire', k.repertoire], ['Assessment', k.assessment]];
         paint(backTo('report', 'All students')
-          + h1('Termly report', [d.student.name, d.student.term_label, pr.written + ' of ' + pr.total + ' written'].filter(Boolean).join(' · '))
+          + h1('Termly report', [d.student.name, P.termName ? P.termName(d.student.term_label) : d.student.term_label, pr.written + ' of ' + pr.total + ' written'].filter(Boolean).join(' · '))
           + '<div class="p-stack">'
           + '<section class="p-card"><div class="p-label p-lead">Filled in for you</div>'
           + '<dl class="i-known">' + rows.map(function (r) {
@@ -602,13 +625,16 @@
           }).join('') + '</dl></section>'
           + '<section class="p-card">'
           + '<div class="p-field"><label for="teacherComment">Your comment</label>'
-          + '<textarea id="teacherComment" rows="4" placeholder="Specific, and pointed at the next term">'
-          + esc(d.student.comment || '') + '</textarea></div>'
+          + '<textarea id="teacherComment" rows="4" required aria-describedby="reportErr" placeholder="Specific, and pointed at the next term">'
+          + esc(d.student.comment || '') + '</textarea>'
+          + '<p class="p-error" id="reportErr" role="alert" hidden></p></div>'
           + '<div class="i-desc p-gap-t"><span class="p-strong">Two prompts:</span> ' + esc(d.prompts) + '</div>'
           /* Where the report is, in the panel's words. A ratified report is the
              family's record and is not edited (the route refuses), so the send
              button is replaced by the fact rather than left to fail. */
-          + (d.student.status ? '<p class="p-meta p-gap-t">' + esc({
+          + (d.student.status && !String(d.student.comment || '').trim() ? '<p class="p-meta p-gap-t">'
+              + 'Not sent yet — the panel sees the report once your comment is written and sent.</p>'
+            : d.student.status ? '<p class="p-meta p-gap-t">' + esc({
               draft: 'With the Examinations panel — not yet moderated. You can still change your comment.',
               moderating: 'Being moderated by the Examinations panel. You can still change your comment.',
               ratified: 'Ratified and released to the student and their guardians. It can no longer be edited.'
@@ -1122,16 +1148,20 @@
       return;
     }
 
+    var cgo = t.closest && t.closest('[data-crit-go]');
+    if (cgo) { S.critIdx = Number(cgo.dataset.critGo) || 0; paintCrit(); return; }
+
     var band = t.closest && t.closest('.i-bands button');
     if (band) {
       var group = band.parentNode;
       $$('button', group).forEach(function (b) { b.setAttribute('aria-pressed', b === band ? 'true' : 'false'); });
       if (band.dataset.band) chooseBand(band);
+      refreshCritList();
       return;
     }
 
     var step = t.closest && t.closest('.i-step button');
-    if (step) { stepMark(Number(step.dataset.step)); return; }
+    if (step) { stepMark(Number(step.dataset.step)); refreshCritList(); return; }
 
     if (t.closest && t.closest('#gradeSave')) {
       /* The marks recorded so far go as the rubric; `null` for a criterion
@@ -1139,6 +1169,22 @@
          'accepted' — this screen marks work, it does not reject it; a
          resubmission is a different decision made on a different screen. */
       var gbtn = t.closest('#gradeSave');
+      /* Refused here AND on the server: a criterion with no mark and no
+         explicit "Not assessed" must not save, and the item stays queued. */
+      var gcrit = (S.sheet && S.sheet.criteria) || [];
+      var missing = gcrit.filter(function (c) { return !Object.prototype.hasOwnProperty.call(S.marks, c.key); });
+      var gerr = document.getElementById('gradeErr');
+      if (missing.length) {
+        if (gerr) {
+          gerr.textContent = 'Give every criterion a mark, or choose “Not assessed” for it. Still to do: '
+            + missing.map(function (c) { return c.label; }).join(', ') + '.';
+          gerr.hidden = false;
+        }
+        S.critIdx = gcrit.indexOf(missing[0]);
+        paintCrit();
+        return;
+      }
+      if (gerr) gerr.hidden = true;
       write(gbtn, API.request('instructor/feedback', {
         method: 'POST',
         body: {
@@ -1174,14 +1220,29 @@
 
     if (t.closest && t.closest('#reportSend')) {
       var btn = t.closest('#reportSend');
+      var rc = $('#teacherComment');
+      var rerr = document.getElementById('reportErr');
+      /* The comment is required (the server refuses too). Said beside the box,
+         and the box gets focus, rather than a toast that disappears. */
+      if (!rc || !rc.value.trim()) {
+        if (rerr) { rerr.textContent = 'Write your comment before sending the report to the panel.'; rerr.hidden = false; }
+        if (rc) { rc.setAttribute('aria-invalid', 'true'); rc.focus(); }
+        return;
+      }
+      if (rerr) rerr.hidden = true;
+      rc.removeAttribute('aria-invalid');
+      /* "Sent" only when the server says the panel now holds it. */
       write(btn, API.request('instructor/report', {
         method: 'POST',
         body: {
           student_id: S.reportStudent && S.reportStudent.id,
           cohort_id: S.reportStudent && S.reportStudent.cohort_id,
-          comment: ($('#teacherComment') || {}).value || ''
+          comment: rc.value
         }
-      }), function () { renderReport(S.reportStudent && S.reportStudent.id); }, 'Sent to the Examinations panel.');
+      }), function (r) {
+        toast(r && r.sent ? 'Sent to the Examinations panel.' : 'Saved, but it has not reached the panel yet.', r && r.sent ? 'good' : 'bad');
+        renderReport(S.reportStudent && S.reportStudent.id);
+      });
       return;
     }
 
@@ -1225,6 +1286,17 @@
       + (crit && crit.help ? ' ' + esc(crit.help) : '');
   }
 
+  /* Repaints only the status list, so the card the marker is on keeps focus. */
+  function refreshCritList() {
+    var area = document.getElementById('critArea');
+    var list = area && area.querySelector('.is-flush');
+    if (!list) return;
+    var tmp = document.createElement('div');
+    tmp.innerHTML = critAreaHtml();
+    var fresh = tmp.querySelector('.is-flush');
+    if (fresh) list.replaceWith(fresh);
+  }
+
   function stepMark(delta) {
     var card = $('[data-crit]');
     if (!card) return;
@@ -1252,7 +1324,7 @@
     .then(function (d) {
       S.home = d;
       var me = d.me || {};
-      P.identity(me.name || 'Instructor', ['Instructor', d.term_label].filter(Boolean).join(' · '));
+      P.identity(me.name || 'Instructor', ['Instructor', P.termName ? P.termName(d.term_label) : d.term_label].filter(Boolean).join(' · '));
       $('#railName').textContent = me.name || 'Instructor';
       $('#railInitials').textContent = initials(me.name);
 

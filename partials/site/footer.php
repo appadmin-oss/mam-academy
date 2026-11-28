@@ -15,7 +15,7 @@
 
       <div style="display: flex; flex-wrap: wrap; gap: 48px 64px">
         <div style="flex: 1.2 1 280px; display: flex; flex-direction: column; gap: 20px">
-          <a href="/" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: #FCF8F3"><img src="/mam-academy-logo.svg" alt="" width="40" height="40" style="width: 40px; height: 40px"><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600">MAM Academy</span></a>
+          <a href="/" style="display: flex; align-items: center; gap: 12px; text-decoration: none; color: #FCF8F3"><img src="/assets/img/mam-academy-logo-96.png" alt="" width="40" height="40" style="width: 40px; height: 40px"><span style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 600">MAM Academy</span></a>
           <p style="margin: 0; color: #D8CEC1; max-width: 320px">A creative intelligence and performance academy, forming complete musicians since 2008. Part of MAM Centre.</p>
           <a href="/apply" class="btn arrow" style="align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 22px; border-radius: 10px; border: 1px solid rgba(252,248,243,.35); color: #FCF8F3; font-weight: 600; text-decoration: none">Apply for <?= site_h(site_intake()) ?> <span aria-hidden="true">→</span></a>
         </div>

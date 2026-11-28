@@ -2951,6 +2951,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // course enrolment. The status was a label, not an outcome.
     if ($action === 'enrol_complete') {
         $id = (int)($_POST['app_id'] ?? 0);
+        // The form's confirmation step (payment status + class) must be ticked;
+        // a post without it is refused rather than enrolling by accident.
+        if (empty($_POST['confirm_enrol'])) {
+            header('Location: ?v=applications&app=' . $id . '&err=' . urlencode('Tick the confirmation — check the payment status and the class — before enrolling.')); exit;
+        }
         $overrides = array_filter([
             'course'     => trim((string)($_POST['course'] ?? '')),
             'level'      => trim((string)($_POST['level'] ?? '')),

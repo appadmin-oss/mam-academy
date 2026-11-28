@@ -23,7 +23,8 @@ site_header('inner');
     <h1 class="fade-in" style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(46px, 5.6vw, 84px); line-height: 1.02">Thank <em style="font-style: italic; color: #8A5208">you</em></h1>
     <p class="fade-in" style="animation-delay: .1s; margin: 0; font-size: 18px; line-height: 1.7; color: #3E342B">Your transaction has been received. Our team will contact you within <strong>24 hours</strong> to confirm your enrollment and schedule your MAM Auditer assessment.</p>
     <p class="fade-in" style="animation-delay: .15s; margin: 0; font-size: 17px; color: #3E342B">While you wait: <a href="/auditer#checklist" class="ul" style="color: #8A5208">prepare with the Auditer Applicant Checklist →</a></p>
-    <p id="refDisplay" class="fade-in" style="animation-delay: .2s; margin: 0; padding: 10px 18px; border-radius: 999px; background: #F3EEE6; font-size: 15px; font-weight: 600; color: #211A13">Reference: pending</p>
+    <p id="refDisplay" class="fade-in" style="animation-delay: .2s; margin: 0; padding: 10px 18px; border-radius: 999px; background: #F3EEE6; font-size: 15px; font-weight: 600; color: #211A13" hidden></p>
+    <p id="refMissing" style="margin: 0; font-size: 15px; color: #574B40">Your reference is in the confirmation email we sent you.</p>
     <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #574B40">A copy of your application is also stored in your browser. We’ll email a full confirmation to the address you provided.</p>
 
     <div style="width: 100%; display: flex; flex-direction: column; gap: 16px; margin-top: 8px">
@@ -53,8 +54,14 @@ site_header('inner');
       var last = JSON.parse(localStorage.getItem('mam.apply.lastSubmission') || 'null');
       if (last && last.reference) ref = last.reference;
     }
-    if (ref) document.getElementById('refDisplay').textContent = 'Reference: ' + ref;
-  } catch (e) { /* storage blocked: the reference stays "pending" */ }
+    /* Only a real reference is shown. A placeholder "pending" read as if the
+       application had not been recorded (UX quick win 25). */
+    if (ref) {
+      var el = document.getElementById('refDisplay');
+      el.textContent = 'Reference: ' + ref; el.hidden = false;
+      document.getElementById('refMissing').hidden = true;
+    }
+  } catch (e) { /* storage blocked: the email still carries the reference */ }
 })();
 </script>
 <?php

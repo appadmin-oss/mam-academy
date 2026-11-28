@@ -210,6 +210,10 @@
 [data-portal="v2"] .p-good { color: var(--good-text); }
 [data-portal="v2"] .p-warn { color: var(--warn); }
 [data-portal="v2"] .p-bad  { color: var(--bad); }
+/* An inline refusal beside the control it is about (UX quick wins, 2026-11-28). */
+[data-portal="v2"] .p-error { color: var(--bad); font-weight: 600; margin: 12px 0 0; }
+[data-portal="v2"] .p-error[hidden] { display: none; }
+[data-portal="v2"] .p-row[aria-current="true"] .p-title { color: var(--accent-text, var(--text)); text-decoration: underline; }
 [data-portal="v2"] .p-stack { display: flex; flex-direction: column; gap: 14px; }
 [data-portal="v2"] .p-stack-sm { display: flex; flex-direction: column; gap: 12px; }
 [data-portal="v2"] .p-gap-t { margin-top: 14px; }

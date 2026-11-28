@@ -21,11 +21,21 @@
     statusEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
   function gateError(msg) { gateErr.textContent = msg; gateErr.hidden = false; }
+  function invoiceHint() {
+    gateErr.textContent = 'That is an invoice reference. Invoices are paid in the family portal: sign in and open Fees to see and pay it. ';
+    var a = document.createElement('a');
+    a.href = '/portal/parent/'; a.textContent = 'Sign in to pay this invoice';
+    gateErr.appendChild(a);
+    gateErr.hidden = false;
+  }
 
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     ref = refEl.value.trim(); email = emEl.value.trim();
     if (!ref || !email) return;
+    /* An INV-… reference is a fee invoice, which lives in the family portal, not
+       an application. Say where to pay it instead of "we couldn't find it". */
+    if (/^INV-/i.test(ref)) { invoiceHint(); return; }
     var orig = btn.textContent;
     if (window.MAM_FORMS) MAM_FORMS.setBusy(btn, 'Checking…'); else { btn.disabled = true; btn.textContent = 'Checking…'; }
     gateErr.hidden = true;
@@ -33,6 +43,7 @@
     var url = 'tuition/status?ref=' + encodeURIComponent(ref) + '&email=' + encodeURIComponent(email);
     (window.MAM_API ? window.MAM_API.request(url, { method: 'GET' }) : Promise.reject(new Error('api'))).then(function (r) {
       unbusy();
+      if (r && r.kind === 'fee_invoice') { invoiceHint(); return; }
       if (!r || !r.found) { gateError('We couldn’t find an application with that reference and email. Double-check both, or email academy@mamcentre.org.'); return; }
       tu = r;
       showPay(r);

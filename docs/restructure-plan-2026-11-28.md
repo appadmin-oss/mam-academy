@@ -344,6 +344,61 @@ Still open from the security review (medium and low):
 - password-reset single use is not atomic;
 - any instructor can read every material file.
 
+### 5.x UX quick wins (2026-11-28, `api/tests/test_ux_quickwins.php`)
+
+From the UX research; each was reproduced in a browser at 390×844 before the
+fix and checked after it (screenshots in the working notes, not committed).
+
+- **Apply, card refused (6).** `config-public` now says whether card can be
+  taken (`payment_methods`, from `mam_paystack_configured()`), and the wizard
+  hides Card when it cannot. If the card step still fails, the applicant sees
+  the reference, the server's own sentence, and is switched to bank transfer.
+  The idempotency key is saved with the draft, so a retry or a reload reuses
+  the application instead of making a second one.
+- **Marking sheet (7).** Every criterion can now be opened and marked (only
+  the first could before). Save is refused, on the client and in
+  `POST /api/instructor/feedback` (`mam_marking_rubric_refusal()`), until each
+  criterion has a mark or an explicit "Not assessed"; the submission stays on
+  the queue.
+- **Termly report (8).** The comment is required (`comment_required`), shown
+  beside the box; "Sent to the Examinations panel" appears only when the
+  route answers `sent: true`.
+- **Times (9).** Portal payloads send session times with `+01:00`
+  (`mam_session_iso_payload()`); `P.timeLagos` / `P.dateTimeLagos` format in
+  Africa/Lagos and label it "WAT" in all three portals.
+- **Enrol this student (11).** A confirmation step shows the payment status
+  ("No payment recorded" in a warning) and the class, and must be ticked (the
+  handler refuses otherwise). The programme default follows the applicant's
+  date of birth, and the select no longer falls back to its first option, which
+  was putting adults into KTAMS. The follow-up names Teaching → Enrol & staffing.
+- **Admissions labels (14).** One chip per status, labelled from
+  `mam_console_status_vocabulary()` like the list and "Now:"; the chips add up
+  to the total (an "Other" chip catches unknown values).
+- **Settings (15).** Read-only with a sentence for an admin without the
+  `settings` capability; Save is not offered.
+- **Email typo (16).** "Did you mean…?" blocks Continue on /apply until the
+  suggestion is taken or "No, keep what I typed" is pressed. The summer,
+  scholarship and instructor forms have no typo helper, so nothing to block.
+- **Date of birth (17).** `mam_dob_problem()` / `mam_dob_message()`: "Date of
+  birth can't be in the future." on /apply and /summer, server and client.
+  The summer form used to read a future date as an age.
+- **Consents (19).** Schema **v112**: `student_consents.*_decided_at`. A consent
+  is agreed, declined or **not answered yet**; the guardian screen says so, and
+  pressing one consent no longer records the other two as "no". Rows nobody
+  wrote (`updated_by` NULL) read as unanswered. The gate is still default-deny.
+- **/tuition (21).** An `INV-` reference is recognised and sent to the family
+  portal, with a link.
+- **Guardian messages (22).** The two `window.prompt()` boxes (new message,
+  report appeal) are an in-page form: child, subject, message, inline errors.
+- **Weight (24).** Headers and footers use a 6 KB PNG (`assets/img/mam-academy-logo-96.png`,
+  plus WebP) instead of the 149 KB SVG; the SVG stays for the favicon and
+  structured data. The homepage film no longer autoplays at ≤768px.
+- **Words (25).** Term codes read "First term (Jan–Apr) 2026" (`P.termName`);
+  the student ID card says "Valid until Nov 2027"; a parent applying for a
+  child is thanked by name; the legacy /thank-you no longer prints
+  "Reference: pending"; the instructor home uses one 12-hour clock; the
+  sign-in button has its fill back.
+
 ## 6. Decisions waiting on the owner ⚖️
 
 1. **Billing currency per family** (invoices default to USD while every card

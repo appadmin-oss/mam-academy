@@ -8,7 +8,7 @@ declare(strict_types=1);
 /** Latest schema version. The single source of truth for the migrators, the
  *  admin overview banner and /api/diag — bump it together with a new
  *  migration in $migrations below + db/schema-mysql.sql. */
-const MAM_SCHEMA_TARGET = 111;
+const MAM_SCHEMA_TARGET = 112;
 
 /**
  * Open (and cache) the PDO connection.
@@ -4366,6 +4366,21 @@ function mam_db_migrate(PDO $db): void {
                WHERE cs.substitute_id IS NOT NULL AND cs.cohort_id IS NOT NULL
                  AND EXISTS (SELECT 1 FROM users u WHERE u.id = cs.substitute_id)
                  AND NOT EXISTS (SELECT 1 FROM cohort_staff x WHERE x.session_id = cs.id AND x.role = 'cover');
+        ",
+        // v112 — consent is three-state: agreed, declined, or NOT ANSWERED YET.
+        // The 0/1 columns could not tell a guardian who said no from one who was
+        // never asked, so the portal showed "Declined" for questions nobody had
+        // answered (UX quick win 19). A *_decided_at stamp per consent says it
+        // was answered. Existing rows a person wrote (updated_by set) keep their
+        // answers; rows nobody wrote stay unanswered. Nullable, no DEFAULT
+        // (MySQL TEXT cannot carry one); NULL means "not answered".
+        112 => "
+            ALTER TABLE student_consents ADD COLUMN media_decided_at TEXT;
+            ALTER TABLE student_consents ADD COLUMN photo_decided_at TEXT;
+            ALTER TABLE student_consents ADD COLUMN data_decided_at TEXT;
+            UPDATE student_consents
+               SET media_decided_at = updated_at, photo_decided_at = updated_at, data_decided_at = updated_at
+             WHERE updated_by IS NOT NULL;
         ",
     ];
 

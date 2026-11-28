@@ -9,37 +9,54 @@
  */
 declare(strict_types=1);
 
-/** Current consent state for a student (defaults all-false). */
+/**
+ * Current consent state for a student. Each of media|photo|data is TRUE
+ * (agreed), FALSE (declined) or NULL (not answered yet) — NULL is never "no"
+ * on screen, and is still a refusal at the gate (mam_consent_allows()).
+ * Answered-ness comes from the v112 *_decided_at stamps; before the migration
+ * has run, a row a person wrote counts as answered.
+ */
 function mam_consent_get(int $studentId): array {
     $row = null;
     try { $row = mam_db_row("SELECT * FROM student_consents WHERE student_id = ?", [$studentId]); } catch (\Throwable $e) {}
-    return [
-        'media'                => (bool) ($row['media_consent'] ?? false),
-        'photo'                => (bool) ($row['photo_consent'] ?? false),
-        'data'                 => (bool) ($row['data_consent'] ?? false),
-        'safeguarding_contact' => $row['safeguarding_contact'] ?? null,
-        'updated_at'           => $row['updated_at'] ?? null,
-    ];
+    $out = [];
+    foreach (['media', 'photo', 'data'] as $k) {
+        if (!$row) { $out[$k] = null; continue; }
+        $answered = array_key_exists($k . '_decided_at', $row)
+            ? ($row[$k . '_decided_at'] !== null && $row[$k . '_decided_at'] !== '')
+            : ($row['updated_by'] !== null);
+        $out[$k] = $answered ? (bool) ($row[$k . '_consent'] ?? false) : null;
+    }
+    $out['safeguarding_contact'] = $row['safeguarding_contact'] ?? null;
+    $out['updated_at'] = $row['updated_at'] ?? null;
+    return $out;
 }
 
-/** Set consent (upsert). $flags: media|photo|data (bool), safeguarding_contact. */
+/**
+ * Record consent (upsert). $flags: media|photo|data — true, false, or ABSENT
+ * (or null) to leave that one as it stands; plus safeguarding_contact. Only a
+ * key that is given is stamped as answered, so recording one consent no
+ * longer records the other two as "declined".
+ */
 function mam_consent_set(int $studentId, array $flags, ?int $by = null): void {
-    $data = [
-        'media_consent'        => !empty($flags['media']) ? 1 : 0,
-        'photo_consent'        => !empty($flags['photo']) ? 1 : 0,
-        'data_consent'         => !empty($flags['data'])  ? 1 : 0,
-        'safeguarding_contact' => array_key_exists('safeguarding_contact', $flags)
-            ? (mb_substr(trim((string) $flags['safeguarding_contact']), 0, 500) ?: null) : null,
-        'updated_by'           => $by,
-        'updated_at'           => date('Y-m-d H:i:s'),
-    ];
+    $now = date('Y-m-d H:i:s');
+    $data = ['updated_by' => $by, 'updated_at' => $now];
+    foreach (['media', 'photo', 'data'] as $k) {
+        if (!array_key_exists($k, $flags) || $flags[$k] === null) continue;
+        $data[$k . '_consent'] = !empty($flags[$k]) ? 1 : 0;
+        $data[$k . '_decided_at'] = $now;
+    }
+    if (array_key_exists('safeguarding_contact', $flags)) {
+        $data['safeguarding_contact'] = mb_substr(trim((string) $flags['safeguarding_contact']), 0, 500) ?: null;
+    }
     if (mam_db_row("SELECT student_id FROM student_consents WHERE student_id = ?", [$studentId])) {
         mam_db_update('student_consents', $data, ['student_id' => $studentId]);
     } else {
         $data['student_id'] = $studentId;
         mam_db_insert('student_consents', $data);
     }
-    if (function_exists('mam_audit')) mam_audit('consent_set', 'user', $studentId, ['by' => $by, 'media' => $data['media_consent'], 'photo' => $data['photo_consent'], 'data' => $data['data_consent']]);
+    if (function_exists('mam_audit')) mam_audit('consent_set', 'user', $studentId, ['by' => $by,
+        'media' => $data['media_consent'] ?? null, 'photo' => $data['photo_consent'] ?? null, 'data' => $data['data_consent'] ?? null]);
 }
 
 /**

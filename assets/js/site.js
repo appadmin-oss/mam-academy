@@ -172,7 +172,9 @@
        nothing whenever the video had been skipped, which read as broken. */
     var toggle = film.querySelector('[data-film-toggle]'), vid = null, held = false, seen = true;
     var saveData = !!(navigator.connection && navigator.connection.saveData);
-    var small = window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
+    /* A phone (≤768px) shows the still and offers Play: the loop is megabytes
+       on a mobile data plan for a decorative panel (UX quick win 24). */
+    var small = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
     var src = small ? (film.getAttribute('data-mobile') || film.getAttribute('data-src')) : film.getAttribute('data-src');
     var webm = small ? '' : film.getAttribute('data-webm');
     var setHeld = function (h) {
@@ -206,7 +208,7 @@
         d.addEventListener('pointerdown', go, true); d.addEventListener('keydown', go, true);
       });
     };
-    if (src && !reduce && !saveData) { build(); run(); }
+    if (src && !reduce && !saveData && !small) { build(); run(); }
     else setHeld(true);
     if (toggle) toggle.addEventListener('click', function (e) {
       e.stopPropagation();

@@ -130,5 +130,5 @@ site_header('inner');
     </div>
   </section>
 </main>
-<script src="/assets/js/config.js?v=20261120a"></script>
+<script src="/assets/js/config.js?v=20261128u"></script>
 <?php site_footer(['site-ccy-bridge.js', 'book.js']); ?>

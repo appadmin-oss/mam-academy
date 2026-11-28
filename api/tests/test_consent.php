@@ -8,7 +8,7 @@ $CO_by  = mam_db_insert('users', ['name' => 'CO Par', 'email' => 'co_par@test.lo
 t_ok(!mam_consent_allows($CO_stu, 'photo'), 'photo consent defaults to deny');
 t_ok(!mam_consent_allows($CO_stu, 'media'), 'media consent defaults to deny');
 $c0 = mam_consent_get($CO_stu);
-t_ok($c0['photo'] === false && $c0['data'] === false, 'get returns all-false by default');
+t_ok($c0['photo'] === null && $c0['data'] === null, 'with no record each consent is NOT ANSWERED (null), which the gate still reads as no');
 
 // Set some consent (upsert insert).
 mam_consent_set($CO_stu, ['media' => true, 'photo' => false, 'data' => true, 'safeguarding_contact' => 'Aunt Bola +234...'], $CO_by);

@@ -41,18 +41,10 @@
 
   /* ── Small helpers ──────────────────────────────────────────────────────── */
 
-  function fmtDate(v) {
-    if (!v) return '';
-    var d = new Date(String(v).replace(' ', 'T'));
-    if (isNaN(d.getTime())) return esc(String(v).slice(0, 10));
-    return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-  }
-  function fmtDateTime(v) {
-    if (!v) return '';
-    var d = new Date(String(v).replace(' ', 'T'));
-    if (isNaN(d.getTime())) return esc(String(v));
-    return d.toLocaleString(undefined, { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  }
+  /* Dates and times in the academy's zone, labelled (P.dateTimeLagos): a
+     guardian abroad sees the hour the class starts in Lagos, and "WAT" says so. */
+  function fmtDate(v) { return v ? (P.dateLagos ? P.dateLagos(v) : String(v).slice(0, 10)) : ''; }
+  function fmtDateTime(v) { return v ? (P.dateTimeLagos ? P.dateTimeLagos(v, { weekday: true }) : String(v)) : ''; }
   function initials(name) {
     return String(name || '?').trim().split(/\s+/).slice(0, 2)
       .map(function (w) { return w.charAt(0).toUpperCase(); }).join('') || '?';
@@ -417,7 +409,7 @@
       + '<div>'
       +   '<h1 class="p-h1">Termly report</h1>'
       +   '<p class="p-meta p-lead">' + esc(rep.student_name)
-      +   (rep.student_number ? ' · ' + esc(rep.student_number) : '') + ' · ' + esc(rep.term_label) + '<br>'
+      +   (rep.student_number ? ' · ' + esc(rep.student_number) : '') + ' · ' + esc(P.termName ? P.termName(rep.term_label) : rep.term_label) + '<br>'
       +   (rep.ratified_by
             ? 'Ratified by ' + esc(rep.ratified_by) + ', ' + esc(fmtDate(rep.ratified_at))
             : 'Ratified ' + esc(fmtDate(rep.ratified_at))) + '</p>'
@@ -582,7 +574,7 @@
       + (overdue ? 'Overdue ' + esc(inv.overdue_days) + ' ' + plural(inv.overdue_days, 'day', 'days') : 'Due now')
       + '</h2>'
       + '<div class="p-fig p-money-lg">' + esc(inv.due) + '</div>'
-      + '<p class="p-caption p-lead">' + esc(inv.ref) + ' · ' + esc(inv.term_label)
+      + '<p class="p-caption p-lead">' + esc(inv.ref) + ' · ' + esc(P.termName ? P.termName(inv.term_label) : inv.term_label)
       + (inv.due_on ? ' · due ' + esc(fmtDate(inv.due_on)) : '') + '</p>'
       + lines + credits + sibling
       + '<div class="p-line"><span class="p-strong">Total</span><b>' + esc(inv.total) + '</b></div>'
@@ -784,6 +776,7 @@
         ];
         var cards = items.map(function (it) {
           var v = con[it.key];
+          /* null = not answered yet: shown as a question, never as "Declined". */
           var decided = v === true || v === 1 || v === false || v === 0;
           var yes = v === true || v === 1;
           return '<section class="p-card' + (decided ? '' : ' is-urgent') + '">'
@@ -791,6 +784,7 @@
             +   ' p-row-ico ' + (decided ? (yes ? 'is-good' : '') : 'is-bad') + '" aria-hidden="true"></i>'
             +   '<span class="p-who-main"><span class="p-title">' + it.title + '</span></span></div>'
             + '<p class="p-body p-gap-t">' + it.blurb + '</p>'
+            + (!decided ? '<p class="p-caption p-gap-t p-strong">Not answered yet.</p>' : '')
             + (decided
                 ? '<p class="p-caption p-gap-t">' + (yes ? 'Agreed' : 'Declined')
                   + (con.updated_at ? ' ' + esc(fmtDate(con.updated_at)) : '') + '.</p>'
@@ -1195,7 +1189,7 @@
   document.addEventListener('click', function (e) {
     var t = e.target.closest('[data-screen],[data-sheet-open],[data-sheet-close],[data-child],'
       + '[data-thread],[data-reply],[data-consent],[data-channel],[data-plan],[data-pay],'
-      + '[data-appeal],[data-ask],[data-bursary],[data-new-thread],[data-print],[data-transfer-open],[data-transfer-send],'
+      + '[data-appeal],[data-ask],[data-bursary],[data-new-thread],[data-compose-cancel],[data-print],[data-transfer-open],[data-transfer-send],'
       + '[data-text-size],[data-theme-set],[data-toggle],[data-qsend],[data-qcode],[data-qrespond],#signOut');
     if (!t) return;
 
@@ -1235,6 +1229,13 @@
       newThread(t.getAttribute('data-ask'), 'About the termly report', 'academic');
       return;
     }
+    if (t.hasAttribute('data-compose-cancel')) {
+      e.preventDefault();
+      var wasAppeal = S.compose && S.compose.mode === 'appeal';
+      S.compose = null;
+      if (wasAppeal) renderReports(); else renderMessages();
+      return;
+    }
     if (t.hasAttribute('data-new-thread')) {
       e.preventDefault();
       var c = selectedChild();
@@ -1261,8 +1262,9 @@
       // send them with this one changed — a partial write would clear the others.
       API.request('parent/child?student_id=' + encodeURIComponent(c2.student_id), { method: 'GET' })
         .then(function (d) {
+          /* Only the consent pressed is sent. The others are left as they
+             stand — an unanswered one stays unanswered, never a "no". */
           var con = d.consent || {}, payload = { student_id: c2.student_id };
-          ['media', 'photo', 'data'].forEach(function (k) { payload[k] = !!con[k]; });
           payload[key] = val;
           if (con.safeguarding_contact) payload.safeguarding_contact = con.safeguarding_contact;
           return write(t, API.request('parent/consent', { method: 'POST', body: payload }), function () {
@@ -1321,10 +1323,7 @@
 
     if (t.hasAttribute('data-appeal')) {
       e.preventDefault();
-      var reason = window.prompt('What would you like the panel to look at again?');
-      if (reason == null || !reason.trim()) return;
-      write(t, API.request('parent/appeal', { method: 'POST', body: { report_id: Number(t.getAttribute('data-appeal')), reason: reason.trim() } }),
-        function () { toast('Your appeal has been recorded. The panel will write to you.', 'good'); renderReports(); });
+      newAppeal(t.getAttribute('data-appeal'));
       return;
     }
 
@@ -1381,16 +1380,83 @@
     if (P.a11yHandle && P.a11yHandle(t)) { e.preventDefault(); renderA11y(); return; }
   });
 
+  /* Writing to the academy is an in-page form, not two window.prompt() boxes:
+     a prompt cannot say which child a message is about, cannot show what was
+     wrong with an answer, is not announced reliably to a screen reader, and on
+     a phone loses the typing if it is dismissed (UX quick win 22). The same
+     form takes an appeal on a termly report. */
   function newThread(studentId, subject, kind) {
-    var subj = subject || window.prompt('What is it about? (a short subject line)');
-    if (subj == null || !String(subj).trim()) return;
-    var body = window.prompt('Your message');
-    if (body == null || !String(body).trim()) return;
-    write(null, API.request('parent/thread-post', {
-      method: 'POST',
-      body: { student_id: Number(studentId), subject: String(subj).trim(), kind: kind || 'general', body: String(body).trim() }
-    }), function (r) { toast('Sent.', 'good'); renderThread(r.thread_id); });
+    S.compose = { mode: 'thread', student: Number(studentId) || (selectedChild() || {}).student_id, subject: subject || '', kind: kind || 'general' };
+    paintCompose();
   }
+  function newAppeal(reportId) {
+    S.compose = { mode: 'appeal', report: Number(reportId) };
+    paintCompose();
+  }
+  function paintCompose() {
+    var c = S.compose || {};
+    var isAppeal = c.mode === 'appeal';
+    var kids = S.children || [];
+    var html = backTo(isAppeal ? 'reports' : 'messages', isAppeal ? 'Reports' : 'Messages')
+      + h1(isAppeal ? 'Ask the panel to look again' : 'Write to the academy',
+           isAppeal ? 'Say what you would like reconsidered. The panel will write to you.' : 'An instructor or the office will reply here.')
+      + '<form class="p-card" id="composeForm" novalidate>';
+    if (!isAppeal) {
+      html += '<div class="p-field"><label for="cmpChild">Which child is this about?</label>'
+        + '<select id="cmpChild">' + kids.map(function (k) {
+            return '<option value="' + esc(k.student_id) + '"' + (Number(k.student_id) === Number(c.student) ? ' selected' : '') + '>'
+              + esc(k.student_name) + '</option>';
+          }).join('') + '</select></div>'
+        + '<div class="p-field"><label for="cmpSubject">Subject</label>'
+        + '<input id="cmpSubject" maxlength="150" autocomplete="off" aria-describedby="cmpSubjectErr" value="' + esc(c.subject || '') + '">'
+        + '<p class="p-error" id="cmpSubjectErr" role="alert" hidden></p></div>';
+    }
+    html += '<div class="p-field"><label for="cmpBody">' + (isAppeal ? 'What would you like the panel to look at again?' : 'Your message') + '</label>'
+      + '<textarea id="cmpBody" rows="6" maxlength="4000" aria-describedby="cmpBodyErr"></textarea>'
+      + '<p class="p-error" id="cmpBodyErr" role="alert" hidden></p></div>'
+      + '<div class="p-actions p-gap-t">'
+      + '<button type="submit" class="p-action" id="cmpSend">' + (isAppeal ? 'Send the appeal' : 'Send') + '</button>'
+      + '<button type="button" class="p-action p-outline" data-compose-cancel="1">Cancel</button>'
+      + '</div></form>';
+    paint(html);
+    var first = document.getElementById(isAppeal ? 'cmpBody' : (c.subject ? 'cmpBody' : 'cmpSubject'));
+    if (first) first.focus();
+  }
+  function composeErr(id, msg) {
+    var el = document.getElementById(id + 'Err'), f = document.getElementById(id);
+    if (el) { el.textContent = msg || ''; el.hidden = !msg; }
+    if (f) { if (msg) f.setAttribute('aria-invalid', 'true'); else f.removeAttribute('aria-invalid'); }
+  }
+  function sendCompose() {
+    var c = S.compose || {};
+    var isAppeal = c.mode === 'appeal';
+    var body = (document.getElementById('cmpBody') || {}).value || '';
+    var subj = isAppeal ? '' : ((document.getElementById('cmpSubject') || {}).value || '');
+    var bad = null;
+    if (!isAppeal) {
+      composeErr('cmpSubject', subj.trim() ? '' : 'Give the message a short subject, so the right person picks it up.');
+      if (!subj.trim()) bad = bad || 'cmpSubject';
+    }
+    composeErr('cmpBody', body.trim() ? '' : (isAppeal ? 'Say what you would like the panel to look at again.' : 'Write your message before sending.'));
+    if (!body.trim()) bad = bad || 'cmpBody';
+    if (bad) { document.getElementById(bad).focus(); return; }
+    var btn = document.getElementById('cmpSend');
+    if (isAppeal) {
+      write(btn, API.request('parent/appeal', { method: 'POST', body: { report_id: c.report, reason: body.trim() } }),
+        function () { S.compose = null; toast('Your appeal has been recorded. The panel will write to you.', 'good'); renderReports(); })
+        .catch(function () { /* write() has already said so; the typing stays on the screen */ });
+      return;
+    }
+    var sid = Number((document.getElementById('cmpChild') || {}).value || c.student);
+    write(btn, API.request('parent/thread-post', {
+      method: 'POST',
+      body: { student_id: sid, subject: subj.trim(), kind: c.kind || 'general', body: body.trim() }
+    }), function (r) { S.compose = null; toast('Sent.', 'good'); renderThread(r.thread_id); })
+      .catch(function () { /* write() has already said so; the typing stays on the screen */ });
+  }
+  document.addEventListener('submit', function (e) {
+    if (e.target && e.target.id === 'composeForm') { e.preventDefault(); sendCompose(); }
+  });
 
   /* Escape closes the sheet; the sheet traps Tab while it is open. */
   document.addEventListener('keydown', function (e) {

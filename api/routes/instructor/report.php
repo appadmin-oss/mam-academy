@@ -28,6 +28,11 @@ if ($studentId <= 0) mam_fail('validation', 422, ['fields' => ['student_id']]);
 
 $comment = trim((string) ($in['comment'] ?? ''));
 if (mb_strlen($comment) > 4000) mam_fail('validation', 422, ['fields' => ['comment']]);
+/* The comment is the one paragraph only a person can write, and the panel
+   cannot moderate a report without it. An empty send used to save a bare draft
+   and tell the instructor it had gone to the panel (UX quick win 8). */
+if ($comment === '') mam_fail('comment_required', 422, ['fields' => ['comment'],
+    'message' => 'Write your comment before sending the report to the panel.']);
 
 /* Ownership, against the SAME dual-read list the Students and Termly report
    screens are built from (gotcha #2) — a fresh query here could admit a student
@@ -53,7 +58,7 @@ try {
         ? (int) $existing['id']
         : mam_report_build($studentId, $cohortId > 0 ? $cohortId : null, $me);
 
-    mam_report_set_comment($reportId, $comment !== '' ? $comment : null, $me);
+    mam_report_set_comment($reportId, $comment, $me);
 } catch (RuntimeException $e) {
     $m = $e->getMessage();
     if ($m === 'already_ratified') mam_fail('already_ratified', 409);
@@ -64,5 +69,10 @@ try {
     mam_fail('validation', 422, ['fields' => ['student_id']]);
 }
 
-$row = mam_db_row('SELECT status FROM termly_reports WHERE id = ?', [$reportId]);
-mam_ok(['ok' => true, 'report_id' => $reportId, 'status' => (string) ($row['status'] ?? 'draft')]);
+$row = mam_db_row('SELECT status, instructor_comment FROM termly_reports WHERE id = ?', [$reportId]);
+$status = (string) ($row['status'] ?? '');
+/* `sent` is what the screen may say: the panel's queue (`mam_report_pending()`)
+   lists draft and moderating reports, and only one carrying the comment is
+   something the panel can act on. Read back, never assumed. */
+$sent = in_array($status, ['draft', 'moderating'], true) && trim((string) ($row['instructor_comment'] ?? '')) !== '';
+mam_ok(['ok' => true, 'report_id' => $reportId, 'status' => $status, 'sent' => $sent]);

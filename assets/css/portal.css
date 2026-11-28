@@ -505,7 +505,10 @@ html[data-portal-theme] .kpi-value.gold{background:none !important;-webkit-text-
 .nav-badge,.asg-count{background:var(--bg-elevated);border:1px solid var(--border-strong);color:var(--text-soft)}
 
 /* Primary = neutral ink; ghost = quiet; danger = semantic. */
-.portal-main .btn-primary,.login-form button[type=submit]{background:var(--btn-primary-bg);color:var(--btn-primary-fg)}
+/* A fallback where the page sets no portal theme (the sign-in page): without one
+   the variables were undefined, the background dropped out and "Sign in" read as
+   plain text, not a button (UX quick win 25). */
+.portal-main .btn-primary,.login-form button[type=submit]{background:var(--btn-primary-bg,#F2A93B);color:var(--btn-primary-fg,#1A120B);min-height:52px}
 .portal-main .btn-primary:hover,.login-form button[type=submit]:hover{transform:translateY(-1px);box-shadow:var(--shadow-md)}
 .login-form button[type=submit]{text-transform:none;letter-spacing:0.01em}
 .portal-main .btn-ghost{background:transparent;border:1px solid var(--border-strong);color:var(--text-soft)}

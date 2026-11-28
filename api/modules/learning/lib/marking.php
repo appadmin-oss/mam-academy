@@ -239,3 +239,27 @@ function mam_marking_sheet(int $submissionId, array $criteria = []): array {
         'audio_only_notice'  => MAM_MARKING_AUDIO_NOTICE,
     ];
 }
+
+/**
+ * Why a marking-sheet save must be refused, or null when it may be stored.
+ * Every criterion on the sheet needs EITHER a whole-number mark within its
+ * range OR an explicit `null` ("Not assessed", chosen on the band row). A
+ * criterion the marker never touched is absent from the map, and saving that
+ * used to accept the submission with no marks and drop it off the queue.
+ * `null` stays "Not assessed", never 0 — the same line the mastery score holds.
+ */
+function mam_marking_rubric_refusal(array $rubric, array $sheetCriteria): ?string {
+    if (!$sheetCriteria) return null;
+    foreach ($sheetCriteria as $c) {
+        $key = (string) ($c['key'] ?? '');
+        if ($key === '') continue;
+        if (!array_key_exists($key, $rubric)) return 'no_marks';
+        $v = $rubric[$key];
+        if ($v === null) continue;
+        if (is_string($v) && $v === 'not_assessed') continue;
+        if (!is_int($v) && !(is_float($v) && floor($v) == $v) && !(is_string($v) && ctype_digit($v))) return 'invalid_mark';
+        $n = (int) $v; $max = (int) ($c['max'] ?? 30);
+        if ($n < 0 || $n > $max) return 'invalid_mark';
+    }
+    return null;
+}

@@ -187,7 +187,7 @@ $ogDesc    = $recital
 <main class="wrap">
 
   <div class="crest">
-    <img src="/mam-academy-logo.svg" alt="" onerror="this.style.display='none'">
+    <img src="/assets/img/mam-academy-logo-96.png" alt="" onerror="this.style.display='none'">
     <span>MAM Academy</span>
   </div>
 

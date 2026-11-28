@@ -176,9 +176,17 @@ function mam_enrol_resolve(int $appId, array $overrides = []): array
     if (!$out['level']) $out['notes'][] = 'No level recorded — enrolling without one. You can set it later.';
 
     /* ── programme ───────────────────────────────────────────────────────── */
+    /* The track the age gives, when the application did not store one. KTAMS
+       is the under-16 programme; an adult must never be defaulted into it
+       (UX quick win 11). The applicant's own date of birth decides. */
+    $track = (string) ($app['program_track'] ?? '');
+    // The date of birth lives on the applicant (customers.dob), not the application.
+    $dobRow = !empty($app['customer_id']) ? mam_db_row('SELECT dob FROM customers WHERE id = ?', [(int) $app['customer_id']]) : null;
+    $appAge = function_exists('mam_age_from_dob') ? mam_age_from_dob((string) ($dobRow['dob'] ?? '')) : null;
+    if ($appAge !== null) $track = $appAge < 16 ? 'KTAMS' : ($track === 'KTAMS' ? 'MAM' : $track);
     $progCode = array_key_exists('programme', $overrides)
         ? (string) $overrides['programme']
-        : (string) mam_enrol_programme_code($app['pathway'] ?? null, $app['program_track'] ?? null);
+        : (string) mam_enrol_programme_code($app['pathway'] ?? null, $track);
     if ($progCode !== '') {
         $p = mam_db_row('SELECT id, code, name FROM programs WHERE code = ?', [$progCode]);
         if ($p) $out['programme'] = ['id' => (int) $p['id'], 'code' => $p['code'], 'name' => $p['name']];
@@ -429,7 +437,7 @@ function mam_enrol_complete(int $appId, array $overrides = [], ?int $actorId = n
             // Not a failure: the student is enrolled and visible. But it is the
             // one thing left undone, so it is said plainly rather than implied.
             $steps[] = ['step' => 'instructor', 'ok' => false,
-                        'detail' => 'No instructor available for this course yet — assign one from Course Registrations.'];
+                        'detail' => 'No instructor available for this course yet — assign one in Teaching → Enrol & staffing.'];
         }
 
         $co = mam_db_row('SELECT * FROM cohorts WHERE id = ?', [$cohortId]);

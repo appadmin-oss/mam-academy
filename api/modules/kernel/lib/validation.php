@@ -267,6 +267,7 @@ function mam_in(string $v, array $allowed): bool {
 function mam_validate_application(array $in): array {
     $out = [];
     $errors = [];
+    $messages = [];
 
     $out['firstName'] = mam_str($in, 'firstName', 60);
     $out['lastName']  = mam_str($in, 'lastName',  60);
@@ -384,8 +385,10 @@ function mam_validate_application(array $in): array {
     // track and guardian-requirement all derive from it server-side.
     $out['dob'] = mam_str($in, 'dob', 20);
     $age = mam_age_from_dob($out['dob']);
-    if ($age === null || $age < 3 || $age > 120) {
+    $dobProblem = mam_dob_problem($out['dob'], 3, 120);
+    if ($dobProblem !== null) {
         $errors[] = 'dob';
+        $messages['dob'] = mam_dob_message($dobProblem, 3, 120);
         $out['ageRange'] = null;
         $out['programTrack'] = 'MAM';
     } else {
@@ -447,7 +450,7 @@ function mam_validate_application(array $in): array {
     if (!$out['policyAgreed'])                 $errors[] = 'policyAgreed';
     if (($out['policySignedName'] ?? '') === '') $errors[] = 'policySignedName';
 
-    if (!empty($errors)) mam_fail('validation', 422, ['fields' => $errors]);
+    if (!empty($errors)) mam_fail('validation', 422, ['fields' => $errors, 'messages' => $messages]);
 
     // KTAMS (under-16): the policy signature must match the guardian's name
     if ($out['programTrack'] === 'KTAMS' && !empty($out['parentName']) && ($out['policySignedName'] ?? '') !== '') {
@@ -457,6 +460,36 @@ function mam_validate_application(array $in): array {
     }
 
     return $out;
+}
+
+/**
+ * What is wrong with a date of birth, as a code, or null when it is fine.
+ * 'missing' | 'invalid' | 'future' | 'too_young' | 'too_old'. A future date is
+ * its own answer: it used to fall through as "invalid" (or, on the summer form,
+ * as an age, because DateTime::diff() is absolute) and the applicant was told
+ * something that was not the problem (UX quick win 17).
+ */
+function mam_dob_problem(?string $dob, int $minAge = 3, int $maxAge = 120): ?string {
+    $dob = trim((string) $dob);
+    if ($dob === '') return 'missing';
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $dob, $m) || !checkdate((int) $m[2], (int) $m[3], (int) $m[1])) return 'invalid';
+    if ($dob > (new DateTimeImmutable('today'))->format('Y-m-d')) return 'future';
+    $age = mam_age_from_dob($dob);
+    if ($age === null) return 'invalid';
+    if ($minAge > 0 && $age < $minAge) return 'too_young';
+    if ($maxAge > 0 && $age > $maxAge) return 'too_old';
+    return null;
+}
+
+/** The plain sentence for a mam_dob_problem() code, shown beside the field. */
+function mam_dob_message(string $code, int $minAge = 3, int $maxAge = 120): string {
+    return [
+        'missing'   => 'Enter a date of birth.',
+        'invalid'   => 'Enter a real date, like 2015-03-24.',
+        'future'    => "Date of birth can't be in the future.",
+        'too_young' => 'Learners must be at least ' . $minAge . ' years old.',
+        'too_old'   => 'Check the year — that would make the learner older than ' . $maxAge . '.',
+    ][$code] ?? 'Check the date of birth.';
 }
 
 /**
@@ -560,7 +593,8 @@ function mam_validate_summer_application(array $src): array {
     if (!$email) mam_fail('invalid_email', 422);
 
     $dob = trim((string)$src['dob']);
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dob)) mam_fail('invalid_dob', 422);
+    $dobProblem = mam_dob_problem($dob, 0, 0);
+    if ($dobProblem !== null) mam_fail('invalid_dob', 422, ['message' => mam_dob_message($dobProblem), 'reason' => $dobProblem]);
     $age = 0;
     try {
         $dobDt = new DateTimeImmutable($dob);

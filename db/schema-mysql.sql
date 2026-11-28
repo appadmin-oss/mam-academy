@@ -4058,3 +4058,13 @@ INSERT INTO cohort_staff (cohort_id, instructor_id, role, session_id, starts_on,
      AND EXISTS (SELECT 1 FROM users u WHERE u.id = cs.substitute_id)
      AND NOT EXISTS (SELECT 1 FROM cohort_staff x WHERE x.session_id = cs.id AND x.role = 'cover');
 INSERT INTO schema_version (version) VALUES (111) ON DUPLICATE KEY UPDATE version = version;
+
+-- v112 — consent is three-state (agreed / declined / not answered yet). A stamp
+-- per consent says it was answered; rows a person wrote keep their answers.
+ALTER TABLE student_consents ADD COLUMN media_decided_at TEXT NULL;
+ALTER TABLE student_consents ADD COLUMN photo_decided_at TEXT NULL;
+ALTER TABLE student_consents ADD COLUMN data_decided_at TEXT NULL;
+UPDATE student_consents
+   SET media_decided_at = updated_at, photo_decided_at = updated_at, data_decided_at = updated_at
+ WHERE updated_by IS NOT NULL;
+INSERT INTO schema_version (version) VALUES (112) ON DUPLICATE KEY UPDATE version = version;

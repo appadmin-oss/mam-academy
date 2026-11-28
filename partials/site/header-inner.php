@@ -2,7 +2,7 @@
     <div style="position: relative">
       <div style="max-width: 1360px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 40px); height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 24px">
         <a href="/" style="display: flex; align-items: center; gap: 10px; min-height: 44px; text-decoration: none; color: #211A13">
-          <img src="/mam-academy-logo.svg" alt="" width="30" height="30" style="width: 30px; height: 30px">
+          <img src="/assets/img/mam-academy-logo-96.png" alt="" width="30" height="30" style="width: 30px; height: 30px">
           <span class="wm" style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px; font-weight: 600; line-height: 1; white-space: nowrap">MAM Academy</span>
         </a>
         <div style="display: flex; align-items: center; gap: 4px">

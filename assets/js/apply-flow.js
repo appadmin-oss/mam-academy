@@ -75,6 +75,16 @@
   function prog() { return PROGS.filter(function (p) { return p.k === s.f.prog; })[0] || null; }
   function flat() { var p = prog(); return !!p && p.unit === 'flat'; }
   function first() { return s.f.first.trim(); }
+  /* The thank-you speaks to the person who filled the form in. When a parent
+     applies for a child, that is the parent — "Welcome to MAM, Ada" addressed
+     a seven-year-old who was not there (UX quick win 25). */
+  function greeting() {
+    if (child()) {
+      var g = (s.f.gname || '').trim().split(/\s+/)[0];
+      return 'Thank you' + (g ? ', ' + esc(g) : '') + '. ' + esc(first() || 'Your child') + '’s application is in.';
+    }
+    return 'Welcome to MAM, ' + esc(first() || 'friend') + '.';
+  }
   function them() { return child() ? (first() || 'your child') : 'you'; }
 
   /* The screens that apply to these answers, in order. */
@@ -187,6 +197,9 @@
       case 'pay':
         var methods = [{ v: 'card', l: 'Card', d: 'Visa, Mastercard, Verve — via Paystack' }, { v: 'transfer', l: 'Bank transfer', d: 'Details sent by email' }]
           .filter(function (m) { var pm = (CFG.paymentMethods || {})[m.v === 'card' ? 'paystack' : 'bank']; return !pm || pm.enabled !== false; });
+        /* Card hidden (no gateway key, or it refused) → the choice the
+           applicant is left with is the one that is selected. */
+        if (!methods.some(function (m) { return m.v === s.f.pay; }) && methods.length) s.f.pay = methods[0].v;
         var signer = needsGuardian() ? 'the parent or guardian' : 'you';
         return head('Final step', 'Pay the ' + money(F.registration) + ' registration fee', 'Tuition is paid later, once your level and plan are confirmed.')
           + tiles('pay', 'Payment method', methods, 220)
@@ -196,7 +209,7 @@
       case 'done': return '<div style="display: flex; flex-direction: column; gap: 28px"><div style="padding: 32px; border-radius: 22px; background: #211A13; color: #FCF8F3; display: flex; flex-direction: column; gap: 10px">'
         + '<svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#F2A93B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M7.5 12.5l3 3 6-6.5"></path></svg>'
         + '<h1 tabindex="-1" data-ap="h1" style="margin: 4px 0 0; font-family: \'Cormorant Garamond\', Georgia, serif; font-weight: 500; font-size: clamp(38px, 4vw, 56px); line-height: 1.05; outline: none">Application received</h1>'
-        + '<p style="margin: 0; font-size: 17px; color: #D8CEC1">Welcome to MAM, ' + esc(first() || 'friend') + '. Your reference is <strong style="color: #F2A93B; letter-spacing: .04em">' + esc(s.ref) + '</strong>. A confirmation is on its way to ' + esc(contactEmail()) + '.</p>'
+        + '<p style="margin: 0; font-size: 17px; color: #D8CEC1">' + greeting() + ' Your reference is <strong style="color: #F2A93B; letter-spacing: .04em">' + esc(s.ref) + '</strong>. A confirmation is on its way to ' + esc(contactEmail()) + '.</p>'
         + (s.payNote ? '<p style="margin: 0; font-size: 15px; color: #D8CEC1">' + esc(s.payNote) + '</p>' : '') + '</div>'
         + '<h2 style="margin: 8px 0 0; font-family: \'Cormorant Garamond\', Georgia, serif; font-weight: 500; font-size: 34px">What happens next</h2><ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">'
         + [['1', 'Check your email', 'Your confirmation and receipt arrive within a few minutes.'], ['2', 'Book your MAM Auditer assessment', 'About 30 minutes, online or in person. It sets ' + (child() ? them() + '’s' : 'your') + ' level.'], ['3', 'Meet your instructor', 'You receive a plan, a timetable and your first lesson date.']]
@@ -223,10 +236,16 @@
   /* The typo offer is always in the markup (empty when there is nothing to offer),
      so it can appear while the address is being typed — the moment it helps. */
   function suggestLine(k, sug) {
-    return '<p data-suggest-line="' + k + '" role="status" style="margin: -8px 0 0; font-size: 15px"' + (sug ? '' : ' hidden') + '>Did you mean <button type="button" data-suggest="' + k + '" class="ul" style="padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: #8A5208; cursor: pointer">' + esc(sug) + '</button>?</p>';
+    /* Two answers, both buttons: take the suggestion, or keep what was typed.
+       Continue is refused until one is chosen (UX quick win 16) — a typo in
+       the one address every confirmation and invoice goes to is otherwise
+       found weeks later, by nobody. */
+    return '<p data-suggest-line="' + k + '" role="status" style="margin: -8px 0 0; font-size: 15px"' + (sug ? '' : ' hidden') + '>Did you mean <button type="button" data-suggest="' + k + '" class="ul" style="padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: #8A5208; cursor: pointer">' + esc(sug) + '</button>? '
+      + '<button type="button" data-keepmail="' + k + '" class="ul" style="min-height: 44px; padding: 0 0 0 8px; border: 0; background: none; font: inherit; color: #574B40; cursor: pointer">No, keep what I typed</button></p>';
   }
   function suggest(k) {
     var em = (s.f[k] || '').trim().toLowerCase(), at = em.lastIndexOf('@'); if (at <= 0) return '';
+    if ((s.mailOk || {})[k] === em) return '';   // the applicant said: keep what I typed
     var dom = em.slice(at + 1); if (!dom || DOM.indexOf(dom) >= 0) return '';
     var lev = function (x, y) { var m = [], i, j; for (i = 0; i <= x.length; i++) m[i] = [i]; for (j = 1; j <= y.length; j++) m[0][j] = j; for (i = 1; i <= x.length; i++) for (j = 1; j <= y.length; j++) m[i][j] = Math.min(m[i - 1][j] + 1, m[i][j - 1] + 1, m[i - 1][j - 1] + (x[i - 1] === y[j - 1] ? 0 : 1)); return m[x.length][y.length]; };
     var best = DOM.map(function (d) { return [d, lev(dom, d)]; }).sort(function (p, q) { return p[1] - q[1]; })[0];
@@ -240,13 +259,19 @@
     if (need[k] && !f[k]) e.tile = need[k];
     if (k === 'instrument' && f.instrument === 'wind' && !f.wind) e.tile = 'Choose which wind or brass instrument';
     if (k === 'name') { if (!f.first.trim()) e.first = 'Enter a first name'; if (!f.last.trim()) e.last = 'Enter a last name'; }
-    if (k === 'dob') { var a = age(); if (a == null) e.dob = 'Enter a date of birth, like 2015-03-24'; else if (a < 3) e.dob = 'Learners start from age 4'; else if (a > 110) e.dob = 'Check the year'; }
+    if (k === 'dob') { var a = age(); if (/^\d{4}-\d{2}-\d{2}$/.test(s.f.dob) && new Date(s.f.dob + 'T00:00:00') > new Date()) e.dob = 'Date of birth can\'t be in the future.'; else if (a == null) e.dob = 'Enter a date of birth, like 2015-03-24'; else if (a < 3) e.dob = 'Learners start from age 4'; else if (a > 110) e.dob = 'Check the year'; }
     if (k === 'contact') {
       if (needsGuardian()) {
         if (!f.gname.trim()) e.gname = 'Enter the parent or guardian’s full name';
         if (!mail.test(f.gemail.trim())) e.gemail = 'Enter an email address like name@example.com';
         if (f.learnerEmail.trim() && !mail.test(f.learnerEmail.trim())) e.learnerEmail = 'Enter an email address like name@example.com, or leave it blank';
       } else if (!mail.test(f.email.trim())) e.email = 'Enter an email address like name@example.com';
+      ['email', 'gemail'].forEach(function (mk) {
+        if (e[mk] || !String(f[mk] || '').trim()) return;
+        if ((mk === 'email') === needsGuardian()) return;
+        var sg = suggest(mk);
+        if (sg) e[mk] = 'Did you mean ' + sg + '? Choose it, or choose “No, keep what I typed”.';
+      });
       if ((f.phone.match(/\d/g) || []).length < 7) e.phone = 'Enter a phone number with at least 7 digits';
     }
     if (k === 'address') { if (f.address.trim().length < 3) e.address = 'Enter a street address'; if (!f.state.trim()) e.state = 'Enter a state or region'; if (!f.lga.trim()) e.lga = 'Enter a local government area or city'; }
@@ -301,12 +326,16 @@
   function persist() {
     try {
       if (s.step === 'done') localStorage.removeItem(KEY);
-      else { var f = JSON.parse(JSON.stringify(s.f)); f.terms = false; f.sign = ''; localStorage.setItem(KEY, JSON.stringify({ f: f, step: s.step, at: Date.now() })); }
+      else { var f = JSON.parse(JSON.stringify(s.f)); f.terms = false; f.sign = ''; localStorage.setItem(KEY, JSON.stringify({ f: f, step: s.step, at: Date.now(), idem: s.idem || '', ref: s.ref || '' })); }
     } catch (e) { /* private mode: answers last for this visit */ }
   }
   try {
     var raw = localStorage.getItem(KEY), d = raw && JSON.parse(raw);
-    if (d && d.f && d.step && d.step !== 'done') { s.f = Object.assign(blank(), d.f, { terms: false, sign: '' }); s.step = order().indexOf(d.step) >= 0 ? d.step : 'who'; s.restored = true; }
+    if (d && d.f && d.step && d.step !== 'done') { s.f = Object.assign(blank(), d.f, { terms: false, sign: '' }); s.step = order().indexOf(d.step) >= 0 ? d.step : 'who'; s.restored = true;
+      /* The same idempotency key after a reload: the server hands back the
+         application it already made instead of a second one. */
+      if (d.idem) s.idem = String(d.idem);
+      if (d.ref) s.ref = String(d.ref); }
   } catch (e) { /* a broken save starts afresh */ }
   // Arriving from the fee estimator (?pathway=…&mode=…&level=…) answers those questions.
   try {
@@ -356,8 +385,10 @@
     if (!api) { s.payNote = 'The form could not reach us. Please check your connection and try again.'; paint(false); return; }
     s.busy = true; s.payNote = ''; paint(false);
     if (!s.idem) s.idem = 'MAMK-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    persist();
     api.submitApplication(payload(), s.idem).then(function (res) {
       s.ref = res.reference || (res.data && res.data.reference) || '';
+      persist();
       var provider = s.f.pay === 'transfer' ? 'bank' : 'paystack';
       return api.initializePayment({ reference: s.ref, provider: provider, purpose: 'booking_fee' }).then(function (init) {
         if (init.already_paid || init.already_valid) { s.payNote = init.message || 'No payment was needed.'; return finish(); }
@@ -369,10 +400,29 @@
       var fields = err && err.body && err.body.fields;
       if (fields && fields.length) {
         var to = order().filter(function (k) { return fields.some(function (x) { return SERVER_SCREEN[x] === k; }); })[0] || 'review';
-        s.step = to; s.err = { tile: 'Please check this answer: we could not accept it.' }; paint(true); return;
+        s.step = to; s.err = { tile: 'Please check this answer: we could not accept it.' };
+        /* The server's own sentence for a field (a future date of birth, say)
+           beats the generic one — it names what is actually wrong. */
+        var msgs = (err.body && err.body.messages) || {};
+        Object.keys(msgs).forEach(function (k) { s.err[k] = String(msgs[k]); if (k === 'dob') s.err.tile = String(msgs[k]); });
+        paint(true); return;
+      }
+      var srvMsg = err && err.body && (err.body.message || (err.body.error && err.body.error.message));
+      var code = err && err.body && (err.body.error && err.body.error.code || err.body.error);
+      if (s.ref) {
+        /* The application exists; only the card step failed. Say so with its
+           reference and the server's own words, and switch to bank transfer —
+           pressing Pay again reuses the same application (idempotency key). */
+        if (s.f.pay === 'card') {
+          s.f.pay = 'transfer';
+          if (code === 'online_payment_unavailable' && CFG.paymentMethods && CFG.paymentMethods.paystack) CFG.paymentMethods.paystack.enabled = false;
+        }
+        s.payNote = 'Your application is saved as ' + s.ref + '. ' + (srvMsg || 'Card payment could not be started.')
+          + ' We have switched you to bank transfer — press Pay to get the account details.';
+        persist(); paint(false); return;
       }
       s.payNote = err && err.status === 429 ? 'Too many attempts from this connection. Please wait a few minutes and try again.'
-        : 'That did not go through, and nothing was charged. Please try again, or write to academy@mamcentre.org.';
+        : (srvMsg ? srvMsg + ' ' : 'That did not go through, and nothing was charged. ') + 'Please try again, or write to academy@mamcentre.org.';
       paint(false);
     });
   }
@@ -395,14 +445,14 @@
       sc.onerror = function () { reject(new Error('provider_unavailable')); };
       document.head.appendChild(sc);
     }).catch(function () {
-      s.busy = false; s.payNote = 'Your application is saved as ' + s.ref + ', but the card window did not open. Choose bank transfer, or pay from the link in your email.'; paint(false);
+      s.busy = false; s.f.pay = 'transfer'; s.payNote = 'Your application is saved as ' + s.ref + ', but the card window did not open. We have switched you to bank transfer — press Pay to get the account details, or pay from the link in your email.'; persist(); paint(false);
     });
   }
   function finish() { s.busy = false; go('done'); }
 
   /* ---------- wiring ---------- */
   root.addEventListener('click', function (e) {
-    var t = e.target.closest ? e.target.closest('[data-pick],[data-ap="next"],[data-change],[data-suggest]') : null; if (!t) return;
+    var t = e.target.closest ? e.target.closest('[data-pick],[data-ap="next"],[data-change],[data-suggest],[data-keepmail]') : null; if (!t) return;
     if (t.hasAttribute('data-pick')) {
       var fld = t.getAttribute('data-pick'); s.f[fld] = t.getAttribute('data-v'); s.err = {};
       if (fld === 'instrument' && s.f.instrument !== 'wind') s.f.wind = '';
@@ -410,7 +460,13 @@
       persist(); paint(false);
       var again = root.querySelector('[data-pick="' + fld + '"][data-v="' + CSS.escape(s.f[fld]) + '"]'); if (again) again.focus();
     } else if (t.hasAttribute('data-change')) { s.back2review = s.step === 'review'; go(t.getAttribute('data-change')); }
-    else if (t.hasAttribute('data-suggest')) { var k = t.getAttribute('data-suggest'); s.f[k] = t.textContent; persist(); paint(false); }
+    else if (t.hasAttribute('data-suggest')) { var k = t.getAttribute('data-suggest'); s.f[k] = t.textContent; if (s.err) delete s.err[k]; persist(); paint(false); }
+    else if (t.hasAttribute('data-keepmail')) {
+      var mk = t.getAttribute('data-keepmail'); s.mailOk = s.mailOk || {}; s.mailOk[mk] = String(s.f[mk] || '').trim().toLowerCase();
+      if (s.err) delete s.err[mk];
+      var ln = root.querySelector('[data-suggest-line="' + mk + '"]'); if (ln) ln.hidden = true;
+      paint(false);
+    }
     else next();
   });
   document.querySelector('.ap-aside').addEventListener('click', function (e) {
@@ -436,6 +492,7 @@
     }
   });
   $('back').addEventListener('click', back);
-  $('reset').addEventListener('click', function () { try { localStorage.removeItem(KEY); } catch (e) { /* nothing saved */ } s.f = blank(); s.restored = false; s.back2review = false; go('who'); });
+  document.addEventListener('mam:config', function () { if (s.step === 'pay' && !s.busy) paint(false); });
+  $('reset').addEventListener('click', function () { try { localStorage.removeItem(KEY); } catch (e) { /* nothing saved */ } s.f = blank(); s.idem = ''; s.ref = ''; s.restored = false; s.back2review = false; go('who'); });
   paint(false);
 })();

@@ -410,6 +410,8 @@
 [data-admin="v2"] .ac-banner--bad { background: var(--ac-bad-w); }
 [data-admin="v2"] .ac-banner--bad i { color: var(--ac-bad); }
 [data-admin="v2"] .ac-banner--good { background: var(--ac-good-w); }
+[data-admin="v2"] .ac-plainset { border: 0; padding: 0; margin: 0; min-width: 0; }
+[data-admin="v2"] .ac-plainset[disabled] .ac-input, [data-admin="v2"] .ac-plainset[disabled] .ac-select, [data-admin="v2"] .ac-plainset[disabled] .ac-textarea { opacity: 1; cursor: not-allowed; }
 [data-admin="v2"] .ac-banner--good i { color: var(--ac-good); }
 [data-admin="v2"] .ac-banner--flat { background: var(--ac-surface); border: 1px solid var(--ac-line); }
 [data-admin="v2"] .ac-bannertitle { font-size: var(--ac-t-sm); font-weight: 700; color: var(--ac-ink); }

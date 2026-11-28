@@ -552,6 +552,12 @@ window.MAM_CDN = (function () {
         // Full display-rate map (server-authoritative). Merge so any currency the
         // server omits keeps its built-in fallback; the live NGN above is included.
         if (j.currency_rates && C.currency) C.currency.rates = Object.assign({}, C.currency.rates, j.currency_rates);
+        // The server's word on which payment methods work now (card needs a key).
+        if (j.payment_methods && C.paymentMethods) {
+          Object.keys(j.payment_methods).forEach(function (k) {
+            C.paymentMethods[k] = Object.assign({}, C.paymentMethods[k] || {}, { enabled: !!(j.payment_methods[k] || {}).enabled });
+          });
+        }
         // Real receiving bank account for the apply/store transfer panels.
         if (j.bank) C.bank = j.bank;
         // CDN (Cloudinary) config — admin-editable so the cloud name and

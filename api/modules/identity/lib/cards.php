@@ -161,6 +161,20 @@ function mam_card_exp_display(array $card): string {
     return $iss !== '' ? 'EXP.12/' . date('y', (int)strtotime($iss)) : '';
 }
 
+/**
+ * The expiry in words for a screen ("Nov 2027"). The printed face keeps its
+ * compact EXP.MM/YY; a sentence that reads "Valid until EXP.11/27" is a code
+ * pasted into prose (UX quick win 25).
+ */
+function mam_card_exp_words(array $card): string {
+    $exp = (string)($card['expires_at'] ?? '');
+    if ($exp === '') {
+        $iss = (string)($card['issued_at'] ?? '');
+        return $iss !== '' ? 'Dec ' . date('Y', (int)strtotime($iss)) : '';
+    }
+    return date('M Y', (int)strtotime($exp));
+}
+
 /** One word for the card's real state, for admin lists and the studio. */
 function mam_card_state(array $card, ?string $now = null): string {
     if ((string)($card['status'] ?? '') !== 'active') return (string)$card['status'];
@@ -714,6 +728,7 @@ function mam_card_portal_view(int $userId): array {
             'display_id' => mam_card_display_id($card),
             'state'      => mam_card_state($card),
             'expires'    => mam_card_exp_display($card),
+            'expires_words' => mam_card_exp_words($card),
             'url'        => '/card/' . rawurlencode((string) $card['serial']),
         ], 'eligible' => true];
     }

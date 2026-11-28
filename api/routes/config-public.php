@@ -44,6 +44,13 @@ mam_ok([
     // The academy's receiving bank account, so the apply/store bank-transfer
     // panels show the real details instead of placeholders.
     'bank'                    => mam_bank_details(),
+    // Which ways to pay can actually be taken right now. The apply wizard hides
+    // Card when this says no, instead of offering it and failing at the end
+    // (UX quick win 6). The same predicate payment-init refuses on.
+    'payment_methods'         => [
+        'paystack' => ['enabled' => function_exists('mam_paystack_configured') && mam_paystack_configured()],
+        'bank'     => ['enabled' => true],
+    ],
     // Effective live USD→NGN (auto-updated from the rate API, cached, with the
     // admin static rate as fallback) so the UI's "approx ₦…" matches the charge.
     'usd_to_ngn'              => mam_usd_to_ngn_rate(false),

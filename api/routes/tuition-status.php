@@ -8,6 +8,12 @@
  */
 declare(strict_types=1);
 
+// An INV-… reference is a fee invoice, paid in the family portal. Saying so is
+// not a disclosure: it names a reference FORMAT, not whether one exists.
+if (preg_match('/^\s*INV-/i', (string) ($_GET['ref'] ?? ''))) {
+    mam_ok(['found' => false, 'kind' => 'fee_invoice', 'portal' => '/portal/parent/',
+            'message' => 'That is an invoice reference. Sign in to the family portal and open Fees to pay it.']);
+}
 $st = mam_tuition_status((string)($_GET['ref'] ?? ''), (string)($_GET['email'] ?? ''));
 if ($st === null) mam_ok(['found' => false]);
 mam_ok($st);

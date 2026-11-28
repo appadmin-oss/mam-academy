@@ -1101,7 +1101,7 @@
 </main>
 
 <?php include __DIR__ . '/partials/footer.html'; ?>
-<script src="assets/js/config.js?v=20261120a"></script>
+<script src="assets/js/config.js?v=20261128u"></script>
 <script src="assets/js/main.js?v=20260920"></script>
 <!--
   Audio libraries are DEFERRED until the first user interaction with the

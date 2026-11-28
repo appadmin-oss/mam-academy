@@ -203,13 +203,13 @@ function site_footer_chrome(): void {
     include __DIR__ . '/footer.php';
     site_a11y_panel();
     echo "\n<script>window.MAM_SITE=" . json_encode(['fees' => site_fees(), 'intake' => site_intake()], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) . ";</script>\n";
-    echo '<script src="/assets/js/site.js?v=20261123b" defer></script>' . "\n";
+    echo '<script src="/assets/js/site.js?v=20261128u" defer></script>' . "\n";
 }
 
 /** The footer, and the end of the document. $scripts: page scripts beyond site.js. */
 function site_footer(array $scripts = []): void {
     site_footer_chrome();
-    foreach ($scripts as $s) echo '<script src="/assets/js/' . site_h($s) . '?v=20261120" defer></script>' . "\n";
+    foreach ($scripts as $s) echo '<script src="/assets/js/' . site_h($s) . '?v=20261128u" defer></script>' . "\n";
     echo "</body>\n</html>\n";
 }
 

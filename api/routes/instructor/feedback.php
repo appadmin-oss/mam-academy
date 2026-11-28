@@ -17,6 +17,20 @@ $sub = mam_lms_submission($sid);
 if (!$sub) mam_fail('submission_not_found', 404);
 if (!$isAdmin && (int)($sub['assignment_author_id'] ?? 0) !== (int)$u['id']) mam_fail('forbidden', 403);
 
+// The marking sheet sends its rubric as {criterion: mark|null}. A save with a
+// criterion left unmarked is refused here, BEFORE anything is written, so the
+// submission stays on the marking queue (UX quick win 7).
+$rubricIn = $in['rubric'] ?? null;
+if (is_array($rubricIn) && $rubricIn !== array_values($rubricIn) || $rubricIn === []) {
+    $sheet = function_exists('mam_marking_sheet') ? mam_marking_sheet($sid) : [];
+    $why = mam_marking_rubric_refusal((array) $rubricIn, $sheet['criteria'] ?? []);
+    if ($why !== null) {
+        mam_fail($why, 422, ['message' => $why === 'no_marks'
+            ? 'Give every criterion a mark, or choose “Not assessed” for it, before saving.'
+            : 'A mark is outside the range for its criterion.']);
+    }
+}
+
 try {
     $r = mam_lms_give_feedback($sid, (int)$u['id'], [
         'outcome'  => (string)($in['outcome'] ?? 'accepted'),

@@ -148,7 +148,7 @@ foreach ($nav as $g) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&amp;family=Cormorant+Garamond:wght@600;700&amp;family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="/assets/css/admin-v2.css?v=2026.11.25a">
+<link rel="stylesheet" href="/assets/css/admin-v2.css?v=2026.11.28u">
 </head>
 <body>
 <a class="ac-skip" href="#ac-main">Skip to the screen</a>
@@ -158,7 +158,7 @@ foreach ($nav as $g) {
   <nav class="ac-rail sc" id="ac-rail" aria-label="Console sections">
     <div class="ac-railstick" id="ac-railstick">
       <div class="ac-railhead">
-        <img src="/mam-academy-logo.svg" alt="">
+        <img src="/assets/img/mam-academy-logo-96.png" alt="">
         <div class="ac-rt">
           <div class="ac-railname">MAM ACADEMY</div>
           <div class="ac-railsub">Admin console</div>

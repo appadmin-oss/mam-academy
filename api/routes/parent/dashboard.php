@@ -13,6 +13,9 @@
  */
 declare(strict_types=1);
 
+// Session times leave with their +01:00 offset (session-time.php, UX quick win 9).
+$mamPortalOk = fn(array $p) => mam_ok(mam_session_iso_payload($p));
+
 $u   = mam_require_role('parent');
 $pid = (int) $u['id'];
 $kids = mam_parent_children($pid);
@@ -123,7 +126,7 @@ $owed = mam_fee_owed_headline($kids);
 
 $threads = mam_thread_inbox($pid, 10);
 
-mam_ok([
+$mamPortalOk([
     'guardian'  => ['name' => $u['name'], 'children' => count($kids)],
     'children'  => $kids,
     'needs_you' => $needs,

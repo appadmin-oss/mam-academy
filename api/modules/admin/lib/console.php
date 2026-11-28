@@ -546,27 +546,38 @@ function mam_console_decisions(): array {
     return array_slice($q, 0, 8);
 }
 
-/** The admissions funnel, by status, as the dashboard and the board both show it. */
+/**
+ * The admissions board's chips, one per status, as the dashboard and the board
+ * both show them. Keyed and labelled from `mam_console_status_vocabulary()` —
+ * the ONE map the list's pills and the detail's "Now:" also read — so a status
+ * has one name everywhere (UX quick win 14). The old stages named values the
+ * state machine never writes (under_review, offered, interview_scheduled) and
+ * left in_review, cancelled and expired out, so the chips did not add up to the
+ * applications there are. A legacy 'pending' row counts as Received; anything
+ * the vocabulary does not know is counted under "Other" rather than dropped.
+ */
+function mam_console_admission_stage_statuses(): array {
+    $map = [];
+    foreach (mam_console_status_vocabulary() as $v) $map[$v['stored']] = [$v['stored']];
+    $map['submitted'][] = 'pending';
+    return $map;
+}
+
 function mam_console_funnel_stages(): array {
     $counts = [];
     foreach (mam_console_rows('funnel.stages',
         "SELECT status, COUNT(*) n FROM applications GROUP BY status") as $r) {
         $counts[(string) $r['status']] = (int) $r['n'];
     }
-    $stages = [
-        ['key' => 'submitted',   'label' => 'Submitted',      'from' => ['pending', 'submitted']],
-        ['key' => 'review',      'label' => 'Under review',   'from' => ['under_review', 'reviewing']],
-        ['key' => 'interview',   'label' => 'Audition set',   'from' => ['interview_scheduled', 'audition_scheduled']],
-        ['key' => 'offered',     'label' => 'Offer made',     'from' => ['offered', 'offer_made']],
-        ['key' => 'accepted',    'label' => 'Place confirmed', 'from' => ['accepted', 'enrolled', 'paid']],
-        ['key' => 'waitlisted',  'label' => 'Waitlist',       'from' => ['waitlisted']],
-    ];
-    $out = []; $max = 1;
-    foreach ($stages as $s) {
-        $n = 0; foreach ($s['from'] as $k) $n += $counts[$k] ?? 0;
-        $out[] = ['key' => $s['key'], 'label' => $s['label'], 'n' => $n];
+    $out = []; $max = 1; $seen = [];
+    foreach (mam_console_admission_stage_statuses() as $key => $from) {
+        $n = 0; foreach ($from as $k) { $n += $counts[$k] ?? 0; $seen[$k] = true; }
+        $out[] = ['key' => $key, 'label' => mam_console_status_label($key), 'n' => $n];
         $max = max($max, $n);
     }
+    $other = 0;
+    foreach ($counts as $k => $n) if (!isset($seen[$k])) $other += $n;
+    if ($other > 0) { $out[] = ['key' => 'other', 'label' => 'Other', 'n' => $other]; $max = max($max, $other); }
     foreach ($out as &$o) $o['pct'] = mam_console_pct($o['n'], $max);
     return $out;
 }
@@ -678,15 +689,15 @@ function mam_console_admissions(array $q = []): array {
     $search = trim((string) ($q['q'] ?? ''));
 
     $where = []; $args = [];
-    $stageMap = [
-        'submitted'  => ['pending', 'submitted'],
-        'review'     => ['under_review', 'reviewing'],
-        'interview'  => ['interview_scheduled', 'audition_scheduled'],
-        'offered'    => ['offered', 'offer_made'],
-        'accepted'   => ['accepted', 'enrolled', 'paid'],
-        'waitlisted' => ['waitlisted'],
-    ];
-    if (isset($stageMap[$stage])) {
+    $stageMap = mam_console_admission_stage_statuses();
+    // Links written before the chips were one-per-status still land somewhere sensible.
+    $alias = ['review' => 'in_review', 'offered' => 'accepted'];
+    if (isset($alias[$stage])) $stage = $alias[$stage];
+    if ($stage === 'other') {
+        $known = array_merge(...array_values($stageMap));
+        $where[] = 'a.status NOT IN (' . implode(',', array_fill(0, count($known), '?')) . ')';
+        foreach ($known as $k) $args[] = $k;
+    } elseif (isset($stageMap[$stage])) {
         $in = implode(',', array_fill(0, count($stageMap[$stage]), '?'));
         $where[] = "a.status IN ($in)";
         foreach ($stageMap[$stage] as $s) $args[] = $s;

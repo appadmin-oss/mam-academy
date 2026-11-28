@@ -110,7 +110,7 @@ $MAM_CI_VER = '20260819a';
     </div>
   </div>
 </main>
-<script src="assets/js/config.js?v=20261120a"></script>
+<script src="assets/js/config.js?v=20261128u"></script>
 <script>
 (function () {
   'use strict';

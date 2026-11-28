@@ -52,6 +52,14 @@
     return age;
   }
 
+  /* A future date gives a NEGATIVE age, which the checks below read as
+     "too young" — the wrong thing to tell somebody who mistyped the year. */
+  function isFutureDob(dob) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dob || '')) return false;
+    var t = new Date(); var today = t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2);
+    return dob > today;
+  }
+
   function updateGuardianUI(age) {
     if (!guardSection) return;
     var isMinor = isNaN(age) || age < 18; // default to showing (safe for youth programme)
@@ -112,6 +120,7 @@
       var age = calcAge(dobEl.value);
       updateGuardianUI(age);
       if (isNaN(age)) return;
+      if (isFutureDob(dobEl.value)) { showFieldError('dob'); showError('Date of birth can\'t be in the future.'); return; }
       if (minAge > 0 && age < minAge) {
         showError('The minimum age for this programme is ' + minAge + ' years. The date of birth entered gives an age of ' + age + '.');
       } else if (maxAge > 0 && age > maxAge) {
@@ -165,6 +174,14 @@
         showFieldError(required[i][0]);
         if (!firstInvalid) firstInvalid = el;
       }
+    }
+
+    if (isFutureDob(dobVal)) {
+      showFieldError('dob');
+      if (!firstInvalid) firstInvalid = form.querySelector('[name="dob"]');
+      showError('Date of birth can\'t be in the future.');
+      if (firstInvalid) firstInvalid.focus();
+      return;
     }
 
     var policyEl = form.querySelector('[name="policyAgreed"]');
@@ -259,7 +276,7 @@
       showError('Please enter a valid email address.');
     } else if (res && res.error === 'invalid_dob') {
       showFieldError('dob');
-      showError('Please enter a valid date of birth.');
+      showError((res && res.message) || 'Please enter a valid date of birth.');
     } else if (res && (res.error === 'age_too_young' || res.error === 'age_too_old')) {
       showFieldError('dob');
       showError(codeToMsg(res.error, res));

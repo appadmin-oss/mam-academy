@@ -27,6 +27,62 @@
     if (isNaN(d.getTime())) return s;
     return d.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
+  /* ── Lagos time, labelled (UX quick win 9) ─────────────────────────────
+     Every time a student, guardian or instructor reads is the academy's time,
+     Africa/Lagos, and says so: "4:30 PM WAT". A diaspora guardian's phone in
+     London must not show a different hour from the one the class starts at in
+     Lagos, and an unlabelled "4:30" there is ambiguous. Input: a server string
+     with an offset (session times arrive as …+01:00) or a bare UTC timestamp
+     (everything else is stored UTC), or a Date. */
+  var LAGOS = 'Africa/Lagos';
+  function lagosDate(v) {
+    if (!v) return null;
+    if (v instanceof Date) return isNaN(v) ? null : v;
+    var t = String(v).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) t += ' 12:00:00';
+    var d = new Date(t.replace(' ', 'T') + (/Z|[+-]\d\d:?\d\d$/.test(t) ? '' : 'Z'));
+    return isNaN(d) ? null : d;
+  }
+  function lagosParts(d, opts) {
+    try { return d.toLocaleString('en-GB', Object.assign({ timeZone: LAGOS }, opts)); }
+    catch (e) { return d.toLocaleString('en-GB', opts); }
+  }
+  function timeLagos(v, opts) {
+    var d = lagosDate(v); if (!d) return '';
+    var t;
+    try { t = d.toLocaleTimeString('en-US', { timeZone: LAGOS, hour: 'numeric', minute: '2-digit', hour12: true }); }
+    catch (e) { t = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }); }
+    return (opts && opts.label === false) ? t : t + ' WAT';
+  }
+  function dateLagos(v, opts) {
+    var d = lagosDate(v); if (!d) return '';
+    return lagosParts(d, Object.assign({ day: 'numeric', month: 'short', year: 'numeric' }, opts || {}));
+  }
+  function dateTimeLagos(v, opts) {
+    var d = lagosDate(v); if (!d) return '';
+    var o = opts || {};
+    var datePart = lagosParts(d, o.weekday ? { weekday: 'short', day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short', year: 'numeric' });
+    return datePart + ', ' + timeLagos(d, o);
+  }
+  /* The Lagos calendar day of an instant, 'YYYY-MM-DD' — for Today/Tomorrow. */
+  function dayKeyLagos(v) {
+    var d = lagosDate(v); if (!d) return '';
+    try { return d.toLocaleDateString('en-CA', { timeZone: LAGOS }); } catch (e) { return d.toISOString().slice(0, 10); }
+  }
+
+  /* A term in words. TONI / MEDI / SUMMER / DOMI are the academy's internal
+     codes (academic-session.php) and mean nothing to a family; a stored label
+     such as "TONI Term", "TONI 2026" or a cohort term "TONI-26A" reads as
+     "First term (Jan–Apr) 2026". Anything else is returned unchanged. */
+  var TERM_WORDS = { toni: 'First term (Jan–Apr)', medi: 'Second term (Apr–Jul)', summer: 'Summer term (Jul–Sep)', domi: 'Third term (Sep–Dec)' };
+  function termName(label) {
+    var t = String(label == null ? '' : label).trim();
+    var m = /^(toni|medi|summer|domi)\b(?:\s*term)?[\s\-·]*(\d{2,4})?[a-z]?$/i.exec(t);
+    if (!m) return t;
+    var y = m[2] ? (m[2].length === 2 ? '20' + m[2] : m[2]) : '';
+    return TERM_WORDS[m[1].toLowerCase()] + (y ? ' ' + y : '');
+  }
+
   // Literal formatter: the amount is ALREADY in `currency`. Used for factual
   // records such as a completed payment in its settlement currency — never
   // converts. MAM_CCY.symbol widens symbol coverage beyond the old 4-currency map.
@@ -225,6 +281,7 @@
     a11yHtml: a11yHtml, a11yHandle: a11yHandle,
     identity: identity, topTitle: topTitle,
     fmtDate: fmtDate, fmtDateTime: fmtDateTime, fmtMoney: fmtMoney, fmtUsd: fmtUsd, today: today,
+    timeLagos: timeLagos, dateLagos: dateLagos, dateTimeLagos: dateTimeLagos, dayKeyLagos: dayKeyLagos, termName: termName,
     initials: initials, escapeHtml: escapeHtml, safeUrl: safeUrl,
     kpi: uiKpi, empty: uiEmpty, panel: uiPanel, skeleton: uiSkeleton, pagedTbody: pagedTbody,
 

@@ -13,10 +13,22 @@ $t = $d['tenant'] ?? [];
   $changed = 0;
   foreach ($cfg as $fs) foreach ($fs as $f) if ($f['value'] !== $f['default']) $changed++;
 ?>
+<?php
+  /* A manager can reach this screen (search, an old link) but cannot save it:
+     `save_settings` needs the super-only `settings` capability, and the form
+     used to look editable and fail on Save (UX quick win 15). Read-only here,
+     said in words; admin/index.php's capability table still enforces it. */
+  $cfgUser = $adminUser ?? ($GLOBALS['adminUser'] ?? null);
+  $canEditSettings = !$cfgUser || mam_admin_can($cfgUser, 'settings');
+  if (!$canEditSettings) {
+      ac_banner('warn', 'fa-lock', 'You can read these settings but not change them. Changing settings needs a super admin — ask one to make the change.');
+  }
+?>
 <?php ac_card_open('Configuration', $nCfg . ' settings · ' . $changed . ' changed from the default',
     '<span class="ac-cardmeta">One save for all of them</span>'); ?>
   <div class="ac-cardbody">
   <?php ac_form('save_settings', 'settings', [], 'class="ac-cfg" id="settings-form"'); ?>
+  <fieldset class="ac-plainset"<?= $canEditSettings ? '' : ' disabled' ?>>
     <?php foreach ($cfg as $group => $fields):
       $gChanged = count(array_filter($fields, fn($f) => $f['value'] !== $f['default'])); ?>
       <details class="ac-cfg-group"<?= $group === array_key_first($cfg) ? ' open' : '' ?>>
@@ -73,9 +85,12 @@ $t = $d['tenant'] ?? [];
         </div>
       </details>
     <?php endforeach; ?>
+  </fieldset>
+    <?php if ($canEditSettings): ?>
     <div class="ac-row ac-mt">
       <button type="submit" class="ac-btn ac-btn--primary">Save settings</button>
     </div>
+    <?php endif; ?>
   <?php ac_form_end(); ?>
   </div>
 <?php ac_card_close('A blank number goes back to its default, never to zero, so a cleared price cannot make a programme free.'); ?>

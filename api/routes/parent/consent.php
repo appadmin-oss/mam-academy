@@ -18,11 +18,13 @@ if (!$isAdmin && !mam_parent_can_view((int) $u['id'], $sid)) mam_fail('forbidden
 // linked guardian may do — a billing-only payer must not switch media consent.
 if (!$isAdmin && !mam_parent_scope_allows((int) $u['id'], $sid, 'consents')) mam_fail('forbidden', 403, ['reason' => 'scope']);
 
-mam_consent_set($sid, [
-    'media'                => !empty($in['media']),
-    'photo'                => !empty($in['photo']),
-    'data'                 => !empty($in['data']),
-    'safeguarding_contact' => (string) ($in['safeguarding_contact'] ?? ''),
-], (int) $u['id']);
+// Only the consents the request names are recorded; one left out (or sent as
+// null) stays as it was — "not answered yet" is not turned into a "no".
+$flags = [];
+foreach (['media', 'photo', 'data'] as $k) {
+    if (array_key_exists($k, $in) && $in[$k] !== null) $flags[$k] = !empty($in[$k]);
+}
+if (array_key_exists('safeguarding_contact', $in)) $flags['safeguarding_contact'] = (string) $in['safeguarding_contact'];
+mam_consent_set($sid, $flags, (int) $u['id']);
 
 mam_ok(['consent' => mam_consent_get($sid)]);

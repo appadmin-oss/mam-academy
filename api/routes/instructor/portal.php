@@ -15,6 +15,9 @@
  */
 declare(strict_types=1);
 
+// Session times leave with their +01:00 offset (session-time.php, UX quick win 9).
+$mamPortalOk = fn(array $p) => mam_ok(mam_session_iso_payload($p));
+
 $user = mam_require_role('instructor', 'admin');
 $me   = (int) $user['id'];
 
@@ -29,10 +32,10 @@ switch ($screen) {
             $home = mam_iportal_home($me);
             $sid = (int) ($home['next']['id'] ?? 0);
         }
-        if ($sid <= 0) mam_ok(['screen' => 'register', 'session' => null, 'roster' => []]);
+        if ($sid <= 0) $mamPortalOk(['screen' => 'register', 'session' => null, 'roster' => []]);
         $data = mam_iportal_register($me, $sid);
         if (!$data) mam_fail('forbidden', 403);
-        mam_ok(['screen' => 'register'] + $data);
+        $mamPortalOk(['screen' => 'register'] + $data);
 
     case 'report':
         /* ⚠️ 'report' was in MAM_IPORTAL_SCREENS from the start, so it passed
@@ -43,21 +46,21 @@ switch ($screen) {
         $sid = (int) ($_GET['student'] ?? 0);
         $data = mam_iportal_report($me, $sid);
         if (!$data) mam_fail('forbidden', 403);
-        mam_ok(['screen' => 'report'] + $data);
+        $mamPortalOk(['screen' => 'report'] + $data);
 
     case 'more':
         /* The More sheet's badges come from the queues themselves rather than a
            count endpoint of their own, so the sheet cannot disagree with the
            screens it links to. */
-        mam_ok([
+        $mamPortalOk([
             'screen'     => 'more',
             'marking'    => count(mam_iportal_marking($me)['queue']),
             'teachbacks' => count(mam_iportal_teachbacks($me)['queue']),
         ]);
 
-    case 'marking':    mam_ok(['screen' => 'marking']    + mam_iportal_marking($me));
-    case 'teachbacks': mam_ok(['screen' => 'teachbacks'] + mam_iportal_teachbacks($me));
-    case 'students':   mam_ok(['screen' => 'students', 'students' => mam_iportal_students($me)]);
-    case 'earnings':   mam_ok(['screen' => 'earnings']   + mam_iportal_earnings($me));
-    default:           mam_ok(['screen' => 'home']       + mam_iportal_home($me));
+    case 'marking':    $mamPortalOk(['screen' => 'marking']    + mam_iportal_marking($me));
+    case 'teachbacks': $mamPortalOk(['screen' => 'teachbacks'] + mam_iportal_teachbacks($me));
+    case 'students':   $mamPortalOk(['screen' => 'students', 'students' => mam_iportal_students($me)]);
+    case 'earnings':   $mamPortalOk(['screen' => 'earnings']   + mam_iportal_earnings($me));
+    default:           $mamPortalOk(['screen' => 'home']       + mam_iportal_home($me));
 }

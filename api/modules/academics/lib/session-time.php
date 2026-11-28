@@ -67,3 +67,30 @@ function mam_session_clock(?int $ts, string $format = 'g:i A'): string {
 function mam_session_fmt(?string $wall, string $format = 'D j M, H:i'): string {
     return mam_session_clock(mam_session_ts($wall), $format);
 }
+
+/**
+ * A stored session time as an ISO instant WITH its offset ('2026-11-28T16:30:00+01:00').
+ * The portals parse what they are sent; a bare '2026-11-28 16:30:00' was read
+ * as UTC (they append 'Z'), so a 4:30 PM class showed as 5:30 PM in Lagos.
+ * Sending the offset makes the instant unambiguous to any browser, in any zone.
+ */
+function mam_session_iso(?string $wall): ?string {
+    $ts = mam_session_ts($wall);
+    if ($ts === null) return $wall === null ? null : (string) $wall;
+    return (new DateTimeImmutable('@' . $ts))->setTimezone(mam_session_tz())->format('Y-m-d\TH:i:sP');
+}
+
+/** The session-time keys a portal payload carries. Everything else stays UTC. */
+const MAM_SESSION_TIME_KEYS = ['scheduled_at', 'session_at'];
+
+/** Walk a portal payload and give every session time its +01:00 offset (UX quick win 9). */
+function mam_session_iso_payload(array $p): array {
+    foreach ($p as $k => $v) {
+        if (is_array($v)) $p[$k] = mam_session_iso_payload($v);
+        elseif (is_string($k) && in_array($k, MAM_SESSION_TIME_KEYS, true) && is_string($v) && $v !== ''
+                && !preg_match('/(Z|[+-]\d\d:?\d\d)$/', $v)) {
+            $p[$k] = mam_session_iso($v);
+        }
+    }
+    return $p;
+}
