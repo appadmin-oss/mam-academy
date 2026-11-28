@@ -3239,7 +3239,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         };
         $before = $ver();
         try {
-            if ($driver === 'mysql') mam_db_migrate_mysql($db); else mam_db_migrate($db);
+            if ($driver === 'mysql') mam_db_migrate_mysql($db, true); else mam_db_migrate($db);
         } catch (Throwable $e) {
             mam_log('error', 'run_migrations_failed', ['error' => $e->getMessage()]);
             header('Location: ?v=system&err=' . urlencode('The migration stopped: ' . $e->getMessage())); exit;

@@ -1203,8 +1203,30 @@
   var SCREENS = {
     home: renderHome, train: renderTrain, learn: renderLearn, attend: renderAttend,
     money: renderMoney, repertoire: renderRepertoire, a11y: renderA11y, lesson: renderLesson, exam: renderExam,
-    space: renderSpace, concern: renderConcern, growth: renderGrowth
+    space: renderSpace, concern: renderConcern, growth: renderGrowth, card: renderCard
   };
+  /* The student's own ID card. The redesign never showed it (only the classic
+     dashboard did) and the issue email always failed, so no student could
+     reach their card. Read from ?screen=card; claimed with a POST. */
+  function renderCard() {
+    deferLoading('Loading your ID card…');
+    screenReq('card').then(function (d) {
+      var c = d.card, html = backTo('home', 'Home') + h1('Your ID card', 'Show it at the door and to your instructor for attendance.');
+      if (c) {
+        var lapsed = c.state && c.state !== 'active';
+        html += '<section class="p-card"><div class="p-label">Card number</div>'
+          + '<p class="p-title">' + esc(c.display_id || c.serial) + '</p>'
+          + '<p class="p-caption">' + (lapsed ? 'This card has expired. Ask the academy office for a new one.' : 'Valid until ' + esc(c.expires || '')) + '</p>'
+          + '<a class="p-action" href="' + esc(c.url) + '" target="_blank" rel="noopener">Open, print or save your card</a></section>';
+      } else if (d.eligible) {
+        html += '<section class="p-card">' + empty('id-card', 'Your card has not been issued yet. You can get it now — it is also emailed to you.')
+          + '<button type="button" class="p-action" id="cardClaim">Get my ID card</button></section>';
+      } else {
+        html += '<section class="p-card">' + empty('id-card', 'Your card is issued once you are enrolled in a class.') + '</section>';
+      }
+      paint(html);
+    }).catch(function (err) { paint(backTo('home', 'Home') + h1('Your ID card') + empty('triangle-exclamation', errOf(err, 'Could not load your card.'))); });
+  }
   function renderGrowth() { MAM_GROWTH.render(main, { toast: toast, paint: paint }); }
   /* The class space and the safeguarding form are shared with the other two
      portals (assets/js/portal-spaces.js); the server decides what each role
@@ -1518,6 +1540,11 @@
       return;
     }
 
+    if (t.closest('#cardClaim')) {
+      write(t.closest('#cardClaim'), API.request('student/id-card', { method: 'POST', body: {} }),
+        function () { renderCard(); }, 'Your card is ready. A copy is on its way to your email.');
+      return;
+    }
     if (t.closest('#repAdd')) {
       var title = ($('#repTitle') || {}).value || '';
       if (!title.trim()) { toast('What is the piece called?', 'bad'); return; }

@@ -50,7 +50,7 @@ declare(strict_types=1);
 const MAM_SPORTAL_TABS = ['home', 'train', 'learn', 'attend', 'more'];
 
 /** Every screen the portal can route to, bar included. */
-const MAM_SPORTAL_SCREENS = ['home', 'train', 'learn', 'attend', 'more', 'money', 'repertoire'];
+const MAM_SPORTAL_SCREENS = ['home', 'train', 'learn', 'attend', 'more', 'money', 'repertoire', 'card'];
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Shared helpers
@@ -531,6 +531,11 @@ function mam_sportal_repertoire(int $studentId): array {
  * The More sheet's badges come from the SCREENS themselves, never a count
  * endpoint of their own, so the sheet cannot disagree with what it links to.
  */
+/** The student's own ID card (identity/lib/cards.php). Read-only: claiming one is a POST. */
+function mam_sportal_card(int $studentId): array {
+    return function_exists('mam_card_portal_view') ? mam_card_portal_view($studentId) : ['card' => null, 'eligible' => false];
+}
+
 function mam_sportal_more(int $studentId): array {
     $owed = mam_sportal_owed($studentId);
     $takes = 0;

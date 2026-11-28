@@ -28,6 +28,14 @@ if (PHP_SAPI !== 'cli') {
 
 require_once __DIR__ . '/../lib/bootstrap.php';
 
+// Share the job runner's lock: both retry the same failed rows, and with no
+// claim on a row, two at once could send the same email twice.
+$mamJobsLock = @fopen(MAM_STORAGE . '/.run-jobs.lock', 'c');
+if ($mamJobsLock === false || !@flock($mamJobsLock, LOCK_EX | LOCK_NB)) {
+    echo "The job runner is busy (it retries mail itself) — skipping this pass.\n";
+    exit(0);
+}
+
 $limit = 50;
 $max   = 6;
 foreach (array_slice($argv, 1) as $a) {

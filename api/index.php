@@ -269,6 +269,8 @@ $r->group('/student', function (MamRouter $r) use ($f) {
     // Mirrors GET /api/instructor/portal; see api/modules/portals/lib/student-portal.php for why
     // a provider layer rather than six more routes.
     $r->get ('/portal',              $f('student/portal.php'),              [mw_role('student')]);
+    // The student's own ID card: claim it when enrolled and none was issued.
+    $r->post('/id-card',             $f('student/id-card.php'),             [mw_csrf(), mw_role('student'), mw_rate_limit('student_id_card', 5, 600)]);
     // Waitlist: join or leave a cohort queue when class is at capacity.
     $r->get ('/waitlist',            $f('student/waitlist.php'),            [mw_role('student')]);
     $r->post('/waitlist',            $f('student/waitlist.php'),            [mw_csrf(), mw_role('student'), mw_rate_limit('student_waitlist', 20, 600)]);

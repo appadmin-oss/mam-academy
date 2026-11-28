@@ -22,15 +22,24 @@ try {
 $debugToken = (string)mam_env('DEBUG_TOKEN', '');
 if (!$authorized && $debugToken !== '' && hash_equals($debugToken, (string)($_GET['key'] ?? ''))) $authorized = true;
 
+$ops = function_exists('mam_ops_health') ? mam_ops_health() : ['ok' => $dbOk, 'checks' => ['db' => $dbOk ? 'ok' : 'down'], 'jobs_last_run' => null];
+
 $out = [
     'service'     => 'mam-academy-api',
     'api_version' => MAM_API_VERSION,
     'time'        => date('c'),
     'db'          => $dbOk ? 'ok' : 'down',
+    // For an uptime monitor: `status` and the per-check STATES (no details).
+    // The response is 503 whenever any check is not ok — the database, a job
+    // runner that stopped or keeps failing, a stale or missing backup, or a
+    // mail backlog — so "is MAM healthy" is one URL a monitor can watch.
+    'status'      => $ops['ok'] ? 'ok' : 'degraded',
+    'checks'      => $ops['checks'],
 ];
 
 if ($authorized) {
     $out['schema'] = (int)MAM_SCHEMA_TARGET;
+    $out['jobs_last_run'] = $ops['jobs_last_run'];
     $out['env']     = mam_env('APP_ENV', 'production');
     $out['db_error'] = $dbErr;
     $out['features'] = [
@@ -49,4 +58,4 @@ if ($authorized) {
     ];
 }
 
-mam_ok($out);
+mam_json(['ok' => (bool) $ops['ok']] + $out, $ops['ok'] ? 200 : 503);

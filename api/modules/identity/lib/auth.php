@@ -107,15 +107,28 @@ function mam_require_user(): array {
  * primary `users.role`. Degrades gracefully if the table isn't there yet.
  */
 function mam_user_roles(array $u): array {
+    /* Memoised per web request: the console dashboard asked this 73 times out of
+       its 122 queries, for the same admin. Writes through mam_user_ensure_role()
+       / mam_user_remove_role() drop the memo. Not memoised on the command line,
+       where the test harness and the job runner write roles directly. */
+    $uid  = (int) ($u['id'] ?? 0);
+    $memo = PHP_SAPI !== 'cli' && $uid > 0;
+    $key  = $uid . '|' . (string) ($u['role'] ?? '');
+    if ($memo && isset($GLOBALS['__mam_roles_memo'][$key])) return $GLOBALS['__mam_roles_memo'][$key];
     $roles = [];
     if (!empty($u['role'])) $roles[] = (string)$u['role'];
     try {
-        foreach (mam_db_all('SELECT role FROM user_roles WHERE user_id = ?', [(int)($u['id'] ?? 0)]) as $r) {
+        foreach (mam_db_all('SELECT role FROM user_roles WHERE user_id = ?', [$uid]) as $r) {
             $roles[] = (string)$r['role'];
         }
     } catch (Throwable $e) { /* table not migrated yet — primary role still applies */ }
-    return array_values(array_unique($roles));
+    $roles = array_values(array_unique($roles));
+    if ($memo) $GLOBALS['__mam_roles_memo'][$key] = $roles;
+    return $roles;
 }
+
+/** Drop the per-request role memo (after a grant or revoke). */
+function mam_user_roles_forget(): void { unset($GLOBALS['__mam_roles_memo']); }
 
 /** True if the user holds ANY of $roles (across primary + user_roles). */
 function mam_user_has_role(array $u, string ...$roles): bool {
@@ -134,6 +147,7 @@ function mam_user_ensure_role(int $userId, string $role): void {
     try {
         if (!mam_db_row('SELECT 1 FROM user_roles WHERE user_id = ? AND role = ?', [$userId, $role])) {
             mam_db_insert('user_roles', ['user_id' => $userId, 'role' => $role]);
+            mam_user_roles_forget();
         }
     } catch (Throwable $e) { /* table not migrated yet — primary role still applies */ }
 }
@@ -144,6 +158,7 @@ function mam_user_remove_role(int $userId, string $role): void {
     if ($userId <= 0 || $role === '') return;
     try {
         mam_db()->prepare('DELETE FROM user_roles WHERE user_id = ? AND role = ?')->execute([$userId, $role]);
+        mam_user_roles_forget();
     } catch (Throwable $e) { /* table not migrated yet — nothing to revoke */ }
 }
 

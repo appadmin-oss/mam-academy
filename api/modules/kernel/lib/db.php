@@ -33,8 +33,10 @@ function mam_db(): PDO {
     ];
 
     if ($dsn !== '') {
-        // Production driver (MySQL, PostgreSQL, etc.)
-        $pdo = new PDO($dsn, $user, $pass, $opts);
+        // Production driver (MySQL, PostgreSQL, etc.). A connect timeout, so a
+        // database host that hangs fails the request in seconds instead of
+        // holding a PHP worker for default_socket_timeout (60 s).
+        $pdo = new PDO($dsn, $user, $pass, $opts + [PDO::ATTR_TIMEOUT => 5]);
         $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
         if ($driver === 'mysql') {
             $pdo->exec("SET NAMES utf8mb4");
@@ -85,7 +87,41 @@ function mam_db(): PDO {
  * EXECUTE / DEALLOCATE) is handled as a single chunk to keep its variables
  * scoped together within one PDO::exec call.
  */
-function mam_db_migrate_mysql(PDO $db): void {
+function mam_db_migrate_mysql(PDO $db, bool $force = false): void {
+    /* ── Fast path: a schema already at target costs ONE query. ───────────────
+       This function runs on every request's connection. It used to probe the
+       server version, run 12 information_schema lookups (the repair list below)
+       and count the courses EVERY time — about 19 queries before the page did
+       any work. All of that now runs only when the schema is behind, or when an
+       admin presses "Run migrations" ($force: System health, /api/admin/migrate),
+       which is what an operator does after a partial deploy. */
+    if (!$force) {
+        try {
+            $v = (int) ($db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn() ?: 0);
+            if ($v >= MAM_SCHEMA_TARGET) return;
+        } catch (Throwable $e) { /* no schema_version table yet: fall through and build it */ }
+    }
+
+    /* One migrator at a time. Without a lock, every request that arrived while
+       the schema was behind ran the whole 4,000-line file at once. Waits up to
+       30 s for another request's run, then re-checks: usually it is done. */
+    $locked = false;
+    try { $locked = (int) $db->query("SELECT GET_LOCK('mam_schema_migrate', 30)")->fetchColumn() === 1; } catch (Throwable $e) {}
+    try {
+        if (!$force) {
+            try {
+                $v = (int) ($db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn() ?: 0);
+                if ($v >= MAM_SCHEMA_TARGET) return;
+            } catch (Throwable $e) {}
+        }
+        mam_db_migrate_mysql_run($db, $force);
+    } finally {
+        if ($locked) { try { $db->query("SELECT RELEASE_LOCK('mam_schema_migrate')"); } catch (Throwable $e) {} }
+    }
+}
+
+/** The full MySQL migration: version probe, critical-column repair, course seed, schema file. */
+function mam_db_migrate_mysql_run(PDO $db, bool $force = false): void {
     /* Does this server ENFORCE a CHECK constraint, or merely parse one?
      *
      * MySQL 5.7 accepts a CREATE TABLE CHECK clause and silently discards it;
@@ -251,6 +287,7 @@ function mam_db_migrate_mysql(PDO $db): void {
     }
 
     $target = MAM_SCHEMA_TARGET;
+    // At target: nothing more to apply (a forced run has done its repairs and seed above).
     if ($current >= $target) return;
 
     $path = realpath(__DIR__ . '/../../../../db/schema-mysql.sql');

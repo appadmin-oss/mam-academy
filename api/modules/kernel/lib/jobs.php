@@ -128,3 +128,68 @@ function mam_run_jobs(int $limit = 50, ?string $now = null, int $maxAttempts = 6
     }
     return $sum;
 }
+
+/* ── Operational health: is the system doing its background work? ────────────
+   Nothing used to say when the cron stopped. A missing job runner silently
+   stops payment reconciliation, reminders, ID cards, fee reminders, FX warming
+   and the mail retry — and the site still looks fine. run-jobs.php writes a
+   heartbeat at the end of every pass; /api/health reads it and answers 503 when
+   something is wrong, so a free uptime monitor can raise the alarm. */
+
+/** Hours after which a missing job-runner pass is an incident (it runs every 5 minutes). */
+const MAM_JOBS_STALE_HOURS = 2;
+
+function mam_jobs_heartbeat_path(): string { return MAM_STORAGE . '/.jobs-heartbeat.json'; }
+
+/** Record the outcome of one job-runner pass. Never throws. */
+function mam_jobs_heartbeat_write(array $summary): void {
+    $data = ['at' => gmdate('c'), 'seconds' => (float) ($summary['seconds'] ?? 0),
+             'failed' => array_values(array_map('strval', (array) ($summary['failed'] ?? [])))];
+    @file_put_contents(mam_jobs_heartbeat_path(), json_encode($data, JSON_UNESCAPED_SLASHES), LOCK_EX);
+}
+
+/** The last pass, or null when the runner has never completed one here. */
+function mam_jobs_heartbeat_read(): ?array {
+    $raw = @file_get_contents(mam_jobs_heartbeat_path());
+    if ($raw === false || $raw === '') return null;
+    $d = json_decode($raw, true);
+    return is_array($d) && isset($d['at']) ? $d : null;
+}
+
+/**
+ * The operational checks, each with a state a monitor can act on:
+ *   db      ok | down
+ *   jobs    ok | never | stale | failing   (the last pass, and how long ago)
+ *   backup  ok | none | stale | partial    (mam_backup_status, when present)
+ *   mail    ok | backlog                   (failed sends in the last 24 hours)
+ * `ok` is true only when every check is ok. States only — no secrets, no counts
+ * an attacker could use — so the public health endpoint can carry them.
+ */
+function mam_ops_health(?int $now = null): array {
+    $now = $now ?? time();
+    $checks = [];
+    try { mam_db()->query('SELECT 1'); $checks['db'] = 'ok'; } catch (Throwable $e) { $checks['db'] = 'down'; }
+
+    $hb = mam_jobs_heartbeat_read();
+    if ($hb === null) $checks['jobs'] = 'never';
+    elseif ($now - (int) strtotime((string) $hb['at']) > MAM_JOBS_STALE_HOURS * 3600) $checks['jobs'] = 'stale';
+    elseif (!empty($hb['failed'])) $checks['jobs'] = 'failing';
+    else $checks['jobs'] = 'ok';
+
+    if (function_exists('mam_backup_status')) {
+        try { $bs = mam_backup_status(); $checks['backup'] = (string) ($bs['state'] ?? 'none'); }
+        catch (Throwable $e) { $checks['backup'] = 'none'; }
+    }
+
+    if ($checks['db'] === 'ok') {
+        try {
+            $n = (int) (mam_db_row("SELECT COUNT(*) AS n FROM mail_log WHERE status = 'failed' AND created_at >= ?",
+                [gmdate('Y-m-d H:i:s', $now - 86400)])['n'] ?? 0);
+            $checks['mail'] = $n >= 10 ? 'backlog' : 'ok';
+        } catch (Throwable $e) { /* no mail_log on this install yet */ }
+    }
+
+    $ok = true;
+    foreach ($checks as $state) if ($state !== 'ok') { $ok = false; break; }
+    return ['ok' => $ok, 'checks' => $checks, 'jobs_last_run' => $hb['at'] ?? null];
+}

@@ -68,6 +68,24 @@ function mam_emit_failure_json(int $status, string $error, string $message): voi
             }
         }
     }
+    /* A server-rendered PAGE that fails gets a page, not a JSON envelope. A
+       visitor whose page crashed used to see `{"ok":false,"error":"server_error"}`
+       as raw text. The page is a static file with no dependency on the app,
+       because the app may be what broke. API callers still get JSON. */
+    $isPage = defined('MAM_HTML_RESPONSE')
+        || (strpos((string) ($_SERVER['REQUEST_URI'] ?? ''), '/api/') !== 0
+            && stripos((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'text/html') !== false);
+    $page = MAM_API_ROOT . '/../500.html';
+    if ($isPage && $status >= 500 && is_readable($page)) {
+        if (!headers_sent()) {
+            http_response_code($status);
+            header_remove('Content-Type');
+            header('Content-Type: text/html; charset=utf-8');
+            header('Cache-Control: no-store');
+        }
+        readfile($page);
+        return;
+    }
     if (!headers_sent()) {
         http_response_code($status);
         header('Content-Type: application/json; charset=utf-8');

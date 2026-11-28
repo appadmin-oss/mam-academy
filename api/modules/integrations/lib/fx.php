@@ -144,6 +144,17 @@ function mam_usd_to_ngn_rate(bool $allowFetch = true): float {
         return $last > 0 ? $last : $fallback; // stale but no network allowed
     }
 
+    /* A web request never waits on the FX provider once a live rate has been
+       stored. Checkout, booking pricing and the payment email used to fetch
+       whenever the 4-hour cache had lapsed — up to 5 s + 8 s inside a payment
+       page if the job runner (the one place meant to fetch) had stopped. The
+       runner refreshes it every pass; /api/health says when it has stopped.
+       Only an install that has NEVER stored a live rate still fetches here. */
+    if (PHP_SAPI !== 'cli') {
+        $last = mam_setting_num('fx_usd_ngn_cached', 0);
+        if ($last > 0) return $last;
+    }
+
     $live = mam_fx_fetch_rates();
     if ($live !== null && isset($live['NGN']) && $live['NGN'] >= MAM_FX_MIN && $live['NGN'] <= MAM_FX_MAX) {
         mam_fx_cache_set($live);

@@ -32,87 +32,111 @@ foreach (array_slice($argv, 1) as $a) {
     if (strpos($a, '--limit=') === 0) $limit = max(1, (int)substr($a, 8));
 }
 
-echo "── MAM Academy job runner ────────────────────────────────\n";
-$s = mam_run_jobs($limit);
-printf("jobs       : ran %d · done %d · failed %d\n", $s['ran'], $s['done'], $s['failed']);
+/* ── One step at a time, each on its own ─────────────────────────────────────
+   Every sweep runs inside $step(). A sweep that throws is logged as an error
+   and counted; the NEXT one still runs. This used to be one straight line, so a
+   single failing sweep exited the process and silently skipped everything after
+   it — FX warming, invoices, the mail retry. The outcome of the whole pass is
+   written as a heartbeat (mam_jobs_heartbeat_write) that /api/health reads: a
+   cron that stopped, or a pass that keeps failing, is visible from outside. */
+$mamJobsStarted = microtime(true);
+$mamJobsFailed  = [];
+$step = static function (string $name, callable $fn) use (&$mamJobsFailed): void {
+    try {
+        $fn();
+    } catch (Throwable $e) {
+        $mamJobsFailed[] = $name;
+        fwrite(STDERR, "ERROR $name: " . $e->getMessage() . "\n");
+        if (function_exists('mam_log')) mam_log('error', 'job_step_failed', ['step' => $name, 'error' => $e->getMessage()]);
+    }
+};
 
-// Abandoned-draft nudges (A1 × L3): one "finish your application" email per
-// eligible idle draft.
-if (function_exists('mam_app_draft_nudge_sweep')) {
-    printf("draft nudge: emailed %d\n", mam_app_draft_nudge_sweep());
-}
+echo "── MAM Academy job runner ────────────────────────────────\n";
+$step('jobs', function () use ($limit) {
+    $s = mam_run_jobs($limit);
+    printf("jobs       : ran %d · done %d · failed %d\n", $s['ran'], $s['done'], $s['failed']);
+});
+
+// Abandoned-draft nudges (A1 × L3): one "finish your application" email per eligible idle draft.
+$step('draft_nudge', function () {
+    if (function_exists('mam_app_draft_nudge_sweep')) printf("draft nudge: emailed %d\n", mam_app_draft_nudge_sweep());
+});
 
 // Session reminders (24h out) + KTAMS birthday notes — each gated by its
-// automation flag (admin ?v=automations) and deduped through the events log.
-if (function_exists('mam_automation_session_reminder_sweep')) {
-    printf("reminders  : sessions reminded %d\n", mam_automation_session_reminder_sweep());
-}
-if (function_exists('mam_automation_ktams_birthday_sweep')) {
-    printf("birthdays  : KTAMS notes sent %d\n", mam_automation_ktams_birthday_sweep());
-}
-if (function_exists('mam_automation_card_expiry_sweep')) {
+// automation flag and deduped through the events log.
+$step('session_reminders', function () {
+    if (function_exists('mam_automation_session_reminder_sweep')) printf("reminders  : sessions reminded %d\n", mam_automation_session_reminder_sweep());
+});
+$step('birthdays', function () {
+    if (function_exists('mam_automation_ktams_birthday_sweep')) printf("birthdays  : KTAMS notes sent %d\n", mam_automation_ktams_birthday_sweep());
+});
+$step('card_expiry', function () {
+    if (!function_exists('mam_automation_card_expiry_sweep')) return;
     $ce = mam_automation_card_expiry_sweep();
-    printf("id cards   : expiry warnings %d, lapsed cards retired %d
-", $ce['warned'], $ce['retired']);
-}
-if (function_exists('mam_paystack_reconcile_sweep')) {
+    printf("id cards   : expiry warnings %d, lapsed cards retired %d\n", $ce['warned'], $ce['retired']);
+});
+// Every actively enrolled student holds a card (cards.php): catches up anyone
+// enrolled while the issue email was broken, or by a path that did not mint.
+$step('card_backfill', function () {
+    if (function_exists('mam_card_backfill_sweep')) printf("id cards   : issued to enrolled students without one %d\n", mam_card_backfill_sweep());
+});
+$step('paystack_reconcile', function () {
+    if (!function_exists('mam_paystack_reconcile_sweep')) return;
     // Card payments a webhook never reached (payment-guards.php, guard 7).
     $pr = mam_paystack_reconcile_sweep();
     printf("payments   : pending card payments checked %d, settled %d, abandoned %d%s\n",
         $pr['checked'], $pr['settled'], $pr['abandoned'], $pr['skipped'] ? ' (' . $pr['skipped'] . ')' : ($pr['errors'] ? ', errors ' . $pr['errors'] : ''));
-}
-if (function_exists('mam_fee_dunning_sweep')) {
-    printf("fees       : overdue reminders sent %d\n", mam_fee_dunning_sweep());
-}
-if (function_exists('mam_lesson_due_run')) {
+});
+$step('fee_dunning', function () {
+    if (function_exists('mam_fee_dunning_sweep')) printf("fees       : overdue reminders sent %d\n", mam_fee_dunning_sweep());
+});
+$step('lesson_deadlines', function () {
+    if (!function_exists('mam_lesson_due_run')) return;
     $ld = mam_lesson_due_run();
     printf("lessons    : students reminded %d, fines %d%s\n", $ld['reminded'], $ld['fined'], $ld['skipped'] ? ' (' . $ld['skipped'] . ')' : '');
-}
-if (function_exists('mam_automation_week_drip_sweep')) {
-    printf("week drip  : modules released %d\n", mam_automation_week_drip_sweep());
-}
+});
+$step('week_drip', function () {
+    if (function_exists('mam_automation_week_drip_sweep')) printf("week drip  : modules released %d\n", mam_automation_week_drip_sweep());
+});
 
 // NDPA retention. Gated twice on purpose: the `data_retention` automation says
 // whether to scan at all, and `dp_retention_mode` (shipped as `report`) says
 // whether anything is allowed to act on the result. In `report` this line prints
 // what WOULD go and touches nothing.
 if (function_exists('mam_dp_retention_sweep') && (!function_exists('mam_automation_on') || mam_automation_on('data_retention'))) {
-    $rt = mam_dp_retention_sweep();
-    printf("retention  : mode %s, deleted %d, anonymised %d, flagged %d\n",
-        $rt['mode'], $rt['deleted'], $rt['anonymised'], $rt['flagged']);
-
+    $step('retention', function () {
+        $rt = mam_dp_retention_sweep();
+        printf("retention  : mode %s, deleted %d, anonymised %d, flagged %d\n",
+            $rt['mode'], $rt['deleted'], $rt['anonymised'], $rt['flagged']);
+    });
     /* The same schedule, applied to the application log FILES. They carry an
        IP and a user agent per line, so they are personal data on the same
-       footing as the tables above — and until this ran, nothing ever removed
-       them. Same gate, same automation flag, so an academy that has not opted
-       into enforcement gets a count and no deletion. */
-    /* The old class model is retired (legacy-carry.php). Carrying is idempotent,
-       so running it nightly costs nothing once done, and an install whose admin
-       never pressed "Bring them across" still ends up with one class model. */
-    if (function_exists('mam_legacy_carry')) {
-        try {
-            $lc = mam_legacy_carry(null);
-            printf("old classes: %d enrolments, %d marks carried; %d waiting for a course\n",
-                $lc['enrolments'], $lc['marks'], count($lc['waiting']));
-        } catch (Throwable $e) {
-            mam_log('error', 'legacy_carry_failed', ['error' => $e->getMessage()]);
-        }
-    }
-
-    if (function_exists('mam_dp_prune_app_logs')) {
+       footing as the tables above. Same gate, same automation flag. */
+    $step('log_prune', function () {
+        if (!function_exists('mam_dp_prune_app_logs')) return;
         $lp = mam_dp_prune_app_logs();
         printf("log prune  : mode %s, kept after %s, overdue %d, deleted %d (%d KB)\n",
             $lp['mode'], $lp['cutoff'], $lp['overdue'], $lp['deleted'], (int) round($lp['bytes'] / 1024));
-    }
-
+    });
     /* A snapshot is a full copy of every table AND every uploaded photograph,
        so these are the largest personal-data stores on the disk. Same gate. */
-    if (function_exists('mam_backup_prune')) {
+    $step('snapshot_prune', function () {
+        if (!function_exists('mam_backup_prune')) return;
         $bp = mam_backup_prune();
         printf("snapshots  : mode %s, kept %d, overdue %d, deleted %d (%d MB)\n",
             $bp['mode'], $bp['kept'], $bp['overdue'], $bp['deleted'], (int) round($bp['bytes'] / 1048576));
-    }
+    });
 }
+
+/* The old class model is retired (legacy-carry.php). Carrying is idempotent, so
+   running it nightly costs nothing once done. It used to sit INSIDE the
+   retention gate above, so switching retention off also stopped it. */
+$step('legacy_carry', function () {
+    if (!function_exists('mam_legacy_carry')) return;
+    $lc = mam_legacy_carry(null);
+    printf("old classes: %d enrolments, %d marks carried; %d waiting for a course\n",
+        $lc['enrolments'], $lc['marks'], count($lc['waiting']));
+});
 
 /* ── Is a backup still happening? ──────────────────────────────────────────
    This job does NOT take the backup — export.php is standalone on purpose and
@@ -121,7 +145,8 @@ if (function_exists('mam_dp_retention_sweep') && (!function_exists('mam_automati
    stamps into each manifest, and say out loud when the newest snapshot has
    gone stale. A backup job that quietly stopped looks exactly like one that is
    working, right until somebody needs it. */
-if (function_exists('mam_backup_write_fingerprint')) {
+$step('backup_check', function () {
+    if (!function_exists('mam_backup_write_fingerprint')) return;
     mam_backup_write_fingerprint();
     $bs = mam_backup_status();
     printf("backup     : %s — %s\n", strtoupper($bs['state']), $bs['message']);
@@ -129,74 +154,70 @@ if (function_exists('mam_backup_write_fingerprint')) {
         fwrite(STDERR, "WARNING backup " . $bs['state'] . ": " . $bs['message'] . "\n");
         if (function_exists('mam_log')) mam_log('warn', 'backup_' . $bs['state'], ['message' => $bs['message']]);
     }
-}
+});
 
-// §28 academic emails — the four swept types (gated behind academic_emails_enabled).
 // §11 — pull live Meet participation for online sessions that have finished.
-// A no-op (0) until the Google service account is configured.
-if (function_exists('mam_meeting_google_sweep')) {
-    printf("meet sync  : sessions reconciled %d\n", mam_meeting_google_sweep());
-}
-// Safeguarding concerns nobody has opened are sent again (safeguarding.php). Deliberately not an automation toggle.
-if (function_exists('mam_sg_escalate_sweep')) {
-    printf("safeguard  : concerns escalated %d\n", mam_sg_escalate_sweep());
-}
+$step('meet_sync', function () {
+    if (function_exists('mam_meeting_google_sweep')) printf("meet sync  : sessions reconciled %d\n", mam_meeting_google_sweep());
+});
+// Safeguarding concerns nobody has opened are sent again. Deliberately not an automation toggle.
+$step('safeguarding_escalate', function () {
+    if (function_exists('mam_sg_escalate_sweep')) printf("safeguard  : concerns escalated %d\n", mam_sg_escalate_sweep());
+});
 // Online classes (live-classes.php): turn the calls that finished into attendance.
-if (function_exists('mam_live_sweep')) {
-    printf("live class : sessions reconciled %d\n", mam_live_sweep());
-}
-// Where each student stands this week (growth.php) — stored so a later correction shows in its own week.
-if (function_exists('mam_growth_snapshot_all')) {
-    printf("growth     : snapshots taken %d\n", mam_growth_snapshot_all());
-}
+$step('live_classes', function () {
+    if (function_exists('mam_live_sweep')) printf("live class : sessions reconciled %d\n", mam_live_sweep());
+});
+// Where each student stands this week (growth.php).
+$step('growth', function () {
+    if (function_exists('mam_growth_snapshot_all')) printf("growth     : snapshots taken %d\n", mam_growth_snapshot_all());
+});
 // Uploads begun and never finished (media-store.php).
-if (function_exists('mam_media_sweep_pending')) {
-    printf("uploads    : unfinished removed %d\n", mam_media_sweep_pending());
-}
-if (function_exists('mam_acadmail_run_all_sweeps')) {
+$step('media_pending', function () {
+    if (function_exists('mam_media_sweep_pending')) printf("uploads    : unfinished removed %d\n", mam_media_sweep_pending());
+});
+// §28 academic emails — all four sweeps, ONCE. (They used to run here and then
+// again individually further down; dedup stopped double mail, not double work.)
+$step('academic_emails', function () {
+    if (!function_exists('mam_acadmail_run_all_sweeps')) return;
     $ae = mam_acadmail_run_all_sweeps();
     if (!empty($ae['enabled'])) {
         printf("acad email : pre-class %d · absence %d · prep %d · weekly %d\n", (int)$ae['preclass'], (int)$ae['absence'], (int)$ae['prep'], (int)$ae['weekly']);
     } else {
         printf("acad email : disabled (academic_emails_enabled=0)\n");
     }
-}
+});
 
-// Warm the live FX cache here (the one place that's allowed to hit the network)
-// so the public display endpoint and the charge path both read the SAME cached
-// rate — the UI's "approx ₦…" can't disagree with what's charged.
-if (function_exists('mam_usd_to_ngn_rate')) {
+// Warm the live FX cache here — the ONE place allowed to hit the network — so
+// the display and the charge both read the same cached rate.
+$step('fx_warm', function () {
+    if (!function_exists('mam_usd_to_ngn_rate')) return;
     mam_usd_to_ngn_rate(true);
     printf("fx warm    : usd→ngn %.2f\n", mam_usd_to_ngn_rate(false));
-}
+});
 
-// Application invoices: auto-invoice applications whose fee is due, and expire
-// those left unpaid past the window (the applicant must then re-apply).
-if (function_exists('mam_invoices_process')) {
+// Application invoices: auto-invoice when due, expire when left unpaid.
+$step('application_invoices', function () {
+    if (!function_exists('mam_invoices_process')) return;
     $iv = mam_invoices_process();
     printf("invoices   : scanned %d · invoiced %d · expired %d\n", $iv['scanned'], $iv['invoiced'], $iv['expired']);
-}
+});
 
-// Paid rescheduling (LMS 2.0 Part C): expire requests whose payment window has
-// lapsed (no-op when the feature is disabled). Never touches paid requests.
-if (function_exists('mam_reschedule_expire_due')) {
-    printf("reschedule : expired unpaid requests %d\n", mam_reschedule_expire_due());
-}
+// Paid rescheduling: expire requests whose payment window lapsed. Never touches paid ones.
+$step('reschedule_expire', function () {
+    if (function_exists('mam_reschedule_expire_due')) printf("reschedule : expired unpaid requests %d\n", mam_reschedule_expire_due());
+});
 
-// Academic email engine (LMS 2.0 §28): pre-class reminders, preparation alerts,
-// absence notices, weekly reports. No-op unless academic_emails_enabled=1.
-if (function_exists('mam_acadmail_preclass_reminder_sweep')) {
-    printf("acad mail  : pre-class %d · prep %d · absence %d · weekly %d\n",
-        mam_acadmail_preclass_reminder_sweep(),
-        mam_acadmail_prep_alert_sweep(),
-        mam_acadmail_absence_sweep(),
-        mam_acadmail_weekly_report_sweep());
-}
-
-// Generalised cron: also drain the failed-email outbox in the same pass.
-if (function_exists('mam_mail_retry_failed')) {
+// Drain the failed-email outbox in the same pass (under this runner's lock).
+$step('mail_retry', function () {
+    if (!function_exists('mam_mail_retry_failed')) return;
     $m = mam_mail_retry_failed(50, 6, 0);
     printf("mail retry : tried %d · sent %d · still-failed %d\n", $m['tried'], $m['sent'], $m['failed']);
+});
+
+if (function_exists('mam_jobs_heartbeat_write')) {
+    mam_jobs_heartbeat_write(['seconds' => round(microtime(true) - $mamJobsStarted, 2), 'failed' => $mamJobsFailed]);
 }
 echo "Log file   : " . MAM_LOGS . '/app-' . date('Y-m-d') . ".log\n";
+if ($mamJobsFailed) echo "FAILED     : " . implode(', ', $mamJobsFailed) . "\n";
 exit(0);

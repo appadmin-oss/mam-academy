@@ -22,6 +22,10 @@ require_once MAM_API_ROOT . '/modules/kernel/lib/db.php';
 require_once MAM_API_ROOT . '/modules/kernel/lib/settings.php';
 require_once MAM_API_ROOT . '/modules/kernel/lib/validation.php';
 require_once MAM_API_ROOT . '/modules/kernel/lib/session.php';
+// mam_app_key() — every card is signed with it (cards.php: mam_card_sign). Without
+// this the page died with a fatal error for every holder, so no student could
+// ever open their own card.
+require_once MAM_API_ROOT . '/modules/kernel/lib/csrf.php';
 require_once MAM_API_ROOT . '/modules/identity/lib/auth.php';
 require_once MAM_API_ROOT . '/modules/integrations/lib/mailer.php';
 require_once MAM_API_ROOT . '/modules/comms/lib/automations.php';

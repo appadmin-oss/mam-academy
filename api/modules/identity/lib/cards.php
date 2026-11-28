@@ -688,3 +688,66 @@ function mam_card_issue_for_user(int $userId, string $role = 'student', string $
         return null;
     }
 }
+
+
+/* ── A student's own card in the portal, and the catch-up sweep ──────────────
+   Before 2026-11-28 no student could see their card: the redesigned portal
+   never showed it (only the retired classic dashboard did) and the issue email
+   died with a TypeError on every send. These close both halves. */
+
+/** The latest active or completed enrolment's cohort title, or null when the
+ *  student is enrolled in nothing — no enrolment, no card. */
+function mam_card_student_eligible(int $userId): ?string {
+    $r = mam_db_row(
+        "SELECT co.title FROM course_enrollments ce LEFT JOIN cohorts co ON co.id = ce.cohort_id
+          WHERE ce.student_id = ? AND ce.status IN ('active','completed')
+          ORDER BY ce.id DESC LIMIT 1", [$userId]);
+    return $r ? (string) ($r['title'] ?? '') : null;
+}
+
+/** What the student portal shows: their card, or why there is none yet. Read-only. */
+function mam_card_portal_view(int $userId): array {
+    $card = mam_card_for_user($userId);
+    if ($card) {
+        return ['card' => [
+            'serial'     => (string) $card['serial'],
+            'display_id' => mam_card_display_id($card),
+            'state'      => mam_card_state($card),
+            'expires'    => mam_card_exp_display($card),
+            'url'        => '/card/' . rawurlencode((string) $card['serial']),
+        ], 'eligible' => true];
+    }
+    return ['card' => null, 'eligible' => mam_card_student_eligible($userId) !== null];
+}
+
+/** Issue the student's own card when they are enrolled and have none. Idempotent. */
+function mam_card_claim_for_student(int $userId): ?array {
+    $existing = mam_card_for_user($userId);
+    if ($existing) return $existing;
+    $session = mam_card_student_eligible($userId);
+    if ($session === null) throw new RuntimeException('not_enrolled');
+    return mam_card_issue_for_user($userId, 'student', $session);
+}
+
+/**
+ * Students with an active enrolment and no active card get one (and its email).
+ * Covers everyone enrolled while the email was broken or the portal hid the
+ * card, and any path that enrolled without minting. Gated by the
+ * `id_card_issue` automation; at most $limit per run so a backlog cannot flood
+ * the mail queue in one go.
+ */
+function mam_card_backfill_sweep(int $limit = 25): int {
+    if (function_exists('mam_automation_on') && !mam_automation_on('id_card_issue')) return 0;
+    $rows = mam_db_all(
+        "SELECT DISTINCT ce.student_id FROM course_enrollments ce
+           JOIN users u ON u.id = ce.student_id AND u.status = 'active'
+          WHERE ce.status = 'active'
+            AND NOT EXISTS (SELECT 1 FROM id_cards ic WHERE ic.user_id = ce.student_id AND ic.status = 'active')
+          ORDER BY ce.student_id LIMIT " . max(1, (int) $limit));
+    $n = 0;
+    foreach ($rows as $r) {
+        $sid = (int) $r['student_id'];
+        if (mam_card_issue_for_user($sid, 'student', (string) (mam_card_student_eligible($sid) ?? ''))) $n++;
+    }
+    return $n;
+}

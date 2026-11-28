@@ -3,7 +3,8 @@
 Operator guide for standing up (or repairing) a MAM Academy deployment. Covers
 the two things every fresh deploy needs: **a migrated database** and **an admin
 account** — the **scheduled jobs** without which no sweep in the system ever
-runs (§7), and **backup and restore** (§8). Every command here is real and
+runs (§7), **backup and restore** (§8), and **monitoring and the restore
+drill** (§9). Every command here is real and
 matches the code in `api/`; the backup and restore commands in §8 were run
 against this codebase, not written from memory.
 
@@ -32,8 +33,8 @@ set at least:
 
 ## 2 · Database schema
 
-The canonical schema is `db/schema-mysql.sql` (target version **30** — the
-single source of truth is the `MAM_SCHEMA_TARGET` constant in `api/modules/kernel/lib/db.php`;
+The canonical schema is `db/schema-mysql.sql` (target version **109** on
+2026-11-28 — the single source of truth is the `MAM_SCHEMA_TARGET` constant in `api/modules/kernel/lib/db.php`;
 trust that constant over any number quoted here).
 
 - **SQLite:** nothing to do — the migrator runs incrementally on every cold start.
@@ -145,23 +146,30 @@ is built to make that obvious and recoverable:
 4. **Nothing is lost while you fix it** — every send is recorded in the `mail_log`
    outbox (migration v17). Failed sends are **retained with their rendered body**;
    re-send the backlog from admin → *Recent email activity* → **Retry failed**, or
-   automatically on cron:
-   ```
-   */15 * * * * php /path/to/site/api/tools/mail-retry.php >> /var/log/mam-mail.log 2>&1
-   ```
+   automatically: **the job runner (§7) retries failed mail on every pass**, so no
+   separate cron is needed. (A separate `mail-retry.php` cron used to be listed
+   here; run alongside the job runner it could send the same email twice. The
+   tool now takes the runner's lock, so an old crontab entry is harmless, but it
+   can be removed.)
 
 ---
 
 ## 7 · Scheduled jobs
 
-Two cron entries beyond the mail retry above. Without the first, **no sweep in
-the system ever runs** — session reminders, the card-expiry warnings, the
-retention sweeps and the backup freshness check are all driven by it.
+Two cron entries. Without the first, **no sweep in the system ever runs** —
+payment reconciliation, session reminders, ID cards, fee reminders, the
+retention sweeps, FX warming, the mail retry and the backup freshness check are
+all driven by it. Each sweep runs on its own: one that fails is logged
+(`job_step_failed`) and the rest still run.
+
+**Is it running?** `GET /api/health` reports the job runner's last pass and
+answers **503** when it is older than 2 hours or its last pass had a failing
+step (§9). Point an uptime monitor at it.
 
 ```
-# The job runner — every hour. Holds an exclusive flock, so overlapping
+# The job runner — every 5 minutes. Holds an exclusive flock, so overlapping
 # crons cannot run the same sweep twice.
-0 * * * * php /path/to/site/api/tools/run-jobs.php >> /var/log/mam-jobs.log 2>&1
+*/5 * * * * php /path/to/site/api/tools/run-jobs.php >> /var/log/mam-jobs.log 2>&1
 
 # The nightly snapshot (see §8). --with-uploads is not optional: without it
 # the archive holds no headshots and no recordings.
@@ -302,3 +310,67 @@ of every table and every photograph, so they are the largest stores of personal
 data on the disk. **The newest complete snapshot is never deleted, whatever its
 age** — a retention rule that can leave an academy with no backup has done more
 harm than the retention it enforced.
+
+
+---
+
+## 9 · Monitoring and the restore drill
+
+| | |
+|---|---|
+| **Owner** | The academy's technical lead (named in the console under System health). |
+| **Version** | 1.0 — 2026-11-28 |
+| **Applies to** | Every production install |
+
+### 9.1 · One URL tells you whether MAM is healthy
+
+`GET /api/health` answers **200** when everything is fine and **503** when it
+is not. The body carries one state per check; it carries no secrets, so it is
+safe to expose:
+
+| Check | `ok` means | Other states |
+|---|---|---|
+| `db` | the database answers | `down` |
+| `jobs` | the job runner (§7) finished a pass in the last 2 hours with no failing step | `never` (never run), `stale` (the cron stopped), `failing` (a sweep threw; see `job_step_failed` in `api/logs/`) |
+| `backup` | the newest snapshot is complete, includes uploads and is younger than `backup_max_age_hours` | `none`, `stale`, `partial` |
+| `mail` | fewer than 10 sends failed in the last 24 hours | `backlog` (check SMTP, §6) |
+
+**Set this up once:** add a free uptime monitor (UptimeRobot, Better Stack,
+Cloudflare Health Checks, or similar) on `https://<your-domain>/api/health`,
+checking every 5 minutes and alerting the owner by email and WhatsApp on any
+non-200. That single monitor covers the site being down, the database being
+unreachable, the cron having stopped, backups having stopped, and mail failing.
+
+A brand-new install answers 503 (`backup: none`) until the first snapshot is
+taken. That is correct: an install with no backup is not healthy.
+
+### 9.2 · Backups leave the server
+
+A backup on the same disk as the site is lost with the site. After the nightly
+snapshot (§7) and the engine dump (§8.2), copy both **off the server** every
+day. Use cPanel's *Backup → Remote destination*, an `rclone` cron to a cloud
+bucket, or a scheduled download. Keep 30 daily and 12 monthly copies.
+
+### 9.3 · The restore drill (every quarter)
+
+A backup that has never been restored is a hope. Once a quarter:
+
+1. Download last night's engine dump and snapshot from the off-site copy (not
+   from the server).
+2. Load the dump into a scratch database:
+   `mysql -u … -p mam_restore_test < dump.sql`.
+3. Point a local checkout at it (`DB_DSN=mysql:host=…;dbname=mam_restore_test`)
+   and run `php api/tests/run.php` and `php api/tools/export.php --verify-roundtrip`.
+4. Open three real student records and one invoice in the console and check
+   they match production.
+5. Write the date, the time it took and anything that went wrong in the
+   operations log. **Targets: lose at most 24 hours of data (RPO), and be back
+   within 2 hours (RTO).**
+
+### 9.4 · Performance settings to confirm with the host
+
+- **OPcache on** for the site's PHP version. Measured on this codebase, it
+  makes each request 4 to 8 times faster (about 35 ms down to about 5 ms), and
+  memory per request drops from 9 MB to under 1 MB.
+- **PHP 8.2 or newer.** PHP 8.1 is out of security support; 8.2 ends on
+  31 December 2026, so plan the move to 8.3.

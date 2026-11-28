@@ -15,7 +15,7 @@ $before = 0;
 try { $before = (int)$db->query('SELECT IFNULL(MAX(version),0) FROM schema_version')->fetchColumn(); } catch (Throwable $e) {}
 
 if ($driver === 'mysql') {
-    mam_db_migrate_mysql($db);
+    mam_db_migrate_mysql($db, true);
 } else {
     mam_db_migrate($db);
 }

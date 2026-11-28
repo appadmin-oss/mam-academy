@@ -29,6 +29,7 @@ switch ($screen) {
     case 'money':      mam_ok(['screen' => 'money']      + mam_sportal_money($me));
     case 'repertoire': mam_ok(['screen' => 'repertoire'] + mam_sportal_repertoire($me));
     case 'more':       mam_ok(['screen' => 'more']       + mam_sportal_more($me));
+    case 'card':       mam_ok(['screen' => 'card']       + mam_sportal_card($me));
     case 'home':
     default:           mam_ok(['screen' => 'home']       + mam_sportal_home($me));
 }
