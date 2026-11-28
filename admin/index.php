@@ -715,7 +715,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'record_placement' => 'admissions',
         'enrol_complete'  => 'admissions',
         'store_item_save' => 'store_catalog', 'store_item_delete' => 'store_catalog',
-        'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings', 'payment_settle_finish' => 'settings',
+        'payment_refund' => 'settings', 'payment_confirm_bank' => 'settings', 'payment_settle_finish' => 'settings', 'fee_usd_repair' => 'settings',
         // Destructive record deletions + bulk seeding are super-only — a manager
         // must not be able to permanently remove applications/classes/enrolments.
         'app_delete' => 'settings',
@@ -3258,6 +3258,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     // to 'succeeded' and propagates the success to the linked subject
     // (booking_fee_paid_at, application 'paid', or store_orders 'delivered')
     // exactly as the auto-verify code path would have.
+    if ($action === 'fee_usd_repair') {
+        // One-off: recompute fee_invoices.total_usd_cents stored from a
+        // truncated display string. Only that column; idempotent; audited.
+        try {
+            $rep = mam_fee_usd_cents_repair(false);
+            header('Location: ?v=system&ok=' . urlencode('Recomputed the USD figure on ' . $rep['changed'] . ' invoice' . ($rep['changed'] === 1 ? '' : 's') . '.')); exit;
+        } catch (\Throwable $e) {
+            header('Location: ?v=system&err=' . urlencode('Could not repair: ' . $e->getMessage())); exit;
+        }
+    }
+
     if ($action === 'payment_settle_finish') {
         // Finish a settled payment's effects (credit, enrolment, order release):
         // queue the idempotent job and run the queue now.

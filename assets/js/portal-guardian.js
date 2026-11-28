@@ -184,9 +184,19 @@
           + '<div class="p-body">' + parts.map(function (p) {
               return esc(p.title) + ' · ' + esc(p.detail);
             }).join('<br>') + '</div>'
-          + '<button type="button" class="p-action is-pay" data-screen="finance">'
-          + '<i class="fa-solid fa-lock" aria-hidden="true"></i>'
-          + (S.children.length > 1 ? 'Pay for your children' : 'Go to Finance') + '</button>'
+          /* The button goes to the child who OWES. It used to carry no child, so
+             Finance opened on the first child — often one with nothing
+             outstanding. With several owing, each is listed with its balance. */
+          + (o.pay_child
+              ? '<button type="button" class="p-action is-pay" data-screen="finance" data-child="' + esc(o.pay_child) + '">'
+                + '<i class="fa-solid fa-lock" aria-hidden="true"></i>'
+                + (S.children.length > 1 ? 'Pay for ' + esc((o.children && o.children[0] && o.children[0].name) || 'your child') : 'Go to Finance') + '</button>'
+              : '<h3 class="p-label p-gap-t">Pay for each child</h3><div class="p-rows">'
+                + (o.children || []).map(function (c) {
+                    return '<button type="button" class="p-row" data-screen="finance" data-child="' + esc(c.student_id) + '">'
+                      + '<span class="p-row-main"><span class="p-title">' + esc(c.name) + '</span></span>'
+                      + '<span class="p-num">' + esc(c.display) + '</span></button>';
+                  }).join('') + '</div>')
           + '</section>');
       });
     }
@@ -491,6 +501,7 @@
       .then(function (r) {
         var out = [];
         S.bank = r.bank || null;
+        S.online = r.online_pay !== false;
 
         // Due now — the design's own card, with each stage of the arithmetic.
         var live = (r.invoices || []).filter(function (i) {
@@ -601,10 +612,15 @@
           ? '<div class="p-notice p-gap-t"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i><span>You reported a transfer for this invoice. '
             + 'The office is checking it against the bank statement — please wait for that before paying again.</span></div>'
           : '')
-      + '<button type="button" class="p-action is-pay" data-pay="' + esc(inv.id) + '">'
-      + '<i class="fa-solid fa-lock" aria-hidden="true"></i>Pay '
-      + esc(inv.charge ? inv.charge.amount : inv.due) + '</button>'
-      + '<div class="p-methods"><span>Card</span><span>Transfer</span><span>USSD</span></div>'
+      /* With online payment off, a Pay button and Card/Transfer/USSD promise a
+         checkout that cannot open; the bank details and the slip upload are
+         the way to pay, shown at once. */
+      + (S.online === false
+          ? offlinePayBlock(inv)
+          : '<button type="button" class="p-action is-pay" data-pay="' + esc(inv.id) + '">'
+            + '<i class="fa-solid fa-lock" aria-hidden="true"></i>Pay '
+            + esc(inv.charge ? inv.charge.amount : inv.due) + '</button>'
+            + '<div class="p-methods"><span>Card</span><span>Transfer</span><span>USSD</span></div>')
       + (inv.plan
           ? '<div class="p-card-foot"><h3 class="p-label">' + (inv.plan.approved === false
                 ? 'Payment plan requested — the office will confirm the dates' : 'Your payment plan') + '</h3>'
@@ -618,7 +634,7 @@
                accepted dates it has not. Never more than what is owed — the
                server refuses that too, but the button should not offer it. */
             + (function () {
-                if (inv.plan.approved !== true) return '';
+                if (inv.plan.approved !== true || S.online === false) return '';
                 var next = inv.plan.schedule.filter(function (i) { return i.status !== 'paid'; })[0];
                 if (!next || !(next.amount_minor > 0) || next.amount_minor >= inv.due_minor) return '';
                 return '<button type="button" class="p-action is-alt" data-pay="' + esc(inv.id)
@@ -628,7 +644,7 @@
             + '</div>'
           : '<button type="button" class="p-action is-alt" data-plan="' + esc(inv.id) + '">'
             + 'Pay in 3 instalments instead</button>')
-      + transferBlock(inv)
+      + (S.online === false ? '' : transferBlock(inv))
       + queryBlock(inv)
       + '</section>';
   }
@@ -691,6 +707,22 @@
       + (waiting ? ''
          : '<div data-transfer-slot="' + esc(inv.id) + '"><button type="button" class="p-action p-outline" data-transfer-open="'
            + esc(inv.id) + '" data-due="' + esc(inv.due_minor) + '">I paid by bank transfer</button></div>');
+  }
+
+  /* Online payment off: pay by transfer. The account first, then the report
+     form open (unless one is already being checked, which says so above). */
+  function offlinePayBlock(inv) {
+    var b = S.bank || {};
+    var claims = inv.claims || [];
+    var waiting = claims.some(function (k) { return k.status === 'pending'; });
+    return '<div class="p-card-foot"><h3 class="p-label">Pay by bank transfer</h3>'
+      + (b.account_number
+          ? '<p class="p-body p-gap-t">' + esc(b.account_name) + ' · ' + esc(b.bank) + ' · <span class="p-num">' + esc(b.account_number) + '</span></p>'
+            + '<p class="p-caption">Send ' + esc(inv.due) + ' and put <span class="p-num">' + esc(inv.ref || '') + '</span> as the narration.</p>'
+          : '<p class="p-caption p-gap-t">Ask the academy office for the account to pay into.</p>')
+      + '</div>'
+      + (claims.length ? transferBlock(inv) : '')
+      + (waiting ? '' : '<div data-transfer-slot="' + esc(inv.id) + '">' + transferForm(inv.id, inv.due_minor) + '</div>');
   }
 
   function transferForm(invId, dueMinor) {

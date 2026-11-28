@@ -150,6 +150,87 @@ function mam_fee_from_minor(int $minor, int $decimals = 2): string {
     return ($neg ? '-' : '') . number_format((float) ($whole . '.' . $frac), $decimals, '.', ',');
 }
 
+/**
+ * An invoice total (minor units of its own currency) in USD cents, at its
+ * rate. Works on the integer: minor ÷ 100 is the major amount, exact for any
+ * realistic invoice, and the one conversion is still mam_money_usd_cents().
+ */
+function mam_fee_usd_cents_of(int $minor, string $currency, ?float $rate): int {
+    if (strtoupper($currency) === 'USD') return $minor;
+    return mam_money_usd_cents($minor / 100, $currency, $rate);
+}
+
+/**
+ * One-off repair for `fee_invoices.total_usd_cents` written while recalc
+ * converted a formatted string (every total of 1,000.00 or more was stored
+ * about 1000× too small). Recomputes ONLY that column, from the stored integer
+ * total and the invoice's own frozen rate, and only where it differs; the
+ * minor amounts were always right and are never touched. Void invoices are
+ * left alone. Idempotent: a second run changes nothing.
+ *
+ * @return array{changed:int, rows:array<int,array{id:int,ref:string,was:?int,now:int}>}
+ */
+function mam_fee_usd_cents_repair(bool $dryRun = true): array {
+    $rows = [];
+    foreach (mam_db_all("SELECT id, public_ref, currency, total_minor, total_usd_cents, fx_rate_usd_ngn
+                           FROM fee_invoices WHERE status <> 'void' AND currency <> 'USD'") as $r) {
+        $rate = $r['fx_rate_usd_ngn'] !== null ? (float) $r['fx_rate_usd_ngn'] : null;
+        $now = mam_fee_usd_cents_of((int) $r['total_minor'], (string) $r['currency'], $rate);
+        $was = $r['total_usd_cents'] !== null ? (int) $r['total_usd_cents'] : null;
+        if ($was === $now) continue;
+        $rows[] = ['id' => (int) $r['id'], 'ref' => (string) $r['public_ref'], 'was' => $was, 'now' => $now];
+        if (!$dryRun) mam_db_update('fee_invoices', ['total_usd_cents' => $now], ['id' => (int) $r['id']]);
+    }
+    if (!$dryRun && $rows) {
+        mam_audit('fee_usd_repair', 'fee_invoice', null, ['changed' => count($rows), 'ids' => array_column($rows, 'id')]);
+    }
+    return ['changed' => $dryRun ? 0 : count($rows), 'rows' => $rows];
+}
+
+/**
+ * SQL for an amount in an INVOICE's own minor units, in USD cents at that
+ * invoice's frozen rate (alias `i` = fee_invoices). USD is already cents; NGN
+ * divides by the frozen rate; anything else uses the invoice's own stored
+ * total_usd_cents / total_minor ratio. The one definition, shared by the
+ * console and the portals so they cannot disagree.
+ */
+function mam_fee_invoice_usd_sql(string $minorExpr): string {
+    return "CASE WHEN i.currency = 'USD' THEN ($minorExpr)
+                 WHEN i.currency = 'NGN' AND i.fx_rate_usd_ngn > 0 THEN CAST(ROUND(($minorExpr) / i.fx_rate_usd_ngn) AS INTEGER)
+                 WHEN i.total_minor > 0 THEN CAST(ROUND(($minorExpr) * 1.0 * i.total_usd_cents / i.total_minor) AS INTEGER)
+                 ELSE 0 END";
+}
+
+/** Can a family pay online right now? One predicate for both fee-pay routes and both portals. */
+function mam_fee_online_available(): bool {
+    return trim((string) mam_env('PAYSTACK_SECRET_KEY', '')) !== '';
+}
+
+/**
+ * The guardian Home "owed" headline, per currency (never summed across them),
+ * with WHO owes: `pay_child` when exactly one child owes in that currency (the
+ * button goes straight to them), else `children` lists each with its balance.
+ * `$kids` rows carry student_id, name, owed_minor, currency.
+ */
+function mam_fee_owed_headline(array $kids): array {
+    $by = [];
+    foreach ($kids as $k) {
+        $m = (int) ($k['owed_minor'] ?? 0);
+        if ($m <= 0) continue;
+        $cur = (string) ($k['currency'] ?? 'NGN');
+        $by[$cur]['minor'] = ($by[$cur]['minor'] ?? 0) + $m;
+        $by[$cur]['children'][] = ['student_id' => (int) $k['student_id'],
+            'name' => (string) ($k['name'] ?? $k['student_name'] ?? ''), 'minor' => $m, 'display' => mam_fee_display($m, $cur)];
+    }
+    $out = [];
+    foreach ($by as $cur => $b) {
+        $out[] = ['currency' => $cur, 'minor' => $b['minor'], 'display' => mam_fee_display($b['minor'], $cur),
+                  'children' => $b['children'],
+                  'pay_child' => count($b['children']) === 1 ? $b['children'][0]['student_id'] : null];
+    }
+    return $out;
+}
+
 /** The symbol a currency prints with. Falls back to the ISO code. */
 function mam_fee_symbol(string $currency): string {
     return ['USD' => '$', 'NGN' => '₦', 'GBP' => '£', 'EUR' => '€'][strtoupper($currency)] ?? (strtoupper($currency) . ' ');
@@ -486,7 +567,10 @@ function mam_fee_recalc(int $invoiceId): array {
         $usdCents = $total;
     } elseif (function_exists('mam_money_usd_cents')) {
         // Through money.php so there is ONE conversion definition in the repo.
-        $usdCents = mam_money_usd_cents((float) mam_fee_from_minor($total), $cur, $rate);
+        // From the INTEGER total, never from mam_fee_from_minor(): that is a
+        // display string with a thousands comma, and (float) "162,000.00" is
+        // 162 — every invoice of ₦1,000 or more was stored ~1000× too small.
+        $usdCents = mam_fee_usd_cents_of($total, $cur, $rate);
     }
 
     $paid = (int) (mam_db_row("SELECT COALESCE(SUM(amount_minor),0) AS s FROM fee_plan_instalments i
@@ -823,6 +907,9 @@ function mam_fee_statement(int $parentId, int $studentId): array {
         'receipts'   => mam_fee_receipts($studentId),
         // Where to send a transfer, so the "I paid by transfer" form can say it.
         'bank'       => function_exists('mam_bank_details') ? mam_bank_details() : null,
+        // Off → the portal shows the bank details and the slip upload as THE
+        // way to pay, instead of Card/Transfer/USSD that cannot be used.
+        'online_pay' => mam_fee_online_available(),
         'refund_rule'=> $refund,
         'assurance'  => 'Nothing is withheld from a child over money — not their lessons, '
                       . 'not their report, and not their safeguarding record.',

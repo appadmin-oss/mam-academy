@@ -129,6 +129,25 @@ unfixed code first:
   NGN is refused **explicitly** (logged `flw_currency_refused`, recorded as a
   payment event). Test/live: every charge is re-read with this install's own
   key; `mam_flw_mode()` is logged beside refusals.
+- **Money shown ~1000× too small (found by the UX research).** Fee recalc
+  converted `mam_fee_from_minor()` — a display string, "162,000.00" — with
+  `(float)`, which reads 162, so every invoice of 1,000.00 or more stored its
+  USD figure ~1000× too small (₦162,000 showed as $0.11). Recalc now converts
+  the integer total; a sweep of finance, admin, portals and routes found no
+  other cast of formatted money (a test keeps it that way). The stored
+  `fee_invoices.total_usd_cents` is repaired by `mam_fee_usd_cents_repair()`
+  — that column only, idempotent, at each invoice's own rate — from a card on
+  System health (dry run shown first, `settings` cap). Two more causes of the
+  same symptom: the console's Outstanding summed whole totals of part-paid
+  invoices, and the student portal counted USD invoices only ($0.00 for a
+  naira debt); both now take each invoice's remaining balance at its frozen
+  rate through one helper, `mam_fee_invoice_usd_sql()`.
+- **Guardian Home "Pay for your children"** opens the child who owes, or
+  lists each owing child with its balance (`mam_fee_owed_headline()`).
+- **With online payment off** (no Paystack key, `mam_fee_online_available()`)
+  the guardian invoice card shows the bank account and the slip upload
+  instead of a Pay button and Card/Transfer/USSD; the student portal shows
+  the account instead of "Pay online".
 - Left for the owner (§6): billing currency per family, and which gateway
   takes USD.
 
@@ -294,7 +313,9 @@ Each was verified against a local copy and is pinned by
     console Finish; refunds give the invoice balance back; adult learners
     invoiced and paying online; console money like with like; bank
     confirmations through the one settlement; unique-only "already recorded";
-    Flutterwave retries, duplicate and NGN-only refusals.
+    Flutterwave retries, duplicate and NGN-only refusals; invoice USD
+    figures ~1000× too small (with a repair), the guardian Pay button opening
+    the wrong child, and online-pay-off showing unusable methods.
     `test_finance_fixes.php`.
 16. **Guardian threads never notified anybody**: the notice's link was an
     array, a TypeError the post swallowed. Each participant now gets a link to

@@ -119,17 +119,17 @@ function mam_sportal_owed(int $studentId): array {
     $fees = 0; $due = null;
     try {
         $row = mam_db_row(
-            "SELECT MIN(due_on) AS d,
-                    COALESCE(SUM(MAX(total_minor - paid_minor, 0)), 0) AS owed
-               FROM fee_invoices
-              WHERE student_id = ? AND status IN ('issued','part_paid') AND currency = 'USD'",
+            "SELECT MIN(i.due_on) AS d,
+                    COALESCE(SUM(" . mam_fee_invoice_usd_sql('CASE WHEN i.total_minor > i.paid_minor THEN i.total_minor - i.paid_minor ELSE 0 END') . "), 0) AS owed
+               FROM fee_invoices i
+              WHERE i.student_id = ? AND i.status IN ('issued','part_paid')",
             [$studentId]
         );
         $due  = $row && $row['d'] ? (string) $row['d'] : null;
-        /* `total_minor` is in the invoice's own currency; only a USD invoice
-           can be added to a USD-cent ledger. A naira invoice is shown on its
-           own row rather than summed into this figure — the v61 column exists
-           because summing NGN into a USD total is exactly the bug. */
+        /* Each invoice's balance in USD cents at ITS OWN frozen rate — never a
+           raw naira sum. This used to count USD invoices only, so a family
+           owing ₦162,000 saw "Outstanding $0.00". (The scalar MAX(a, b) it
+           used is also SQLite-only.) */
         $fees = (int) ($row['owed'] ?? 0);
     } catch (Throwable $e) { /* fees layer not in use on this install */ }
 
@@ -520,6 +520,8 @@ function mam_sportal_money(int $studentId): array {
     return [
         'owed'     => mam_sportal_owed($studentId),
         'invoices' => $invoices,
+        'online_pay' => function_exists('mam_fee_online_available') && mam_fee_online_available(),
+        'bank' => function_exists('mam_bank_details') ? mam_bank_details() : null,
         'ledger'   => $ledger,
         /* §15: a student may raise an exception against their OWN charge. The
            reason codes are the server's, so the screen cannot offer a seventh. */

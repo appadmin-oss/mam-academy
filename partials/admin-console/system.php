@@ -18,6 +18,27 @@ $behind = ($d['schema']['target'] ?? null) !== null
     . ac_h((string) ($h['signing']['detail'] ?? ''))); ?>
 <?php endif; ?>
 
+<?php if ($d['fee_usd'] ?? []):
+  $fu = $d['fee_usd']; ?>
+  <?php ac_banner('warn', 'fa-calculator',
+    '<strong>' . count($fu) . ' fee invoice' . (count($fu) === 1 ? '' : 's') . ' carry a USD figure about 1000× too small.</strong> '
+    . 'Invoice totals of 1,000.00 or more were converted from a display string ("162,000.00" read as 162), so the console and portals showed '
+    . 'e.g. $0.11 for ₦162,000. The naira amounts were always right; only the stored USD figure is recomputed, at each invoice\'s own rate.'); ?>
+  <?php ac_card_open('Repair invoice USD figures', count($fu) . ' to recompute'); ?>
+    <div class="ac-tablewrap"><table class="ac-table">
+      <thead><tr><th>Invoice</th><th class="ac-num">Stored</th><th class="ac-num">Correct</th></tr></thead>
+      <tbody><?php foreach (array_slice($fu, 0, 50) as $r): ?>
+        <tr><td class="ac-mono"><?= ac_h($r['ref']) ?></td>
+            <td class="ac-num"><?= ac_h($r['was'] === null ? '—' : mam_console_usd((int) $r['was'])) ?></td>
+            <td class="ac-num"><?= ac_h(mam_console_usd((int) $r['now'])) ?></td></tr>
+      <?php endforeach; ?></tbody>
+    </table></div>
+    <?php ac_form('fee_usd_repair', 'system'); ?>
+      <div class="ac-row ac-mt"><button type="submit" class="ac-btn ac-btn--primary ac-btn--sm">Repair these figures</button></div>
+    <?php ac_form_end(); ?>
+  <?php ac_card_close('Safe to repeat: an invoice already right is left exactly as it is. Audited as fee_usd_repair.'); ?>
+<?php endif; ?>
+
 <?php
   /* Beside the signing-key banner on purpose: a restore needs BOTH the archive
      and the key that signed what is in it, and an academy that has one without

@@ -801,7 +801,16 @@
               + '<span class="p-chip' + (over ? ' is-bad' : (i.status === 'paid' ? ' is-good' : '')) + '">'
               + esc(over ? 'Overdue' : String(i.status || '').replace('_', ' ')) + '</span>'
               /* An adult paying their own invoice (the server sets self_pay). */
-              + (Number(i.self_pay) === 1 ? '<button type="button" class="p-action" data-feepay="' + esc(i.id) + '">Pay online</button>' : '')
+              /* Online payment off: no button that cannot open a checkout —
+                 the bank account to pay into instead. */
+              + (Number(i.self_pay) === 1
+                  ? (d.online_pay
+                      ? '<button type="button" class="p-action" data-feepay="' + esc(i.id) + '">Pay online</button>'
+                      : (d.bank && d.bank.account_number
+                          ? '<span class="p-caption">Pay by transfer: ' + esc(d.bank.account_name) + ' · ' + esc(d.bank.bank)
+                            + ' · <span class="p-num">' + esc(d.bank.account_number) + '</span> · narration ' + esc(i.public_ref || '') + '</span>'
+                          : ''))
+                  : '')
               + '</div>';
           }).join('') + '</div></section>';
       }

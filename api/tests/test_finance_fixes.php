@@ -272,3 +272,92 @@ t_eq($FF_url($FF_par), '/portal/parent/#messages', "the guardian's notice opens 
 t_eq($FF_url($FF_admin), '/admin/console.php?v=comms', "the admin's opens the console's Communications");
 mam_thread_post($FF_th, $FF_par, 'Thank you — will do.');
 t_eq($FF_url($FF_ins), '/portal/instructor/', "the instructor's opens their portal");
+
+/* ── A ── */
+t_group('finance fixes — A. an invoice\'s USD figure is not 1000× too small');
+
+$FF_ia = mam_fee_invoice_open($FF_kid, $FF_par, $FF_admin, ['term_label' => "FF thousand $FF_sfx", 'currency' => 'NGN']);
+mam_fee_line_add($FF_ia, 'tuition', 'Guitar', '162000.00', 1);
+mam_db_update('fee_invoices', ['fx_rate_usd_ngn' => 1500.0], ['id' => $FF_ia]);
+mam_fee_recalc($FF_ia);
+$FF_ra = mam_db_row('SELECT total_minor, total_usd_cents FROM fee_invoices WHERE id = ?', [$FF_ia]);
+t_eq((int) $FF_ra['total_minor'], 16200000, 'the naira total is ₦162,000.00 in kobo');
+t_eq((int) $FF_ra['total_usd_cents'], 10800, '₦162,000 at ₦1,500 is $108.00 — it was 11 cents ("162,000.00" cast to float is 162)');
+t_ok(!preg_match('/\((?:float|int)\)\s*mam_fee_from_minor\(/', $FF_src('api/modules/finance/lib/fees.php')), 'no caller casts the display string back to a number');
+foreach (['api/modules/finance/lib', 'api/modules/admin/lib', 'api/modules/portals/lib', 'partials/admin-console', 'api/routes'] as $FF_dir) {
+    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($FF_root . '/' . $FF_dir, FilesystemIterator::SKIP_DOTS)) as $FF_f) {
+        if (substr((string) $FF_f, -4) !== '.php') continue;
+        $FF_txt = (string) file_get_contents((string) $FF_f);
+        if (preg_match('/\((?:float|int)\)\s*\(?\s*(?:mam_fee_from_minor|mam_fee_display|mam_console_usd|number_format)\(/', $FF_txt)) {
+            t_ok(false, 'a formatted money string is cast back to a number in ' . substr((string) $FF_f, strlen($FF_root) + 1));
+        }
+    }
+}
+t_ok(true, 'the finance, admin, portal and route code was swept for casts of formatted money');
+// The repair: invoices stored with the truncated figure are recomputed, others untouched.
+mam_db_update('fee_invoices', ['total_usd_cents' => 11], ['id' => $FF_ia]);           // as the bug stored it
+$FF_ok = mam_fee_invoice_open($FF_kid, $FF_par, $FF_admin, ['term_label' => "FF small $FF_sfx", 'currency' => 'NGN']);
+mam_fee_line_add($FF_ok, 'tuition', 'Theory', '900.00', 1);                         // under 1,000: never had a comma
+mam_db_update('fee_invoices', ['fx_rate_usd_ngn' => 1500.0], ['id' => $FF_ok]);
+mam_fee_recalc($FF_ok);
+$FF_okBefore = mam_db_row('SELECT total_minor, total_usd_cents, updated_at FROM fee_invoices WHERE id = ?', [$FF_ok]);
+$FF_dry = mam_fee_usd_cents_repair(true);
+t_ok(in_array($FF_ia, array_column($FF_dry['rows'], 'id'), true), 'a dry run lists the truncated invoice');
+t_eq((int) mam_db_row('SELECT total_usd_cents FROM fee_invoices WHERE id = ?', [$FF_ia])['total_usd_cents'], 11, 'and changes nothing');
+$FF_fix = mam_fee_usd_cents_repair(false);
+t_eq((int) mam_db_row('SELECT total_usd_cents FROM fee_invoices WHERE id = ?', [$FF_ia])['total_usd_cents'], 10800, 'the repair restores $108.00');
+t_eq((int) mam_db_row('SELECT total_minor FROM fee_invoices WHERE id = ?', [$FF_ia])['total_minor'], 16200000, 'and never touches the naira amount, which was right');
+t_eq(mam_db_row('SELECT total_minor, total_usd_cents, updated_at FROM fee_invoices WHERE id = ?', [$FF_ok]), $FF_okBefore, 'an invoice that was right is left exactly as it was');
+t_eq(mam_fee_usd_cents_repair(false)['changed'], 0, 'running it again changes nothing (idempotent)');
+t_ok(str_contains($FF_src('partials/admin-console/system.php'), 'fee_usd_repair'), 'System health offers the repair');
+// The two "Outstanding" figures the research saw.
+$FF_aStu = (int) mam_db_insert('users', ['name' => 'FF Owes Naira', 'email' => "ffnaira.$FF_sfx@test.local", 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
+$FF_aPar = (int) mam_parent_link("ffnairag.$FF_sfx@test.local", $FF_aStu)['parent_id'];
+$FF_ob0 = mam_console_outstanding_cents();
+$FF_an = mam_fee_invoice_open($FF_aStu, $FF_aPar, $FF_admin, ['term_label' => "FF naira owed $FF_sfx", 'currency' => 'NGN']);
+mam_fee_line_add($FF_an, 'tuition', 'Guitar', '162000.00', 1);
+mam_fee_invoice_issue($FF_an, $FF_admin, '2027-03-01');
+mam_db_update('fee_invoices', ['fx_rate_usd_ngn' => 1500.0], ['id' => $FF_an]);
+mam_fee_recalc($FF_an);
+t_eq(mam_console_outstanding_cents() - $FF_ob0, 10800, 'the console\'s Outstanding grows by $108.00 for a ₦162,000 invoice (it showed $0.21-type figures)');
+mam_fee_payment_record($FF_an, '81000', 'cash', $FF_admin);
+t_eq(mam_console_outstanding_cents() - $FF_ob0, 5400, 'and counts only what is still owed once half is paid (it summed whole totals)');
+$FF_sp = mam_sportal_money($FF_aStu);
+t_eq((int) ($FF_sp['owed']['fees_cents'] ?? $FF_sp['fees_cents'] ?? -1), 5400, 'the student portal\'s Outstanding counts a naira invoice at its frozen rate (it showed $0.00)');
+t_ok(str_contains($FF_src('admin/index.php'), "'fee_usd_repair' => 'settings'"), 'gated like the other money actions');
+
+/* ── B ── */
+t_group('finance fixes — B. "Pay for your children" opens the child who owes');
+
+$FF_kids = [
+    ['student_id' => 501, 'name' => 'Ada', 'owed_minor' => 0, 'currency' => 'NGN'],
+    ['student_id' => 502, 'name' => 'Bayo', 'owed_minor' => 16200000, 'currency' => 'NGN'],
+];
+$FF_h1 = mam_fee_owed_headline($FF_kids);
+t_eq(count($FF_h1), 1, 'one currency owed, one headline');
+t_eq((int) ($FF_h1[0]['pay_child'] ?? 0), 502, 'the button goes to Bayo, who owes — not to Ada, listed first with nothing outstanding');
+$FF_kids[] = ['student_id' => 503, 'name' => 'Chi', 'owed_minor' => 500000, 'currency' => 'NGN'];
+$FF_h2 = mam_fee_owed_headline($FF_kids);
+t_ok(($FF_h2[0]['pay_child'] ?? null) === null, 'with two children owing there is no single child to send to');
+t_eq(array_column($FF_h2[0]['children'], 'student_id'), [502, 503], 'so each child owing is listed');
+t_eq($FF_h2[0]['children'][0]['display'], mam_fee_display(16200000, 'NGN'), 'with their own balance');
+t_eq($FF_h2[0]['display'], mam_fee_display(16700000, 'NGN'), 'and the combined total');
+t_ok(str_contains($FF_src('api/routes/parent/dashboard.php'), 'mam_fee_owed_headline('), 'the dashboard uses it');
+$FF_gjs = $FF_src('assets/js/portal-guardian.js');
+t_ok(str_contains($FF_gjs, 'o.pay_child') && str_contains($FF_gjs, 'o.children'), 'and the Home card reads the child to send to, or lists each one');
+
+/* ── C ── */
+t_group('finance fixes — C. with online payment off, the bank details are the way to pay');
+
+mam_test_env(['PAYSTACK_SECRET_KEY' => '']);
+t_ok(!mam_fee_online_available(), 'no Paystack key means no online payment');
+$FF_st = mam_fee_statement($FF_par, $FF_kid);
+t_ok(array_key_exists('online_pay', $FF_st) && $FF_st['online_pay'] === false, 'the statement says so');
+t_ok(!empty($FF_st['bank']['account_number']), 'and carries the bank details to show instead');
+mam_test_env(['PAYSTACK_SECRET_KEY' => 'sk_test_x']);
+t_ok(mam_fee_statement($FF_par, $FF_kid)['online_pay'] === true, 'with a key it is on');
+mam_test_env(['PAYSTACK_SECRET_KEY' => '']);
+t_ok(str_contains($FF_gjs, 'S.online === false') && str_contains($FF_gjs, 'offlinePayBlock('), 'the invoice card shows the bank details and slip upload instead of the Pay button and Card/Transfer/USSD');
+foreach (['parent', 'student'] as $FF_who) {
+    t_ok(str_contains($FF_src("api/routes/$FF_who/fee-pay.php"), 'mam_fee_online_available()'), "the $FF_who fee-pay route asks the same predicate");
+}

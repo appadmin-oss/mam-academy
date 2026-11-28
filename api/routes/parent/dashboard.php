@@ -19,7 +19,6 @@ $kids = mam_parent_children($pid);
 
 $needs = [];
 $week  = [];
-$owedByCurrency = [];
 
 foreach ($kids as &$k) {
     $sid = (int) $k['student_id'];
@@ -33,8 +32,6 @@ foreach ($kids as &$k) {
             $k['owed_minor'] = $st['owed_minor'];
             $k['currency'] = $st['currency'];
             if ($st['owed_minor'] > 0) {
-                $cur = $st['currency'];
-                $owedByCurrency[$cur] = ($owedByCurrency[$cur] ?? 0) + $st['owed_minor'];
                 foreach ($st['invoices'] as $inv) {
                     if (!in_array($inv['status'], ['issued', 'part_paid'], true)) continue;
                     $needs[] = [
@@ -121,10 +118,8 @@ usort($needs, fn($a, $b) => $a['rank'] <=> $b['rank']);
 /* The owed headline. Summed PER CURRENCY and never across them — adding naira to
  * dollars is the bug `payments.amount_usd_cents` exists to prevent, and a
  * dashboard is exactly where somebody would do it for one tidy number. */
-$owed = [];
-foreach ($owedByCurrency as $cur => $minor) {
-    $owed[] = ['currency' => $cur, 'minor' => $minor, 'display' => mam_fee_display($minor, $cur)];
-}
+
+$owed = mam_fee_owed_headline($kids);
 
 $threads = mam_thread_inbox($pid, 10);
 

@@ -399,8 +399,8 @@ function mam_console_term(): array {
  */
 function mam_console_outstanding_cents(): int {
     return (int) mam_console_scalar('money.outstanding',
-        "SELECT COALESCE(SUM(total_usd_cents), 0) FROM fee_invoices
-          WHERE status IN ('issued','part_paid')", [], 0);
+        "SELECT COALESCE(SUM(" . mam_console_invoice_usd_sql('CASE WHEN i.total_minor > i.paid_minor THEN i.total_minor - i.paid_minor ELSE 0 END') . "), 0)
+           FROM fee_invoices i WHERE i.status IN ('issued','part_paid')", [], 0);
 }
 
 /**
@@ -410,10 +410,7 @@ function mam_console_outstanding_cents(): int {
  * invoice's own total ratio. Never sums minor units across currencies.
  */
 function mam_console_invoice_usd_sql(string $minorExpr): string {
-    return "CASE WHEN i.currency = 'USD' THEN ($minorExpr)
-                 WHEN i.currency = 'NGN' AND i.fx_rate_usd_ngn > 0 THEN CAST(ROUND(($minorExpr) / i.fx_rate_usd_ngn) AS INTEGER)
-                 WHEN i.total_minor > 0 THEN CAST(ROUND(($minorExpr) * 1.0 * i.total_usd_cents / i.total_minor) AS INTEGER)
-                 ELSE 0 END";
+    return mam_fee_invoice_usd_sql($minorExpr);
 }
 
 /**
@@ -2639,6 +2636,10 @@ function mam_console_system(): array {
            signing-key banner, and the two belong together: a restore needs the
            archive AND the key that signed what is in it. */
         'backup' => mam_console_try('sy.backup', fn() => mam_backup_status(), []) ?: [],
+        /* Fee invoices whose stored USD figure was written ~1000× too small
+           (recalc converted a formatted "162,000.00"). A dry run: nothing is
+           changed until somebody presses Repair. */
+        'fee_usd' => mam_console_try('sy.feeusd', fn() => mam_fee_usd_cents_repair(true)['rows'], []) ?: [],
         /* Online classes (live-classes.php). The private key and webhook secret
            are never sent back — only whether they are set. */
         'live' => [

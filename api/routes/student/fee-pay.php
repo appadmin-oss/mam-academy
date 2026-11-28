@@ -19,7 +19,7 @@ $in = mam_json_input();
 $invId = (int) ($in['invoice_id'] ?? 0);
 $amt   = isset($in['amount_minor']) && $in['amount_minor'] !== null && $in['amount_minor'] !== '' ? (int) $in['amount_minor'] : null;
 if ($invId < 1) mam_fail('validation', 422, ['fields' => ['invoice_id']]);
-if (trim((string) mam_env('PAYSTACK_SECRET_KEY', '')) === '') mam_fail('online_payment_unavailable', 503);
+if (!mam_fee_online_available()) mam_fail('online_payment_unavailable', 503);
 if (!filter_var((string) ($u['email'] ?? ''), FILTER_VALIDATE_EMAIL)) mam_fail('no_email', 409);
 
 // A second press (a double-click, a second tab) within a couple of minutes gets the
