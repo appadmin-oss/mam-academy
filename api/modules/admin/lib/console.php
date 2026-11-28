@@ -1640,7 +1640,7 @@ function mam_console_curriculum(array $q = []): array {
    10. Assessment & boards
    ───────────────────────────────────────────────────────────────────────── */
 
-function mam_console_assessment(): array {
+function mam_console_assessment(array $q = []): array {
     $rubrics = mam_console_rows('asm.rubrics',
         "SELECT r.id, r.title, r.active, r.created_at, c.title cohort,
                 (SELECT COUNT(*) FROM rubric_criteria rc WHERE rc.rubric_id = r.id) criteria,
@@ -1648,16 +1648,23 @@ function mam_console_assessment(): array {
            FROM rubrics r LEFT JOIN cohorts c ON c.id = r.cohort_id
           ORDER BY r.active DESC, r.created_at DESC LIMIT 40");
 
-    $reports = mam_console_rows('asm.reports',
-        "SELECT status, COUNT(*) n FROM termly_reports GROUP BY status");
-    $byStatus = [];
-    foreach ($reports as $r) $byStatus[(string) $r['status']] = (int) $r['n'];
+    /* The status set is the schema's, not a guess: MAM_REPORT_STATUSES is the
+       termly_reports CHECK, so a filter here can never offer a state the table
+       refuses or miss one it holds. */
+    $statuses = defined('MAM_REPORT_STATUSES') ? MAM_REPORT_STATUSES : ['draft', 'moderating', 'ratified', 'withdrawn'];
+    $byStatus = array_fill_keys($statuses, 0);
+    foreach (mam_console_rows('asm.reports', "SELECT status, COUNT(*) n FROM termly_reports GROUP BY status") as $r) {
+        $byStatus[(string) $r['status']] = (int) $r['n'];
+    }
+    $status = in_array((string) ($q['status'] ?? ''), $statuses, true) ? (string) $q['status'] : '';
 
+    // The queue: open first, so the appeal blocking a board is the one on top.
     $appeals = mam_console_rows('asm.appeals',
-        "SELECT a.id, a.competency_code, a.reason, a.status, a.opened_at, a.closed_at,
-                u.name student, a.report_id
+        "SELECT a.id, a.competency_code, a.reason, a.status, a.outcome_note, a.raised_role,
+                a.opened_at, a.closed_at, u.name student, a.report_id, tr.term_label
            FROM mark_appeals a LEFT JOIN users u ON u.id = a.student_id
-          ORDER BY (a.closed_at IS NULL) DESC, a.opened_at DESC LIMIT 20");
+           LEFT JOIN termly_reports tr ON tr.id = a.report_id
+          ORDER BY (a.status = 'open') DESC, a.opened_at DESC LIMIT 40");
 
     // A moderation records whether the second marker AGREED, not a second
     // percentage — so the figure to show is the disagreement rate, not a mean
@@ -1667,20 +1674,59 @@ function mam_console_assessment(): array {
         "SELECT COUNT(*) n, SUM(CASE WHEN agreed = 0 THEN 1 ELSE 0 END) disagreed
            FROM report_moderations");
 
+    $list = mam_console_rows('asm.list',
+        "SELECT r.id, r.term_label, r.status, r.band_low, r.band_high, r.coverage_evidenced,
+                r.coverage_total, r.ratified_at, r.updated_at, r.created_at, u.name student, c.title cohort,
+                (SELECT COUNT(*) FROM mark_appeals a WHERE a.report_id = r.id AND a.status = 'open') open_appeals
+           FROM termly_reports r LEFT JOIN users u ON u.id = r.student_id
+           LEFT JOIN cohorts c ON c.id = r.cohort_id"
+        . ($status !== '' ? ' WHERE r.status = ?' : '')
+        . " ORDER BY CASE r.status WHEN 'moderating' THEN 0 WHEN 'draft' THEN 1 WHEN 'ratified' THEN 2 ELSE 3 END,
+                    COALESCE(r.updated_at, r.created_at) DESC, r.id DESC LIMIT 60",
+        $status !== '' ? [$status] : []);
+
+    /* One report, opened. Whether it may be ratified is asked of the LIB —
+       mam_report_ratify_refusal() is the same check mam_report_ratify() throws
+       from, so the disabled button and its reason cannot drift from the rule. */
+    $detail = null;
+    $id = (int) ($q['id'] ?? 0);
+    if ($id > 0 && function_exists('mam_report_get')) {
+        $detail = mam_console_try('asm.detail', function () use ($id) {
+            $rep = mam_report_get($id);
+            if (!$rep) return null;
+            $me = mam_current_user();
+            $actor = $me ? (int) $me['id'] : null;
+            $mod = mam_report_moderation_state($id);
+            $why = mam_report_ratify_refusal($id, $actor);
+            return [
+                'report'     => $rep,
+                'moderation' => $mod,
+                'refusal'    => $why,
+                'refusal_text' => $why !== null ? mam_report_refusal_text($why, $mod) : null,
+                'levels'     => MAM_REPORT_LEVELS,
+            ];
+        }, null);
+    }
+
     return [
         'rubrics' => $rubrics,
+        'statuses' => $statuses,
         'reports' => $byStatus,
+        'status' => $status,
+        'list' => $list,
+        'detail' => $detail,
         'appeals' => $appeals,
-        'open_appeals' => mam_console_int('asm.open', "SELECT COUNT(*) FROM mark_appeals WHERE closed_at IS NULL"),
+        'open_appeals' => mam_console_int('asm.open', "SELECT COUNT(*) FROM mark_appeals WHERE status = 'open'"),
         'moderation' => ['n' => (int) ($mod['n'] ?? 0), 'disagreed' => (int) ($mod['disagreed'] ?? 0)],
         'min_share' => defined('MAM_REPORT_MODERATION_SHARE') ? MAM_REPORT_MODERATION_SHARE : null,
         'min_sample' => defined('MAM_REPORT_MODERATION_MIN') ? MAM_REPORT_MODERATION_MIN : null,
-        'drafts' => mam_console_rows('asm.drafts',
-            "SELECT r.id, r.term_label, r.status, r.band_low, r.band_high, r.coverage_evidenced,
-                    r.coverage_total, u.name student, c.title cohort
-               FROM termly_reports r LEFT JOIN users u ON u.id = r.student_id
-               LEFT JOIN cohorts c ON c.id = r.cohort_id
-              WHERE r.status <> 'ratified' ORDER BY r.created_at DESC LIMIT 30"),
+        // Who may second-mark: staff, the same set the handler accepts.
+        'staff' => $id > 0 ? mam_console_rows('asm.staff',
+            "SELECT DISTINCT u.id, u.name FROM users u LEFT JOIN user_roles ur ON ur.user_id = u.id
+              WHERE (u.role IN ('admin','instructor') OR ur.role IN ('admin','instructor'))
+                AND COALESCE(u.status, 'active') = 'active'
+              ORDER BY u.name LIMIT 200") : [],
+        'me' => (function () { $u = mam_current_user(); return $u ? (int) $u['id'] : null; })(),
     ];
 }
 

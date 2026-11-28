@@ -76,6 +76,15 @@ declare(strict_types=1);
 const MAM_REPORT_MODERATION_MIN = 2;
 const MAM_REPORT_MODERATION_SHARE = 25.0;
 
+/**
+ * The report lifecycle, exactly the termly_reports.status CHECK (v85, both
+ * engines). draft → moderating (the first second-marking) → ratified (the only
+ * status a family sees) → withdrawn. There is no separate "submitted": the
+ * instructor's "Send to the Examinations panel" writes the draft the panel
+ * works from. test_report_release.php pins this list to the CHECK.
+ */
+const MAM_REPORT_STATUSES = ['draft', 'moderating', 'ratified', 'withdrawn'];
+
 /** How long a family has to appeal a mark. The design says three months. */
 const MAM_REPORT_APPEAL_WINDOW_DAYS = 90;
 
@@ -450,6 +459,62 @@ function mam_report_open_appeals(int $reportId): array {
 }
 
 /**
+ * Would `mam_report_ratify()` refuse this report right now, and why?
+ *
+ * PURE: it reads and decides, it never writes and never audits. It is the ONE
+ * statement of the ratification rules — `mam_report_ratify()` calls it and
+ * throws what it returns — so a screen that greys out a "Ratify" button and
+ * shows the reason cannot disagree with the transition that would refuse it.
+ * A screen must call this, not re-derive the rules.
+ *
+ * Returns null when nothing stands in the way, else one of the codes
+ * `mam_report_ratify()` throws, checked in the same order. `report_slot_taken`
+ * is included: a second draft ratified in between is the refusal a board is
+ * most surprised by.
+ */
+function mam_report_ratify_refusal(int $reportId, ?int $actorId): ?string {
+    $r = mam_db_row('SELECT * FROM termly_reports WHERE id = ?', [$reportId]);
+    if (!$r) return 'report_not_found';
+    if ($r['status'] === 'ratified')  return 'already_ratified';
+    if ($r['status'] === 'withdrawn') return 'withdrawn';
+    if (mam_report_actor_id($actorId) === null) return 'no_ratifier';
+    if (mam_report_open_appeals($reportId)) return 'appeal_open';
+    $mod = mam_report_moderation_state($reportId);
+    if ($mod['scored'] === 0) return 'no_evidence';
+    if (!$mod['sufficient']) return 'moderation_short';
+    if (mam_report_slot_taken((int) $r['student_id'], $r['term_id'] !== null ? (int) $r['term_id'] : null,
+            (string) $r['term_label'], $r['course_id'] !== null ? (int) $r['course_id'] : null,
+            $r['level_id'] !== null ? (int) $r['level_id'] : null, $reportId)) {
+        return 'report_slot_taken';
+    }
+    return null;
+}
+
+/**
+ * The sentence a person reads for a refusal code from mam_report_ratify() /
+ * mam_report_ratify_refusal(). Kept beside the rules so the wording and the
+ * rule change together; `$mod` (a moderation state) makes the sample figure exact.
+ */
+function mam_report_refusal_text(string $code, array $mod = []): string {
+    switch ($code) {
+        case 'report_not_found':  return 'That report no longer exists.';
+        case 'already_ratified':  return 'This report is already ratified. A published report is changed by withdrawing it, never by ratifying it again.';
+        case 'withdrawn':         return 'This report was withdrawn. Build a new one for the student; a withdrawn report stays closed.';
+        case 'no_ratifier':       return 'Ratification needs a named person. Sign in with your own admin account — the break-glass login cannot ratify.';
+        case 'appeal_open':       return 'An appeal against this report is open. Decide it first.';
+        case 'no_evidence':       return 'Nothing on this report is scored yet, so there is no mark to ratify.';
+        case 'moderation_short':
+            return isset($mod['sampled'], $mod['required'])
+                ? 'The moderation sample is short: ' . (int) $mod['sampled'] . ' of ' . (int) $mod['required']
+                  . ' required scored criteria have been second-marked (at least ' . MAM_REPORT_MODERATION_MIN
+                  . ', and at least ' . (int) MAM_REPORT_MODERATION_SHARE . '% of the scored criteria).'
+                : 'The moderation sample is short.';
+        case 'report_slot_taken': return 'Another live report already covers this student, term and course. Withdraw one of them first.';
+        default:                  return 'The report could not be ratified (' . $code . ').';
+    }
+}
+
+/**
  * Ratify a report — the transition that makes it visible to a family.
  *
  * THROWS, deliberately, on every refusal. A boolean return would let a caller
@@ -473,40 +538,23 @@ function mam_report_open_appeals(int $reportId): array {
  *   no_ratifier           — ratification is a named person on a stated date.
  */
 function mam_report_ratify(int $reportId, ?int $actorId, ?string $note = null): array {
-    $r = mam_db_row('SELECT * FROM termly_reports WHERE id = ?', [$reportId]);
-    if (!$r) throw new RuntimeException('report_not_found');
-    if ($r['status'] === 'ratified')  throw new RuntimeException('already_ratified');
-    if ($r['status'] === 'withdrawn') throw new RuntimeException('withdrawn');
-
+    $why = mam_report_ratify_refusal($reportId, $actorId);
+    $mod = $why === 'report_not_found' ? null : mam_report_moderation_state($reportId);
+    if ($why !== null) {
+        // The refusals a board can act on are audited; the bookkeeping ones are not.
+        if ($why === 'appeal_open') {
+            mam_audit('report_ratify_refused', 'termly_report', $reportId, ['reason' => 'appeal_open', 'appeals' => count(mam_report_open_appeals($reportId))]);
+        } elseif ($why === 'no_evidence') {
+            mam_audit('report_ratify_refused', 'termly_report', $reportId, ['reason' => 'no_evidence']);
+        } elseif ($why === 'moderation_short') {
+            mam_audit('report_ratify_refused', 'termly_report', $reportId, [
+                'reason' => 'moderation_short', 'sampled' => $mod['sampled'], 'required' => $mod['required'],
+            ]);
+        }
+        throw new RuntimeException($why);
+    }
+    $r  = mam_db_row('SELECT * FROM termly_reports WHERE id = ?', [$reportId]);
     $by = mam_report_actor_id($actorId);
-    if ($by === null) throw new RuntimeException('no_ratifier');
-
-    $appeals = mam_report_open_appeals($reportId);
-    if ($appeals) {
-        mam_audit('report_ratify_refused', 'termly_report', $reportId, ['reason' => 'appeal_open', 'appeals' => count($appeals)]);
-        throw new RuntimeException('appeal_open');
-    }
-
-    $mod = mam_report_moderation_state($reportId);
-    if ($mod['scored'] === 0) {
-        mam_audit('report_ratify_refused', 'termly_report', $reportId, ['reason' => 'no_evidence']);
-        throw new RuntimeException('no_evidence');
-    }
-    if (!$mod['sufficient']) {
-        mam_audit('report_ratify_refused', 'termly_report', $reportId, [
-            'reason' => 'moderation_short', 'sampled' => $mod['sampled'], 'required' => $mod['required'],
-        ]);
-        throw new RuntimeException('moderation_short');
-    }
-
-    // The slot check runs again HERE, not only at build: a second draft may have
-    // been ratified in between, and two ratified reports for one term is the
-    // failure a family actually notices.
-    if (mam_report_slot_taken((int) $r['student_id'], $r['term_id'] !== null ? (int) $r['term_id'] : null,
-            (string) $r['term_label'], $r['course_id'] !== null ? (int) $r['course_id'] : null,
-            $r['level_id'] !== null ? (int) $r['level_id'] : null, $reportId)) {
-        throw new RuntimeException('report_slot_taken');
-    }
 
     $now = date('Y-m-d H:i:s');
     mam_db_update('termly_reports', [
@@ -745,6 +793,9 @@ function mam_report_appeal_open(int $reportId, int $raisedBy, string $raisedRole
     if (!$r) throw new RuntimeException('report_not_found');
 
     if ($raisedRole === 'parent' && !mam_parent_can_view($raisedBy, (int) $r['student_id'])) throw new RuntimeException('forbidden');
+    // A guardian appeals only what their scope lets them see: a billing-only
+    // guardian is never shown the report, so cannot contest its marks.
+    if ($raisedRole === 'parent' && !mam_parent_scope_allows($raisedBy, (int) $r['student_id'], 'reports')) throw new RuntimeException('forbidden');
     if ($raisedRole === 'student' && $raisedBy !== (int) $r['student_id']) throw new RuntimeException('forbidden');
 
     if ($competencyCode !== null) {
@@ -831,26 +882,56 @@ function mam_report_pending(int $limit = 100): array {
 
 /**
  * Notify the guardians (and the student) that a report has been published.
- * Best-effort by construction — see the caller.
+ * Best-effort by construction — see the caller. Returns who was told what, so
+ * a test (and a log) can see the scope and the channel rules applied.
+ *
+ * Three rules, each reusing the helper that owns it:
+ *   - SCOPE: a guardian whose grant does not include 'reports' is not told at
+ *     all (`mam_parent_scope_allows`). A notification that names a report is a
+ *     disclosure, so a billing-only guardian hears nothing.
+ *   - IN-APP: everyone in scope gets the portal notification (`mam_notify`).
+ *     It is the portal's own inbox, not an outbound channel, so preferences do
+ *     not switch it off.
+ *   - OUTBOUND: email only where `mam_guardian_channels()` allows it for a
+ *     'general' topic — a guardian who turned email off is not emailed. A
+ *     report is not one of the always-reach topics (safeguarding, money). No
+ *     WhatsApp: schedule messages are Meta-approved templates and none exists
+ *     for a report; adding one is an owner task, not a code change.
+ *
+ * The URL is a STRING: mam_notify()'s fifth argument is the link, and passing
+ * an array here was a TypeError under strict_types that the try/catch
+ * swallowed — so no one was ever told.
  */
-function mam_report_notify_ratified(int $reportId): void {
+function mam_report_notify_ratified(int $reportId): array {
+    $out = ['student' => false, 'notified' => [], 'emailed' => [], 'out_of_scope' => []];
     $r = mam_db_row('SELECT student_id, term_label FROM termly_reports WHERE id = ?', [$reportId]);
-    if (!$r) return;
+    if (!$r) return $out;
     $studentId = (int) $r['student_id'];
     $title = 'Your termly report is ready';
     $body  = 'The examinations panel has ratified the ' . $r['term_label'] . ' report. '
            . 'It is on the Reports screen of the portal, with its grading legend on the same page.';
 
     if (function_exists('mam_notify')) {
-        try { mam_notify($studentId, 'report.ratified', $title, $body, ['report' => $reportId]); } catch (\Throwable $e) {}
+        try { $out['student'] = mam_notify($studentId, 'report.ratified', $title, $body, '/portal/student/#learn') > 0; } catch (\Throwable $e) {}
     }
-    if (!function_exists('mam_parent_guardians_of')) return;
+    if (!function_exists('mam_parent_guardians_of')) return $out;
     foreach (mam_parent_guardians_of($studentId) as $g) {
-        // A billing-only guardian is not told about a mark: the scope is the
-        // boundary, and a notification that names a report is a disclosure.
-        if (!mam_parent_scope_allows((int) $g['id'], $studentId, 'reports')) continue;
+        $gid = (int) $g['id'];
+        if (!mam_parent_scope_allows($gid, $studentId, 'reports')) { $out['out_of_scope'][] = $gid; continue; }
         if (function_exists('mam_notify')) {
-            try { mam_notify((int) $g['id'], 'report.ratified', $title, $body, ['report' => $reportId, 'student' => $studentId]); } catch (\Throwable $e) {}
+            try { if (mam_notify($gid, 'report.ratified', $title, $body, '/portal/parent/#reports/' . $studentId) > 0) $out['notified'][] = $gid; } catch (\Throwable $e) {}
         }
+        if (!function_exists('mam_guardian_channels') || !function_exists('mam_send_mail')) continue;
+        $ch = mam_guardian_channels($gid, 'general');
+        if (!in_array('email', $ch['channels'] ?? [], true)) continue;
+        $to = (string) (mam_db_row('SELECT email FROM users WHERE id = ?', [$gid])['email'] ?? '');
+        if ($to === '') continue;
+        $out['emailed'][] = $gid;
+        // After the response: a slow mail server must not hold the board's click.
+        mam_after_response(function () use ($to, $title, $body, $reportId) {
+            try { mam_send_mail($to, $title, $body . "\n\nSign in at the MAM Academy portal to read it."); }
+            catch (\Throwable $e) { mam_log('warn', 'report_notify_mail_failed', ['report' => $reportId, 'err' => $e->getMessage()]); }
+        });
     }
+    return $out;
 }

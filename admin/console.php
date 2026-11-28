@@ -100,7 +100,7 @@ $providers = [
     'roster'         => fn() => mam_console_roster($_GET),
     'timetable'      => fn() => mam_console_timetable($_GET),
     'curriculum'     => fn() => mam_console_curriculum($_GET),
-    'assessment'     => fn() => mam_console_assessment(),
+    'assessment'     => fn() => mam_console_assessment($_GET),
     'attendance'     => fn() => mam_console_attendance($_GET),
     'guardians'      => fn() => mam_console_guardians(),
     'calendar'       => fn() => mam_console_calendar($_GET),

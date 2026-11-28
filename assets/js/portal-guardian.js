@@ -325,20 +325,42 @@
               + 'which covers invoices and receipts. The academy office can widen it.'));
           return;
         }
-        if (!r.reports.length) {
-          paint(backTo('children', 'Children') + h1('Termly report')
+        var body = r.reports.length
+          ? r.reports.map(reportCard).join('<div class="p-gap-t"></div>')
+          : h1('Termly report')
             + empty('hourglass-half', 'No report has been published for ' + esc(c.student_name) + ' yet. '
               + 'A report appears here <strong>only after the examinations panel has ratified it</strong> — '
               + 'a provisional mark you could see and then have changed would be worse than one that '
-              + 'arrives a week later.'));
-          return;
-        }
-        paint(backTo('children', 'Children') + r.reports.map(reportCard).join('<div class="p-gap-t"></div>'));
+              + 'arrives a week later.');
+        paint(backTo('children', 'Children') + body);
+        /* Work a teacher marked in a class space. The child detail withholds it
+           unless the grant includes 'reports' (the same grant as this screen),
+           so the server decides; a failed read just leaves the report alone. */
+        API.request('parent/child?student_id=' + encodeURIComponent(c.student_id), { method: 'GET' })
+          .then(function (d) {
+            var sm = (d && d.space_marks) || [];
+            if (sm.length && S.screen === 'reports' && selectedChild() === c) paint(backTo('children', 'Children') + body + spaceMarksCard(sm));
+          })
+          .catch(function () {});
       })
       .catch(function (err) {
         paint(backTo('children', 'Children')
           + empty('triangle-exclamation', esc(P.errText ? P.errText(err, 'Could not load the report.') : 'Could not load the report.')));
       });
+  }
+
+  /* Marked class-space work, drawn as the student's own Learn list draws it:
+     task, class space and date, the teacher's words, and the score as a chip. */
+  function spaceMarksCard(sm) {
+    return '<div class="p-gap-t"></div><section class="p-card is-flush"><div class="p-card-head">'
+      + '<span class="p-label">Marked in class</span></div><div class="p-rows">'
+      + sm.map(function (w) {
+        return '<div class="p-row g-space-mark"><span class="p-row-main">'
+          + '<span class="p-title">' + esc(w.task_title) + '</span>'
+          + '<span class="p-caption">' + esc([w.space_title, w.marked_at ? 'Marked ' + String(w.marked_at).slice(0, 10) : ''].filter(Boolean).join(' · ')) + '</span>'
+          + (w.feedback ? '<span class="p-body">' + esc(w.feedback) + '</span>' : '')
+          + '</span><span class="p-chip p-num">' + esc(w.score + ' of ' + w.max_score) + '</span></div>';
+      }).join('') + '</div></section>';
   }
 
   function reportCard(rep) {
@@ -350,6 +372,7 @@
        exists to show. The caveat is stated ONCE, under the set. The student's
        "Where I stand" shows the same competencies the same way, which is why
        `.p-none` is a shared primitive rather than either portal's own. */
+    var myOpenAppeal = (rep.my_appeals || []).some(function (a) { return a.status === 'open'; });
     var unmarked = (rep.criteria || []).filter(function (c) { return c.level === 'insufficient'; });
     var crit = (rep.criteria || []).filter(function (c) { return c.level !== 'insufficient'; }).map(function (c) {
       /* Clamped and ROUNDED to the integer the `[data-pct="N"]` table in
@@ -424,7 +447,11 @@
       +     '<span class="p-row-main"><span class="p-title">Ask about this report</span></span>'
       +     '<i class="fa-solid fa-chevron-right p-row-go" aria-hidden="true"></i>'
       +   '</button>'
-      +   (rep.appeal && rep.appeal.open
+      +   (myOpenAppeal
+          ? '<div class="p-row"><i class="fa-solid fa-scale-balanced p-row-ico is-warn" aria-hidden="true"></i>'
+            + '<span class="p-row-main"><span class="p-title">Your appeal is with the panel</span>'
+            + '<span class="p-caption">The decision will appear below, with the panel\u2019s reason.</span></span></div>'
+          : rep.appeal && rep.appeal.open
           ? '<button type="button" class="p-row" data-appeal="' + esc(rep.id) + '">'
             + '<i class="fa-solid fa-scale-balanced p-row-ico" aria-hidden="true"></i>'
             + '<span class="p-row-main"><span class="p-title">Appeal a mark</span></span>'
@@ -441,10 +468,11 @@
           ? '<div class="p-card"><h2 class="p-label">Your appeals on this report</h2>'
             + '<div class="p-gap-t"></div>'
             + rep.my_appeals.map(function (a) {
+                var word = { open: 'With the panel', upheld: 'Upheld', declined: 'Declined', withdrawn: 'Withdrawn' }[a.status] || a.status;
                 return '<div class="p-line"><span>' + esc(fmtDate(a.opened_at)) + ' · ' + esc(a.reason) + '</span>'
                   + '<span class="p-chip ' + (a.status === 'upheld' ? 'is-good' : a.status === 'open' ? 'is-warn' : '')
-                  + '">' + esc(a.status) + '</span></div>'
-                  + (a.outcome_note ? '<p class="p-caption">' + esc(a.outcome_note) + '</p>' : '');
+                  + '">' + esc(word) + '</span></div>'
+                  + (a.outcome_note ? '<p class="p-caption">Decision' + (a.closed_at ? ', ' + esc(fmtDate(a.closed_at)) : '') + ': ' + esc(a.outcome_note) + '</p>' : '');
               }).join('')
             + '</div>'
           : '')

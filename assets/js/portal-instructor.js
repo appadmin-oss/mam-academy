@@ -605,7 +605,17 @@
           + '<textarea id="teacherComment" rows="4" placeholder="Specific, and pointed at the next term">'
           + esc(d.student.comment || '') + '</textarea></div>'
           + '<div class="i-desc p-gap-t"><span class="p-strong">Two prompts:</span> ' + esc(d.prompts) + '</div>'
-          + '<button type="button" class="p-action p-primary p-gap-t" id="reportSend">Send to the Examinations panel</button>'
+          /* Where the report is, in the panel's words. A ratified report is the
+             family's record and is not edited (the route refuses), so the send
+             button is replaced by the fact rather than left to fail. */
+          + (d.student.status ? '<p class="p-meta p-gap-t">' + esc({
+              draft: 'With the Examinations panel — not yet moderated. You can still change your comment.',
+              moderating: 'Being moderated by the Examinations panel. You can still change your comment.',
+              ratified: 'Ratified and released to the student and their guardians. It can no longer be edited.'
+            }[d.student.status] || '') + '</p>' : '')
+          + (d.student.status === 'ratified' ? ''
+            : '<button type="button" class="p-action p-primary p-gap-t" id="reportSend">'
+              + (d.student.status ? 'Update and resend to the panel' : 'Send to the Examinations panel') + '</button>')
           + '<p class="p-meta p-gap-t">' + esc(d.notice) + '</p>'
           + '</section></div>');
       })
@@ -1171,7 +1181,7 @@
           cohort_id: S.reportStudent && S.reportStudent.cohort_id,
           comment: ($('#teacherComment') || {}).value || ''
         }
-      }), null, 'Sent to the Examinations panel.');
+      }), function () { renderReport(S.reportStudent && S.reportStudent.id); }, 'Sent to the Examinations panel.');
       return;
     }
 

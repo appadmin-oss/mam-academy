@@ -688,6 +688,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         'lesson_material_review' => 'curriculum', 'lesson_settings' => 'curriculum',
         'module_scaffold' => 'curriculum', 'module_import' => 'curriculum',
         'rubric_create' => 'curriculum', 'rubric_update' => 'curriculum', 'rubric_delete' => 'curriculum',
+        // Termly reports (console Assessment & boards, reports.php). Moderating,
+        // ratifying and withdrawing a report are the Examinations panel's
+        // academic judgement, like a rubric. Deciding an appeal is the SAME
+        // authority, deliberately not a lower one: an upheld appeal authorises
+        // withdrawing a ratified report, so a tier that could not ratify must
+        // not be able to overturn what a board ratified.
+        'report_moderate' => 'curriculum', 'report_ratify' => 'curriculum', 'report_withdraw' => 'curriculum',
+        'appeal_decide' => 'curriculum',
         'meet_reconcile' => 'settings',
         'save_google_meet' => 'settings', 'meet_sync' => 'settings',
         'acct_exception' => 'enrollments',
@@ -2006,6 +2014,75 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
        none re-implements a rule (the order of aid, the band ceiling, the
        overpayment refusal all live in fees.php). They return to the console's
        Invoices or Bursaries screen, to the invoice that was open. */
+    /* ── Termly reports (console Assessment & boards) ──────────────────────────
+       Every rule lives in reports.php and every transition audits itself there
+       (report_moderate, report_ratify / report_ratify_refused, report_withdraw,
+       appeal_decide). These handlers only read the form, call the lib, and say
+       what happened in words — the refusal text comes from
+       mam_report_refusal_text() so it matches what the screen showed. */
+    if (in_array($action, ['report_moderate', 'report_ratify', 'report_withdraw', 'appeal_decide'], true)) {
+        $rid = (int) ($_POST['report_id'] ?? 0);
+        $me  = $adminUser ? (int) $adminUser['id'] : null;
+        $back = static function (string $kind, string $msg): void {
+            header('Location: ?' . http_build_query(['v' => 'assessment', $kind => $msg])); exit;
+        };
+        $say = static function (string $code) use ($rid): string {
+            $plain = [
+                'criterion_not_on_report' => 'That criterion is not on this report.',
+                'bad_level' => 'Pick the level the second marker would give.',
+                'reason_required' => 'Give a reason; it is kept on the record.',
+                'already_withdrawn' => 'That report was already withdrawn.',
+                'appeal_not_found' => 'That appeal no longer exists.',
+                'already_decided' => 'Somebody has already decided that appeal.',
+                'outcome_note_required' => 'Write the sentence the family will read.',
+                'bad_status' => 'Choose uphold or decline.',
+            ];
+            if (isset($plain[$code])) return $plain[$code];
+            return mam_report_refusal_text($code, $rid > 0 ? mam_report_moderation_state($rid) : []);
+        };
+        try {
+            if ($action === 'report_moderate') {
+                $code   = trim((string) ($_POST['competency_code'] ?? ''));
+                $agreed = ($_POST['verdict'] ?? '') === 'agreed';
+                $level  = trim((string) ($_POST['moderator_level'] ?? ''));
+                $note   = trim((string) ($_POST['note'] ?? ''));
+                $modId  = (int) ($_POST['moderator_id'] ?? 0) ?: $me;
+                if ($rid <= 0 || $code === '' || !in_array($_POST['verdict'] ?? '', ['agreed', 'adjusted'], true)) {
+                    $back('err', 'Choose the criterion and whether the second marker agreed.');
+                }
+                // An adjustment is a disagreement with a stated level and a reason.
+                if (!$agreed && ($level === '' || $note === '')) {
+                    $back('err', 'An adjustment needs the level the second marker would give and the reason.');
+                }
+                if ($modId !== null && !mam_db_row("SELECT id FROM users WHERE id = ? AND (role IN ('admin','instructor') OR id IN (SELECT user_id FROM user_roles WHERE role IN ('admin','instructor')))", [$modId])) {
+                    $back('err', 'The moderator must be a member of staff.');
+                }
+                mam_report_moderate($rid, $code, $modId, $agreed, $agreed ? null : $level, $note !== '' ? $note : null);
+                $back('ok', 'Moderation recorded.');
+            }
+            if ($action === 'report_ratify') {
+                $note = trim((string) ($_POST['note'] ?? ''));
+                mam_report_ratify($rid, $me, $note !== '' ? $note : null);
+                $back('ok', 'Ratified. The report is now visible to the student and to guardians whose access includes reports, and they have been told.');
+            }
+            if ($action === 'report_withdraw') {
+                mam_report_withdraw($rid, $me, (string) ($_POST['reason'] ?? ''));
+                $back('ok', 'Withdrawn. The report is no longer shown to the family; the row and your reason are kept.');
+            }
+            if ($action === 'appeal_decide') {
+                $aid = (int) ($_POST['appeal_id'] ?? 0);
+                $st  = (string) ($_POST['status'] ?? '');
+                if (!in_array($st, ['upheld', 'declined'], true)) $back('err', 'Choose uphold or decline.');
+                mam_report_appeal_decide($aid, $st, $me, (string) ($_POST['outcome_note'] ?? ''));
+                $back('ok', $st === 'upheld'
+                    ? 'Appeal upheld. The mark is not changed by this: withdraw the report and build a corrected one.'
+                    : 'Appeal declined. The family sees your sentence on the report.');
+            }
+        } catch (InvalidArgumentException | RuntimeException $e) {
+            $back('err', $say($e->getMessage()));
+        }
+    }
+
     if (str_starts_with((string) $action, 'fee_') || $action === 'bursary_decide') {
         $invId = (int) ($_POST['invoice_id'] ?? 0);
         $back = static function (string $kind, string $msg, int $inv = 0, string $screen = 'invoices'): void {
