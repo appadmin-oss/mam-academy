@@ -337,7 +337,7 @@ ob_start();
             </dl>
           </li>
           <li class="reveal" style="background: #F2A93B; color: #211A13; border-radius: 20px; padding: 32px; display: flex; flex-wrap: wrap; gap: 16px 32px; justify-content: space-between; align-items: center">
-            <div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 260px"><h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 30px">Fees in the way?</h3><p style="margin: 0; font-size: 15px">The NGV Scholarship supports talented students who can't afford tuition.</p></div>
+            <div style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 260px"><h3 style="margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 30px">Fees in the way?</h3><p style="margin: 0; font-size: 15px">The MAM Scholars Initiative supports talented students who can't afford tuition.</p></div>
             <a href="/scholarship" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; border-radius: 999px; background: #211A13; color: #FCF8F3; font-weight: 600; text-decoration: none">Apply for a scholarship</a>
           </li>
         </ol>

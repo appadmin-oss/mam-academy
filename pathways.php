@@ -176,7 +176,7 @@ site_doc_open('Pathways', 'Find your path & know your fee',
     <section aria-labelledby="pw-sch-h" style="max-width: 1200px; margin: 0 auto; padding: clamp(48px, 6vw, 88px) clamp(20px, 4vw, 40px); box-sizing: border-box; display: flex; flex-wrap: wrap; gap: 24px clamp(40px, 6vw, 96px)">
       <h2 id="pw-sch-h" style="flex: 1 1 280px; margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: clamp(32px, 3vw, 44px); line-height: 1.1">Scholarships</h2>
       <div style="flex: 2 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 16px; font-size: 18px; line-height: 1.7; color: #3E342B">
-        <p style="margin: 0">Cost should not decide who becomes a musician. The NGV Scholarship supports talented students for whom tuition is the only barrier.</p>
+        <p style="margin: 0">Cost should not decide who becomes a musician. The MAM Scholars Initiative supports talented students for whom tuition is the only barrier.</p>
         <a href="/scholarship" class="lrow" style="display: inline-flex; align-items: center; gap: 8px; color: #211A13; font-weight: 600; font-size: 17px; text-decoration: none"><span class="ul">Read about the scholarship and apply</span> <span aria-hidden="true" style="color: #8A5208">→</span></a>
       </div>
     </section>

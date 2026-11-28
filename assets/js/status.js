@@ -1,6 +1,7 @@
 /* /status — application lookup by reference + email (status.php). Moved out of the
    page at the 2026-11 redesign; the same two endpoints by prefix (SUM- → summer/status,
-   anything else → application/status), the same pre-fill and auto-submit from ?ref=&email=,
+   anything else → application/status, which also answers a MAM Scholars Initiative
+   SCH- reference, and a child's application by the guardian's email), the same pre-fill and auto-submit from ?ref=&email=,
    the same tuition banner. The page loads no config.js, so the request is the plain
    fetch the old page already fell back to (both are GETs; no CSRF involved). */
 (function () {
@@ -75,6 +76,7 @@
 
   function renderResult(a) {
     var isSummer = !!(a.is_summer);
+    var isScholar = !!(a.is_scholarship);   // MAM Scholars Initiative (SCH-…)
     var stage    = a.stage || 'received';
     var isClosed = stage === 'closed' || stage === 'expired';
     var isWait   = stage === 'waitlisted';
@@ -82,7 +84,7 @@
     var email    = emEl.value.trim();
 
     // Tuition banner
-    if (!isSummer && (stage === 'accepted' || stage === 'enrolled' || stage === 'confirmed')) {
+    if (!isSummer && !isScholar && (stage === 'accepted' || stage === 'enrolled' || stage === 'confirmed')) {
       syncTuition(ref, email);
       if (tuBanner) tuBanner.classList.add('show');
     } else {
@@ -102,7 +104,7 @@
     var progBadge = '<span class="st-result-prog">' + esc(progLabel) + '</span>';
 
     // Progress rail (skip for terminal states)
-    var rail = (isClosed || isWait) ? '' : (isSummer
+    var rail = (isClosed || isWait || isScholar) ? '' : (isSummer
       ? buildRail(SUM_STAGES, SUM_ORDER, stage)
       : buildRail(REG_STAGES, REG_ORDER, stage));
 

@@ -170,7 +170,7 @@ html.ck-on .cart-fab{bottom:calc(var(--ck-h,0px) + 12px)}
 <?php
 echo (string) ob_get_clean();
 // config.js before site.js (deferred): MAM_CCY and MAM_CONFIG are the store's formatter and settings.
-echo '<script src="/assets/js/config.js?v=20261128u"></script>' . "\n";
+echo '<script src="/assets/js/config.js?v=20261128v"></script>' . "\n";
 site_footer_chrome();
 ?>
 <script>

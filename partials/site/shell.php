@@ -209,7 +209,7 @@ function site_footer_chrome(): void {
 /** The footer, and the end of the document. $scripts: page scripts beyond site.js. */
 function site_footer(array $scripts = []): void {
     site_footer_chrome();
-    foreach ($scripts as $s) echo '<script src="/assets/js/' . site_h($s) . '?v=20261128u" defer></script>' . "\n";
+    foreach ($scripts as $s) echo '<script src="/assets/js/' . site_h($s) . '?v=20261128v" defer></script>' . "\n";
     echo "</body>\n</html>\n";
 }
 

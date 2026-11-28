@@ -120,11 +120,16 @@ $SR_dest = static fn(string $h) => strtolower(trim(preg_replace('/[#?].*$/', '',
 preg_match_all('/href="([^"]+)"/', (string) file_get_contents(__DIR__ . '/fixtures/footer-before-2026-11.html'), $SR_o);
 preg_match_all("/(?:href=\"|\[[^\]]*?', ')((?:https?:|mailto:|tel:|\/)[^\"']*)/", $SR_src(array_merge($SR_pages, $SR_parts)), $SR_n);
 $SR_have = array_unique(array_map($SR_dest, $SR_n[1]));
+/* (Changed 2026-11-28, admissions fix 4.) The legacy footer's external
+   "NGV Scholarship" page is the academy's own MAM Scholars Initiative, whose form
+   is /scholarship — the owner's correction. That destination is REPLACED, not
+   lost: it counts as reached when /scholarship is. */
+$SR_replaced = ['https://mamcentre.org/scholarships/ngv' => '/scholarship'];
 $SR_missing = array_values(array_filter(array_unique(array_map($SR_dest, $SR_o[1])),
-    static fn($d) => $d !== '' && !in_array($d, $SR_have, true)));
+    static fn($d) => $d !== '' && !in_array($SR_dest($SR_replaced[$d] ?? $d), $SR_have, true)));
 t_eq($SR_missing, [], 'every destination of the legacy footer is reachable from the redesigned pages');
-t_ok(str_contains((string) file_get_contents($SR_root . '/programmes.php'), 'https://mamcentre.org/scholarships/ngv'),
-    'the external scholarship form is still linked, from the scholarship line');
+t_ok(str_contains((string) file_get_contents($SR_root . '/programmes.php'), 'href="/scholarship"'),
+    'the scholarship line links the MAM Scholars Initiative form');
 $SR_aud = (string) file_get_contents($SR_root . '/auditer.php');
 t_ok(str_contains($SR_aud, 'id="checklist"') && substr_count($SR_aud, "['") >= 19,
     '/auditer#checklist survives (thank-you, status, booking and the portal link to it)');

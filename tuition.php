@@ -79,5 +79,5 @@ site_header('inner');
     </div>
   </section>
 </main>
-<script src="/assets/js/config.js?v=20261128u"></script>
+<script src="/assets/js/config.js?v=20261128v"></script>
 <?php site_footer(['site-ccy-bridge.js', 'tuition.js']); ?>

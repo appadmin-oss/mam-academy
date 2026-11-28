@@ -87,9 +87,14 @@ $apIntake = site_intake();
   </div>
 </div>
 <?php site_a11y_panel(false); ?>
-<script>window.MAM_SITE=<?= json_encode(['fees' => site_fees(), 'intake' => $apIntake], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
-<script src="/assets/js/config.js?v=20261128u"></script>
+<?php
+// The instruments the academy teaches as courses of their own: any other choice
+// is settled at the assessment, and the form says so on the review.
+try { $apCourses = array_column(mam_db_all('SELECT code FROM courses WHERE active = 1'), 'code'); } catch (Throwable $e) { $apCourses = []; }
+?>
+<script>window.MAM_SITE=<?= json_encode(['fees' => site_fees(), 'intake' => $apIntake, 'courses' => $apCourses], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
+<script src="/assets/js/config.js?v=20261128v"></script>
 <script src="/assets/js/site.js?v=20261123b" defer></script>
-<script src="/assets/js/apply-flow.js?v=20261128u" defer></script>
+<script src="/assets/js/apply-flow.js?v=20261128v" defer></script>
 </body>
 </html>

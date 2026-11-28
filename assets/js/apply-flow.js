@@ -13,7 +13,20 @@
  *   sex, style (expression), focus (program), level, address/state/LGA,
  *   the guardian's own email (their portal account is made from it), and a
  *   typed signature on the class policies (it must match the guardian's name
- *   for an under-16).
+ *   for anyone under 18).
+ *
+ * The admissions fixes (2026-11-28):
+ *   • a parent or guardian applies with, signs for and is written to about every
+ *     learner UNDER 18 (NDPA 2023 s.31; Child Rights Act 2003) — it was 16;
+ *   • a child is never filed under the guardian's address: the child's own email
+ *     is optional, and with none the server gives them a record of their own;
+ *   • photo and recording consent is asked (yes / no / decide later);
+ *   • "Not sure" of the level stores no level — the assessment sets it;
+ *   • Grand Musician asks for its other two disciplines;
+ *   • the done screen keeps the bank details / card note, and "Book my
+ *     assessment" carries the reference /book needs;
+ *   • each screen reports to the first-party funnel (/api/track), if the visitor
+ *     may be measured (MAM_PRIVACY.mayMeasure()).
  *
  * Behaviour the handoff specifies and this keeps: the heading takes focus on every
  * screen, Enter continues, errors are summarised at the top AND said beside the
@@ -55,10 +68,15 @@
   var DOM = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'live.com', 'ymail.com'];
 
   var blank = function () {
-    return { who: '', first: '', last: '', dob: '', sex: '', instrument: '', wind: '', prog: '', level: '', style: '', focus: '', mode: '',
+    return { who: '', first: '', last: '', dob: '', sex: '', instrument: '', wind: '', prog: '', second: '', third: '', level: '', style: '', focus: '', mode: '',
       gname: '', gemail: '', email: '', phone: '', learnerEmail: '', address: '', state: '', lga: '', country: 'Nigeria',
-      pay: 'card', terms: false, sign: '' };
+      photo: '', media: '', pay: 'card', terms: false, sign: '' };
   };
+  /* Which instruments are courses of their own (from the server). Any other is
+     settled with the applicant at the assessment — said on the review, never
+     refused. */
+  var COURSES = (window.MAM_SITE && window.MAM_SITE.courses) || [];
+  var ADULT = 18;
   var s = { step: 'who', f: blank(), err: {}, back2review: false, restored: false, ref: '', busy: false, payNote: '' };
 
   /* ---------- derived facts ---------- */
@@ -70,8 +88,12 @@
   }
   function band() { var a = age(); return a == null ? '' : a <= 7 ? '4–7' : a <= 12 ? '8–12' : a <= 17 ? '13–17' : '18+'; }
   function child() { return s.f.who === 'child'; }
-  function needsGuardian() { var a = age(); return child() || (a != null && a < 16); }
-  function under16() { var a = age(); return a != null && a < 16; }
+  /* Under 18 is a child (NDPA 2023 s.31, Child Rights Act 2003): a parent or
+     guardian applies with them, signs, and receives the correspondence. This
+     was 16 — the KTAMS programme line — so 16- and 17-year-olds signed for
+     themselves and no guardian was ever linked. */
+  function needsGuardian() { var a = age(); return child() || (a != null && a < ADULT); }
+  function minor() { var a = age(); return a != null && a < ADULT; }
   function prog() { return PROGS.filter(function (p) { return p.k === s.f.prog; })[0] || null; }
   function flat() { var p = prog(); return !!p && p.unit === 'flat'; }
   function first() { return s.f.first.trim(); }
@@ -90,12 +112,27 @@
   /* The screens that apply to these answers, in order. */
   function order() {
     var p = prog(), o = ['who', 'name', 'dob', 'sex', 'instrument', 'prog'];
+    if (p && p.k === 'grand') o.push('more');
     if (!p || p.levelled) o.push('level');
     if (!p || (p.k !== 'grand' && p.k !== 'meta')) o.push('style');
-    o.push('focus', 'mode', 'contact', 'address', 'review', 'pay', 'done');
+    o.push('focus', 'mode', 'contact', 'address', 'consent', 'review', 'pay', 'done');
     return o;
   }
-  var SECTIONS = [['About the learner', ['who', 'name', 'dob', 'sex']], ['The course', ['instrument', 'prog', 'level', 'style', 'focus', 'mode']], ['Contact', ['contact', 'address']], ['Review and pay', ['review', 'pay']]];
+  var SECTIONS = [['About the learner', ['who', 'name', 'dob', 'sex']], ['The course', ['instrument', 'prog', 'more', 'level', 'style', 'focus', 'mode']], ['Contact', ['contact', 'address', 'consent']], ['Review and pay', ['review', 'pay']]];
+  /* The funnel's step numbers: one per screen, FIXED, so a number means the same
+     screen whichever programme was chosen (console Intake funnel names them). */
+  var FUNNEL = ['who', 'name', 'dob', 'sex', 'instrument', 'prog', 'more', 'level', 'style', 'focus', 'mode', 'contact', 'address', 'consent', 'review', 'pay', 'done'];
+  function track(event, k) {
+    try {
+      if (!(window.MAM_PRIVACY && window.MAM_PRIVACY.mayMeasure())) return;
+      var p = prog(), body = { event: event, sid: window.MAM_PRIVACY.funnelSid() };
+      if (k) body.step = FUNNEL.indexOf(k) + 1;
+      if (p) body.pathway = p.srv;
+      var json = JSON.stringify(body);
+      if (navigator.sendBeacon && navigator.sendBeacon('/api/track', new Blob([json], { type: 'application/json' }))) return;
+      fetch('/api/track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json, keepalive: true, credentials: 'same-origin' }).catch(function () {});
+    } catch (e) { /* measuring must never affect the form */ }
+  }
 
   /* ---------- money, from the server's figures ---------- */
   function pct(n) { return (Math.round(n * 10) / 10) + '%'; }
@@ -130,6 +167,9 @@
       }).join('') + '</div>'
       + '<span id="tile-err" role="alert" style="font-size: 15px; font-weight: 600; color: #B0361C">' + esc(s.err.tile || '') + '</span>';
   }
+  /* A screen with two tile groups keeps ONE error line (the last group's), so the
+     same message is not printed twice; both groups point at it. */
+  function noErr(html) { return html.replace(/<span id="tile-err"[^>]*>[^<]*<\/span>$/, ''); }
   function field(id, label, hint, type, auto, extra) {
     var e = s.err[id];
     return '<div style="display: flex; flex-direction: column; gap: 8px"><label for="' + id + '" style="font-weight: 600">' + esc(label)
@@ -164,8 +204,19 @@
               + (rec === q.k ? ' · Recommended for ' + b : (!rec && q.pop ? ' · Most chosen' : ''));
             return { v: q.k, l: q.l, d: q.d, price: price };
           }), 250);
+      case 'more':
+        var others = INSTR.filter(function (i) { return i[1] !== 'undecided'; }).map(function (i) { return { v: i[1], l: i[0] }; });
+        return head('The course', 'Grand Musician is three disciplines. Which other two?', 'Your first is ' + esc(instrLabel() || 'the one you chose') + '. The assessment confirms all three.')
+          + '<p style="margin: 0; font-weight: 600">Second discipline</p>' + noErr(tiles('second', 'Second discipline', others, 170))
+          + '<p style="margin: 8px 0 0; font-weight: 600">Third discipline</p>' + tiles('third', 'Third discipline', others, 170);
       case 'level': return head('The course', 'Where would ' + them() + ' start?', 'Choose the nearest. The MAM Auditer assessment confirms it, and the fee follows the level it sets.')
-        + tiles('level', 'Starting level', LEVELS.map(function (l) { return { v: l[0], l: l[1], d: l[2] }; }).concat([{ v: 'unsure', l: 'Not sure yet', d: 'Start at Pre-Certificate; the assessment will place me' }]), 200);
+        + tiles('level', 'Starting level', LEVELS.map(function (l) { return { v: l[0], l: l[1], d: l[2] }; }).concat([{ v: 'unsure', l: 'Not sure yet', d: 'The assessment will place ' + (child() ? them() : 'me') + '. The estimate shows the starting level.' }]), 200);
+      case 'consent':
+        var yn = function (f, lbl) { return tiles(f, lbl, [{ v: 'yes', l: 'Yes' }, { v: 'no', l: 'No' }, { v: 'later', l: 'Decide later', d: 'Until you answer, we treat it as a no.' }], 160); };
+        return head('Contact', child() || minor() ? 'May we share photos and recordings of ' + them() + '?' : 'May we share photos and recordings of you?',
+            'Concerts, lessons and showcases are sometimes photographed or recorded. ' + (needsGuardian() ? 'As the parent or guardian, you decide. ' : '') + 'You can change this at any time in the portal.')
+          + '<p style="margin: 0; font-weight: 600">Photos in the academy’s publicity and on its website</p>' + noErr(yn('photo', 'Photos'))
+          + '<p style="margin: 8px 0 0; font-weight: 600">Video and audio recordings shared beyond the class</p>' + yn('media', 'Recordings');
       case 'style': return head('The course', 'Which style of music?', p && p.k === 'crash' ? 'The six weeks are taught in one style.' : 'Every programme is taught in one of three expressions.')
         + tiles('style', 'Style', STYLES.map(function (x) { return { v: x[0], l: x[1], d: x[2] }; }), 200);
       case 'focus': return head('The course', 'Where is ' + (child() ? them() : 'your music') + ' heading?', 'Your focus shapes the courses beside your instrument. You can change it later.')
@@ -175,13 +226,13 @@
           { v: 'online', l: 'Online', d: flat() ? 'Live classes. Same price.' : 'Live classes, anywhere. +' + pct(F.onlinePct) }], 240);
       case 'contact':
         var g = needsGuardian(), sug = suggest(g ? 'gemail' : 'email');
-        return head('Contact', g ? 'Your contact details' : 'How can we reach you?', g ? (child() ? '' : 'Because you are under 16, a parent or guardian applies with you. ') + 'We will only use these to send your confirmation and book the assessment.' : 'We will only use these to send your confirmation and book the assessment.')
+        return head('Contact', g ? 'Your contact details' : 'How can we reach you?', g ? (child() ? '' : 'Because you are under 18, a parent or guardian applies with you and receives our emails. ') + 'We will only use these to send your confirmation and book the assessment.' : 'We will only use these to send your confirmation and book the assessment.')
           + '<div style="display: flex; flex-direction: column; gap: 18px">'
           + (g ? field('gname', child() ? 'Your full name' : 'Your parent or guardian’s full name', 'Parent or guardian', 'text', 'name')
             + field('gemail', child() ? 'Your email address' : 'Their email address', 'They get their own account to follow progress', 'email', 'email')
             + suggestLine('gemail', sug)
             + field('phone', child() ? 'Your phone number' : 'Their phone number', 'Include the country code, like +234', 'tel', 'tel')
-            + field('learnerEmail', (child() ? first() || 'Your child' : 'Your') + (child() ? '’s email address' : ' own email address'), 'Optional. Leave blank to use the address above', 'email', 'off')
+            + field('learnerEmail', (child() ? first() || 'Your child' : 'Your') + (child() ? '’s own email address' : ' own email address'), 'Optional. Leave it blank if ' + (child() ? (first() || 'they') + ' has' : 'you have') + ' none: ' + (child() ? 'they still get' : 'you still get') + ' a record of ' + (child() ? 'their' : 'your') + ' own, and our emails come to the parent or guardian.', 'email', 'off')
           : field('email', 'Email address', '', 'email', 'email')
             + suggestLine('email', sug)
             + field('phone', 'Phone number', 'Include your country code, like +234', 'tel', 'tel'))
@@ -210,27 +261,31 @@
         + '<svg aria-hidden="true" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#F2A93B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M7.5 12.5l3 3 6-6.5"></path></svg>'
         + '<h1 tabindex="-1" data-ap="h1" style="margin: 4px 0 0; font-family: \'Cormorant Garamond\', Georgia, serif; font-weight: 500; font-size: clamp(38px, 4vw, 56px); line-height: 1.05; outline: none">Application received</h1>'
         + '<p style="margin: 0; font-size: 17px; color: #D8CEC1">' + greeting() + ' Your reference is <strong style="color: #F2A93B; letter-spacing: .04em">' + esc(s.ref) + '</strong>. A confirmation is on its way to ' + esc(contactEmail()) + '.</p>'
-        + (s.payNote ? '<p style="margin: 0; font-size: 15px; color: #D8CEC1">' + esc(s.payNote) + '</p>' : '') + '</div>'
+        + (s.payNote ? '<p data-ap="paynote" role="status" style="margin: 6px 0 0; padding: 14px 16px; border-radius: 12px; background: rgba(252,248,243,.08); font-size: 16px; line-height: 1.6; color: #FCF8F3">' + esc(s.payNote) + '</p>' : '') + '</div>'
         + '<h2 style="margin: 8px 0 0; font-family: \'Cormorant Garamond\', Georgia, serif; font-weight: 500; font-size: 34px">What happens next</h2><ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">'
         + [['1', 'Check your email', 'Your confirmation and receipt arrive within a few minutes.'], ['2', 'Book your MAM Auditer assessment', 'About 30 minutes, online or in person. It sets ' + (child() ? them() + '’s' : 'your') + ' level.'], ['3', 'Meet your instructor', 'You receive a plan, a timetable and your first lesson date.']]
           .map(function (n) { return '<li style="display: flex; gap: 18px; padding: 18px 0; border-top: 1px solid #E3DACD"><span aria-hidden="true" style="flex: none; font-family: \'Cormorant Garamond\', Georgia, serif; font-size: 28px; color: #C27A12; width: 28px">' + n[0] + '</span><div><p style="margin: 0; font-weight: 600">' + esc(n[1]) + '</p><p style="margin: 2px 0 0; font-size: 15px; color: #574B40">' + esc(n[2]) + '</p></div></li>'; }).join('')
-        + '</ol><div style="display: flex; gap: 10px; flex-wrap: wrap"><a href="/book" class="btn" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; background: #211A13; color: #FAF8F4; font-weight: 600; text-decoration: none">Book my assessment <span aria-hidden="true">→</span></a><a href="/status?ref=' + encodeURIComponent(s.ref) + '" class="btn" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; border: 1px solid #CFC3B3; color: #211A13; font-weight: 600; text-decoration: none">Track my application</a></div></div>';
+        + '</ol><div style="display: flex; gap: 10px; flex-wrap: wrap"><a href="/book?ref=' + encodeURIComponent(s.ref) + '" class="btn" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; background: #211A13; color: #FAF8F4; font-weight: 600; text-decoration: none">Book my assessment <span aria-hidden="true">→</span></a><a href="/status?ref=' + encodeURIComponent(s.ref) + '" class="btn" style="display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; border: 1px solid #CFC3B3; color: #211A13; font-weight: 600; text-decoration: none">Track my application</a></div></div>';
     }
     return '';
   }
   function label(list, v) { var x = list.filter(function (i) { return i[0] === v || i[1] === v; })[0]; return x ? (x[0] === v ? x[1] : x[0]) : ''; }
   function instrLabel() { return s.f.instrument === 'wind' ? label(WIND, s.f.wind) : label(INSTR, s.f.instrument); }
+  function instrCode() { return s.f.instrument === 'wind' ? s.f.wind : s.f.instrument; }
   function contactEmail() { return (needsGuardian() ? s.f.gemail : s.f.email).trim(); }
   function reviewRows() {
     var p = prog(), rows = [
       ['Applying for', child() ? 'My child' : 'Myself', 'who'], ['Name', (first() + ' ' + s.f.last.trim()).trim(), 'name'],
       ['Date of birth', s.f.dob, 'dob'], ['Sex', label([['female', 'Female'], ['male', 'Male'], ['prefer-not-to-say', 'Prefer not to say']], s.f.sex), 'sex'],
-      ['Instrument', instrLabel(), 'instrument'], ['Programme', p ? p.l : '', 'prog']];
-    if (order().indexOf('level') >= 0) rows.push(['Starting level', s.f.level === 'unsure' ? 'Not sure yet (Pre-Certificate)' : label(LEVELS, s.f.level), 'level']);
+      ['Instrument', instrLabel() + (instrCode() && instrCode() !== 'undecided' && COURSES.length && COURSES.indexOf(instrCode()) < 0 ? ' (the course is settled at the assessment)' : ''), 'instrument'], ['Programme', p ? p.l : '', 'prog']];
+    if (order().indexOf('more') >= 0) rows.push(['Other disciplines', [label(INSTR, s.f.second), label(INSTR, s.f.third)].filter(Boolean).join(' · '), 'more']);
+    if (order().indexOf('level') >= 0) rows.push(['Starting level', s.f.level === 'unsure' ? 'Not sure yet — set at the assessment' : label(LEVELS, s.f.level), 'level']);
     if (order().indexOf('style') >= 0) rows.push(['Style', label(STYLES, s.f.style), 'style']);
     rows.push(['Focus', label(FOCUS, s.f.focus), 'focus'], ['Mode', s.f.mode ? (s.f.mode === 'online' ? 'Online' : 'In person') : '', 'mode']);
     rows.push(['Contact', [needsGuardian() ? s.f.gname : '', contactEmail(), s.f.phone].filter(Boolean).join(' · '), 'contact']);
     rows.push(['Address', [s.f.address, s.f.lga, s.f.state, s.f.country].filter(Boolean).join(', '), 'address']);
+    var yn = function (v) { return v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Not decided yet'; };
+    rows.push(['Photos · recordings', yn(s.f.photo) + ' · ' + yn(s.f.media), 'consent']);
     return rows;
   }
   /* The typo offer is always in the markup (empty when there is nothing to offer),
@@ -258,6 +313,10 @@
       prog: 'Choose a programme', level: 'Choose a starting level, or “Not sure yet”', style: 'Choose a style', focus: 'Choose a focus', mode: 'Choose how to learn', pay: 'Choose how to pay' };
     if (need[k] && !f[k]) e.tile = need[k];
     if (k === 'instrument' && f.instrument === 'wind' && !f.wind) e.tile = 'Choose which wind or brass instrument';
+    if (k === 'more') {
+      if (!f.second || !f.third) e.tile = 'Choose a second and a third discipline';
+      else if (f.second === f.third || f.second === f.instrument || f.third === f.instrument) e.tile = 'Choose three different disciplines';
+    }
     if (k === 'name') { if (!f.first.trim()) e.first = 'Enter a first name'; if (!f.last.trim()) e.last = 'Enter a last name'; }
     if (k === 'dob') { var a = age(); if (/^\d{4}-\d{2}-\d{2}$/.test(s.f.dob) && new Date(s.f.dob + 'T00:00:00') > new Date()) e.dob = 'Date of birth can\'t be in the future.'; else if (a == null) e.dob = 'Enter a date of birth, like 2015-03-24'; else if (a < 3) e.dob = 'Learners start from age 4'; else if (a > 110) e.dob = 'Check the year'; }
     if (k === 'contact') {
@@ -265,6 +324,7 @@
         if (!f.gname.trim()) e.gname = 'Enter the parent or guardian’s full name';
         if (!mail.test(f.gemail.trim())) e.gemail = 'Enter an email address like name@example.com';
         if (f.learnerEmail.trim() && !mail.test(f.learnerEmail.trim())) e.learnerEmail = 'Enter an email address like name@example.com, or leave it blank';
+        else if (f.learnerEmail.trim() && f.learnerEmail.trim().toLowerCase() === f.gemail.trim().toLowerCase()) e.learnerEmail = 'This is the parent or guardian’s address. Leave it blank if ' + (child() ? them() : 'you') + ' has no email of their own';
       } else if (!mail.test(f.email.trim())) e.email = 'Enter an email address like name@example.com';
       ['email', 'gemail'].forEach(function (mk) {
         if (e[mk] || !String(f[mk] || '').trim()) return;
@@ -278,7 +338,7 @@
     if (k === 'pay') {
       if (!f.terms) e.terms = 'Tick the box to agree to the terms and class policies';
       if (!f.sign.trim()) e.sign = 'Type your full name to sign';
-      else if (under16() && f.sign.trim().toLowerCase() !== f.gname.trim().toLowerCase()) e.sign = 'The parent or guardian signs: type ' + f.gname.trim() + ' exactly as above';
+      else if (needsGuardian() && f.sign.trim().toLowerCase() !== f.gname.trim().toLowerCase()) e.sign = 'The parent or guardian signs: type ' + f.gname.trim() + ' exactly as above';
     }
     return e;
   }
@@ -352,7 +412,10 @@
   } catch (e) { /* a missing parameter is not an error */ }
 
   /* ---------- moving ---------- */
-  function go(k) { s.step = k; s.err = {}; s.payNote = ''; persist(); paint(true); }
+  /* The done screen KEEPS the payment note: it carries the bank details (or
+     "Paid by card"), and clearing it here wiped the details before the screen
+     drew — a transfer family left with no account to pay into. */
+  function go(k) { s.step = k; s.err = {}; if (k !== 'done') s.payNote = ''; persist(); paint(true); track('apply_step_view', k); }
   function next() {
     if (s.busy) return;
     var e = validate(s.step);
@@ -367,19 +430,24 @@
   function payload() {
     var f = s.f, g = needsGuardian(), p = prog(), discipline = f.instrument === 'wind' ? f.wind : f.instrument;
     var program = f.focus === 'perform' ? (p.k === 'grand' ? 'grand' : f.style) : f.focus;
-    var email = g ? (f.learnerEmail.trim() || f.gemail.trim()) : f.email.trim();
+    /* A child's own address, or none — never the guardian's. With none the server
+       gives the child a record of their own; the guardian is written to. */
+    var email = g ? f.learnerEmail.trim() : f.email.trim();
+    var tri = function (v) { return v === 'yes' || v === 'no' ? v : ''; };
     return {
       firstName: f.first.trim(), lastName: f.last.trim(), email: email, phone: f.phone.trim(), sex: f.sex, dob: f.dob,
-      pathway: p.srv, mode: f.mode, level: p.levelled ? (f.level === 'unsure' ? F.levels[0].id : f.level) : '',
+      pathway: p.srv, mode: f.mode, level: p.levelled && f.level !== 'unsure' ? f.level : '',
       expression: p.k === 'grand' ? 'all' : (p.k === 'meta' ? '' : f.style), program: program, discipline: discipline,
       extraCourses: 0, address: f.address.trim(), lga: f.lga.trim(), state: f.state.trim(), country: f.country.trim(),
       experience: f.level === 'unsure' ? 'unsure' : '', parentName: g ? f.gname.trim() : '', parentPhone: g ? f.phone.trim() : '',
       parentEmail: g ? f.gemail.trim() : '', auditer: true, includeRegistration: true, includeCertification: false,
+      coursesLabel: p.k === 'grand' ? [instrLabel(), label(INSTR, f.second), label(INSTR, f.third)].filter(Boolean).join(', ') : '',
+      photoConsent: tri(f.photo), mediaConsent: tri(f.media), payMethod: f.pay === 'transfer' ? 'transfer' : 'card',
       policyMode: f.mode, policyAgreed: !!f.terms, policySignedName: f.sign.trim()
     };
   }
   var SERVER_SCREEN = { firstName: 'name', lastName: 'name', dob: 'dob', sex: 'sex', discipline: 'instrument', pathway: 'prog', level: 'level', expression: 'style', program: 'focus',
-    mode: 'mode', email: 'contact', phone: 'contact', parentName: 'contact', parentEmail: 'contact', address: 'address', lga: 'address', state: 'address', policyAgreed: 'pay', policySignedName: 'pay' };
+    mode: 'mode', email: 'contact', phone: 'contact', parentName: 'contact', parentEmail: 'contact', address: 'address', lga: 'address', state: 'address', policyAgreed: 'pay', policySignedName: 'pay', coursesLabel: 'more' };
   function submit() {
     var api = window.MAM_API;
     if (!api) { s.payNote = 'The form could not reach us. Please check your connection and try again.'; paint(false); return; }
@@ -388,11 +456,11 @@
     persist();
     api.submitApplication(payload(), s.idem).then(function (res) {
       s.ref = res.reference || (res.data && res.data.reference) || '';
-      persist();
+      persist(); track('apply_submit');
       var provider = s.f.pay === 'transfer' ? 'bank' : 'paystack';
       return api.initializePayment({ reference: s.ref, provider: provider, purpose: 'booking_fee' }).then(function (init) {
         if (init.already_paid || init.already_valid) { s.payNote = init.message || 'No payment was needed.'; return finish(); }
-        if (provider === 'bank') { s.payNote = 'Bank transfer: ' + (init.instructions || 'the account details are in your email.'); return finish(); }
+        if (provider === 'bank') { s.payNote = (init.instructions || 'The bank account details are in your confirmation email.') + ' These details are in your confirmation email too.'; track('apply_pay'); return finish(); }
         return paystack(init);
       });
     }).catch(function (err) {
@@ -436,7 +504,7 @@
           metadata: { reference: init.reference, purpose: 'booking_fee' },
           callback: function (r) {
             window.MAM_API.verifyPayment({ provider: 'paystack', reference: r.reference || init.reference, transaction_id: 0 })
-              .then(function (v) { s.payNote = v.status === 'succeeded' ? 'Paid by card.' : 'We are confirming your payment; you will get an email when it clears.'; finish(); resolve(); })
+              .then(function (v) { s.payNote = v.status === 'succeeded' ? 'Paid by card.' : 'We are confirming your payment; you will get an email when it clears.'; track('apply_pay'); finish(); resolve(); })
               .catch(function () { s.payNote = 'We are confirming your payment; you will get an email when it clears.'; finish(); resolve(); });
           },
           onClose: function () { s.busy = false; s.payNote = 'Your application is saved as ' + s.ref + '. The payment window was closed; press Pay to try again, or pay from the link in your email.'; paint(false); resolve(); }
@@ -495,4 +563,5 @@
   document.addEventListener('mam:config', function () { if (s.step === 'pay' && !s.busy) paint(false); });
   $('reset').addEventListener('click', function () { try { localStorage.removeItem(KEY); } catch (e) { /* nothing saved */ } s.f = blank(); s.idem = ''; s.ref = ''; s.restored = false; s.back2review = false; go('who'); });
   paint(false);
+  track(s.restored ? 'apply_step_view' : 'apply_start', s.step);
 })();

@@ -81,7 +81,7 @@ site_header('inner');
       <div class="st-card">
         <p class="st-eyebrow">Application lookup</p>
         <h2 class="st-title">Check your status</h2>
-        <p class="st-sub">Your reference is in your confirmation email. Regular applications start with <strong>MAM-</strong>; summer applications start with <strong>SUM-</strong>.</p>
+        <p class="st-sub">Your reference is in your confirmation email. Regular applications start with <strong>MAM-</strong>, summer applications with <strong>SUM-</strong>, and MAM Scholars Initiative applications with <strong>SCH-</strong>. For a child's application, use the parent or guardian's email.</p>
         <form id="stForm" novalidate>
           <div class="st-field">
             <label class="st-field-label" for="stRef">Application reference</label>

@@ -43,14 +43,14 @@ window.MAM_CONFIG = {
      ============================================================ */
   scholarship: {
     enabled: true,
-    url: 'https://mamcentre.org/scholarships/ngv',
-    name: 'NGV Scholarship',
+    url: '/scholarship',
+    name: 'MAM Scholars Initiative',
     eyebrow: 'Cost should never be the barrier',
     title: 'Can’t afford the fees? Apply for a scholarship.',
-    blurb: 'The NGV Scholarship exists for talented students who genuinely cannot afford tuition. If money is the only thing standing between you and your training at MAM Academy, we want to hear from you — apply today.',
+    blurb: 'The MAM Scholars Initiative exists for talented students who genuinely cannot afford tuition. If money is the only thing standing between you and your training at MAM Academy, we want to hear from you — apply today.',
     cta: 'Apply for a Scholarship',
     short: 'Can’t afford it? A scholarship can cover your tuition.',
-    note: 'Need financial help? The NGV Scholarship can cover your fees.'
+    note: 'Need financial help? The MAM Scholars Initiative can cover your fees.'
   },
 
   /* -------- Frequently-changed marketing content (edit freely) --------
