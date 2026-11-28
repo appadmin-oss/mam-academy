@@ -96,7 +96,7 @@ t_group('analytics2 — intervention list (§31/§38)');
 // A fresh student with 3 absences → Level 3 (academic review).
 $AN_risk = mam_db_insert('users', ['name' => 'AN Risk', 'email' => 'an_risk@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
 for ($i = 0; $i < 3; $i++) {
-    $sid = mam_db_insert('class_sessions', ['cohort_id' => $AN_coh, 'title' => 'Miss ' . $i, 'scheduled_at' => date('Y-m-d H:i:s', strtotime('-' . ($i + 1) . ' day')), 'status' => 'held', 'duration_min' => 60, 'kind' => 'class']);
+    $sid = mam_db_insert('class_sessions', ['cohort_id' => $AN_coh, 'title' => 'Miss ' . $i, 'scheduled_at' => mam_session_wall(strtotime('-' . ($i + 1) . ' day')), 'status' => 'held', 'duration_min' => 60, 'kind' => 'class']);
     mam_db_insert('session_attendance', ['session_id' => $sid, 'student_id' => $AN_risk, 'status' => 'absent', 'method' => 'instructor']);
 }
 $list = mam_analytics2_intervention_list(100);

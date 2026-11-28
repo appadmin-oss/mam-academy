@@ -36,8 +36,10 @@ $AR_sess = mam_db_insert('class_sessions', ['cohort_id' => $AR_coh, 'title' => '
 $ar1 = mam_db_insert('users', ['name' => 'AR1', 'email' => 'ar1@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
 $ar2 = mam_db_insert('users', ['name' => 'AR2', 'email' => 'ar2@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
 $ar3 = mam_db_insert('users', ['name' => 'AR3', 'email' => 'ar3@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
-mam_db_insert('session_attendance', ['session_id' => $AR_sess, 'student_id' => $ar1, 'status' => 'present', 'checked_in_at' => '2026-08-01 10:03:00']);
-mam_db_insert('session_attendance', ['session_id' => $AR_sess, 'student_id' => $ar2, 'status' => 'late', 'checked_in_at' => '2026-08-01 10:20:00']);
+// The class is 10:00 Lagos (scheduled_at is wall-clock); check-ins are UTC
+// instants, so 10:03 and 10:20 Lagos are 09:03 and 09:20 UTC.
+mam_db_insert('session_attendance', ['session_id' => $AR_sess, 'student_id' => $ar1, 'status' => 'present', 'checked_in_at' => '2026-08-01 09:03:00']);
+mam_db_insert('session_attendance', ['session_id' => $AR_sess, 'student_id' => $ar2, 'status' => 'late', 'checked_in_at' => '2026-08-01 09:20:00']);
 mam_db_insert('session_attendance', ['session_id' => $AR_sess, 'student_id' => $ar3, 'status' => 'absent']);
 $a = mam_analytics2_arrival($AR_ins);
 t_eq($a['checked_in'], 2, 'two check-ins counted');
@@ -50,9 +52,9 @@ $MU_stu = mam_db_insert('users', ['name' => 'MU Stu', 'email' => 'mu_stu@test.lo
 $MU_course = mam_db_insert('courses', ['code' => 'mu_c', 'name' => 'MU', 'kind' => 'core']);
 $MU_coh = mam_db_insert('cohorts', ['course_id' => $MU_course, 'title' => 'MU Cohort', 'status' => 'active', 'capacity' => 10]);
 mam_db_insert('course_enrollments', ['student_id' => $MU_stu, 'course_id' => $MU_course, 'cohort_id' => $MU_coh, 'status' => 'active']);
-$missed = mam_db_insert('class_sessions', ['cohort_id' => $MU_coh, 'title' => 'Missed wk', 'scheduled_at' => date('Y-m-d H:i:s', strtotime('-10 days')), 'status' => 'held', 'duration_min' => 60, 'kind' => 'class']);
+$missed = mam_db_insert('class_sessions', ['cohort_id' => $MU_coh, 'title' => 'Missed wk', 'scheduled_at' => mam_session_wall(strtotime('-10 days')), 'status' => 'held', 'duration_min' => 60, 'kind' => 'class']);
 mam_db_insert('session_attendance', ['session_id' => $missed, 'student_id' => $MU_stu, 'status' => 'absent']);
-mam_db_insert('class_sessions', ['cohort_id' => $MU_coh, 'title' => 'Upcoming wk', 'scheduled_at' => date('Y-m-d H:i:s', strtotime('+10 days')), 'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class']);
+mam_db_insert('class_sessions', ['cohort_id' => $MU_coh, 'title' => 'Upcoming wk', 'scheduled_at' => mam_session_wall(strtotime('+10 days')), 'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class']);
 $sugg = mam_makeup_suggestions($MU_stu);
 t_ok(count($sugg) >= 1, 'a missed session yields make-up suggestions');
 t_ok(count($sugg[0]['options']) >= 1, 'options include the upcoming same-course session');

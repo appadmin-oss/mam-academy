@@ -123,7 +123,7 @@ function mam_meeting_meet_create(array $s): array {
     $body = [
         'summary' => (string) ($s['title'] ?: ($s['cohort_title'] ?? 'MAM class')),
         'start' => ['dateTime' => mam_meeting_local_iso($start), 'timeZone' => MAM_SCHED_TZ],
-        'end' => ['dateTime' => mam_meeting_local_iso(date('Y-m-d H:i:s', strtotime($start) + $mins * 60)), 'timeZone' => MAM_SCHED_TZ],
+        'end' => ['dateTime' => mam_meeting_local_iso(mam_session_wall((mam_session_ts($start) ?? 0) + $mins * 60)), 'timeZone' => MAM_SCHED_TZ],
         'conferenceData' => ['createRequest' => ['requestId' => 'mam-' . (int) $s['id'] . '-' . substr(hash('sha256', $start . mam_app_key()), 0, 10),
                                                  'conferenceSolutionKey' => ['type' => 'hangoutsMeet']]],
     ];
@@ -231,7 +231,7 @@ function mam_meeting_moved(int $sid): void {
             [$code] = mam_integration_http('PATCH', 'https://www.googleapis.com/calendar/v3/calendars/' . mam_meeting_meet_calendar() . '/events/' . rawurlencode(substr($ext, 5)),
                 ['Authorization: Bearer ' . mam_meeting_meet_token(), 'Content-Type: application/json'], (string) json_encode([
                     'start' => ['dateTime' => mam_meeting_local_iso((string) $s['scheduled_at']), 'timeZone' => MAM_SCHED_TZ],
-                    'end' => ['dateTime' => mam_meeting_local_iso(date('Y-m-d H:i:s', strtotime((string) $s['scheduled_at']) + $mins * 60)), 'timeZone' => MAM_SCHED_TZ]]));
+                    'end' => ['dateTime' => mam_meeting_local_iso(mam_session_wall((mam_session_ts((string) $s['scheduled_at']) ?? 0) + $mins * 60)), 'timeZone' => MAM_SCHED_TZ]]));
             if ($code < 200 || $code >= 300) throw new RuntimeException('meet_patch_http_' . $code);
         }
     } catch (\Throwable $e) {
@@ -263,7 +263,7 @@ function mam_meeting_withdraw(int $sid): void {
 function mam_meeting_backfill(int $limit = 500): array {
     $rows = mam_db_all("SELECT id FROM class_sessions WHERE status = 'scheduled' AND mode IN ('online','hybrid')
                           AND (meeting_link IS NULL OR meeting_link = '') AND scheduled_at >= ? ORDER BY scheduled_at LIMIT " . max(1, min(2000, $limit)),
-                       [date('Y-m-d H:i:s', time() - 3600)]);
+                       [mam_session_wall(time() - 3600)]);
     $out = ['done' => 0, 'by' => []];
     foreach ($rows as $r) {
         $x = mam_meeting_ensure((int) $r['id']);

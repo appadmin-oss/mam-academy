@@ -14,7 +14,7 @@ if ($AE_course === 0) $AE_course = mam_db_insert('courses', ['code' => 'ae_c', '
 $AE_stu = mam_db_insert('users', ['name' => 'AE Stu', 'email' => 'ae_stu@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
 $AE_coh = mam_db_insert('cohorts', ['course_id' => $AE_course, 'title' => 'AE Cohort', 'status' => 'active', 'capacity' => 10]);
 mam_db_insert('course_enrollments', ['student_id' => $AE_stu, 'course_id' => $AE_course, 'cohort_id' => $AE_coh, 'status' => 'active']);
-$AE_sess = mam_db_insert('class_sessions', ['cohort_id' => $AE_coh, 'title' => 'AE Session', 'scheduled_at' => date('Y-m-d H:i:s', time() + 3600), 'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class']);
+$AE_sess = mam_db_insert('class_sessions', ['cohort_id' => $AE_coh, 'title' => 'AE Session', 'scheduled_at' => mam_session_wall(time() + 3600), 'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class']);
 
 // Gate OFF → no dispatch, no event.
 mam_setting_set('academic_emails_enabled', '0');
@@ -35,7 +35,7 @@ $s1 = mam_db_insert('users', ['name' => 'AE A', 'email' => 'ae_a@test.local', 'r
 $s2 = mam_db_insert('users', ['name' => 'AE B', 'email' => 'ae_b@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
 mam_db_insert('course_enrollments', ['student_id' => $s1, 'course_id' => $AE_course, 'cohort_id' => $AE_coh2, 'status' => 'active']);
 mam_db_insert('course_enrollments', ['student_id' => $s2, 'course_id' => $AE_course, 'cohort_id' => $AE_coh2, 'status' => 'active']);
-$AE_sess2 = mam_db_insert('class_sessions', ['cohort_id' => $AE_coh2, 'title' => 'AE Soon', 'scheduled_at' => date('Y-m-d H:i:s', time() + 2 * 3600), 'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class']);
+$AE_sess2 = mam_db_insert('class_sessions', ['cohort_id' => $AE_coh2, 'title' => 'AE Soon', 'scheduled_at' => mam_session_wall(time() + 2 * 3600), 'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class']);
 
 t_ok(mam_db_row('SELECT 1 FROM events WHERE type = ? AND entity_id = ?', ['acadmail.preclass.s' . $AE_sess2, $s1]) === null, 'no reminder yet');
 $sent = mam_acadmail_preclass_reminder_sweep(24, 100);

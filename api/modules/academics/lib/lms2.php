@@ -606,12 +606,12 @@ function mam_lms2_ics_for_token(string $token): ?string {
     $userId = (int) $row['user_id'];
     mam_db_update('calendar_tokens', ['last_used_at' => date('Y-m-d H:i:s')], ['id' => (int) $row['id']]);
 
-    $since = date('Y-m-d H:i:s', time() - 86400); // include today
+    $since = mam_session_wall(time() - 86400); // include today (compared with scheduled_at: Lagos wall-clock)
     $sessions = mam_lms2_user_upcoming_sessions($userId, $since);
 
     $lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//MAM Academy//LMS 2.0//EN', 'CALSCALE:GREGORIAN'];
     foreach ($sessions as $s) {
-        $startTs = strtotime((string) $s['scheduled_at']);
+        $startTs = (mam_session_ts((string) $s['scheduled_at']) ?? false);
         if ($startTs === false) continue;
         $endTs = $startTs + ((int) ($s['duration_min'] ?? 60)) * 60;
         $title = (string) ($s['title'] !== '' && $s['title'] !== null ? $s['title'] : ($s['cohort_title'] ?? 'Class session'));
@@ -658,7 +658,7 @@ function mam_lms2_instructor_worklist(int $instructorId, int $limit = 8): array
             return $default;
         }
     };
-    $now = date('Y-m-d H:i:s');
+    $now = mam_session_now(); // compared with scheduled_at (Lagos wall-clock)
 
     // The next session they are due to teach, from either model: a cohort they
     // own, or one where they are the substitute.
@@ -672,7 +672,7 @@ function mam_lms2_instructor_worklist(int $instructorId, int $limit = 8): array
         [$instructorId, $instructorId, $now]
     ), null);
     if ($next) {
-        $mins = (int) round((strtotime((string) $next['scheduled_at']) - strtotime($now)) / 60);
+        $mins = (int) round(((mam_session_ts((string) $next['scheduled_at']) ?? false) - time()) / 60);
         $next['minutes_until'] = $mins;
         $next['starts_today']  = substr((string) $next['scheduled_at'], 0, 10) === substr($now, 0, 10);
     }

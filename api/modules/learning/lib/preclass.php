@@ -77,7 +77,7 @@ function mam_preclass_next(int $studentId): ?array {
            FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id
           WHERE cs.cohort_id IN ($ph) AND cs.status = 'scheduled' AND cs.scheduled_at >= ?
           ORDER BY cs.scheduled_at ASC LIMIT 1",
-        array_merge($cohorts, [date('Y-m-d H:i:s')])
+        array_merge($cohorts, [mam_session_now()])
     );
     if (!$sess) return null;
 

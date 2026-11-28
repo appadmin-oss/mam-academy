@@ -196,7 +196,7 @@ function mam_analytics2_arrival(int $instructorId, int $limit = 500): array {
     foreach ($rows as $r) {
         if (($r['status'] ?? '') === 'absent') { $noshow++; continue; }
         if (empty($r['checked_in_at']) || empty($r['scheduled_at'])) continue;
-        $ci = strtotime((string) $r['checked_in_at']); $sc = strtotime((string) $r['scheduled_at']);
+        $ci = strtotime((string) $r['checked_in_at']); $sc = (mam_session_ts((string) $r['scheduled_at']) ?? false);
         if ($ci === false || $sc === false) continue;
         $off = ($ci - $sc) / 60; $checked++;
         if ($off <= 0) $b['early']++; elseif ($off <= 5) $b['on_time']++; elseif ($off <= 15) $b['late']++; else $b['very_late']++;
@@ -320,7 +320,7 @@ function mam_analytics2_instructor_performance(): array {
 /** Real-time "today" snapshot (§33): attendance + preparation counts for the
  *  current day. */
 function mam_analytics2_today(): array {
-    $day = date('Y-m-d');
+    $day = mam_session_today(); // a Lagos day — scheduled_at is Lagos wall-clock
     $lo = $day . ' 00:00:00'; $hi = $day . ' 23:59:59';
     $present = (int) mam_analytics2_scalar(
         "SELECT COUNT(*) FROM session_attendance sa JOIN class_sessions cs ON cs.id = sa.session_id

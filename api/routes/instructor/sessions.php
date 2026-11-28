@@ -204,7 +204,7 @@ try {
         $joinUrl   = !empty($sess['meeting_link']) ? $appUrl . '/session/' . $sid . '/join' : '';
         $title     = (string)($sess['title'] ?: 'your session');
         $whenLabel = !empty($sess['scheduled_at'])
-            ? date('l j M, g:i A T', strtotime((string)$sess['scheduled_at']))
+            ? mam_session_fmt((string) $sess['scheduled_at'], 'l j M, g:i A T')
             : 'upcoming';
 
         $students = mam_db_all(

@@ -58,7 +58,7 @@ $SP_les = mam_db_insert('lessons', ['cohort_id' => $SP_cohort, 'title' => 'Circl
    crosses midnight for the last eight minutes of every UTC day. */
 $SP_at   = min(time() + 480, (int) strtotime(gmdate('Y-m-d 23:58:00') . ' UTC'));
 $SP_sess = mam_db_insert('class_sessions', ['cohort_id' => $SP_cohort, 'lesson_id' => $SP_les,
-    'title' => 'Scales & sight-reading', 'scheduled_at' => gmdate('Y-m-d H:i:s', $SP_at),
+    'title' => 'Scales & sight-reading', 'scheduled_at' => mam_session_wall($SP_at),
     'duration_min' => 60, 'mode' => 'onsite', 'status' => 'scheduled']);
 
 /* ── Home ────────────────────────────────────────────────────────────────── */

@@ -48,7 +48,8 @@ function mam_slot_score(array $cand, array $ctx): array {
         if (isset($ctx['closed'][$d])) { $skipped++; continue; }
         $dates[] = $d;
     }
-    $intervals = array_map(fn($d) => [strtotime($d . ' ' . $cand['time'] . ':00'), strtotime($d . ' ' . $cand['time'] . ':00') + $dur], $dates);
+    // Same parser as the sessions they are checked against (Lagos wall-clock → instant).
+    $intervals = array_map(fn($d) => [(int) mam_session_ts($d . ' ' . $cand['time'] . ':00'), (int) mam_session_ts($d . ' ' . $cand['time'] . ':00') + $dur], $dates);
     $room = null;
     // By reference: an arrow fn would capture these as they are NOW, not at return.
     $out = function () use (&$ok, &$score, &$room, &$dates, &$skipped, &$reasons, &$problems, $cand) {
@@ -147,7 +148,7 @@ function mam_slot_context(int $cohortId, string $from, string $to, array $opts =
     if (!$co) throw new InvalidArgumentException('cohort_not_found');
     $excl = (int) ($opts['exclude_session'] ?? 0);
     $range = [$from . ' 00:00:00', date('Y-m-d', strtotime($to . ' +1 day')) . ' 00:00:00'];
-    $iv = fn(array $rows) => array_map(fn($r) => [strtotime((string) $r['scheduled_at']), strtotime((string) $r['scheduled_at']) + max(15, (int) ($r['duration_min'] ?: 60)) * 60, (string) ($r['label'] ?? '')], $rows);
+    $iv = fn(array $rows) => array_map(fn($r) => [(mam_session_ts((string) $r['scheduled_at']) ?? false), (mam_session_ts((string) $r['scheduled_at']) ?? false) + max(15, (int) ($r['duration_min'] ?: 60)) * 60, (string) ($r['label'] ?? '')], $rows);
     $live = "cs.status = 'scheduled' AND cs.scheduled_at >= ? AND cs.scheduled_at < ? AND cs.id != ?";
 
     $tid = (int) ($co['instructor_id'] ?? 0);
@@ -231,7 +232,7 @@ function mam_slot_suggest_series(int $cohortId, array $opts = []): array {
 function mam_slot_suggest_makeup(int $sessionId, int $limit = 3): array {
     $s = mam_db_row('SELECT id, cohort_id, scheduled_at, duration_min, mode FROM class_sessions WHERE id = ?', [$sessionId]);
     if (!$s) return [];
-    $start = max(strtotime(date('Y-m-d', strtotime((string) $s['scheduled_at']))), strtotime(date('Y-m-d'))) + 86400;
+    $start = max(strtotime(mam_session_fmt((string) $s['scheduled_at'], 'Y-m-d')), strtotime(mam_session_today())) + 86400;
     $from = date('Y-m-d', $start); $to = date('Y-m-d', $start + 13 * 86400);
     $ctx = mam_slot_context((int) $s['cohort_id'], $from, $to, ['exclude_session' => $sessionId, 'mode' => (string) ($s['mode'] ?: 'onsite')]);
     $dur = (int) ($s['duration_min'] ?: 60);

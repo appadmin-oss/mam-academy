@@ -264,7 +264,7 @@ $sel     = static fn(string $k, string $v): string => ((string) ($filters[$k] ??
       <?php else: ?>
         <div class="ac-defs">
           <?php foreach ($m['week'] as $w): ?>
-            <?php ac_def(date('D j M, H:i', strtotime((string) $w['scheduled_at'])),
+            <?php ac_def(mam_session_fmt((string) $w['scheduled_at'], 'D j M, H:i'),
                 ac_h((string) ($w['title'] ?: $w['cohort'])) . ' <span class="ac-sub">' . ac_h(ac_join(array_filter([(string) $w['cohort'], (string) ($w['room'] ?? ''), (int) $w['duration_min'] . ' min']))) . '</span>'
                 . ((string) $w['status'] === 'cancelled' ? ' ' . ac_status('cancelled') : '')
                 . ($w['attended'] ? ' ' . ac_status((string) $w['attended']) : '')); ?>

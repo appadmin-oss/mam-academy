@@ -128,7 +128,7 @@ if ($ciStu) {
     // One counted session, attended; two in a state that counts for neither.
     $mk = function (string $status, string $ago) use ($ciCoh): int {
         return (int) mam_db_insert('class_sessions', ['cohort_id' => $ciCoh, 'title' => 'Rate ' . $status,
-            'scheduled_at' => date('Y-m-d H:i:s', strtotime($ago)), 'duration_min' => 60,
+            'scheduled_at' => mam_session_wall(strtotime($ago)), 'duration_min' => 60,
             'status' => $status, 'created_at' => date('Y-m-d H:i:s')]);
     };
     foreach ([$mk('scheduled', '-3 days'), $mk('completed', '-10 days'), $mk('cancelled', '-17 days')] as $sid) {

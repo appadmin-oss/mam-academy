@@ -120,7 +120,7 @@ t_group('lms2 — rooms & ICS calendar feed');
 
 $roomId = mam_lms2_room_create('Studio A', 8, 'Ground floor');
 t_ok($roomId > 0, 'room created');
-$L2_sess = mam_db_insert('class_sessions', ['cohort_id' => $L2_cohort, 'title' => 'ICS Session', 'scheduled_at' => date('Y-m-d H:i:s', time() + 3 * 86400), 'status' => 'scheduled', 'duration_min' => 90, 'kind' => 'class']);
+$L2_sess = mam_db_insert('class_sessions', ['cohort_id' => $L2_cohort, 'title' => 'ICS Session', 'scheduled_at' => mam_session_wall(time() + 3 * 86400), 'status' => 'scheduled', 'duration_min' => 90, 'kind' => 'class']);
 mam_lms2_session_set_room($L2_sess, $roomId);
 t_eq((int)mam_db_row('SELECT room_id FROM class_sessions WHERE id = ?', [$L2_sess])['room_id'], $roomId, 'session room_id set (legacy room text untouched)');
 

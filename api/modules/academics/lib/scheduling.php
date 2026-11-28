@@ -344,7 +344,7 @@ function mam_sched_notify_timetable(int $cohortId, array $sessionIds): int {
     $first = mam_db_row('SELECT cs.id, cs.scheduled_at, co.title FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id WHERE cs.id IN ('
         . implode(',', array_map('intval', $sessionIds)) . ') ORDER BY cs.scheduled_at LIMIT 1');
     if (!$first) return 0;
-    $when = date('D j M, H:i', strtotime((string) $first['scheduled_at']));
+    $when = mam_session_fmt((string) $first['scheduled_at'], 'D j M, H:i');
     $r = mam_sched_notify((int) $first['id'], 'timetable', 'Timetable ready: ' . $first['title'],
         count($sessionIds) . ' sessions, starting ' . $when . '. Add them to your calendar from your portal.',
         ['template' => 'timetable_new', 'params' => ['{learner}', (string) $first['title'], $when, (string) count($sessionIds)],
@@ -438,7 +438,7 @@ function mam_sched_cancel(int $sessionId, string $cause, string $reason, int $ac
     try { mam_meeting_withdraw($sessionId); } catch (\Throwable $e) { mam_log('warn', 'meeting_withdraw_failed', ['session' => $sessionId, 'err' => $e->getMessage()]); }
     $n = mam_sched_notify($sessionId, 'cancelled', 'Class cancelled: ' . mam_sched_label($sess),
         $reason . ($credited ? ' A free make-up class has been credited.' : ''),
-        ['template' => 'session_cancelled', 'params' => ['{learner}', (string) ($sess['title'] ?: $sess['cohort_title']), date('D j M, H:i', strtotime((string) $sess['scheduled_at'])), $reason],
+        ['template' => 'session_cancelled', 'params' => ['{learner}', (string) ($sess['title'] ?: $sess['cohort_title']), mam_session_fmt((string) $sess['scheduled_at'], 'D j M, H:i'), $reason],
          'idem' => 'cancel:' . $sessionId]);
     mam_audit('sched_session_cancel', 'class_session', $sessionId, ['cause' => $cause, 'credited' => $credited, 'by' => $actorId]);
     return ['credited' => $credited, 'failed' => $failed, 'told' => $n['told'], 'emailed' => $n['emailed'], 'whatsapp' => $n['whatsapp']];
@@ -450,7 +450,7 @@ function mam_sched_cancel(int $sessionId, string $cause, string $reason, int $ac
  */
 function mam_sched_integrations(): array {
     $pending = (int) (mam_db_row("SELECT COUNT(*) n FROM class_sessions WHERE status = 'scheduled' AND mode IN ('online','hybrid')
-                                   AND (meeting_link IS NULL OR meeting_link = '') AND scheduled_at >= ?", [date('Y-m-d H:i:s')])['n'] ?? 0);
+                                   AND (meeting_link IS NULL OR meeting_link = '') AND scheduled_at >= ?", [mam_session_now()])['n'] ?? 0);
     $jaas = function_exists('mam_live_jaas_ready') && mam_live_jaas_ready();
     return [
         'provider' => (string) mam_setting('meeting_link_provider', 'auto'),

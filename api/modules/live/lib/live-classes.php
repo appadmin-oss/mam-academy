@@ -105,7 +105,9 @@ function mam_live_role(array $sess, array $user): ?string {
 
 /** [opens, closes] as Unix times. */
 function mam_live_window(array $sess): array {
-    $start = strtotime((string) $sess['scheduled_at'] . (str_contains((string) $sess['scheduled_at'], 'Z') ? '' : ' UTC'));
+    // scheduled_at is Lagos wall-clock (session-time.php). It used to be read as
+    // UTC here, which opened and closed every call an hour late.
+    $start = (int) (mam_session_ts((string) $sess['scheduled_at']) ?? 0);
     $len = max(15, (int) ($sess['duration_min'] ?? 60));
     return [$start - MAM_LIVE_OPEN_BEFORE_MIN * 60, $start + ($len + MAM_LIVE_CLOSE_AFTER_MIN) * 60, $start, $len];
 }

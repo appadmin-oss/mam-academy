@@ -79,7 +79,7 @@ function mam_cal_feed_resolve(string $token): ?array {
 
 /** The sessions a feed carries: 30 days back to a year ahead, cancellations included. */
 function mam_cal_feed_sessions(string $kind, int $subject, ?string $from = null, ?string $to = null): array {
-    $from ??= date('Y-m-d H:i:s', time() - 30 * 86400); $to ??= date('Y-m-d H:i:s', time() + 366 * 86400);
+    $from ??= mam_session_wall(time() - 30 * 86400); $to ??= mam_session_wall(time() + 366 * 86400);
     $live = "('active','pending','completed')";
     switch ($kind) {
         case 'student':  $where = "cs.cohort_id IN (SELECT cohort_id FROM course_enrollments WHERE student_id = ? AND status IN $live)"; $args = [$subject]; break;
@@ -136,7 +136,7 @@ function mam_cal_fold(string $line): string {
     return implode("\r\n", $out);
 }
 
-function mam_cal_local(string $at): string { return date('Ymd\THis', strtotime($at)); }
+function mam_cal_local(string $at): string { return mam_session_fmt($at, 'Ymd\THis'); } // Lagos wall-clock, emitted with TZID
 
 /** One VEVENT's lines for a session row (from mam_cal_feed_sessions or similar). */
 function mam_cal_vevent(array $s, ?string $stamp = null): array {
@@ -153,7 +153,7 @@ function mam_cal_vevent(array $s, ?string $stamp = null): array {
         'UID:session-' . (int) $s['id'] . '@academy.mamcentre.org',
         'DTSTAMP:' . ($stamp ?? gmdate('Ymd\THis\Z')),
         'DTSTART;TZID=' . MAM_SCHED_TZ . ':' . mam_cal_local($start),
-        'DTEND;TZID=' . MAM_SCHED_TZ . ':' . mam_cal_local(date('Y-m-d H:i:s', strtotime($start) + $mins * 60)),
+        'DTEND;TZID=' . MAM_SCHED_TZ . ':' . mam_session_clock((mam_session_ts($start) ?? 0) + $mins * 60, 'Ymd\THis'),
         'SEQUENCE:' . ((int) ($s['moves'] ?? 0) + ($cancelled ? 1 : 0)),
         'STATUS:' . ($cancelled ? 'CANCELLED' : 'CONFIRMED'),
         'SUMMARY:' . mam_cal_escape(($cancelled ? 'Cancelled: ' : '') . $title),
@@ -206,15 +206,15 @@ function mam_cal_subscribe_links(string $httpsUrl): array {
 
 /** "Add this one session" links: Google, Outlook, and the .ics download route. */
 function mam_cal_event_links(array $s): array {
-    $start = strtotime((string) $s['scheduled_at']);
+    $start = (mam_session_ts((string) $s['scheduled_at']) ?? false);
     $end = $start + (int) ($s['duration_min'] ?: 60) * 60;
     $title = (string) (($s['title'] ?? '') !== '' ? $s['title'] : ($s['cohort_title'] ?? 'MAM class'));
     $loc = ($s['mode'] ?? '') === 'online' ? 'Online' : trim((string) (($s['room_name'] ?? '') ?: ($s['room'] ?? 'MAM Academy')));
     $details = !empty($s['meeting_link']) ? 'Join online: ' . $s['meeting_link'] : '';
-    $iso = fn(int $t) => date('Y-m-d\TH:i:s', $t) . '+01:00';
+    $iso = fn(int $t) => mam_session_clock($t, 'Y-m-d\TH:i:sP'); // Lagos local with its offset
     return [
         'google' => 'https://calendar.google.com/calendar/render?' . http_build_query(['action' => 'TEMPLATE', 'text' => $title,
-            'dates' => date('Ymd\THis', $start) . '/' . date('Ymd\THis', $end), 'ctz' => MAM_SCHED_TZ, 'location' => $loc, 'details' => $details]),
+            'dates' => mam_session_clock($start, 'Ymd\THis') . '/' . mam_session_clock($end, 'Ymd\THis'), 'ctz' => MAM_SCHED_TZ, 'location' => $loc, 'details' => $details]),
         'outlook' => 'https://outlook.live.com/calendar/0/deeplink/compose?' . http_build_query(['path' => '/calendar/action/compose', 'rru' => 'addevent',
             'subject' => $title, 'startdt' => $iso($start), 'enddt' => $iso($end), 'location' => $loc, 'body' => $details]),
         'ics' => '/api/calendar/session?id=' . (int) $s['id'],

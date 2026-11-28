@@ -47,7 +47,7 @@ foreach ([$IP_s1, $IP_s2] as $IP_st) {
 $IP_at   = min(time() + 480, (int) strtotime(gmdate('Y-m-d 23:58:00') . ' UTC'));
 $IP_in   = (int) round(($IP_at - time()) / 60);
 $IP_sess = mam_db_insert('class_sessions', ['cohort_id' => $IP_cohort, 'title' => 'Scales & sight-reading',
-    'scheduled_at' => gmdate('Y-m-d H:i:s', $IP_at), 'status' => 'scheduled',
+    'scheduled_at' => mam_session_wall($IP_at), 'status' => 'scheduled',
     'duration_min' => 60, 'kind' => 'class']);
 
 t_group('instructor portal — Home');
@@ -67,7 +67,7 @@ t_ok($IP_home['next']['register_taken'] === false, 'an unmarked session says so'
    yesterday — whereas clamping it into today would put it in the FUTURE for
    the first ten minutes of a day and invert the assertion. */
 $IP_running = mam_db_insert('class_sessions', ['cohort_id' => $IP_cohort, 'title' => 'Running now',
-    'scheduled_at' => gmdate('Y-m-d H:i:s', time() - 600), 'status' => 'scheduled',
+    'scheduled_at' => mam_session_wall(time() - 600), 'status' => 'scheduled',
     'duration_min' => 60, 'kind' => 'class']);
 $IP_home2 = mam_iportal_home($IP_ins);
 t_ok($IP_home2['next']['starts_in_min'] < 0, 'a session already under way counts DOWN past zero, it does not vanish');

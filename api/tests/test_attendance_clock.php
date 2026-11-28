@@ -17,7 +17,7 @@ mam_setting_set('checkin_geofence_enabled', '0');
 mam_setting_set('checkin_late_grace_min', '10');
 
 $CK_start = '2026-09-10 16:00:00';
-$CK_ts    = strtotime($CK_start);
+$CK_ts    = mam_session_ts($CK_start); // a session time is Lagos wall-clock
 
 $w = mam_checkin_window($CK_start, 60, $CK_ts - 45 * 60);
 t_eq($w['state'], 'closed', '45 minutes out the portal has not opened');
@@ -67,7 +67,7 @@ $CL_coh = mam_db_insert('cohorts', ['course_id' => $CL_course, 'title' => 'CL Co
 mam_db_insert('course_enrollments', ['student_id' => $CL_stu, 'course_id' => $CL_course, 'cohort_id' => $CL_coh, 'status' => 'active']);
 
 // A session that started 20 minutes ago and runs for an hour.
-$CL_sched = date('Y-m-d H:i:s', time() - 20 * 60);
+$CL_sched = mam_session_wall(time() - 20 * 60);
 $CL_sess  = mam_db_insert('class_sessions', [
     'cohort_id' => $CL_coh, 'title' => 'CL Session', 'scheduled_at' => $CL_sched,
     'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class', 'mode' => 'online',
@@ -148,7 +148,7 @@ $CL_lesson = mam_db_insert('lessons', [
 ]);
 $CL_future = mam_db_insert('class_sessions', [
     'cohort_id' => $CL_coh, 'title' => 'Next CL Session',
-    'scheduled_at' => date('Y-m-d H:i:s', time() + 3 * 86400),
+    'scheduled_at' => mam_session_wall(time() + 3 * 86400),
     'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class',
     'lesson_id' => $CL_lesson, 'mode' => 'online',
 ]);

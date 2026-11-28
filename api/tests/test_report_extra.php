@@ -21,7 +21,7 @@ mam_db_insert('lessons', ['cohort_id' => $RX_coh, 'title' => 'RX L2', 'published
 mam_db_insert('lesson_progress', ['lesson_id' => $RX_l1, 'student_id' => $RX_stu, 'status' => 'completed', 'percent' => 100]);
 
 // A held past session the student attended → attendance rate/streak.
-$RX_sess = mam_db_insert('class_sessions', ['cohort_id' => $RX_coh, 'title' => 'RX Past', 'scheduled_at' => date('Y-m-d H:i:s', time() - 86400), 'status' => 'held', 'duration_min' => 60, 'kind' => 'class']);
+$RX_sess = mam_db_insert('class_sessions', ['cohort_id' => $RX_coh, 'title' => 'RX Past', 'scheduled_at' => mam_session_wall(time() - 86400), 'status' => 'held', 'duration_min' => 60, 'kind' => 'class']);
 mam_db_insert('session_attendance', ['session_id' => $RX_sess, 'student_id' => $RX_stu, 'status' => 'present', 'method' => 'self']);
 
 // Rubric-scored submission → also feeds a result (so GPA is populated).

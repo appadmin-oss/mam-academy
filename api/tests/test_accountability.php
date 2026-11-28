@@ -95,7 +95,7 @@ $env = function () use ($AC_course) {
     $stu = mam_db_insert('users', ['name' => 'AC L', 'email' => 'ac_l' . bin2hex(random_bytes(3)) . '@test.local', 'role' => 'student', 'password_hash' => '', 'status' => 'active']);
     $coh = mam_db_insert('cohorts', ['course_id' => $AC_course, 'title' => 'AC L', 'status' => 'active', 'capacity' => 10]);
     mam_db_insert('course_enrollments', ['student_id' => $stu, 'course_id' => $AC_course, 'cohort_id' => $coh, 'status' => 'active']);
-    $sess = mam_db_insert('class_sessions', ['cohort_id' => $coh, 'title' => 'AC L sess', 'scheduled_at' => date('Y-m-d H:i:s', time() - 20 * 60), 'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class']);
+    $sess = mam_db_insert('class_sessions', ['cohort_id' => $coh, 'title' => 'AC L sess', 'scheduled_at' => mam_session_wall(time() - 20 * 60), 'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class']);
     return ['student' => $stu, 'session' => $sess];
 };
 $e1 = $env();
@@ -134,7 +134,7 @@ mam_setting_set('late_charge_enabled', '0');
 $AC_ciStu  = mam_db_insert('users', ['name' => 'AC CI', 'email' => 'ac_ci@test.local', 'role' => 'student', 'password_hash' => '', 'status' => 'active']);
 mam_db_insert('course_enrollments', ['student_id' => $AC_ciStu, 'course_id' => $AC_course, 'cohort_id' => $AC_coh, 'status' => 'active']);
 $AC_ciSess = mam_db_insert('class_sessions', ['cohort_id' => $AC_coh, 'title' => 'AC CI Sess',
-    'scheduled_at' => date('Y-m-d H:i:s', time() - 1800), 'status' => 'held', 'duration_min' => 60, 'kind' => 'class']);
+    'scheduled_at' => mam_session_wall(time() - 1800), 'status' => 'held', 'duration_min' => 60, 'kind' => 'class']);
 try { mam_checkin_self($AC_ciSess, $AC_ciStu); } catch (Throwable $e) { /* window rules may refuse; the row check below is the point */ }
 $AC_ciRow = mam_db_row('SELECT status, amount_usd_cents FROM accountability_charges WHERE subject_id = ? AND session_id = ?',
     [$AC_ciStu, $AC_ciSess]);

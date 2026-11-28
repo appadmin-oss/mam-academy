@@ -15,7 +15,7 @@ $LV_course = (int) mam_db_row('SELECT id FROM courses ORDER BY id LIMIT 1')['id'
 $LV_co = (int) mam_db_insert('cohorts', ['course_id' => $LV_course, 'instructor_id' => $LV_t, 'title' => 'Online violin', 'status' => 'active']);
 foreach ([$LV_kid1, $LV_kid2, $LV_kid3] as $k) mam_db_insert('course_enrollments', ['student_id' => $k, 'course_id' => $LV_course, 'cohort_id' => $LV_co, 'status' => 'active']);
 $LV_start = time() + 600;
-$LV_sid = (int) mam_db_insert('class_sessions', ['cohort_id' => $LV_co, 'title' => 'Bowing', 'scheduled_at' => gmdate('Y-m-d H:i:s', $LV_start),
+$LV_sid = (int) mam_db_insert('class_sessions', ['cohort_id' => $LV_co, 'title' => 'Bowing', 'scheduled_at' => mam_session_wall($LV_start),
     'duration_min' => 60, 'status' => 'scheduled', 'mode' => 'online']);
 $LV_code = static function (callable $fn): string { try { $fn(); return 'no error'; } catch (Throwable $e) { return $e->getMessage(); } };
 

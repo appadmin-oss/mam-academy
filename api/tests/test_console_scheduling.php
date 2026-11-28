@@ -93,7 +93,7 @@ t_ok($SC_l1['meeting_link'] !== $SC_l2['meeting_link'], 'each session has its OW
 t_ok(mam_meeting_jitsi_room($SC_on1) !== mam_meeting_jitsi_room($SC_on2) && preg_match('/^MAM-\d+-[0-9a-f]{12}$/', mam_meeting_jitsi_room($SC_on1)) === 1,
     'the room is per session and HMAC-tagged, so it cannot be enumerated');
 $SC_claims = static function (string $jwt): array { return json_decode((string) mam_b64url_decode(explode('.', $jwt)[1]), true) ?: []; };
-$SC_startTs = strtotime('2033-02-02 09:00:00 UTC');
+$SC_startTs = mam_session_ts('2033-02-02 09:00:00'); // the session time is Lagos wall-clock
 $SC_tj = mam_live_join($SC_on2, mam_db_row('SELECT * FROM users WHERE id = ?', [$SC_teach2]), $SC_startTs - 600);
 $SC_sj = mam_live_join($SC_on2, mam_db_row('SELECT * FROM users WHERE id = ?', [$SC_kid]), $SC_startTs);
 $SC_tc = $SC_claims($SC_tj['jwt']); $SC_scl = $SC_claims($SC_sj['jwt']);
@@ -153,7 +153,7 @@ t_eq(mam_db_row('SELECT meeting_link FROM class_sessions WHERE id = ?', [$SC_z])
 foreach (['zoom_account_id', 'zoom_client_id', 'zoom_client_secret', 'zoom_token_cache', 'meeting_link_provider', 'jaas_app_id', 'jaas_kid', 'jaas_private_key'] as $k) mam_setting_set($k, '');
 $GLOBALS['MAM_INTEGRATION_HTTP'] = static function () { return [0, '']; };
 
-$SC_old = (int) mam_db_insert('class_sessions', ['cohort_id' => $SC_other, 'scheduled_at' => date('Y-m-d H:i:s', time() + 86400 * 400), 'duration_min' => 60, 'status' => 'scheduled', 'mode' => 'online']);
+$SC_old = (int) mam_db_insert('class_sessions', ['cohort_id' => $SC_other, 'scheduled_at' => mam_session_wall(time() + 86400 * 400), 'duration_min' => 60, 'status' => 'scheduled', 'mode' => 'online']);
 $SC_bf = mam_meeting_backfill();
 t_ok($SC_bf['done'] >= 1 && (string) mam_db_row('SELECT meeting_link FROM class_sessions WHERE id = ?', [$SC_old])['meeting_link'] !== '', 'one click gives every older online session its link');
 
@@ -250,7 +250,7 @@ $GLOBALS['MAM_INTEGRATION_HTTP'] = static function () { return [0, '']; };
 t_group('slot finder — pure, deterministic scoring with a reason');
 
 $SC_d = ['2033-03-01', '2033-03-08'];
-$SC_ts = static fn(string $d, string $t, int $m = 60) => [strtotime("$d $t:00"), strtotime("$d $t:00") + $m * 60];
+$SC_ts = static fn(string $d, string $t, int $m = 60) => [mam_session_ts("$d $t:00"), mam_session_ts("$d $t:00") + $m * 60]; // Lagos wall-clock, as the finder reads it
 $SC_ctx = ['size' => 5, 'mode' => 'onsite', 'buffer' => 15, 'closed' => [],
     'teacher_busy' => [$SC_ts('2033-03-01', '10:00')], 'teacher_windows' => null,
     'teacher_avail' => ['tue:afternoon' => true],

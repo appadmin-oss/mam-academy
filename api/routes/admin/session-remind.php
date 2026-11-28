@@ -53,7 +53,7 @@ if ($sessionId > 0) {
 
     $title     = (string)($sess['title'] ?: ('Session — ' . ($sess['cohort_title'] ?: '#' . $sessionId)));
     $whenLabel = !empty($sess['scheduled_at'])
-        ? date('l j M, g:i A T', strtotime((string)$sess['scheduled_at']))
+        ? mam_session_fmt((string) $sess['scheduled_at'], 'l j M, g:i A T')
         : 'upcoming';
     $joinUrl   = !empty($sess['meeting_link']) ? $appUrl . '/session/' . $sessionId . '/join' : '';
 

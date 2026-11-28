@@ -210,11 +210,11 @@ function mam_phone_today(): array {
     $clashes = [];
     foreach ($sessions as $i => $a) {
         if (!($a['room_id'] ?? null)) continue;
-        $aStart = strtotime((string) $a['scheduled_at']);
+        $aStart = (mam_session_ts((string) $a['scheduled_at']) ?? false);
         $aEnd   = $aStart + 60 * (int) (mam_phone_session_minutes($a));
         foreach (array_slice($sessions, $i + 1) as $b) {
             if ((int) ($b['room_id'] ?? 0) !== (int) $a['room_id']) continue;
-            $bStart = strtotime((string) $b['scheduled_at']);
+            $bStart = (mam_session_ts((string) $b['scheduled_at']) ?? false);
             if ($bStart < $aEnd) {
                 $clashes[] = [
                     'room'  => (string) ($a['room_name'] ?? 'A room'),

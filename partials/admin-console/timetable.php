@@ -54,13 +54,13 @@ $chip = function (array $s) use ($tt, $label, $where, $by, $sel): string {
 /* Group for the chosen view: row key → day → sessions. */
 $grid = []; $rowLabels = [];
 foreach ($rows as $r) {
-    $day = date('Y-m-d', strtotime((string) $r['scheduled_at']));
+    $day = mam_session_fmt((string) $r['scheduled_at'], 'Y-m-d');
     if ($by === 'room') {
         $k = $where($r);
     } elseif ($by === 'instructor') {
         $k = (string) ($r['substitute'] ?: $r['instructor'] ?: 'No teacher');
     } else {
-        $k = date('H:00', strtotime((string) $r['scheduled_at']));
+        $k = mam_session_fmt((string) $r['scheduled_at'], 'H:00');
     }
     $grid[$k][$day][] = $r;
     $rowLabels[$k] = $k;

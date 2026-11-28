@@ -25,7 +25,7 @@ mam_setting_set('late_charge_enabled', '1');
 $mkSess = function (int $offsetSec) use ($MT_course) {
     $ins = mam_db_insert('users', ['name' => 'MT Ins', 'email' => 'mt_ins' . bin2hex(random_bytes(3)) . '@test.local', 'role' => 'instructor', 'password_hash' => '', 'status' => 'active']);
     $coh = mam_db_insert('cohorts', ['course_id' => $MT_course, 'title' => 'MT Cohort', 'status' => 'active', 'capacity' => 10, 'instructor_id' => $ins]);
-    $sess = mam_db_insert('class_sessions', ['cohort_id' => $coh, 'title' => 'MT Session', 'scheduled_at' => date('Y-m-d H:i:s', time() + $offsetSec), 'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class']);
+    $sess = mam_db_insert('class_sessions', ['cohort_id' => $coh, 'title' => 'MT Session', 'scheduled_at' => mam_session_wall(time() + $offsetSec), 'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class']);
     return ['ins' => $ins, 'sess' => $sess];
 };
 

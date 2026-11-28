@@ -15,6 +15,7 @@ return [
     'name'    => 'academics',
     'depends' => ['comms', 'finance', 'identity', 'integrations', 'kernel', 'learning', 'live', 'safeguarding'],
     'libs'    => [
+        'session-time',
         'academic-session',
         'calendar',
         'calendar-feeds',

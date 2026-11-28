@@ -218,10 +218,8 @@ function mam_progress_report_data(int $studentId): array {
           WHERE cs.scheduled_at <= ?
           ORDER BY cs.scheduled_at DESC
           LIMIT 60",
-        // Compare against server-local "now" — scheduled_at is stored naive-local
-        // (see mam_lms_bulk_create_sessions); gmdate() here would misclassify
-        // sessions within the server's UTC offset as past/upcoming.
-        [$studentId, $studentId, date('Y-m-d H:i:s')]
+        // scheduled_at is Lagos wall-clock (session-time.php); "now" must be too.
+        [$studentId, $studentId, mam_session_now()]
     ), []);
 
     // ── Upcoming sessions (next 60 days) ──────────────────────────────────
@@ -235,7 +233,7 @@ function mam_progress_report_data(int $studentId): array {
           WHERE cs.scheduled_at > ? AND cs.status != 'cancelled'
             AND cs.scheduled_at <= ?
           ORDER BY cs.scheduled_at ASC",
-        [$studentId, date('Y-m-d H:i:s'), date('Y-m-d H:i:s', strtotime('+60 days'))]
+        [$studentId, mam_session_now(), mam_session_wall(strtotime('+60 days'))]
     ), []);
 
     // ── Assessments ───────────────────────────────────────────────────────

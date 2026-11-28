@@ -19,7 +19,7 @@ function mam_makeup_suggestions(int $studentId, int $limit = 5): array {
         [$studentId]
     );
     if (!$missed) return [];
-    $now = date('Y-m-d H:i:s');
+    $now = mam_session_now(); // compared with scheduled_at
     $out = [];
     foreach ($missed as $m) {
         if ($m['course_id'] === null) continue; // can't match a make-up without a course

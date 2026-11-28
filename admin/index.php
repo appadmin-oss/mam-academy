@@ -178,7 +178,7 @@ function mam_admin_sched_error(\Throwable $e): string { return mam_sched_error_t
 function mam_admin_sched_clash_text(array $clashes): string {
     $out = [];
     foreach (array_slice($clashes, 0, 3) as $c) {
-        $out[] = date('D j M H:i', strtotime((string) ($c['scheduled_at'] ?? 'now'))) . ' (' . ($c['cohort_title'] ?? ($c['title'] ?? 'another class')) . ')';
+        $out[] = mam_session_fmt((string) $c['scheduled_at'], 'D j M H:i') . ' (' . ($c['cohort_title'] ?? ($c['title'] ?? 'another class')) . ')';
     }
     return implode(', ', $out) . (count($clashes) > 3 ? ' and ' . (count($clashes) - 3) . ' more' : '');
 }

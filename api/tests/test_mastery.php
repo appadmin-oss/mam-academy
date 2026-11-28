@@ -115,7 +115,7 @@ $MS_sess = [];
 for ($i = 0; $i < 3; $i++) {
     $sid = mam_db_insert('class_sessions', [
         'cohort_id' => $MS_coh, 'title' => 'MS S' . $i,
-        'scheduled_at' => date('Y-m-d H:i:s', time() - (10 - $i) * 86400),
+        'scheduled_at' => mam_session_wall(time() - (10 - $i) * 86400),
         'status' => 'held', 'duration_min' => 60, 'kind' => 'class',
     ]);
     mam_db_insert('session_attendance', ['session_id' => $sid, 'student_id' => $MS_stu, 'status' => 'absent', 'mode' => 'onsite']);

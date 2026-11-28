@@ -60,8 +60,9 @@ function mam_iportal_home(int $instructorId): array {
        `scheduled_at >= now` dropped exactly that class and showed the next
        one instead, which is the wrong answer at the only moment the screen
        is being looked at. Two hours back covers a long lesson over-running. */
-    $now = gmdate('Y-m-d H:i:s', time() - 2 * 3600);
-    $dayEnd = gmdate('Y-m-d 23:59:59');
+    // Compared with scheduled_at, which is Lagos wall-clock (session-time.php).
+    $now = mam_session_wall(time() - 2 * 3600);
+    $dayEnd = mam_session_today() . ' 23:59:59';
 
     $sessions = mam_db_all(
         "SELECT cs.id, cs.title, cs.scheduled_at, cs.duration_min, cs.room, cs.mode, cs.status,
@@ -77,7 +78,7 @@ function mam_iportal_home(int $instructorId): array {
 
     $next = $sessions ? $sessions[0] : null;
     if ($next) {
-        $next['starts_in_min'] = (int) round((strtotime((string) $next['scheduled_at']) - time()) / 60);
+        $next['starts_in_min'] = (int) round(((mam_session_ts((string) $next['scheduled_at']) ?? false) - time()) / 60);
         $next['register_taken'] = (int) (mam_db_row(
             'SELECT COUNT(*) c FROM session_attendance WHERE session_id = ?', [(int) $next['id']])['c'] ?? 0) > 0;
     }
@@ -181,7 +182,7 @@ function mam_iportal_actions(int $instructorId): array {
            JOIN cohorts co ON co.id = cs.cohort_id
           WHERE co.instructor_id = ? AND cs.status = 'scheduled' AND cs.scheduled_at < ?
             AND NOT EXISTS (SELECT 1 FROM session_attendance sa WHERE sa.session_id = cs.id)",
-        [$instructorId, gmdate('Y-m-d H:i:s')])['c'] ?? 0);
+        [$instructorId, mam_session_now()])['c'] ?? 0);
     if ($open > 0) {
         $out[] = ['kind' => 'register', 'count' => $open,
                   'label' => $open . ' register' . ($open === 1 ? '' : 's') . ' not taken',

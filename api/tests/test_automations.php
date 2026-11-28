@@ -59,7 +59,7 @@ mam_automation_set('payment_provision', true); // restore for any later tests
 
 // ── session_reminder sweep: emails a cohort's students once per session ──
 $coId = mam_db_insert('cohorts', ['title' => 'Reminder Cohort']);
-$sess = mam_db_insert('class_sessions', ['cohort_id' => $coId, 'title' => 'Strings Lab', 'scheduled_at' => date('Y-m-d H:i:s', time() + 7200), 'status' => 'scheduled']);
+$sess = mam_db_insert('class_sessions', ['cohort_id' => $coId, 'title' => 'Strings Lab', 'scheduled_at' => mam_session_wall(time() + 7200), 'status' => 'scheduled']);
 $scid = mam_db_insert('customers', ['email' => 'rem-stu@example.com', 'first_name' => 'Remi', 'last_name' => 'Nder']);
 $suid = mam_db_insert('users', ['email' => 'rem-stu@example.com', 'password_hash' => 'x', 'role' => 'student', 'name' => 'Remi Nder', 'status' => 'active', 'customer_id' => $scid]);
 mam_db_insert('course_enrollments', ['student_id' => $suid, 'course_id' => 1, 'cohort_id' => $coId, 'status' => 'active']);
@@ -68,11 +68,11 @@ t_eq(mam_automation_session_reminder_sweep(24), 0, 'the same session is not remi
 t_ok(mam_db_row("SELECT id FROM events WHERE type = 'session.reminded' AND entity_id = ?", [$sess]) !== null, 'a reminder event is recorded for the session');
 
 // A far-future session is left alone.
-mam_db_insert('class_sessions', ['cohort_id' => $coId, 'title' => 'Next month', 'scheduled_at' => date('Y-m-d H:i:s', time() + 40 * 86400), 'status' => 'scheduled']);
+mam_db_insert('class_sessions', ['cohort_id' => $coId, 'title' => 'Next month', 'scheduled_at' => mam_session_wall(time() + 40 * 86400), 'status' => 'scheduled']);
 t_eq(mam_automation_session_reminder_sweep(24), 0, 'a session beyond the window is not reminded');
 
 // Disabled → no work even with a due session.
-mam_db_insert('class_sessions', ['cohort_id' => $coId, 'title' => 'Soon', 'scheduled_at' => date('Y-m-d H:i:s', time() + 3600), 'status' => 'scheduled']);
+mam_db_insert('class_sessions', ['cohort_id' => $coId, 'title' => 'Soon', 'scheduled_at' => mam_session_wall(time() + 3600), 'status' => 'scheduled']);
 mam_automation_set('session_reminder', false);
 t_eq(mam_automation_session_reminder_sweep(24), 0, 'a paused session_reminder does no work');
 mam_automation_set('session_reminder', true);

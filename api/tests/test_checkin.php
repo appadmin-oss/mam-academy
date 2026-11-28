@@ -24,7 +24,7 @@ $ck_env = function () use (&$ck_seq, $CK_courseId) {
     return ['student' => $stu, 'cohort' => $coh];
 };
 $ck_session = function (int $cohort, int $offsetSec, string $status = 'scheduled') {
-    return mam_db_insert('class_sessions', ['cohort_id' => $cohort, 'title' => 'CK Session', 'scheduled_at' => date('Y-m-d H:i:s', time() + $offsetSec), 'status' => $status, 'kind' => 'class', 'duration_min' => 60]);
+    return mam_db_insert('class_sessions', ['cohort_id' => $cohort, 'title' => 'CK Session', 'scheduled_at' => mam_session_wall(time() + $offsetSec), 'status' => $status, 'kind' => 'class', 'duration_min' => 60]);
 };
 
 t_group('checkin — self check-in + late window');

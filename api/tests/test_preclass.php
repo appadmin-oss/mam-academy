@@ -29,7 +29,7 @@ t_eq((int) $lrow['week_no'], 4, 'week number stored');
 t_eq((int) $lrow['teachback_required'], 1, 'teach-back requirement stored');
 
 // A session that delivers the module.
-$PC_sess = mam_db_insert('class_sessions', ['cohort_id' => $PC_coh, 'title' => 'Week 4 class', 'scheduled_at' => date('Y-m-d H:i:s', time() + 2 * 86400), 'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class', 'lesson_id' => $PC_les]);
+$PC_sess = mam_db_insert('class_sessions', ['cohort_id' => $PC_coh, 'title' => 'Week 4 class', 'scheduled_at' => mam_session_wall(time() + 2 * 86400), 'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class', 'lesson_id' => $PC_les]);
 
 $next = mam_preclass_next($PC_stu);
 t_ok($next !== null && (int) $next['session']['id'] === $PC_sess, 'next-class card resolves the upcoming session');

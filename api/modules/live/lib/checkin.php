@@ -84,7 +84,7 @@ function mam_checkin_distance_m(float $lat1, float $lng1, float $lat2, float $ln
 function mam_checkin_session_on(int $studentId, ?string $day = null): ?array {
     $cohorts = mam_checkin_student_cohorts($studentId);
     if (!$cohorts) return null;
-    $day = $day ?: date('Y-m-d');
+    $day = $day ?: mam_session_today(); // a Lagos day: session times are Lagos wall-clock (session-time.php)
     $ph  = implode(',', array_fill(0, count($cohorts), '?'));
     return mam_db_row(
         "SELECT cs.id, cs.cohort_id, cs.title, cs.scheduled_at, cs.duration_min, co.title AS cohort_title
@@ -123,7 +123,7 @@ function mam_checkin_self(int $studentId, int $sessionId, ?float $lat = null, ?f
     if (!$enrolled) throw new RuntimeException('not_enrolled');
 
     $now     = time();
-    $startTs = strtotime((string) $sess['scheduled_at']);
+    $startTs = mam_session_ts((string) $sess['scheduled_at']) ?? false; // Lagos wall-clock → instant
     if ($startTs === false) throw new RuntimeException('session_unscheduled');
     if ($now < $startTs - $cfg['open_before_min'] * 60) throw new RuntimeException('checkin_not_open');
     // Closes at end-of-session + a generous late tail (2× duration or 2h).
@@ -202,7 +202,7 @@ function mam_checkin_self(int $studentId, int $sessionId, ?float $lat = null, ?f
  */
 function mam_checkin_window(string $scheduledAt, int $durationMin = 60, ?int $nowTs = null, ?string $mode = null): array {
     $cfg     = mam_checkin_config();
-    $startTs = strtotime($scheduledAt);
+    $startTs = mam_session_ts($scheduledAt) ?? false; // Lagos wall-clock → instant
     if ($startTs === false) throw new RuntimeException('session_unscheduled');
     $now     = $nowTs ?? time();
     $opensTs = $startTs - $cfg['open_before_min'] * 60;
@@ -215,12 +215,13 @@ function mam_checkin_window(string $scheduledAt, int $durationMin = 60, ?int $no
     elseif ($now <  $endTs)   $state = 'in_progress';
     else                      $state = 'ended';
 
-    $t = fn(int $ts) => date('g:i A', $ts);
+    $t = fn(int $ts) => mam_session_clock($ts); // shown in Lagos time
     return [
-        'opens_at'         => date('Y-m-d H:i:s', $opensTs),
-        'ready_by'         => date('Y-m-d H:i:s', $readyTs),
-        'starts_at'        => date('Y-m-d H:i:s', $startTs),
-        'ends_at'          => date('Y-m-d H:i:s', $endTs),
+        // The same wall-clock form scheduled_at is stored in.
+        'opens_at'         => mam_session_wall($opensTs),
+        'ready_by'         => mam_session_wall($readyTs),
+        'starts_at'        => mam_session_wall($startTs),
+        'ends_at'          => mam_session_wall($endTs),
         'open_before_min'  => $cfg['open_before_min'],
         'ready_before_min' => $cfg['ready_before_min'],
         'seconds_to_start' => $startTs - $now,
@@ -254,7 +255,7 @@ function mam_checkin_next_class(int $studentId): ?array {
            FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id
           WHERE cs.cohort_id IN ($ph) AND cs.status = 'scheduled' AND cs.scheduled_at >= ?
           ORDER BY cs.scheduled_at ASC LIMIT 1",
-        array_merge($cohorts, [date('Y-m-d H:i:s', time() - 3600)])
+        array_merge($cohorts, [mam_session_wall(time() - 3600)])
     );
     if (!$sess) return null;
 
@@ -324,7 +325,7 @@ function mam_checkin_clock_out(int $studentId, int $sessionId, ?int $nowTs = nul
 
     $now     = $nowTs ?? time();
     $inTs    = $att['checked_in_at'] ? strtotime((string) $att['checked_in_at']) : null;
-    $startTs = strtotime((string) $sess['scheduled_at']);
+    $startTs = mam_session_ts((string) $sess['scheduled_at']) ?? false;
     // Measure from the later of check-in and scheduled start: arriving early
     // and waiting is not instructional time.
     $fromTs  = max($inTs ?: $startTs, $startTs ?: $inTs);
@@ -390,7 +391,7 @@ function mam_checkin_streak(int $studentId, int $grace = 0): int {
     $cohorts = mam_checkin_student_cohorts($studentId);
     if (!$cohorts) return 0;
     $ph  = implode(',', array_fill(0, count($cohorts), '?'));
-    $now = date('Y-m-d H:i:s');
+    $now = mam_session_now();
     $sessions = mam_db_all(
         "SELECT cs.id FROM class_sessions cs
           WHERE cs.cohort_id IN ($ph) AND cs.scheduled_at <= ? AND cs.status IN ('scheduled','held')
@@ -445,7 +446,7 @@ function mam_checkin_attendance_rate(int $studentId): ?float {
     if (!$cohorts) return null;
     $ph  = implode(',', array_fill(0, count($cohorts), '?'));
     $stat = implode(',', array_fill(0, count(MAM_CHECKIN_COUNTED_SESSION_STATUSES), '?'));
-    $now = date('Y-m-d H:i:s');
+    $now = mam_session_now();
 
     // ONE query, so the numerator and the denominator cannot disagree about
     // which sessions count. They used to be two: the total filtered
@@ -522,7 +523,7 @@ function mam_checkin_dashboard(int $studentId): array {
                FROM class_sessions cs JOIN cohorts co ON co.id = cs.cohort_id
               WHERE cs.cohort_id IN ($ph) AND cs.status = 'scheduled' AND cs.scheduled_at >= ?
               ORDER BY cs.scheduled_at ASC LIMIT 1",
-            array_merge($cohorts, [date('Y-m-d H:i:s')])
+            array_merge($cohorts, [mam_session_now()])
         );
     }
 
@@ -531,7 +532,7 @@ function mam_checkin_dashboard(int $studentId): array {
     $todayState = null;
     if ($today) {
         $att = mam_db_row('SELECT status, checked_in_at, method FROM session_attendance WHERE session_id = ? AND student_id = ?', [(int) $today['id'], $studentId]);
-        $startTs = strtotime((string) $today['scheduled_at']);
+        $startTs = mam_session_ts((string) $today['scheduled_at']) ?? false;
         $canNow = $startTs !== false
             && $now >= $startTs - $cfg['open_before_min'] * 60
             && $now <= $startTs + max((int) ($today['duration_min'] ?? 60) * 2, 120) * 60;

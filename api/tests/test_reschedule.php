@@ -85,7 +85,7 @@ t_group('reschedule — paid wallet flow + honest revenue');
 $e = $rs_env(5000); // $50 credit
 // Burn the free allowance first so the next request is billable.
 mam_reschedule_create($e['student'], $e['cohort'], $rs_moves([$e['sessions'][0]]), 'first (free)');
-$e2sessions = [mam_db_insert('class_sessions', ['cohort_id' => $e['cohort'], 'scheduled_at' => date('Y-m-d H:i:s', time() + 12 * 86400), 'status' => 'scheduled', 'kind' => 'class', 'duration_min' => 60])];
+$e2sessions = [mam_db_insert('class_sessions', ['cohort_id' => $e['cohort'], 'scheduled_at' => mam_session_wall(time() + 12 * 86400), 'status' => 'scheduled', 'kind' => 'class', 'duration_min' => 60])];
 $paid = mam_reschedule_create($e['student'], $e['cohort'], $rs_moves($e2sessions), 'second (paid)');
 t_eq($paid['status'], 'pending_payment', 'billable request awaits payment');
 t_eq((int)$paid['fee_usd_cents'], 1000, 'fee is $10');

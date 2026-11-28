@@ -225,16 +225,16 @@ t_eq(mam_meeting_google_sweep(), 0, 'the sweep does nothing while the integratio
 // Its selection rules are worth pinning even without credentials: only online
 // or hybrid sessions, only ones that have finished settling, only once.
 $GM_online = mam_db_insert('class_sessions', ['cohort_id' => $GM_coh, 'title' => 'Finished online',
-    'scheduled_at' => date('Y-m-d H:i:s', time() - 3 * 3600), 'status' => 'held', 'duration_min' => 60, 'kind' => 'class', 'mode' => 'online']);
+    'scheduled_at' => mam_session_wall(time() - 3 * 3600), 'status' => 'held', 'duration_min' => 60, 'kind' => 'class', 'mode' => 'online']);
 $GM_onsite = mam_db_insert('class_sessions', ['cohort_id' => $GM_coh, 'title' => 'Finished onsite',
-    'scheduled_at' => date('Y-m-d H:i:s', time() - 3 * 3600), 'status' => 'held', 'duration_min' => 60, 'kind' => 'class', 'mode' => 'onsite']);
+    'scheduled_at' => mam_session_wall(time() - 3 * 3600), 'status' => 'held', 'duration_min' => 60, 'kind' => 'class', 'mode' => 'onsite']);
 $GM_running = mam_db_insert('class_sessions', ['cohort_id' => $GM_coh, 'title' => 'Still running',
-    'scheduled_at' => date('Y-m-d H:i:s', time() - 10 * 60), 'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class', 'mode' => 'online']);
+    'scheduled_at' => mam_session_wall(time() - 10 * 60), 'status' => 'scheduled', 'duration_min' => 60, 'kind' => 'class', 'mode' => 'online']);
 
 $GM_candidates = mam_db_all(
     "SELECT id, scheduled_at, duration_min FROM class_sessions
       WHERE scheduled_at >= ? AND scheduled_at <= ? AND mode IN ('online','hybrid')",
-    [date('Y-m-d H:i:s', time() - 24 * 3600), date('Y-m-d H:i:s')]
+    [mam_session_wall(time() - 24 * 3600), mam_session_now()]
 );
 $GM_ids = array_map(fn($r) => (int) $r['id'], $GM_candidates);
 t_ok(in_array($GM_online, $GM_ids, true), 'a finished online session is a sweep candidate');
@@ -244,7 +244,7 @@ t_ok(!in_array($GM_onsite, $GM_ids, true), 'an onsite session is not — there i
 // Reports lags the call and would return an incomplete participant list.
 $stillSettling = 0;
 foreach ($GM_candidates as $c) {
-    $end = strtotime((string) $c['scheduled_at']) + (int) $c['duration_min'] * 60;
+    $end = mam_session_ts((string) $c['scheduled_at']) + (int) $c['duration_min'] * 60;
     if (time() < $end + 10 * 60 && (int) $c['id'] === $GM_running) $stillSettling++;
 }
 t_eq($stillSettling, 1, 'a session that has not finished settling is held back');

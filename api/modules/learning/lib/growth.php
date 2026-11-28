@@ -99,7 +99,7 @@ function mam_growth_timeline(int $studentId, int $weeks = 12): array {
                           JOIN course_enrollments ce ON ce.cohort_id = cs.cohort_id AND ce.student_id = ? AND ce.status IN ('active','completed')
                           LEFT JOIN session_attendance sa ON sa.session_id = cs.id AND sa.student_id = ce.student_id
                          WHERE cs.scheduled_at >= ? AND cs.scheduled_at <= ? AND COALESCE(cs.status,'scheduled') NOT IN ('cancelled','canceled')",
-                        [$studentId, $start, gmdate('Y-m-d H:i:s')]) as $r) {
+                        [$studentId, $start, mam_session_now()]) as $r) {
         $w = $wk((string) $r['scheduled_at']); if (!isset($series[$w])) continue;
         $series[$w]['classes'] = (int) $series[$w]['classes'] + 1;
         $series[$w]['attended'] = (int) $series[$w]['attended'] + (in_array($r['status'], ['present', 'late', 'left_early'], true) ? 1 : 0);

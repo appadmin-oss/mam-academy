@@ -20,7 +20,7 @@ if (!$sess) mam_fail('session_not_found', 404);
 if (!$isAdmin && !mam_lms_instructor_owns_cohort((int)$u['id'], (int)$sess['cohort_id'])) mam_fail('forbidden', 403);
 
 // Scope the QR to the session's scheduled day (fall back to today).
-$date  = !empty($sess['scheduled_at']) ? date('Y-m-d', (int)strtotime((string)$sess['scheduled_at'])) : date('Y-m-d');
+$date  = !empty($sess['scheduled_at']) ? mam_session_fmt((string) $sess['scheduled_at'], 'Y-m-d') : date('Y-m-d');
 $token = mam_attendance_session_token($sessionId, $date);
 $base  = rtrim((string)mam_env('APP_URL', 'https://academy.mamcentre.org'), '/');
 

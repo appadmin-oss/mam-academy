@@ -48,7 +48,7 @@ mam_db_insert('course_enrollments', [
 ]);
 $iwHeld = mam_db_insert('class_sessions', [
     'cohort_id' => $iwCohort, 'title' => 'Held session', 'status' => 'held',
-    'scheduled_at' => date('Y-m-d H:i:s', strtotime('-3 hours')), 'created_at' => date('Y-m-d H:i:s'),
+    'scheduled_at' => mam_session_wall(strtotime('-3 hours')), 'created_at' => date('Y-m-d H:i:s'),
 ]);
 
 $iw = mam_lms2_instructor_worklist($iwIns);
@@ -77,14 +77,14 @@ t_ok($iw2['reports_due'][0]['hours_left'] >= 0 && $iw2['reports_due'][0]['hours_
 t_ok($iw2['reports_due'][0]['overdue'] === false, 'not yet overdue');
 // The scheduled time is three hours ago; a recomputed "+2h from scheduled_at"
 // would already be overdue, which is exactly the disagreement this avoids.
-t_ok(strtotime($iw2['reports_due'][0]['scheduled_at'] . ' +2 hours') < time(),
+t_ok(mam_session_ts($iw2['reports_due'][0]['scheduled_at']) + 2 * 3600 < time(),
     'and a naive +2h from the scheduled time WOULD have said overdue — the two do not agree, so the source matters');
 
 t_group('instructor worklist — overdue is derived at read time');
 
 $iwPast = mam_db_insert('class_sessions', [
     'cohort_id' => $iwCohort, 'title' => 'Older session', 'status' => 'held',
-    'scheduled_at' => date('Y-m-d H:i:s', strtotime('-2 days')), 'created_at' => date('Y-m-d H:i:s'),
+    'scheduled_at' => mam_session_wall(strtotime('-2 days')), 'created_at' => date('Y-m-d H:i:s'),
 ]);
 mam_job_enqueue('progress_report_deadline', ['session_id' => $iwPast], date('Y-m-d H:i:s', strtotime('-1 day')));
 $iw3 = mam_lms2_instructor_worklist($iwIns);
@@ -110,7 +110,7 @@ t_group('instructor worklist — the next session, and marking attendance');
 
 $iwNext = mam_db_insert('class_sessions', [
     'cohort_id' => $iwCohort, 'title' => 'Upcoming session', 'status' => 'scheduled',
-    'scheduled_at' => date('Y-m-d H:i:s', strtotime('+45 minutes')), 'created_at' => date('Y-m-d H:i:s'),
+    'scheduled_at' => mam_session_wall(strtotime('+45 minutes')), 'created_at' => date('Y-m-d H:i:s'),
 ]);
 $iw5 = mam_lms2_instructor_worklist($iwIns);
 t_ok($iw5['next_session'] !== null, 'the next scheduled session is surfaced');

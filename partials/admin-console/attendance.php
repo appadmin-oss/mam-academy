@@ -41,11 +41,11 @@ $w = $d['window'] ?? null;
         <?php if (!($d['sessions'] ?? [])): ?>
           <?php ac_table_empty(5, 'No sessions scheduled on this day.'); ?>
         <?php else: foreach ($d['sessions'] as $s):
-          $ts = strtotime((string) $s['scheduled_at']);
+          $ts = (mam_session_ts((string) $s['scheduled_at']) ?? false);
           $marks = (int) $s['marks'];
           $overdue = $marks === 0 && $ts < time() - 3600; ?>
           <tr>
-            <td class="ac-num ac-mono"><?= ac_h(date('H:i', $ts)) ?></td>
+            <td class="ac-num ac-mono"><?= ac_h(mam_session_clock($ts ?: null, 'H:i')) ?></td>
             <td><div class="ac-strong"><?= ac_h((string) ($s['title'] ?: $s['cohort'] ?: 'Session')) ?>
                 <?php if ((string) ($s['mode'] ?? '') === 'online'): ?><?= ac_tag('online') ?><?php endif; ?></div>
                 <div class="ac-sub"><?= ac_h(ac_join([

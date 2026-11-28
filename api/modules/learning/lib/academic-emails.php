@@ -71,7 +71,7 @@ function mam_acadmail_roster(int $cohortId): array {
 /** #1 — pre-class reminder for sessions within the next $hours. */
 function mam_acadmail_preclass_reminder_sweep(int $hours = 24, int $limit = 100): int {
     if (!mam_acadmail_enabled()) return 0;
-    $now = date('Y-m-d H:i:s'); $until = date('Y-m-d H:i:s', time() + $hours * 3600);
+    $now = mam_session_now(); $until = mam_session_wall(time() + $hours * 3600); // vs scheduled_at (Lagos)
     $sent = 0;
     try {
         $sessions = mam_db_all("SELECT id, cohort_id, title, scheduled_at FROM class_sessions WHERE status = 'scheduled' AND scheduled_at > ? AND scheduled_at <= ? ORDER BY scheduled_at LIMIT " . max(1, $limit), [$now, $until]);
@@ -89,7 +89,7 @@ function mam_acadmail_preclass_reminder_sweep(int $hours = 24, int $limit = 100)
 /** #5 — absence notice for students with no attendance on a recently-held session. */
 function mam_acadmail_absence_sweep(int $lookbackHours = 24, int $limit = 100): int {
     if (!mam_acadmail_enabled()) return 0;
-    $since = date('Y-m-d H:i:s', time() - $lookbackHours * 3600); $now = date('Y-m-d H:i:s');
+    $since = mam_session_wall(time() - $lookbackHours * 3600); $now = mam_session_now(); // vs scheduled_at (Lagos)
     $sent = 0;
     try {
         $sessions = mam_db_all("SELECT id, cohort_id, title FROM class_sessions WHERE status IN ('held','scheduled') AND scheduled_at >= ? AND scheduled_at <= ? LIMIT " . max(1, $limit), [$since, $now]);
@@ -108,7 +108,7 @@ function mam_acadmail_absence_sweep(int $lookbackHours = 24, int $limit = 100): 
 /** #6 — preparation alert for imminent sessions where prep is incomplete. */
 function mam_acadmail_prep_alert_sweep(int $hours = 6, int $limit = 100): int {
     if (!mam_acadmail_enabled()) return 0;
-    $now = date('Y-m-d H:i:s'); $until = date('Y-m-d H:i:s', time() + $hours * 3600);
+    $now = mam_session_now(); $until = mam_session_wall(time() + $hours * 3600); // vs scheduled_at (Lagos)
     $sent = 0;
     try {
         $sessions = mam_db_all("SELECT id, cohort_id, title, lesson_id FROM class_sessions WHERE status = 'scheduled' AND lesson_id IS NOT NULL AND scheduled_at > ? AND scheduled_at <= ? LIMIT " . max(1, $limit), [$now, $until]);

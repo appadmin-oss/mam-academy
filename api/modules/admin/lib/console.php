@@ -331,7 +331,7 @@ function mam_console_badges(): array {
         "SELECT COUNT(*) FROM class_sessions cs
           WHERE cs.status = 'scheduled' AND cs.scheduled_at < ?
             AND NOT EXISTS (SELECT 1 FROM session_attendance sa WHERE sa.session_id = cs.id)",
-        [gmdate('Y-m-d H:i:s')]);
+        [mam_session_now()]);
     $b['charges'] = mam_console_int('badge.charges',
         "SELECT COUNT(*) FROM accountability_charges WHERE status IN ('waiver_requested','disputed')");
     $b['support'] = mam_console_int('badge.support',
@@ -503,7 +503,7 @@ function mam_console_decisions(): array {
         "SELECT COUNT(*) FROM class_sessions cs
           WHERE cs.status = 'scheduled' AND cs.scheduled_at < ?
             AND NOT EXISTS (SELECT 1 FROM session_attendance sa WHERE sa.session_id = cs.id)",
-        [gmdate('Y-m-d H:i:s', time() - 3600)]);
+        [mam_session_wall(time() - 3600)]);
     if ($unmarked > 0) $q[] = ['screen' => 'attendance', 'blocking' => false, 'age' => '—',
         'title' => $unmarked . ' register' . ($unmarked === 1 ? '' : 's') . ' unmarked',
         'why' => 'A session that happened with no register cannot be reconciled against anything.'];
@@ -563,7 +563,7 @@ function mam_console_dashboard(): array {
         "SELECT COUNT(*) FROM class_sessions cs
           WHERE cs.status = 'scheduled' AND cs.scheduled_at < ?
             AND NOT EXISTS (SELECT 1 FROM session_attendance sa WHERE sa.session_id = cs.id)",
-        [gmdate('Y-m-d H:i:s')]);
+        [mam_session_now()]);
 
     $overdue = mam_console_int('dash.overdue',
         "SELECT COUNT(*) FROM fee_invoices WHERE status IN ('issued','part_paid') AND due_on < ?",
@@ -571,7 +571,7 @@ function mam_console_dashboard(): array {
     $openInv = mam_console_int('dash.openinv',
         "SELECT COUNT(*) FROM fee_invoices WHERE status IN ('issued','part_paid')");
 
-    $today = date('Y-m-d');
+    $today = mam_session_today(); // a Lagos day — scheduled_at is Lagos wall-clock
     $todaySessions = mam_console_rows('dash.today',
         "SELECT cs.id, cs.title, cs.scheduled_at, cs.mode, cs.room, cs.status, c.title cohort
            FROM class_sessions cs LEFT JOIN cohorts c ON c.id = cs.cohort_id
@@ -1296,7 +1296,7 @@ function mam_console_roster_extra(array $q, int $sel, ?array $cohort, array $ros
         $out['upcoming'] = mam_console_rows('ros.upcoming',
             "SELECT id, title, scheduled_at, duration_min, status, room, mode FROM class_sessions
               WHERE cohort_id = ? AND scheduled_at >= ? AND status <> 'cancelled'
-              ORDER BY scheduled_at LIMIT 8", [$sel, date('Y-m-d H:i:s')]);
+              ORDER BY scheduled_at LIMIT 8", [$sel, mam_session_now()]);
 
         $find = trim((string) ($q['find'] ?? ''));
         $out['find'] = mb_substr($find, 0, 80);
@@ -1348,7 +1348,8 @@ function mam_console_roster_extra(array $q, int $sel, ?array $cohort, array $ros
    filter that hid a clash's other half would make the clash invisible. */
 function mam_console_timetable(array $q = []): array {
     $offset = max(-104, min(104, (int) ($q['w'] ?? 0)));
-    $monday = strtotime('monday this week', time() + $offset * 7 * 86400);
+    // The week is a Lagos week: scheduled_at is Lagos wall-clock.
+    $monday = strtotime('monday this week', strtotime(mam_session_today() . ' 12:00:00') + $offset * 7 * 86400);
     $from = date('Y-m-d', $monday);
     $to   = date('Y-m-d', $monday + 7 * 86400);
     $by   = in_array((string) ($q['by'] ?? ''), ['time', 'room', 'instructor'], true) ? (string) $q['by'] : 'time';
@@ -1375,13 +1376,13 @@ function mam_console_timetable(array $q = []): array {
     // cancelled session occupies nothing; an online one shares no walls.
     $clashes = [];
     $live = array_values(array_filter($all, fn($r) => ($r['status'] ?? '') !== 'cancelled'));
-    $end = fn($r) => strtotime((string) $r['scheduled_at']) + max(15, (int) ($r['duration_min'] ?: 60)) * 60;
+    $end = fn($r) => (mam_session_ts((string) $r['scheduled_at']) ?? false) + max(15, (int) ($r['duration_min'] ?: 60)) * 60;
     $teacher = fn($r) => (int) ($r['substitute_id'] ?: $r['instructor_id'] ?: 0);
     for ($i = 0; $i < count($live); $i++) {
         for ($j = $i + 1; $j < count($live); $j++) {
             $a = $live[$i]; $b = $live[$j];
-            if (strtotime((string) $b['scheduled_at']) >= $end($a)) break;  // sorted by start
-            $overlap = (int) round((min($end($a), $end($b)) - strtotime((string) $b['scheduled_at'])) / 60);
+            if ((mam_session_ts((string) $b['scheduled_at']) ?? false) >= $end($a)) break;  // sorted by start
+            $overlap = (int) round((min($end($a), $end($b)) - (mam_session_ts((string) $b['scheduled_at']) ?? false)) / 60);
             $roomA = ($a['mode'] ?? '') === 'online' ? '' : trim((string) ($a['room_name'] ?: $a['room'] ?: ''));
             $roomB = ($b['mode'] ?? '') === 'online' ? '' : trim((string) ($b['room_name'] ?: $b['room'] ?: ''));
             if ($roomA !== '' && strcasecmp($roomA, $roomB) === 0) {
@@ -1404,11 +1405,11 @@ function mam_console_timetable(array $q = []): array {
     for ($i = 0; $i < count($live); $i++) {
         for ($j = $i + 1; $j < count($live); $j++) {
             $a = $live[$i]; $b = $live[$j];
-            if (strtotime((string) $b['scheduled_at']) >= $end($a)) break;
+            if ((mam_session_ts((string) $b['scheduled_at']) ?? false) >= $end($a)) break;
             if ((int) $a['cohort_id'] === (int) $b['cohort_id']) continue;
             $shared = count(array_intersect_key($members[(int) $a['cohort_id']] ?? [], $members[(int) $b['cohort_id']] ?? []));
             if ($shared) $clashes[] = ['kind' => 'learner', 'room' => '', 'who' => $shared . ' learner' . ($shared === 1 ? '' : 's'), 'a' => $a, 'b' => $b,
-                'overlap_min' => (int) round((min($end($a), $end($b)) - strtotime((string) $b['scheduled_at'])) / 60)];
+                'overlap_min' => (int) round((min($end($a), $end($b)) - (mam_session_ts((string) $b['scheduled_at']) ?? false)) / 60)];
         }
     }
     // Teacher load this week, beside the rooms' utilisation.
@@ -1740,8 +1741,8 @@ function mam_console_funnel(): array {
    ───────────────────────────────────────────────────────────────────────── */
 
 function mam_console_attendance(array $q = []): array {
-    $day = (string) ($q['d'] ?? date('Y-m-d'));
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) $day = date('Y-m-d');
+    $day = (string) ($q['d'] ?? mam_session_today());
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) $day = mam_session_today();
 
     $sessions = mam_console_rows('att.sessions',
         "SELECT cs.id, cs.title, cs.scheduled_at, cs.duration_min, cs.status, cs.mode, cs.room,
@@ -1779,7 +1780,7 @@ function mam_console_attendance(array $q = []): array {
 
     $late = 0;
     foreach ($sessions as $s) {
-        if ((int) $s['marks'] === 0 && strtotime((string) $s['scheduled_at']) < time() - 3600) $late++;
+        if ((int) $s['marks'] === 0 && (mam_session_ts((string) $s['scheduled_at']) ?? false) < time() - 3600) $late++;
     }
 
     return ['day' => $day, 'sessions' => $sessions, 'absent' => $absent,
@@ -1790,7 +1791,7 @@ function mam_console_attendance(array $q = []): array {
         // threshold — never restate either as a literal here or in the browser.
         'window' => (function () use ($sessions) {
             foreach ($sessions as $s) {
-                if (strtotime((string) $s['scheduled_at']) >= time() - 3600) {
+                if ((mam_session_ts((string) $s['scheduled_at']) ?? false) >= time() - 3600) {
                     return mam_console_try('att.window', fn() => mam_checkin_window(
                         (string) $s['scheduled_at'], (int) ($s['duration_min'] ?: 60)), null);
                 }

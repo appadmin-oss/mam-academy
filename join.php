@@ -28,6 +28,7 @@ require_once MAM_API_ROOT . '/modules/kernel/lib/settings.php';
 require_once MAM_API_ROOT . '/modules/kernel/lib/validation.php';
 require_once MAM_API_ROOT . '/modules/kernel/lib/session.php';
 require_once MAM_API_ROOT . '/modules/identity/lib/auth.php';
+require_once MAM_API_ROOT . '/modules/academics/lib/session-time.php'; // scheduled_at is Lagos wall-clock
 
 function mam_env(string $key, $default = null) {
     static $env = null;
@@ -132,7 +133,7 @@ if ($type === 'session' && $id > 0) {
               WHERE cohort_id = ? AND status = 'scheduled' AND meeting_link IS NOT NULL AND meeting_link <> ''
                 AND scheduled_at >= ?
               ORDER BY scheduled_at ASC, id ASC LIMIT 1",
-            [(int)$co['id'], gmdate('Y-m-d H:i:s', time() - 3 * 3600)]
+            [(int)$co['id'], mam_session_wall(time() - 3 * 3600)]
         );
         $meetingLink = $sess ? (string)$sess['meeting_link'] : null;
 

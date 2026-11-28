@@ -301,8 +301,9 @@ function mam_automations_list(): array {
  */
 function mam_automation_session_reminder_sweep(int $withinHours = 24, int $limit = 100): int {
     if (!function_exists('mam_db') || !mam_automation_on('session_reminder')) return 0;
-    $now   = date('Y-m-d H:i:s');
-    $until = date('Y-m-d H:i:s', time() + max(1, $withinHours) * 3600);
+    // Compared with scheduled_at, which is Lagos wall-clock (session-time.php).
+    $now   = mam_session_now();
+    $until = mam_session_wall(time() + max(1, $withinHours) * 3600);
     try {
         $sessions = mam_db_all(
             "SELECT cs.id, cs.cohort_id, cs.title, cs.scheduled_at, cs.meeting_link
@@ -329,7 +330,7 @@ function mam_automation_session_reminder_sweep(int $withinHours = 24, int $limit
                     AND u.email IS NOT NULL AND u.email <> ''",
                 [(int)$s['cohort_id']]
             );
-            $whenLabel = date('l j M, g:i A', strtotime((string)$s['scheduled_at']));
+            $whenLabel = mam_session_fmt((string) $s['scheduled_at'], 'l j M, g:i A');
             foreach ($students as $st) {
                 if (function_exists('mam_send') && function_exists('mam_email_session_reminder')) {
                     mam_send((string)$st['email'], 'Reminder: your MAM Academy session is coming up',

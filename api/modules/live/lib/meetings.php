@@ -53,7 +53,7 @@ function mam_meeting_clock_in(int $sessionId, int $instructorId): array {
 
     $cfg = mam_meeting_config();
     $now = time();
-    $startTs = $sess['scheduled_at'] ? strtotime((string) $sess['scheduled_at']) : false;
+    $startTs = $sess['scheduled_at'] ? (mam_session_ts((string) $sess['scheduled_at']) ?? false) : false;
     $minsLate = ($startTs !== false && $now > $startTs) ? (int) round(($now - $startTs) / 60) : 0;
     $late = $minsLate > $cfg['clockin_grace_min'];
     $status = $late ? 'late' : 'present';
@@ -350,7 +350,7 @@ function mam_meeting_google_fetch(int $sessionId, int $padMin = 60): ?array {
     if (!mam_meeting_google_configured()) return null;
     $sess = mam_db_row('SELECT id, scheduled_at, duration_min, meeting_link FROM class_sessions WHERE id = ?', [$sessionId]);
     if (!$sess || empty($sess['scheduled_at'])) return null;
-    $startTs = strtotime((string) $sess['scheduled_at']);
+    $startTs = (mam_session_ts((string) $sess['scheduled_at']) ?? false);
     if ($startTs === false) return null;
 
     $token = mam_meeting_google_token();
@@ -409,16 +409,16 @@ function mam_meeting_google_sync(int $sessionId): ?int {
 function mam_meeting_google_sweep(int $lookbackHours = 24, int $settleMin = 10, int $limit = 50): int {
     if (!mam_meeting_google_configured()) return 0;
     $now  = time();
-    $from = date('Y-m-d H:i:s', $now - max(1, $lookbackHours) * 3600);
+    $from = mam_session_wall($now - max(1, $lookbackHours) * 3600); // compared with scheduled_at (Lagos wall-clock)
     $rows = mam_db_all(
         "SELECT id, scheduled_at, duration_min FROM class_sessions
           WHERE scheduled_at >= ? AND scheduled_at <= ? AND mode IN ('online','hybrid')
           ORDER BY scheduled_at DESC LIMIT " . max(1, min(200, $limit)),
-        [$from, date('Y-m-d H:i:s', $now)]
+        [$from, mam_session_wall($now)]
     );
     $done = 0;
     foreach ($rows as $r) {
-        $endTs = strtotime((string) $r['scheduled_at']);
+        $endTs = (mam_session_ts((string) $r['scheduled_at']) ?? false);
         if ($endTs === false) continue;
         $endTs += (int) ($r['duration_min'] ?? 60) * 60;
         if ($now < $endTs + $settleMin * 60) continue;   // still settling

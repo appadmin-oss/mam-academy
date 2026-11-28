@@ -60,8 +60,8 @@ const MAM_SPORTAL_SCREENS = ['home', 'train', 'learn', 'attend', 'more', 'money'
  *  client formats ("started 3 minutes ago"), not an error. */
 function mam_sportal_starts_in(?string $at): ?int {
     if (!$at) return null;
-    $ts = strtotime($at);
-    return $ts === false ? null : (int) round(($ts - time()) / 60);
+    $ts = mam_session_ts($at); // a session time: Lagos wall-clock (was read as UTC — an hour out)
+    return $ts === null ? null : (int) round(($ts - time()) / 60);
 }
 
 /**
