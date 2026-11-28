@@ -111,3 +111,31 @@ $AH_cons = (string) file_get_contents(MAM_API_ROOT . '/routes/parent/consent.php
 t_ok(str_contains($AH_cons, "mam_parent_scope_allows((int) \$u['id'], \$sid, 'consents')"), "changing consent needs the Full scope's 'consents' grant");
 t_ok(!mam_parent_scope_allows($AH_std, $AH_kid, 'consents') && !mam_parent_scope_allows($AH_bill, $AH_kid, 'consents'),
     'neither a standard nor a billing guardian holds the consents grant');
+
+t_group('learning — a teach-back is scored on its own 0–5 scale');
+
+if (mam_db_driver() === 'sqlite') {
+    $AH_tbKid = (int) mam_db_insert('users', ['name' => 'Teachback Kid', 'email' => 'tbkid.ah@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
+    $AH_tbRow = ['student_id' => $AH_tbKid, 'lesson_id' => 987654, 'status' => 'reviewed'];
+    foreach (['understanding', 'accuracy', 'vocabulary', 'explanation', 'application', 'confidence'] as $AH_d) $AH_tbRow[$AH_d] = 5;
+    // Only the scale arithmetic is under test, so the row needs no real lesson.
+    mam_db()->exec('PRAGMA foreign_keys = OFF');
+    try { mam_db_insert('teachbacks', $AH_tbRow); } finally { mam_db()->exec('PRAGMA foreign_keys = ON'); }
+    $AH_comp = mam_mastery_components($AH_tbKid);
+    $AH_tb = $AH_comp['teachback'] ?? null;
+    if ($AH_tb === null) foreach ($AH_comp as $AH_c) if (($AH_c['key'] ?? '') === 'teachback') $AH_tb = $AH_c;
+    t_ok($AH_tb !== null, 'a reviewed teach-back yields a teach-back mastery component');
+    $AH_pct = $AH_tb['pct'] ?? (isset($AH_tb['max']) && $AH_tb['max'] > 0 ? $AH_tb['earned'] / $AH_tb['max'] * 100 : null);
+    t_ok($AH_pct !== null && (float) $AH_pct >= 99.0, 'six dimensions at 5/5 read as 100%, not 5% [' . var_export($AH_pct, true) . ']');
+    mam_db()->exec('DELETE FROM teachbacks WHERE student_id = ' . $AH_tbKid);
+}
+
+t_group('learning — no rank against classmates reaches a student or guardian');
+
+foreach (['/modules/learning/lib/progress.php', '/routes/student/grades.php'] as $AH_f) {
+    $AH_src = (string) file_get_contents(MAM_API_ROOT . $AH_f);
+    t_ok(!str_contains($AH_src, 'mam_lms2_cohort_percentile('), "$AH_f no longer computes a cohort rank or percentile");
+}
+$AH_rk = (int) mam_db_insert('users', ['name' => 'Rank Kid', 'email' => 'rankkid.ah@test.local', 'role' => 'student', 'password_hash' => 'x', 'status' => 'active']);
+$AH_pr = function_exists('mam_progress_report_data') ? mam_progress_report_data($AH_rk) : [];
+t_eq($AH_pr['academic']['percentiles'] ?? [], [], 'the progress summary (student, guardian, printed report) carries no percentiles');

@@ -99,12 +99,59 @@ Clever and Khan Academy):
 - **Money is always an integer in minor units plus currency**, with FX quotes
   stored (rate, source, time).
 
-### 2.4 Learning
+### 2.4 Learning (from the learning-structure audit)
 
-Pending the learning-structure audit. Constraints already known: one scoring
-pipeline (evidence → mark → result → mastery → report → certificate), and the
-academy's refusals stay (no automatic scoring of a child's playing, no
-rankings, bands with a coverage floor, human-ratified reports).
+Today there are:
+- **three syllabus hierarchies**: `modules`, cohort `lessons` (never linked
+  to a module), and the PHP curriculum seed;
+- **12 scoring systems** (letters A–F, rubric points,
+  Pass/Merit/Distinction, exam bands, tiers, 0–5 teach-backs, mastery %,
+  report levels and grades, GPA, an IRT ability estimate…);
+- **pass/fail thresholds in 9 places**, so "Distinction" means ≥80, ≥85,
+  ≥90 or 27/30 depending on the screen;
+- exams and syllabus lessons that never reach the gradebook, mastery or
+  reports.
+
+The most serious faults:
+
+1. **No termly report can be ratified.** Ratify, moderate and
+   appeal-decide have no button or route, so families never see a report
+   and a parent's appeal can never be answered.
+2. **Performance marks from the new marking screen land in a field
+   nothing reads.** A second marker would overwrite the first.
+3. **Rubric edits orphan old marks.** Criteria are deleted and
+   re-inserted.
+4. **A "finalised" gradebook is rewritten on every recalculation.**
+   Certificates issue from provisional totals.
+5. **The old authoring paths skip lesson governance.** No version bump,
+   and new lessons are published by default.
+6. **Two assignment models, no late policy,** and students can mark
+   their own assignment complete.
+7. **Mastery bugs:**
+   - attendance leaks into mastery via the gradebook;
+   - one score across all courses feeds per-course reports;
+   - two of these were fixed 2026-11-28 (see §5).
+
+Target: one versioned catalogue (programme → course × level →
+**syllabus version** → unit → activity) and **one scoring pipeline**:
+
+> evidence (submission or sitting) → **mark** (per criterion, first or
+> second marker, draft → moderated → released; null = not assessed) →
+> **result** per enrolment per competency → **mastery** snapshot per
+> enrolment and term (coverage floor, band) → **termly report**
+> (moderation → appeals closed → board ratifies, through a real console
+> action) → **certificate** only from a ratified report or exam.
+
+Thresholds and pass rules live in one place:
+- one `band_scheme` table and one `pass_rule` per programme and kind
+  replace the nine thresholds;
+- one `can_assess()` check, which includes cover teachers.
+
+The academy's refusals stay:
+- no automatic scoring of a child's playing;
+- no rankings or percentiles;
+- AI may suggest marks for written work only, and a person confirms
+  them.
 
 ### 2.5 v2: corrected, not adopted as-is
 
@@ -167,7 +214,7 @@ and a version date, per the organisation's operating standard.
 | 5 | **Identity module onto the corrected model**, live data per `docs/live-data-migration-plan.md` (review queues for every ambiguous person) | 3–4 weeks |
 | 6 | **Teaching and guardianship**: `cohort_staff`, `mam_teaches()`, dated guardianships with age review | 2–3 weeks |
 | 7 | **Finance module** onto accounts, invoices, allocations and ledger | 4–6 weeks |
-| 8 | **Learning module** onto one scoring pipeline | after its audit |
+| 8 | **Learning module** onto one scoring pipeline: first wire ratification, moderation and appeals into the console, route marking-sheet marks into assessments, version rubrics | 4–6 weeks |
 | 9 | **Routes and the 137 admin actions into their modules**: one write path, deny-by-default everywhere | 2–3 weeks |
 | 10 | **Smart features**, top of §3 first, as their modules land | ongoing |
 
@@ -187,6 +234,11 @@ Each was verified against a local copy and is pinned by
 8. A billing-only guardian received the child's marks and attendance.
 9. Guardians could replay recordings of a child playing (`takes`), and any
    guardian could change consent.
+10. **Learning:** a perfect teach-back counted as 5% in the mastery score
+    (stored 0–5, divided by 100).
+11. **Learning:** a cohort rank and percentile were sent to students, to
+    guardians and to the printable report, against the academy's refusal
+    to rank children.
 
 Still open from the security review (medium and low):
 - child headshots are public and survive erasure;

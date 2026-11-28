@@ -175,7 +175,10 @@ function mam_mastery_components(int $studentId): array {
         foreach (['understanding', 'accuracy', 'vocabulary', 'explanation', 'application', 'confidence'] as $dim) {
             if ($t[$dim] === null || $t[$dim] === '') continue;
             $tbEarned += (float) $t[$dim];
-            $tbMax    += 100.0;   // the dimensions are recorded as percentages
+            // Each dimension is scored 0–5 (MAM_TEACHBACK_DIMENSIONS; the writer,
+            // mam_preclass_teachback_review(), clamps to that range). This used
+            // to divide by 100, so a perfect teach-back counted as 5%.
+            $tbMax    += 5.0;
         }
         $tbN++;
     }

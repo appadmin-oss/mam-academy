@@ -1,7 +1,7 @@
 <?php
 /**
  * GET /api/student/grades — the signed-in student's gradebook: 4.0-scale GPA,
- * per-term trend, cohort standing (percentile/rank), and the per-course results
+ * per-term trend, and the per-course results (no cohort rank — refusal 5)
  * table. Read-only; all aggregates come from api/modules/academics/lib/lms2.php.
  */
 declare(strict_types=1);
@@ -22,17 +22,9 @@ $results = mam_db_all(
     [$uid]
 );
 
+// No cohort rank or percentile is sent to a student: the academy refuses to
+// rank children against classmates (refusal 5). `percentiles` stays, empty.
 $percentiles = [];
-$cohorts = mam_db_all(
-    "SELECT DISTINCT co.id, co.title FROM course_enrollments ce
-       JOIN cohorts co ON co.id = ce.cohort_id
-      WHERE ce.student_id = ? AND ce.cohort_id IS NOT NULL",
-    [$uid]
-);
-foreach ($cohorts as $c) {
-    $p = mam_lms2_cohort_percentile($uid, (int) $c['id']);
-    if ($p['percentile'] !== null) $percentiles[] = ['cohort_title' => $c['title']] + $p;
-}
 
 mam_ok([
     'gpa'         => mam_lms2_student_gpa($uid),
